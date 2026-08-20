@@ -1372,8 +1372,22 @@ should not make its public workflow API describe one vendor's sandbox.
       permanent, since that is an operator's decision about their own fleet and one they may reverse
       before lunch.
 - [ ] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
-- [ ] External CI adapters can translate an existing provider's run into ReviewOS check runs without
+- [x] External CI adapters can translate an existing provider's run into ReviewOS check runs without
       pretending ReviewOS executed it
+
+      The translation was already possible: a check run carries `provider`, `external_id` and
+      `details_url`, so an adapter reports into the same table this instance's own runs report into
+      - one list, one rollup, one branch rule, which is the whole point of an adapter.
+
+      **What was missing was the second half of the sentence.** The panel dropped the provider, so
+      somebody else's build rendered exactly like a run this instance executed. That is a forge
+      claiming work it did not do, and it is also the first thing anybody needs when a check is
+      wrong: "where do I go and look" has no answer on a row that does not say. The name is on the
+      entry and on the screen now, dotted rather than solid so it reads as provenance and `Required`
+      keeps the emphasis a branch rule deserves.
+
+      Empty for a check this instance produced, rather than its own name: a badge on every row is a
+      badge nobody reads, and the distinction being drawn is "this came from somewhere else".
 - [x] A documented self-hosted runner installation and upgrade path, with compatibility negotiation
 
       [`docs/runner-protocol.md`](../runner-protocol.md). Four endpoints, HTTP and JSON, no SDK: a

@@ -845,6 +845,18 @@ const statePill = pullRequest
                       <div class="checks-entry-head">
                         <span class="run-dot run-{{ entry.tone }}" aria-hidden="true"></span>
                         <span class="checks-name">{{ entry.name }}</span>
+                        {{--
+                          Who ran it, when it was not this instance.
+
+                          An adapter's report and a run this instance executed
+                          are the same row otherwise, and a forge that renders
+                          somebody else's build as its own is claiming work it
+                          did not do. It is also the first thing anybody needs
+                          when a check is wrong: where to go and look.
+                        --}}
+                        @if (entry.provider)
+                          <span class="checks-badge checks-provider">{{ entry.provider }}</span>
+                        @endif
                         @if (entry.required)
                           <span class="checks-badge">Required</span>
                         @endif
@@ -1289,6 +1301,9 @@ const statePill = pullRequest
     border: 1px solid var(--line-strong);
     color: var(--muted);
   }
+  /* Dotted rather than solid, so "who ran this" reads as provenance and
+     "Required" keeps the emphasis a branch rule deserves. */
+  .checks-provider { border-style: dotted; }
   .checks-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 0 17px; }
   .checks-summary { font-size: 13px; margin: 5px 0 0 17px; overflow-x: auto; }
   .checks-summary > :first-child { margin-top: 0; }

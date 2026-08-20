@@ -23,6 +23,17 @@ export interface CheckEntry {
   name: string
   /** Where it came from, so a page can explain a disagreement. */
   source: 'status' | 'check_run'
+  /**
+   * The system that reported it, when it was not this one.
+   *
+   * Empty for a check this instance produced. It is on the entry because an
+   * external adapter's report and a run this instance executed look identical
+   * otherwise - and a forge that renders somebody else's build as its own is
+   * claiming work it did not do, which is the one thing an adapter must not
+   * make it do. It is also the first thing anybody needs when a check is wrong:
+   * where to go and look.
+   */
+  provider: string
   state: RollupState
   /** What the reader sees: `Passed`, `Running`, `Cancelled`, and so on. */
   label: string
@@ -164,6 +175,7 @@ export function entryFromRun(row: any, options: { required: Set<string>, headSha
   return {
     name: String(row.name ?? ''),
     source: 'check_run',
+    provider: row.provider ? String(row.provider) : '',
     state: fromCheckRun(row).state,
     // A stale report is never announced as a verdict on this commit, whatever
     // it concluded about the one it ran against.
@@ -188,6 +200,9 @@ export function entryFromStatus(row: any, required: Set<string>): CheckEntry {
 
   return {
     name: String(row.context ?? ''),
+    // A commit status carries its reporter in its context by convention rather
+    // than in a column, so there is nothing here to name separately.
+    provider: '',
     source: 'status',
     state: fromStatus(row).state,
     label,
@@ -214,6 +229,8 @@ export function entryForMissing(name: string): CheckEntry {
   return {
     name,
     source: 'check_run',
+    // Nothing reported it, so there is nobody to name.
+    provider: '',
     state: 'pending',
     label: 'Has never reported',
     tone: 'warn',
