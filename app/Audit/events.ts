@@ -116,6 +116,7 @@ export type AuditEventName =
   | 'workflow:variable-removed'
   | 'workflow:environment-configured'
   | 'workflow:environment-removed'
+  | 'workflow:repair-configured'
   /*
    * What was put where.
    *
@@ -206,6 +207,7 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'workflow:variable-removed',
   'workflow:environment-configured',
   'workflow:environment-removed',
+  'workflow:repair-configured',
   'deployment:recorded',
   'deployment:updated',
   'fleet:signatures-required',

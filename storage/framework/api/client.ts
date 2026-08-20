@@ -5497,6 +5497,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/repair-settings
+   */
+  postReposRepairSettings(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "enabled"?: boolean; "forbidden_paths"?: string; "steps"?: string; "max_attempts"?: number; "max_minutes"?: number; "max_cost"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "repair"?: { "enabled"?: boolean; "forbidden_paths"?: Array<string>; "steps"?: Array<string>; "max_attempts"?: number; "max_minutes"?: number; "max_cost"?: number }; "defaults"?: Record<string, unknown> }>> {
+    return request(config, "POST", "/api/repos/repair-settings", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/repos/search
    */
   getReposSearch(input: { "owner": string; "repository"?: string; "q": string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -15046,6 +15046,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/repair-settings": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: string; "enabled"?: boolean; "forbidden_paths"?: string; "steps"?: string; "max_attempts"?: number; "max_minutes"?: number; "max_cost"?: number } } }
+    responses: {
+      "200": { content: { "application/json": { "repair"?: { "enabled"?: boolean; "forbidden_paths"?: Array<string>; "steps"?: Array<string>; "max_attempts"?: number; "max_minutes"?: number; "max_cost"?: number }; "defaults"?: Record<string, unknown> } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/search": {
     get: {
     parameters: {

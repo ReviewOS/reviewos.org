@@ -986,6 +986,15 @@ route.post('/repos/workflow-runs/approve-fork', 'Actions/Workflow/ApproveForkRun
  * where a job deploys, and this says what that costs.
  */
 route.post('/repos/environments', 'Actions/Workflow/EnvironmentsAction').middleware('auth')
+/*
+ * What an automated repair may do here.
+ *
+ * Reading takes `repository:read` and writing takes `repository:settings`, the
+ * same split environments use: "what may an agent change" is a question anybody
+ * who can see the repository may ask, and "an agent may push branches here" is
+ * a decision an administrator makes.
+ */
+route.post('/repos/repair-settings', 'Actions/Workflow/RepairSettingsAction').middleware('auth')
 
 /*
  * Variables at four levels, and where each effective value came from.

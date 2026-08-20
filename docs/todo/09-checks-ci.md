@@ -1791,7 +1791,21 @@ failed evidence into success.
       be wrong is silently restoring fourteen defaults over the three patterns somebody deliberately
       narrowed to.
 
-      What remains for this box: the endpoint to write it, so this is configurable without SQL.
+      `POST /repos/repair-settings` reads and writes it. Reading takes `repository:read` and writing
+      takes `repository:settings` - the same split environments use, because "what may an agent
+      change here" is a question anybody who can see the repository may ask and "an agent may push
+      branches here" is a decision an administrator makes.
+
+      A write touches only what it named. Filling in every column from the client's defaults would
+      turn "raise the attempt limit" into "and also replace the forbidden list with whatever this
+      client happened to send", which is how a settings endpoint quietly undoes a decision somebody
+      made last month.
+
+      The answer is always the *effective* policy with the defaults beside it, because a reader who
+      cannot see the defaults cannot tell which of their settings is doing anything - and the most
+      useful thing this can tell somebody about to turn repair on is what they are already protected
+      by. A negative budget is refused rather than floored: zero already means "no ceiling" here, so
+      reading `-1` as unlimited is the wrong direction to guess in.
 - [ ] Tests: the agent cannot weaken a required check, access a deploy secret, push to the protected
       branch, approve itself, or continue past its budget
 

@@ -134,7 +134,9 @@ beforeAll(async () => {
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
     }).returning(['id']).executeTakeFirst()
 
-    for (const [scope, level] of [['checks', 'write'], ['contents', 'read'], ['actions', 'admin'], ['actions_logs', 'read']] as Array<[string, string]>)
+    // `administration: write` is what `repository:settings` asks for, which is
+    // what changing a repository's repair policy takes.
+    for (const [scope, level] of [['checks', 'write'], ['contents', 'read'], ['actions', 'admin'], ['actions_logs', 'read'], ['administration', 'write']] as Array<[string, string]>)
       await db.insertInto('access_token_permissions').values({ access_token_id: Number(tokenRow?.id), scope, level }).execute()
 
     created.token = secret.token
@@ -521,6 +523,99 @@ describe('what this repository\'s CI has been doing', () => {
     expect([401, 403, 404]).toContain(status)
 
     await db.updateTable('repositories').set({ visibility: 'public' } as any).where('id', '=', created.repositoryId).execute()
+  })
+})
+
+describe('what an automated repair may do here', () => {
+  const path = '/api/repos/repair-settings'
+
+  async function repair(body: Record<string, unknown>, token = created.token): Promise<{ status: number, body: any }> {
+    const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, ...body }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('reads as off, with the defaults said out loud', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await repair({})
+
+    expect(status).toBe(200)
+    expect(body.repair.enabled).toBe(false)
+
+    /*
+     * The defaults beside the effective policy, because a reader who cannot see
+     * them cannot tell which of their settings is doing anything - and the most
+     * useful thing this says to somebody about to turn repair on is what they
+     * are already protected by.
+     */
+    expect(body.defaults.forbidden_paths).toContain('.github/workflows/**')
+    expect(body.repair.forbidden_paths).toEqual(body.defaults.forbidden_paths)
+  })
+
+  test('and a change touches only what was named', async () => {
+    if (!available)
+      return
+
+    const { body } = await repair({ operation: 'update', enabled: true, max_attempts: 4 })
+
+    expect(body.repair.enabled).toBe(true)
+    expect(body.repair.max_attempts).toBe(4)
+
+    /*
+     * A write that filled in every column from its defaults would turn "raise
+     * the attempt limit" into "and also replace the forbidden list with
+     * whatever this client happened to send", which is how a settings endpoint
+     * quietly undoes a decision somebody made last month.
+     */
+    expect(body.repair.forbidden_paths).toEqual(body.defaults.forbidden_paths)
+    expect(body.repair.max_minutes).toBe(body.defaults.max_minutes)
+  })
+
+  test('a list somebody writes replaces the defaults', async () => {
+    if (!available)
+      return
+
+    const { body } = await repair({ operation: 'update', forbidden_paths: 'src/generated/**\ndocs/**' })
+
+    expect(body.repair.forbidden_paths).toEqual(['src/generated/**', 'docs/**'])
+    // And what they set before is still set: this named one field.
+    expect(body.repair.enabled).toBe(true)
+  })
+
+  test('a negative budget is refused rather than read as no ceiling', async () => {
+    if (!available)
+      return
+
+    // Zero already means "no ceiling" here, so quietly turning -1 into
+    // unlimited is the wrong direction to guess in.
+    const { status, body } = await repair({ operation: 'update', max_attempts: -1 })
+
+    expect(status).toBe(422)
+    expect(String(body.error)).toContain('zero or more')
+  })
+
+  test('and reading is not writing: a stranger may not turn repair on', async () => {
+    if (!available)
+      return
+
+    /*
+     * "What may an agent change here" is a question anybody who can see the
+     * repository may ask. "An agent may push branches to this repository" is a
+     * decision an administrator makes.
+     */
+    const { status } = await repair({ operation: 'update', enabled: false }, 'not-a-real-token')
+
+    expect([401, 403, 404]).toContain(status)
   })
 })
 
