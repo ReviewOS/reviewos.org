@@ -1579,6 +1579,20 @@ gate, in order.
 - [ ] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
       poisoning, artifact handling, fork policy, and cancellation behavior before a public runner
       executes one command
+
+      **The audit is written; the sign-off is not, and cannot be by the person who wrote the code.**
+      [`docs/ci-security-review.md`](../ci-security-review.md) is a pass over all eight surfaces:
+      what each boundary is, the paths that enforce it, the tests that fail if it stops being true,
+      and what a reviewer should attack rather than rediscover. It exists so the review this box
+      waits on starts from a map.
+
+      It also scores the threat model's own gate - the eight adversarial tests - as four met, one
+      partial and three not. All three that are not met are the execution plane, which is the
+      ordering the threat model set.
+
+      The box stays open deliberately. Every surface in that document is code written in this phase,
+      and a review of your own work signed off by yourself is the box being ticked by the person it
+      exists to check.
 - [ ] Adversarial tests: fork secret theft, cache poisoning, symlink escape, oversized logs and
       artifacts, process escape, internal-network access, job credential replay, and cancellation
 

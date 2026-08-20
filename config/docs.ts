@@ -131,6 +131,7 @@ const config: BunPressOptions = {
             { text: 'Runner protocol', link: '/runner-protocol' },
             { text: 'Self-hosting', link: '/self-hosting' },
             { text: 'CI threat model', link: '/ci-threat-model' },
+            { text: 'CI security review', link: '/ci-security-review' },
             { text: 'Security review', link: '/security-review-2026-08' },
             { text: 'Workflow extensions', link: '/extensions' },
             { text: 'Actions conformance', link: '/conformance' },
