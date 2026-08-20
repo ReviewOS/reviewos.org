@@ -296,6 +296,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/auth/atproto
+   */
+  postAuthAtproto(input: { body: { "identifier": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/atproto", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/auth/atproto/callback
+   */
+  getAuthAtprotoCallback(input?: { "state"?: string; "code"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/atproto/callback", input ?? {}, ["state", "code"], false, options)
+  },
+
+  /**
    * POST /api/auth/login
    */
   postAuthLogin(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -6684,6 +6698,13 @@ export function createClient(config: ClientConfig) {
    */
   getWebsocketsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/websockets/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /atproto/client-metadata.json
+   */
+  getAtprotoClientMetadataJson(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/atproto/client-metadata.json", {}, [], false, options)
   },
 
   /**

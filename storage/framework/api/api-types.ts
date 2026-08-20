@@ -651,6 +651,52 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/auth/atproto": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "identifier": string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/auth/atproto/callback": {
+    get: {
+    parameters: {
+      query?: { "state"?: string; "code"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/auth/login": {
     get?: never
     put?: never
@@ -18609,6 +18655,29 @@ export interface paths {
     requestBody?: never
     responses: {
       "200": { content: { "application/json": { "data": { "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/atproto/client-metadata.json": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
       "500": { content: never }
     }

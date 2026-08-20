@@ -1301,6 +1301,94 @@
         }
       }
     },
+    "/api/auth/atproto": {
+      "post": {
+        "summary": "/api/auth/atproto",
+        "operationId": "post__api_auth_atproto",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "maxLength": 253
+                  }
+                },
+                "required": [
+                  "identifier"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/atproto/callback": {
+      "get": {
+        "summary": "/api/auth/atproto/callback",
+        "operationId": "get__api_auth_atproto_callback",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "summary": "/api/auth/login",
@@ -55364,6 +55452,31 @@
                   "required": [
                     "data"
                   ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/atproto/client-metadata.json": {
+      "get": {
+        "summary": "/atproto/client-metadata.json",
+        "operationId": "get__atproto_client_metadata_json",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }

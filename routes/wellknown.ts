@@ -22,3 +22,15 @@ route.get('/.well-known/openid-configuration', 'Actions/Api/OpenIdConfigurationA
  * statement for the other.
  */
 route.get('/.well-known/reviewos-step-keys.json', 'Actions/Api/StepKeysAction')
+
+/**
+ * The AT Protocol OAuth client metadata, which is also this instance's client
+ * identity.
+ *
+ * Not under `.well-known` because the specification does not put it there: the
+ * client id *is* the URL of this document, so it lives at a stable path of the
+ * instance's choosing and an authorization server fetches it to learn what the
+ * client claims. Public and secretless - a name, a redirect, and the one scope
+ * this instance asks for.
+ */
+route.get('/atproto/client-metadata.json', 'Actions/Atproto/ClientMetadataAction')

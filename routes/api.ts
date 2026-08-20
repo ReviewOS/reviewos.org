@@ -383,6 +383,21 @@ route.post('/user/forge-credentials', 'Actions/Mirror/ForgeCredentialAction').mi
  */
 route.post('/user/atproto', 'Actions/Atproto/AtprotoLinkAction').middleware('auth').middleware('throttle:20,5m')
 
+/*
+ * The signature step: an authorization at the person's own server.
+ *
+ * `POST /auth/atproto` starts it - resolve the identity, discover its
+ * authorization server *from the identity*, push the request, and hand back a
+ * URL. The callback checks that the account the server names is the account the
+ * flow started as, which is the check the whole exchange exists for.
+ *
+ * Unauthenticated on purpose: this is how somebody signs in. Throttled harder
+ * than the linking endpoint because each call resolves a handle and talks to
+ * two of somebody else's servers.
+ */
+route.post('/auth/atproto', 'Actions/Atproto/AtprotoSignInAction').middleware('throttle:10,5m')
+route.get('/auth/atproto/callback', 'Actions/Atproto/AtprotoCallbackAction').middleware('throttle:20,5m')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')

@@ -14575,10 +14575,148 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "atproto_auth_requests",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "state",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
+            "name": "did",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "handle",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 253
+          },
+          {
+            "name": "issuer",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "token_endpoint",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "verifier",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "sealed_key",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "nonce",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "expires_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "atproto_auth_requests_state_index",
+            "columns": [
+              "state"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "atproto_auth_requests_expiry_index",
+            "columns": [
+              "expires_at"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "cb8ba3f1f05e781638ccc990dadb18f5ced03fcba75f56d646dd3da06158e2a0",
+  "hash": "e3b746fe41e9b8856c566236fb6634362206d656ea2890942937e8d14d228e9c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-20T01:10:04.889Z"
+  "updatedAt": "2026-08-20T01:22:21.261Z"
 }
