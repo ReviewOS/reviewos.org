@@ -1190,18 +1190,23 @@ whole before the loop comes back round.
       expression. Compiling it at construction is what put both optimisations in the path that
       actually runs.
 
-      | language | at the start of this work | now |
-      |---|---|---|
-      | css | 5.1 MB/s | **14.2 MB/s** |
-      | rust | 5.7 MB/s | **14.3 MB/s** |
-      | python | 18.5 MB/s | **33.9 MB/s** |
-      | typescript | 61.3 MB/s | 60.1 MB/s |
-      | javascript | 50.0 MB/s | 47.8 MB/s |
+      Profiling again found the last of it, in the analysis rather than the tokenizer: the guard that
+      refuses a quantified opening asked `'*?+{'.includes(next ?? '')`, and **`includes('')` is
+      true**. So every one-character pattern - `"` and `'`, the opening of every string rule in every
+      grammar - read as quantified, answered unknown, and went into all 256 buckets. A megabyte of
+      CSS containing no strings ran the string rule 22,000 times to match nothing.
 
-      TypeScript and JavaScript are flat, and that is the honest reading: they were never paying the
-      cost, because their bytes are identifiers and whitespace that the character fast paths catch
-      before the pattern loop. Every gain here is in the grammars that fall through to it.
-      `ts-syntax-highlighter@3392151`.
+      | language | at the start | now | patterns tried per character |
+      |---|---|---|---|
+      | css | 5.1 MB/s | **20.9 MB/s** | 11.0 to 0.4 |
+      | rust | 5.7 MB/s | **23.3 MB/s** | 9.0 to 0.6 |
+      | python | 18.5 MB/s | **55.8 MB/s** | 7.0 to 0.4 |
+      | typescript | 61.3 MB/s | **66.6 MB/s** | 10.0 to 2.5 |
+      | javascript | 50.0 MB/s | **58.3 MB/s** | - |
+      | json | 17.2 MB/s | **21.9 MB/s** | - |
+
+      Four times on CSS and Rust, three on Python, and nothing regressed. 944 tests pass throughout,
+      so the colours are unchanged. `ts-syntax-highlighter@fb14a64`.
 - [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
       lines between hunks and between the two sides of a split view constantly.
 
