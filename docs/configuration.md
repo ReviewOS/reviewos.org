@@ -765,6 +765,49 @@ is pushing, and is the whole difference when four teams push at once. Set
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_REPAIR_MODEL`
+
+Default: `claude-opus-5`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_EFFORT`
+
+Default: `high`, and the line is commented out.
+
+How hard it thinks. `high` by default rather than `xhigh`, because a repair is
+reviewed by a person before it lands and the marginal quality is not obviously
+worth the marginal spend on somebody else's bill.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_MAX_TOKENS`
+
+Default: `16000`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_LOG_LINES`
+
+Default: `200`, and the line is commented out.
+
+How much of the failing log the model sees, from the tail - which is where a
+failure's cause is. Bounded because a log is attacker-controlled in the
+ordinary case: it is whatever the repository's own test suite printed, and an
+unbounded one is both a bill and a prompt somebody else wrote.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_MAX_FILES`
+
+Default: `10`, and the line is commented out.
+
+The most files one repair may change. A blast radius limit rather than a cost
+one: a repair touching forty files is a refactor nobody asked for, and the
+reviewer who has to read it is who this protects.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ### `CI_STEP_MEMORY_MB`
 
 Default: `4096`, and the line is commented out.
@@ -803,6 +846,26 @@ Read by `app/Actions/Runner/limits.ts`.
 Default: `3600`, and the line is commented out.
 
 Read by `app/Actions/Runner/limits.ts`.
+
+## Anthropic
+
+### `ANTHROPIC_API_KEY`
+
+Default: unset.
+
+What an automated repair runs on.
+
+Two switches, and neither implies the other. `repair_settings.enabled` is a
+repository saying an agent may push branches there; the key below is the
+operator saying this instance can call a model at all. With no key, repair is
+refused with a reason somebody can read from the repository - not left as
+attempts that fail silently.
+
+Whoever pays for the tokens picks the model, which is why it is named here
+rather than per repository. What a repository controls is how much may be
+spent on it, and that is already `max_attempts` and `max_cost`.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Screenshots
 
