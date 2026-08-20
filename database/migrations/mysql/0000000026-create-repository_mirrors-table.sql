@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `repository_mirrors` (
   `interval_seconds` integer default 900,
   `enabled` tinyint(1) default 1,
   `allow_local_pushes` tinyint(1) default 0,
+  `write_through` tinyint(1) default 0,
   `last_synced_at` varchar(255),
   `last_sha` varchar(64),
   `last_error` text,

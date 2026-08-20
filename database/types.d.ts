@@ -2119,6 +2119,26 @@ declare module '@stacksjs/database' {
       isPrerelease: boolean
       publishedAt: string
     }
+    repair_settings: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      enabled: boolean
+      forbidden_paths: string
+      steps: string
+      max_attempts: number
+      max_minutes: number
+      max_cost: number
+      createdAt: string
+      updatedAt: string | null
+      repositoryId: number
+      forbiddenPaths: string
+      maxAttempts: number
+      maxMinutes: number
+      maxCost: number
+    }
     repo_collaborators: {
       // columns
       id: number

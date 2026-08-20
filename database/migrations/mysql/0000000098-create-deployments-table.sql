@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `deployments` (
   `state` ENUM('in_progress', 'active', 'failed', 'inactive') default 'in_progress',
   `stages` varchar(500),
   `stage_index` integer default 0,
-  `stage_held` boolean default false,
+  `stage_held` tinyint(1) default 0,
   `reason` varchar(500),
   `created_by_id` integer,
   `finished_at` varchar(255),

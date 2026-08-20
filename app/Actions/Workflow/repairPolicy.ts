@@ -22,12 +22,16 @@
  *
  * ## Where this sits
  *
- * Pure, and separate from anything that runs an agent, for the reason
- * `reusePlan` and `rerunPlan` are: this is the decision people will argue about,
+ * The decisions are pure and separate from anything that runs an agent, for the
+ * reason `reusePlan` and `rerunPlan` are: this is the decision people will argue about,
  * and an argument settled by reading a test is shorter than one settled by
- * inspecting a merged pull request. Nothing here talks to a model, a runner, or
- * a repository.
+ * inspecting a merged pull request. Nothing that decides talks to a model or a
+ * runner; `repairPolicyFor` at the bottom is the one function that reads a row,
+ * and it only assembles what the decisions are then given.
  */
+
+import { db } from '@stacksjs/database'
+import { isTrue } from '../Support/sql'
 
 /** What a repository allows an automated repair to touch. */
 export interface RepairPolicy {
@@ -232,4 +236,66 @@ export function matchesPath(pattern: string, path: string): boolean {
     .join('.*')
 
   return new RegExp(`^${expression}$`).test(cleaned)
+}
+
+/**
+ * One repository's policy, as a row overrides the defaults.
+ *
+ * Field by field rather than "a row or the defaults", and the difference
+ * matters: a repository that turned repair on and said nothing else still gets
+ * the forbidden list somebody would write after the first incident, and a
+ * default added next year protects every repository already configured rather
+ * than only the ones set up after it shipped.
+ *
+ * No row means off, which is the answer for every repository nobody has been
+ * asked about.
+ */
+export async function repairPolicyFor(repositoryId: number): Promise<RepairPolicy> {
+  const defaults = defaultRepairPolicy()
+
+  const row: any = await db
+    .selectFrom('repair_settings')
+    .select(['enabled', 'forbidden_paths', 'steps', 'max_attempts', 'max_minutes', 'max_cost'])
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!row)
+    return defaults
+
+  const forbidden = lines(row.forbidden_paths)
+
+  return {
+    enabled: isTrue(row.enabled),
+    /*
+     * A repository's list *replaces* the defaults rather than adding to them,
+     * and an empty column keeps them.
+     *
+     * Replacing is what an operator writing a list means, and keeping the
+     * defaults for an empty one is what an operator who never wrote a list
+     * means. The reading that would be wrong is treating "I wrote three
+     * patterns" as "and also drop the fourteen you had" only when the fourteen
+     * were the ones protecting the tests.
+     */
+    forbiddenPaths: forbidden.length > 0 ? forbidden : defaults.forbiddenPaths,
+    steps: lines(row.steps),
+    maxAttempts: whole(row.max_attempts, defaults.maxAttempts),
+    maxMinutes: whole(row.max_minutes, defaults.maxMinutes),
+    maxCost: whole(row.max_cost, defaults.maxCost),
+  }
+}
+
+/** A newline or comma separated column, as the list it was written as. */
+function lines(value: unknown): string[] {
+  return String(value ?? '')
+    .split(/[\n,]/)
+    .map(one => one.trim())
+    .filter(Boolean)
+}
+
+/** A stored number, or the default when the column holds nothing readable. */
+function whole(value: unknown, fallback: number): number {
+  const raw = Number(value)
+
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : fallback
 }

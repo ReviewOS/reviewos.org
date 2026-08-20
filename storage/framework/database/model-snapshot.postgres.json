@@ -14740,10 +14740,114 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "repair_settings",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "forbidden_paths",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "steps",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "max_attempts",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 2
+          },
+          {
+            "name": "max_minutes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 20
+          },
+          {
+            "name": "max_cost",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "repair_settings_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "702ca256a0c951e260d9b6a7c23980c1f2538a460c90152c887cdd7f3efb6cfb",
+  "hash": "965c14f25649a87a0f70e6a3d28567f55601e0974d9cd81176719b58d2ec6a5c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-20T02:26:13.021Z"
+  "updatedAt": "2026-08-20T05:07:17.692Z"
 }

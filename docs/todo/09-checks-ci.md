@@ -1776,8 +1776,22 @@ failed evidence into success.
       turn it off - a rule an operator can disable is one that gets disabled during the incident it
       exists for.
 
-      What remains for this box: a column or table so a repository can set its own, and the endpoint
-      to write it.
+      **Stored per repository now.** `repair_settings` is a row per repository and its absence is the
+      answer for every repository nobody has configured - which is why it is a table rather than a
+      `repair_enabled` column that would be false four thousand times to say something nobody has
+      decided.
+
+      A row overrides the defaults **field by field**, so a repository that turned repair on and said
+      nothing else still gets the forbidden list somebody would write after the first incident, and a
+      default added next year protects every repository already configured rather than only the ones
+      set up after it shipped.
+
+      A list somebody wrote replaces the defaults; an empty column keeps them. Replacing is what
+      writing a list means, and keeping them is what never writing one means - the reading that would
+      be wrong is silently restoring fourteen defaults over the three patterns somebody deliberately
+      narrowed to.
+
+      What remains for this box: the endpoint to write it, so this is configurable without SQL.
 - [ ] Tests: the agent cannot weaken a required check, access a deploy secret, push to the protected
       branch, approve itself, or continue past its budget
 
