@@ -776,8 +776,25 @@ applied there.
       and a debug panel can tell "still working" from "idle"
 - [x] **The server-side path stays.** Every row the browser receives is already coloured; the pool
       moved the tokenizing off the *server's* event loop rather than onto the client's.
-- [ ] Lazy theme resolution, cached, with the set attached to the shared highlighter only once.
+- [x] Lazy theme resolution, cached, with the set attached to the shared highlighter only once.
       Lazy *language* resolution landed with the grammar catalog; themes have not.
+
+      **Done, and the languages were not as lazy as this box believed.** The catalogue exists, but
+      `Highlighter` was not using it: constructing one walked all forty-eight grammars *and* every
+      theme, writing each under its id and each alias into per-instance maps. A worker highlighting
+      TypeScript loaded Fortran to do it.
+
+      The lookups already fell back to the catalogue, so the maps now hold only what a plugin
+      registers - which is the difference between an instance and the defaults, and what makes
+      `loadTheme` and `loadPlugin` mean something rather than repeat what was already there. A theme
+      name resolves once and is remembered until `loadTheme` clears it, and the `Renderer` that
+      holds a theme's colour lookup is built once per theme rather than once per `highlight` call.
+
+      Measured on 300 highlights of a 60-line file: construction 0.009ms to 0.002ms, a highlight
+      0.386ms to 0.324ms. `getSupportedLanguages` and `getSupportedThemes` read the catalogue as
+      well as the map, so both still report 48 and 3; 944 library tests pass.
+
+      Released from `ts-syntax-highlighter@36b7b7c`.
 - [ ] Priming the first screen does not apply while the server renders the rows: the first screen
       arrives coloured. It becomes real if the public front door ever renders somebody else's diff in
       a browser.
