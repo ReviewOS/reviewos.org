@@ -133,4 +133,5 @@ export default {
   'db:keyspaces': 'DbKeyspaces',
   'db:backfill-shard-key': 'DbBackfillShardKey',
   'search:index': 'SearchIndex',
+  'screenshot': 'Screenshot',
 } satisfies CommandRegistry
