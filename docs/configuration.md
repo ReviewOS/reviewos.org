@@ -938,6 +938,196 @@ spent on it, and that is already `max_attempts` and `max_cost`.
 
 Read by `app/Actions/Workflow/repairModelChild.ts`.
 
+## ReviewOS
+
+### `REVIEWOS_EXECUTION`
+
+Default: `microvm`, and the line is commented out.
+
+How this runner executes a job.
+
+`host` is the default and is what a runner told nothing has always done: steps
+run as ordinary processes, and an untrusted run - a fork's pull request - is
+refused, because a host runner is not a boundary.
+
+`microvm` is a claim about the machine this runner is on: that it has KVM, a
+hypervisor, a kernel and an image. None of that can usefully be guessed, so it
+is asked for explicitly - and when a piece is missing the runner fails the job
+rather than running it somewhere weaker. A runner that quietly fell back to the
+host would be claiming an isolation it does not have.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_FIRECRACKER`
+
+Default: `/usr/local/bin/firecracker`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_GUEST_KERNEL`
+
+Default: `/var/lib/reviewos/vmlinux`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_GUEST_IMAGE`
+
+Default: `/var/lib/reviewos/base.ext4`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_GUEST_IMAGE_DIGEST`
+
+Default: `sha256:...`, and the line is commented out.
+
+Required, and about honesty rather than booting: a machine boots perfectly well
+from an image nobody named, and what it cannot then do is tell the run what
+executed it.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_SCRATCH`
+
+Default: `/var/lib/reviewos/microvm`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_VCPUS`
+
+Default: `2`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_MEMORY_MIB`
+
+Default: `2048`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_DISK_MIB`
+
+Default: `2048`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_HOST_IP`
+
+Default: `172.20.0.1`, and the line is commented out.
+
+The two ends of the tap link - a /30, because it has exactly two things on it
+and a wider one is addresses a guest could try to reach.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_MICROVM_GUEST_IP`
+
+Default: `172.20.0.2`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_EGRESS_ALLOW`
+
+Default: `registry.npmjs.org:443,proxy.golang.org:443`, and the line is commented out.
+
+What a job may connect to, comma separated, as `host` or `host:port`. Empty is
+the default and means nothing at all: usable for a great many workflows and
+genuinely unusable for the ones that install dependencies. Some destinations
+are refused however they are written - the cloud metadata endpoint, loopback,
+and the instance's own addresses below.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_INSTANCE_ADDRESSES`
+
+Default: `10.0.0.5,10.0.0.6`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `REVIEWOS_ACTOR_ID`
+
+Default: unset.
+
+Read by `app/Actions/Git/hooks.ts`.
+
+### `REVIEWOS_RUNNER_TOKEN`
+
+Default: unset.
+
+The credential the local runner authenticates with.
+
+Only for single-tenant installs running `buddy runner:local`, which executes
+this instance's jobs on this host with no isolation - steps run as the user
+who started it. Make one with `buddy runner:local --register`, which prints it
+once. Nothing runs unless somebody starts the runner, so leaving this unset is
+the same as having no execution plane, which is the default this instance
+ships with.
+
+Read by `app/Actions/Runner/standalone.ts`, `app/Commands/RunnerLocal.ts`.
+
+### `REVIEWOS_ACTION_STORE`
+
+Default: `storage/actions`, and the line is commented out.
+
+Where mirrored actions are kept.
+
+`storage/actions` by default. The mirrors of a busy instance are the one part
+of `storage/` that grows without anybody adding anything, so this exists to
+put them on a disk with room. Nothing is mirrored at all until the action
+policy allows a host, which it does not by default.
+
+Read by `app/Actions/Actions/store.ts`.
+
+### `REVIEWOS_SECRET_STORES`
+
+Default: `/etc/reviewos/secret-stores.json`, and the line is commented out.
+
+Where the external secret stores are described.
+
+A JSON file naming the stores a secret may reference - a directory your
+platform mounted, or a Vault address and the file its token is in:
+
+  { "mounted": { "kind": "file", "address": "/run/secrets" },
+    "prod": { "kind": "vault", "address": "https://vault.internal",
+              "tokenFile": "/run/secrets/vault-token" } }
+
+A secret set with a `reference` rather than a `value` is read from one of
+these when a job claims work, so this instance holds a path rather than a
+credential. Unset means no stores, and a reference to one fails the job that
+needed it by name. The stores are named here, by whoever runs the instance,
+because a reference a repository could point at any URL would be a request
+this server makes from inside your network on somebody else's say-so.
+
+Read by `app/Actions/Workflow/secretStore.ts`.
+
+### `REVIEWOS_CACHE_MAX_BYTES`
+
+Default: `10737418240`, and the line is commented out.
+
+How much of the dependency cache one repository may keep.
+
+Ten gigabytes by default: a few snapshots of a large repository and many of an
+ordinary one. Past it, the least recently *restored* snapshots go first - an
+entry a hundred runs a day reach for should outlive one written this morning
+and never read again, and age from the write gets that backwards.
+
+`buddy ci:caches` prints what the next sweep would remove before it removes
+anything, through the same function the sweep uses.
+
+Read by `app/Actions/Workflow/cacheCollect.ts`.
+
+### `REVIEWOS_CACHE_MAX_IDLE_DAYS`
+
+Default: `7`, and the line is commented out.
+
+How long a dependency snapshot nobody restores is kept.
+
+Seven days by default: long enough that a branch somebody returns to on Monday
+still has its cache, short enough that a fork's entry from a merged pull
+request does not sit there for a quarter. Applied before the size limit above,
+because idle is its own rule rather than a tiebreak.
+
+Read by `app/Actions/Workflow/cacheCollect.ts`.
+
 ## Screenshots
 
 ### `SCREENSHOT_URL`
@@ -1275,93 +1465,6 @@ Where imports clone from. Only ever changed by the tests, which point it at a
 local repository so a suite does not depend on being able to reach github.com.
 
 Read by `app/Jobs/ImportRepositoryJob.ts`.
-
-## ReviewOS
-
-### `REVIEWOS_ACTOR_ID`
-
-Default: unset.
-
-Read by `app/Actions/Git/hooks.ts`.
-
-### `REVIEWOS_RUNNER_TOKEN`
-
-Default: unset.
-
-The credential the local runner authenticates with.
-
-Only for single-tenant installs running `buddy runner:local`, which executes
-this instance's jobs on this host with no isolation - steps run as the user
-who started it. Make one with `buddy runner:local --register`, which prints it
-once. Nothing runs unless somebody starts the runner, so leaving this unset is
-the same as having no execution plane, which is the default this instance
-ships with.
-
-Read by `app/Actions/Runner/standalone.ts`, `app/Commands/RunnerLocal.ts`.
-
-### `REVIEWOS_ACTION_STORE`
-
-Default: `storage/actions`, and the line is commented out.
-
-Where mirrored actions are kept.
-
-`storage/actions` by default. The mirrors of a busy instance are the one part
-of `storage/` that grows without anybody adding anything, so this exists to
-put them on a disk with room. Nothing is mirrored at all until the action
-policy allows a host, which it does not by default.
-
-Read by `app/Actions/Actions/store.ts`.
-
-### `REVIEWOS_SECRET_STORES`
-
-Default: `/etc/reviewos/secret-stores.json`, and the line is commented out.
-
-Where the external secret stores are described.
-
-A JSON file naming the stores a secret may reference - a directory your
-platform mounted, or a Vault address and the file its token is in:
-
-  { "mounted": { "kind": "file", "address": "/run/secrets" },
-    "prod": { "kind": "vault", "address": "https://vault.internal",
-              "tokenFile": "/run/secrets/vault-token" } }
-
-A secret set with a `reference` rather than a `value` is read from one of
-these when a job claims work, so this instance holds a path rather than a
-credential. Unset means no stores, and a reference to one fails the job that
-needed it by name. The stores are named here, by whoever runs the instance,
-because a reference a repository could point at any URL would be a request
-this server makes from inside your network on somebody else's say-so.
-
-Read by `app/Actions/Workflow/secretStore.ts`.
-
-### `REVIEWOS_CACHE_MAX_BYTES`
-
-Default: `10737418240`, and the line is commented out.
-
-How much of the dependency cache one repository may keep.
-
-Ten gigabytes by default: a few snapshots of a large repository and many of an
-ordinary one. Past it, the least recently *restored* snapshots go first - an
-entry a hundred runs a day reach for should outlive one written this morning
-and never read again, and age from the write gets that backwards.
-
-`buddy ci:caches` prints what the next sweep would remove before it removes
-anything, through the same function the sweep uses.
-
-Read by `app/Actions/Workflow/cacheCollect.ts`.
-
-### `REVIEWOS_CACHE_MAX_IDLE_DAYS`
-
-Default: `7`, and the line is commented out.
-
-How long a dependency snapshot nobody restores is kept.
-
-Seven days by default: long enough that a branch somebody returns to on Monday
-still has its cache, short enough that a fork's entry from a merged pull
-request does not sit there for a quarter. Applied before the size limit above,
-because idle is its own rule rather than a tiebreak.
-
-Read by `app/Actions/Workflow/cacheCollect.ts`.
 
 ## Set by git, not by you
 

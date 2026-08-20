@@ -50,6 +50,7 @@ import { interpolate, shouldRun } from '../Workflow/expression'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
+import { executionMode } from '../../../config/ci-execution'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -293,6 +294,43 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   const jobToken = String(job.token ?? '')
 
   /*
+   * A runner told to isolate takes the whole job somewhere else.
+   *
+   * Everything below this branch - the workspace, the toolchain, the plugins,
+   * the step loop - is machinery for running somebody's code as a process on
+   * this machine, and a microVM exists so that does not happen. So the job
+   * leaves here rather than threading a flag through four thousand lines that
+   * were written on the opposite assumption.
+   *
+   * Opt-in, and it refuses rather than falling back: a runner that quietly ran
+   * the job on the host when it could not boot a machine would be a runner that
+   * claims an isolation it does not have, which is the failure the security
+   * review calls the one that gets somebody hurt.
+   */
+  if (executionMode() === 'microvm') {
+    const { runJobInMachine } = await import('./microvmRun')
+
+    let sequence = 1
+
+    const outcome = await runJobInMachine({
+      job,
+      onOutput: async (text, stream) => {
+        await append(options.baseUrl, jobToken, sequence, text, stream)
+        sequence += 1
+      },
+    })
+
+    if (outcome.reason)
+      await append(options.baseUrl, jobToken, sequence, `${outcome.reason}\n`, 'stderr')
+
+    say(`job ${job.id} ran in a machine: ${outcome.state}`)
+
+    await report(options.baseUrl, jobToken, outcome.state, outcome.reason, undefined, outcome.exitStatus)
+
+    return { jobId: Number(job.id), state: outcome.state, reason: outcome.reason }
+  }
+
+  /*
    * A fork's pull request is refused here, not filtered at the claim.
    *
    * The claim endpoint hands out work by labels and scope; deciding what a
@@ -300,6 +338,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * saying no loudly is better than never asking. Reported as failed rather
    * than dropped, so the run reaches a terminal state instead of holding a
    * pull request's checks open forever.
+   *
+   * Above rather than below the branch above, deliberately: an isolated runner
+   * is exactly what this refusal says the work needs, so a microVM runner does
+   * not inherit it.
    */
   if (!isNotFalse(job.run?.trusted)) {
     const reason = 'The local runner does not execute untrusted runs. A fork\'s pull request needs an isolated runner.'

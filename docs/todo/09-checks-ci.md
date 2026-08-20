@@ -1482,8 +1482,15 @@ gate, in order.
       repository storage, no docker socket, no runner directory. There is nothing to escape *to*
       through the filesystem, which removes the class rather than guarding against it.
 
-      Open because none of it has booted. A configuration that says `is_read_only` is not a read-only
-      disk until a hypervisor has read it.
+      **It boots, and a job now routes through it.** `REVIEWOS_EXECUTION=microvm` sends a claimed job
+      to `microvmRun.ts` instead of the workspace and the step loop, and it has been verified against
+      real Firecracker on real KVM: a job carrying `trusted: false` - the case the host path refuses
+      outright - ran its steps in a machine with a read-only image, and nothing was left behind.
+
+      Still open for one reason, and it is not a detail: **no source reaches the guest.** The steps do;
+      a checkout does not. A mode that cannot give a job its repository cannot run anybody's CI, so
+      ticking a line about a read-only source checkout for it would describe a product nobody can use.
+      That is the next thing the payload disk carries.
 - [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
       access to instance-local services is not isolated.
 
@@ -1501,8 +1508,19 @@ gate, in order.
       rebinding - a hostname allowlist enforced on names alone lets the guest resolve whatever it
       likes.
 
-      Open because no packet has been filtered. This is the rule; the enforcement is a tap device and
-      a filter in phase B.
+      **Packets are filtered now.** The rules become an nftables ruleset applied before the machine
+      boots - never after, because a guest that boots into an unfiltered network has had a moment of
+      unfiltered network. Verified with controls in both directions: with the policy flushed a guest
+      reached a fake metadata endpoint and read its payload, and with it applied it could not; an
+      allowlisted registry stayed reachable throughout, which is what says this is a policy rather
+      than a blanket deny.
+
+      Two chains, because two hooks: a packet addressed to the runner *itself* is seen by `input` and
+      never reaches `forward`, so a forward-only ruleset left every service on the supervising host
+      reachable from the guest. Found by running it.
+
+      Still open for the same reason as the box above - a policy protecting a mode that cannot check
+      out a repository is not yet protecting anybody's CI.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 
       **Output and wall time are done; CPU, file size and processes are available; memory and disk

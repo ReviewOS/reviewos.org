@@ -225,18 +225,44 @@ the machine rather than asking it to stop.
    every header carried a trailing `\r` and stopped being a header. Fixed in the guest, which turns
    the translation off before writing, and tolerated in the host parser as well.
 
-## What is still not verified
+## Wired in
 
-- **It is not wired into the runner.** `localExecutor.ts` still claims jobs and runs their steps as
-  host processes; nothing yet routes a claimed job to `superviseJob`. The supervisor is a component
-  with an end-to-end test, not a mode the product can be put into - so the roadmap's boxes stay open.
-- **No source reaches the guest.** The steps do; a checkout does not. A real job needs its repository,
-  and that is the next thing the payload disk carries.
-- **No image build pipeline.** The image used was assembled by hand, and requirements it must satisfy -
-  an agent at a known path, a `/work` mount point - are written here rather than enforced anywhere.
-- **Secrets have not been designed into this at all.** A job's secrets currently reach a step through
-  its environment on the host. What that becomes when the step runs in another machine is an open
-  question, and putting them on the payload disk is the obvious answer and probably the wrong one.
+`REVIEWOS_EXECUTION=microvm` is what turns it on, and a runner told nothing behaves exactly as it did
+before any of this existed. The branch sits at the top of `runOnce`, ahead of the workspace and the
+step loop, because everything below it is machinery for running somebody's code as a process on the
+runner - the thing this mode exists to avoid. `microvmRun.ts` turns a claim into a machine.
+
+**It refuses rather than falling back.** A runner asked to isolate that has no kernel, no image or no
+image digest fails the job and says which piece is missing. A runner that quietly ran the work on the
+host instead would be claiming an isolation it does not have, and the job would look identical to one
+that had been isolated.
+
+The digest is required for a reason that is about honesty rather than booting: a machine boots
+perfectly well from an image nobody named, and what it cannot then do is tell the run what executed
+it.
+
+**The fork refusal does not apply in this mode.** The host path refuses an untrusted run with "a
+fork's pull request needs an isolated runner"; this is that runner. Verified with a job carrying
+`trusted: false` - the case the host path will not touch - which ran in a machine and had the
+metadata endpoint blocked by a policy built from the runner's own environment.
+
+**`uses:` steps are refused by name.** An action is a program the runner fetches and executes with a
+protocol around it, and none of that exists for a guest. Skipping them would report success for work
+nobody did.
+
+## What is still not verified, and the one thing blocking the boxes
+
+- **No source reaches the guest.** The steps do; a checkout does not. This is the single reason the
+  roadmap's boxes stay open rather than being ticked here: a mode that cannot give a job its
+  repository cannot run anybody's CI, so ticking "ephemeral workspace, immutable base image,
+  read-only source checkout" for it would be describing a product nobody can use. The payload disk is
+  where the source goes, and it is the next thing to build.
+- **Secrets are not designed into this at all.** On the host path a job's secrets reach a step through
+  its environment. What that becomes when the step runs in another machine is open, and the payload
+  disk is the obvious answer and probably the wrong one - it is a disk the guest can read whenever it
+  likes, which is a poor home for a deploy key.
+- **No image build pipeline.** The image used in testing was assembled by hand. What it must contain -
+  an agent at `/sbin/reviewos-agent`, a `/work` mount point - is written here and enforced nowhere.
 - **Ceilings were accepted, not exercised.** Firecracker took `vcpu_count` and `mem_size_mib`; no test
   confirms a guest which forks endlessly dies inside its own memory rather than the host's.
 - **aarch64 only.** The x86 path most operators would run is untested.
