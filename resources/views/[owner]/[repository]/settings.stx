@@ -16,7 +16,11 @@
  * survives a misdirected click, a stale tab, or a script pointed at the wrong
  * repository, and none of those are things a permission check can catch.
  */
-import { deployKeysFor, repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
+import { deployKeysFor, parseRestrictions, repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
+// A yes/no column read the same way on either engine. MySQL hands a boolean
+// back as 0 or 1, and a checkbox rendered from `=== true` is a rule the page
+// says is enforced and is not.
+import { isNotFalse, isTrue } from '../../../functions/truth'
 import { resolveVariables, settingsFor } from '../../../functions/variables'
 import { branchNames, relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
@@ -101,6 +105,76 @@ const variableRows = variables.map((one: any) => ({
     .map((under: any) => `${String(under.scope)} (${String(under.from)}): ${String(under.value ?? '')}`)
     .join(' · '),
 }))
+
+/*
+ * The branch rules, for the section that writes them.
+ *
+ * Gated on `branch:protect` rather than on `repository:settings`. They are the
+ * same rung today, and writing the check the endpoint writes is what keeps them
+ * the same rung tomorrow: a page that renders a form its endpoint will refuse
+ * is worse than one that renders nothing.
+ *
+ * Guarded like every other read on this page. A throw here renders the whole
+ * settings screen with every binding undefined, and losing the rename form to a
+ * branch rule row is not a trade anybody would make.
+ */
+const mayProtect = Boolean(repoAccess?.can('branch:protect'))
+
+let protectedBranches: any[] = []
+try {
+  if (repoRow && mayProtect) {
+    protectedBranches = await db
+      .selectFrom('protected_branches')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .orderBy('pattern', 'asc')
+      .execute()
+  }
+}
+catch {
+  protectedBranches = []
+}
+
+/*
+ * Flattened to strings, because that is all an stx attribute carries.
+ *
+ * Flags become '1' or '', never 'true' or 'false': an attribute is a string and
+ * 'false' is a truthy one, so a checkbox fed the second reads as ticked. On a
+ * branch protection page that is not a cosmetic bug - it is a rule that the
+ * screen says is enforced and is not.
+ */
+const branchRules = protectedBranches.map((rule: any) => {
+  const flag = (value: unknown) => (isTrue(value) ? '1' : '')
+  const restrictions = parseRestrictions(rule.push_restrictions)
+
+  let checks: string[] = []
+  try {
+    const parsed = JSON.parse(String(rule.required_checks ?? '[]'))
+    checks = Array.isArray(parsed) ? parsed.map(String) : []
+  }
+  catch {
+    checks = []
+  }
+
+  return {
+    pattern: String(rule.pattern),
+    requiredApprovals: String(rule.required_approvals ?? 0),
+    requiredChecks: checks.join(', '),
+    dismissStale: flag(rule.dismiss_stale_reviews),
+    requireConversation: flag(rule.require_conversation_resolution),
+    requireLinear: flag(rule.require_linear_history),
+    requireHumanApproval: flag(rule.require_human_approval_for_agents),
+    requireUpToDate: flag(rule.require_up_to_date),
+    allowForcePush: flag(rule.allow_force_push),
+    allowDeletion: flag(rule.allow_deletion),
+    // Absent reads as bound, never as exempt: a row written before the column
+    // existed has null here, and rendering that as an unticked box would show
+    // every existing rule as one administrators are exempt from.
+    enforceAdmins: isNotFalse(rule.enforce_admins) ? '1' : '',
+    restrictUsers: (restrictions?.users ?? []).join(', '),
+    restrictTeams: (restrictions?.teams ?? []).join(', '),
+  }
+})
 
 const topics: any[] = repoRow && mayEdit
   ? await db
@@ -307,6 +381,91 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </div>
         </form>
       </section>
+
+      @if (mayProtect)
+        <section class="card panel">
+          <h2 class="card-title">Branch protection</h2>
+
+          {{--
+            The one page on the instance where a rule can be written. Until it
+            existed the enforcement had no door: the receive hook refused force
+            pushes and the merge action held pull requests, against rules that
+            could only be inserted into the database by hand.
+          --}}
+          <p class="card-note muted">
+            What a branch requires before a change lands on it, and what it refuses outright. Every
+            rule here is enforced at the push as well as at the merge - a protection that only the
+            merge button honours is one a <span class="mono">git push</span> walks straight past.
+          </p>
+
+          @if (branchRules.length > 0)
+            @foreach (branchRules as rule)
+              <div class="rule">
+                <h3 class="rule-title mono">{{ rule.pattern }}</h3>
+                <BranchRuleForm
+                  owner="{{ ownerHandle }}"
+                  repo="{{ repositoryName }}"
+                  pattern="{{ rule.pattern }}"
+                  requiredApprovals="{{ rule.requiredApprovals }}"
+                  requiredChecks="{{ rule.requiredChecks }}"
+                  dismissStale="{{ rule.dismissStale }}"
+                  requireConversation="{{ rule.requireConversation }}"
+                  requireLinear="{{ rule.requireLinear }}"
+                  requireHumanApproval="{{ rule.requireHumanApproval }}"
+                  requireUpToDate="{{ rule.requireUpToDate }}"
+                  allowForcePush="{{ rule.allowForcePush }}"
+                  allowDeletion="{{ rule.allowDeletion }}"
+                  enforceAdmins="{{ rule.enforceAdmins }}"
+                  restrictUsers="{{ rule.restrictUsers }}"
+                  restrictTeams="{{ rule.restrictTeams }}"
+                  fresh=""
+                />
+              </div>
+            @endforeach
+          @else
+            <p class="hint muted">
+              No branch is protected. Anybody with push access can force push over
+              <span class="mono">{{ repoRow.default_branch }}</span> and delete it.
+            </p>
+          @endif
+
+          <div class="rule">
+            <h3 class="rule-title">New rule</h3>
+            {{--
+              Every attribute, including the empty ones.
+
+              stx injects only the props a caller passes, and an *undeclared*
+              identifier is a ReferenceError - which takes the component's whole
+              server script down and renders it with every binding undefined.
+              So a prop left off here is not a default; it is the form failing
+              silently, which on this page means a rule somebody thinks they
+              wrote.
+
+              `enforceAdmins` starts ticked, which is the endpoint's own
+              default. A form that offered the exemption by default would be a
+              form that hands it out to people who never read the label.
+            --}}
+            <BranchRuleForm
+              owner="{{ ownerHandle }}"
+              repo="{{ repositoryName }}"
+              pattern=""
+              requiredApprovals="0"
+              requiredChecks=""
+              dismissStale=""
+              requireConversation=""
+              requireLinear=""
+              requireHumanApproval=""
+              requireUpToDate=""
+              allowForcePush=""
+              allowDeletion=""
+              enforceAdmins="1"
+              restrictUsers=""
+              restrictTeams=""
+              fresh="1"
+            />
+          </div>
+        </section>
+      @endif
 
       <section class="card panel">
         <h2 class="card-title">Deploy keys</h2>
@@ -554,6 +713,10 @@ const fullName = `${ownerHandle}/${repositoryName}`
   }
 
   .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+  .rule { padding: 16px 0; border-top: 1px solid var(--line); }
+  .rule:first-of-type { border-top: 0; }
+  .rule-title { font-size: 13.5px; font-weight: 600; margin: 0 0 12px; }
 
   /* A reading width, like the account settings have. Every card on this page
      is a column of short fields - a name, a branch, a checkbox and its

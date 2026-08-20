@@ -1825,6 +1825,9 @@ declare module '@stacksjs/database' {
       allow_deletion: boolean
       require_linear_history: boolean
       require_human_approval_for_agents: boolean
+      require_up_to_date: boolean
+      enforce_admins: boolean
+      push_restrictions: string
       createdAt: string
       updatedAt: string | null
       repositoryId: number
@@ -1836,6 +1839,9 @@ declare module '@stacksjs/database' {
       allowDeletion: boolean
       requireLinearHistory: boolean
       requireHumanApprovalForAgents: boolean
+      requireUpToDate: boolean
+      enforceAdmins: boolean
+      pushRestrictions: string
     }
     pull_request_reviewers: {
       // columns

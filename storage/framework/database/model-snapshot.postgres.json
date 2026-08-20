@@ -5462,6 +5462,32 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "require_up_to_date",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "enforce_admins",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "push_restrictions",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -6928,6 +6954,23 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 64
           }
         ],
         "indexes": [
@@ -15023,7 +15066,7 @@
       }
     ]
   },
-  "hash": "baa53adb26f3d77c8e3c38683410eb65e98db138c43dfe069f5a0b5669706a86",
+  "hash": "c08d31c57fc1dba8b4f6e371d32a6f93512185b79e75050f3d47e3cd76121c74",
   "dialect": "postgres",
-  "updatedAt": "2026-08-20T05:24:11.011Z"
+  "updatedAt": "2026-08-20T16:19:14.131Z"
 }

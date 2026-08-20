@@ -19,6 +19,9 @@ export interface RulePatch {
   allow_deletion?: unknown
   require_linear_history?: unknown
   require_human_approval_for_agents?: unknown
+  require_up_to_date?: unknown
+  enforce_admins?: unknown
+  push_restrictions?: unknown
 }
 
 export interface BranchRuleRow {
@@ -32,6 +35,47 @@ export interface BranchRuleRow {
   allow_deletion: boolean
   require_linear_history: boolean
   require_human_approval_for_agents: boolean
+  require_up_to_date: boolean
+  enforce_admins: boolean
+  /** `{"users":[],"teams":[]}` as the column stores it, or `''` for none. */
+  push_restrictions: string
+}
+
+/** Who a branch may be written by, once the column has been read. */
+export interface PushRestrictions {
+  users: string[]
+  teams: string[]
+}
+
+/** As much of somebody as a restriction needs to know. Both lowercased. */
+export interface RestrictedActor {
+  handle: string | null
+  teams: readonly string[]
+}
+
+/**
+ * Whether a restriction admits this person.
+ *
+ * Shared by the push gate and the merge action deliberately. A merge writes to
+ * the base branch exactly as a push does, and a restriction enforced on only
+ * one of the two doors is a restriction with a button beside it - somebody
+ * refused at the command line opens a pull request and lands the same commit a
+ * minute later.
+ *
+ * **Nobody is refused.** This is the one place in branch protection that fails
+ * closed, and it is deliberate: everywhere else, guessing wrong means a rule
+ * that does not apply for a moment, while here it would mean "anyone we could
+ * not identify may write to the release branch" - not a weakened protection but
+ * the absence of one.
+ */
+export function restrictionPermits(restriction: PushRestrictions, actor: RestrictedActor | null): boolean {
+  if (!actor)
+    return false
+
+  if (actor.handle && restriction.users.includes(actor.handle))
+    return true
+
+  return actor.teams.some(team => restriction.teams.includes(team))
 }
 
 export type RuleDecision =
@@ -79,6 +123,11 @@ export function decideRule(patch: RulePatch): RuleDecision {
   if (!checks.ok)
     return { ok: false, error: checks.error, status: 422 }
 
+  const restrictions = readRestrictions(patch.push_restrictions)
+
+  if (!restrictions.ok)
+    return { ok: false, error: restrictions.error, status: 422 }
+
   return {
     ok: true,
     rule: {
@@ -91,8 +140,148 @@ export function decideRule(patch: RulePatch): RuleDecision {
       allow_deletion: readFlag(patch.allow_deletion),
       require_linear_history: readFlag(patch.require_linear_history),
       require_human_approval_for_agents: readFlag(patch.require_human_approval_for_agents),
+      require_up_to_date: readFlag(patch.require_up_to_date),
+      /*
+       * The one flag that is not `readFlag`, because its absent value is not
+       * false.
+       *
+       * Every other box on this form is off when nobody ticked it. This one
+       * defaults to *on*: a caller that leaves `enforce_admins` out of a save
+       * is not asking for an admin exemption, and reading silence as one would
+       * quietly unbind the rule from the people most able to break it every
+       * time somebody edited an unrelated field.
+       *
+       * The form posts a hidden `0` alongside the checkbox so an unticked box
+       * still arrives, which is what makes turning it off possible at all.
+       */
+      enforce_admins: patch.enforce_admins === undefined ? true : readFlag(patch.enforce_admins),
+      push_restrictions: writeRestrictions(restrictions.value),
     },
   }
+}
+
+/**
+ * Who may write to the branch, as a caller sends it.
+ *
+ * Accepts GitHub's shape - `{"users": [...], "teams": [...]}`, and `null` for
+ * unrestricted - as well as the two things a form can send: a comma-separated
+ * list of handles in `push_restrictions_users` merged in by the caller, or the
+ * whole object as a JSON string.
+ *
+ * **Empty is unrestricted, and there is no way to spell "nobody".** A branch
+ * with an empty allowlist would be a branch that refuses every push including
+ * the one that would fix the rule, and the difference between "I cleared this
+ * field" and "I want nobody to push here" is not something a text input can
+ * carry. Somebody who wants that has `allow_force_push` off and a rule with
+ * required approvals, which stops the pushes that lose work rather than all of
+ * them.
+ */
+export function readRestrictions(raw: unknown): { ok: true, value: PushRestrictions | null } | { ok: false, error: string } {
+  if (raw === undefined || raw === null || raw === '')
+    return { ok: true, value: null }
+
+  let source: unknown = raw
+
+  if (typeof raw === 'string') {
+    const text = raw.trim()
+
+    if (!text)
+      return { ok: true, value: null }
+
+    if (text.startsWith('{')) {
+      try {
+        source = JSON.parse(text)
+      }
+      catch {
+        return { ok: false, error: 'Push restrictions is a list of user handles and team slugs' }
+      }
+    }
+    else {
+      // A single form field. Handles and slugs are indistinguishable as text,
+      // so a bare list is read as users - the common case by a wide margin, and
+      // the settings page has a separate field for teams.
+      source = { users: text.split(',') }
+    }
+  }
+
+  if (Array.isArray(source))
+    source = { users: source }
+
+  if (typeof source !== 'object' || source === null)
+    return { ok: false, error: 'Push restrictions is a list of user handles and team slugs' }
+
+  const record = source as Record<string, unknown>
+  const users = readNames(record.users)
+  const teams = readNames(record.teams)
+
+  if (users === null || teams === null)
+    return { ok: false, error: 'Push restrictions is a list of user handles and team slugs' }
+
+  if (users.length === 0 && teams.length === 0)
+    return { ok: true, value: null }
+
+  return { ok: true, value: { users, teams } }
+}
+
+/** One side of the restriction. Null when it is not a list of names at all. */
+function readNames(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null || raw === '')
+    return []
+
+  /*
+   * An array or a string, and nothing else.
+   *
+   * `String({})` is `'[object Object]'`, which `clean` would happily accept as
+   * a handle - so a caller sending `{"users": {"login": "ada"}}` would get a
+   * branch restricted to a user who cannot exist, and the first they would hear
+   * of it is a refused push.
+   */
+  if (!Array.isArray(raw) && typeof raw !== 'string')
+    return null
+
+  const list = Array.isArray(raw)
+    ? raw.map((entry) => {
+        // GitHub answers with objects and takes names, and a client that reads
+        // one before writing the other sends `{"login": "ada"}` straight back.
+        if (entry && typeof entry === 'object')
+          return String((entry as Record<string, unknown>).login ?? (entry as Record<string, unknown>).slug ?? '')
+
+        return String(entry ?? '')
+      })
+    : raw.split(',')
+
+  /*
+   * Lowercased *before* the deduplication, not after.
+   *
+   * A handle is matched against this, and `Ada` and `ada` are the same person -
+   * a restriction that depends on how somebody typed it lets the wrong person
+   * through, or keeps the right one out at the moment they are needed. Cleaning
+   * first would leave both spellings in the list: harmless to matching, and a
+   * settings page that shows the same person twice with no way to remove one.
+   */
+  return clean(list.map(name => String(name).toLowerCase()))
+}
+
+/** The column's value for a set of restrictions. `''` when there are none. */
+export function writeRestrictions(value: PushRestrictions | null): string {
+  return value ? JSON.stringify(value) : ''
+}
+
+/**
+ * The restrictions a stored rule carries.
+ *
+ * **A column that will not parse is read as unrestricted**, which is the
+ * opposite of how `required_checks` is treated one file over, and the reason is
+ * the direction each one fails in. An unreadable check list read as "no checks"
+ * would quietly weaken a rule, so it is read as unsatisfiable instead. An
+ * unreadable allowlist read as "nobody" would lock every writer out of the
+ * branch - including whoever would fix the row - so it fails the other way, and
+ * the rest of the rule still applies.
+ */
+export function parseRestrictions(raw: unknown): PushRestrictions | null {
+  const decided = readRestrictions(raw)
+
+  return decided.ok ? decided.value : null
 }
 
 /**

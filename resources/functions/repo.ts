@@ -219,3 +219,16 @@ export const contributorRows = contributorRowsImpl
 import { abbreviateCount as abbreviateCountImpl } from '../../app/Actions/Repo/standing'
 
 export const abbreviateCount = abbreviateCountImpl
+
+/**
+ * A protected branch rule's stored restriction, as the settings page needs it.
+ *
+ * The same parser the push gate and the merge action use, so the two lists the
+ * form shows are exactly the two lists that will be enforced. A page that
+ * rendered its own reading of the column would be a second parser to keep true,
+ * and the day the two disagreed the page would be the one telling somebody the
+ * branch was restricted to a team it was not.
+ */
+import { parseRestrictions as parseRestrictionsImpl } from '../../app/Actions/Repo/branchRules'
+
+export const parseRestrictions = parseRestrictionsImpl

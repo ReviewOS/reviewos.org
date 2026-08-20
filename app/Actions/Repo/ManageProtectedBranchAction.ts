@@ -7,6 +7,30 @@ import { decideRule, settingsOf } from './branchRules'
 import { coerced } from '../inputs'
 
 /**
+ * Who may push, as this endpoint's two spellings of it.
+ *
+ * An API client sends `push_restrictions` as GitHub does - one object with
+ * `users` and `teams`. A browser form cannot send an object, so the settings
+ * page sends two text fields instead, and they are assembled here rather than
+ * in `decideRule`: the rules module takes one shape and stays testable, and the
+ * knowledge that an HTML form has to spell it differently stays at the door.
+ */
+function restrictionsFrom(request: RequestInstance): unknown {
+  const whole = request.get('push_restrictions')
+
+  if (whole !== undefined && whole !== null && whole !== '')
+    return whole
+
+  const users = request.get('push_restrictions_users')
+  const teams = request.get('push_restrictions_teams')
+
+  if (users === undefined && teams === undefined)
+    return undefined
+
+  return { users: users ?? '', teams: teams ?? '' }
+}
+
+/**
  * Create, change, or remove a protected branch rule.
  *
  * The enforcement side of this has been in place since phase 2: the receive
@@ -69,6 +93,14 @@ export default new Action({
     require_linear_history: { rule: coerced },
     required_approvals: { rule: coerced },
     required_checks: { rule: coerced },
+    require_up_to_date: { rule: coerced },
+    enforce_admins: { rule: coerced },
+    push_restrictions: { rule: coerced },
+    // The form's two spellings of the same field. Declared because every key
+    // the handler reads is declared, and the document publishes the list -
+    // a field a client cannot discover is a field nobody uses.
+    push_restrictions_users: { rule: coerced },
+    push_restrictions_teams: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {
@@ -143,6 +175,18 @@ export default new Action({
       allow_deletion: request.get('allow_deletion'),
       require_linear_history: request.get('require_linear_history'),
       require_human_approval_for_agents: request.get('require_human_approval_for_agents'),
+      require_up_to_date: request.get('require_up_to_date'),
+      /*
+       * Passed through untouched, including when it is absent.
+       *
+       * `decideRule` distinguishes "not sent" from "sent as off" for this one
+       * field, and `request.get` answering `undefined` is what carries that
+       * distinction. Coercing it here - to `''`, say - would collapse the two
+       * and hand an exemption to every admin the first time somebody saved a
+       * rule from a client that has never heard of the setting.
+       */
+      enforce_admins: request.get('enforce_admins'),
+      push_restrictions: restrictionsFrom(request),
     })
 
     if (!decision.ok)

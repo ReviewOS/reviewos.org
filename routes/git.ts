@@ -1,5 +1,5 @@
 import { route } from '@stacksjs/router'
-import { findRepositoryByPath, mayUseService, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
+import { findRepositoryByPath, mayUseService, pushActorFor, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
@@ -69,7 +69,7 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
   if (!path)
     return { ok: false as const, status: 404 }
 
-  return { ok: true as const, path, repositoryId: Number(repository.id) }
+  return { ok: true as const, path, repositoryId: Number(repository.id), userId }
 }
 
 /**
@@ -285,7 +285,19 @@ wire('post', '/{owner}/{repository}/git-receive-pack', async (request: any) => {
   if (!auth.ok)
     return unauthorized(auth.status)
 
-  return streamService(request, auth.path, 'receive-pack')
+  /*
+   * Who is pushing, handed to git so the pre-receive hook can hand it back.
+   *
+   * The hook is a separate process posting to a loopback endpoint, and it does
+   * not forward this request's `Authorization` header - so without this the
+   * gate has no idea who is pushing over HTTP. The SSH daemon has always set
+   * the same variable (`app/Actions/Git/ssh.ts`); this is the other half, and
+   * until it existed a push over HTTPS was an anonymous one as far as branch
+   * restrictions and the bypass log were concerned.
+   */
+  return streamService(request, auth.path, 'receive-pack', undefined, {
+    REVIEWOS_ACTOR_ID: auth.userId === null ? '' : String(auth.userId),
+  })
 }).skipCsrf().middleware('throttle:300,1m')
 
 /**
@@ -318,8 +330,26 @@ route.post(GATE_ENDPOINT, async (request: any) => {
    * post-receive runs after git has already accepted it. Recorded on the way
    * out through `allow()`, so every path that lets a push through records it
    * and no path can be added later that forgets to.
+   *
+   * This and the record below it carry everything their write needs rather than
+   * reaching for `repository`, which is declared *after* `allow` - and `allow()`
+   * is called twice before that line runs. Naming it in there would be a
+   * temporal dead zone waiting for whoever adds the next field.
    */
   let walTarget: { repositoryId: number, path: string, updates: ReturnType<typeof parseRefUpdates> } | null = null
+
+  /*
+   * An administrator's exemption that actually changed the answer, if one did.
+   *
+   * Filled in below and written on the way out through `allow()`, for the same
+   * reason the log is: a push refused further down - by push protection, say -
+   * never landed, and recording "protection was bypassed" for a push that never
+   * happened would put a false alarm in the one place somebody looks when they
+   * are already worried.
+   */
+  let adminBypass:
+    | { refs: string[], reasons: string[], actorId: number | null, repositoryId: number, organizationId: number | null }
+    | null = null
 
   const allow = async (extra: Record<string, unknown> = {}): Promise<Response> => {
     const recorded = await recordWal(walTarget, payload)
@@ -339,6 +369,31 @@ route.post(GATE_ENDPOINT, async (request: any) => {
         }),
         { headers: { 'Content-Type': 'application/json' } },
       )
+    }
+
+    /*
+     * The only trace such a push leaves.
+     *
+     * Everything else about it looks like an ordinary push, which is precisely
+     * the problem: without this line, "the branch was protected and the history
+     * was rewritten anyway" has no record anybody can find, and the exemption
+     * becomes indistinguishable from a protection that was never really on.
+     */
+    if (adminBypass) {
+      await auditEvent('branch:protection-admin-bypass', {
+        subject: { type: 'repository', id: adminBypass.repositoryId },
+        actorId: adminBypass.actorId,
+        ...await auditFrom(request),
+        repositoryId: adminBypass.repositoryId,
+        organizationId: adminBypass.organizationId,
+        detail: {
+          refs: adminBypass.refs,
+          // The refs alone do not say whether a branch was force pushed,
+          // deleted, or written by somebody its restriction excludes, and those
+          // are three different mornings.
+          would_have_refused: adminBypass.reasons,
+        },
+      })
     }
 
     return new Response(
@@ -372,7 +427,7 @@ route.post(GATE_ENDPOINT, async (request: any) => {
   // refused before anything expensive happens.
   const rules: any[] = await db
     .selectFrom('protected_branches')
-    .select(['pattern', 'allow_force_push', 'allow_deletion'])
+    .select(['pattern', 'allow_force_push', 'allow_deletion', 'enforce_admins', 'push_restrictions'])
     .where('repository_id', '=', Number(repository.id))
     .execute()
 
@@ -391,6 +446,25 @@ route.post(GATE_ENDPOINT, async (request: any) => {
     .where('repository_id', '=', Number(repository.id))
     .executeTakeFirst()
 
+  /*
+   * Who is pushing.
+   *
+   * Only asked when a rule could turn on the answer, because it is three
+   * queries and the overwhelming majority of pushes are covered by no rule at
+   * all. `enforce_admins` and `push_restrictions` are the two that need it -
+   * the first to know whether this person could have removed the rule instead,
+   * the second to match a handle and a set of team slugs.
+   *
+   * The id arrives on the hook's payload: SSH puts it there from the daemon's
+   * environment, HTTP from `git-receive-pack` above. It is trusted for the same
+   * reason the rest of the body is - the request carried the hook secret, so it
+   * came from a hook this instance wrote and started.
+   */
+  const actorId = payload?.actorId ? Number(payload.actorId) : null
+  const actor = rules.length > 0 && Number.isFinite(actorId as number)
+    ? await pushActorFor(repository, actorId)
+    : null
+
   const judged = []
   for (const update of updates) {
     // Only asked when a rule could refuse it, because it costs a git process
@@ -403,7 +477,37 @@ route.post(GATE_ENDPOINT, async (request: any) => {
     judged.push({ update, isForced: forced })
   }
 
-  refused.push(...decidePush(rules, judged, { mirror: mirror ?? null }).refused)
+  const decided = decidePush(rules, judged, { mirror: mirror ?? null }, actor)
+
+  /*
+   * What the same push would have been told without the exemption.
+   *
+   * Computed only for an administrator on a rule that grants one, so it costs
+   * nothing on any other push - and it is the only way to tell an exemption
+   * that was *used* from one that merely exists. Recording every push by an
+   * admin to an unbound branch would bury the one that mattered.
+   *
+   * Pure, and over the same judged updates, so it asks git nothing a second
+   * time.
+   */
+  if (actor?.isAdmin) {
+    const bound = decidePush(rules, judged, { mirror: mirror ?? null }, { ...actor, isAdmin: false })
+    const skipped = bound.refused.filter(one => !decided.refused.some(also => also.ref === one.ref))
+
+    if (skipped.length > 0) {
+      adminBypass = {
+        refs: skipped.map(one => one.ref),
+        reasons: skipped.map(one => one.reason),
+        actorId,
+        repositoryId: Number(repository.id),
+        // Scoped so this reaches the repository's organization owner, rather
+        // than only an instance administrator.
+        organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
+      }
+    }
+  }
+
+  refused.push(...decided.refused)
 
   if (refused.length > 0)
     return new Response(JSON.stringify({ ok: false, refused }), { headers: { 'Content-Type': 'application/json' } })
@@ -834,7 +938,7 @@ async function packCacheTarget(repositoryId: number, body: Uint8Array): Promise<
   }
 }
 
-async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack', repositoryId?: number): Promise<Response> {
+async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack', repositoryId?: number, env: Record<string, string> = {}): Promise<Response> {
   /*
    * The pack cache, for the one shape a runner fleet produces: fifty jobs on
    * one commit sending fifty identical clone requests, each making git walk
@@ -852,7 +956,7 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
       return cached
   }
 
-  const child = await spawnGitLimited('heavy', path, serviceArgs(path, service))
+  const child = await spawnGitLimited('heavy', path, serviceArgs(path, service), env)
 
   if (!child)
     return saturated()

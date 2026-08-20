@@ -39461,6 +39461,21 @@
                   },
                   "required_checks": {
                     "type": "custom"
+                  },
+                  "require_up_to_date": {
+                    "type": "custom"
+                  },
+                  "enforce_admins": {
+                    "type": "custom"
+                  },
+                  "push_restrictions": {
+                    "type": "custom"
+                  },
+                  "push_restrictions_users": {
+                    "type": "custom"
+                  },
+                  "push_restrictions_teams": {
+                    "type": "custom"
                   }
                 }
               }

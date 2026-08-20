@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS `protected_branches` (
   `allow_deletion` tinyint(1) default 0,
   `require_linear_history` tinyint(1) default 0,
   `require_human_approval_for_agents` tinyint(1) default 0,
+  `require_up_to_date` tinyint(1) default 0,
+  `enforce_admins` tinyint(1) default 1,
+  `push_restrictions` text,
   `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `protected_branches_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

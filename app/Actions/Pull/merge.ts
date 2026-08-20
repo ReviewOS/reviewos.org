@@ -11,6 +11,8 @@
  * the rules live here where they can be tested.
  */
 
+import { restrictionPermits } from '../Repo/branchRules'
+
 export const MERGE_STRATEGIES = ['merge', 'squash', 'rebase'] as const
 export type MergeStrategy = typeof MERGE_STRATEGIES[number]
 
@@ -93,6 +95,39 @@ export interface MergeRules {
    * need the database.
    */
   requireHumanApprovalForAgents?: boolean
+  /**
+   * The base branch has to already be in the head before this may merge.
+   *
+   * GitHub's `required_status_checks.strict`, and the reason it lives beside
+   * the checks rather than inside them: a check that passed on a head which
+   * never contained the current tip of the base tested code that is about to
+   * stop existing. Two branches that each pass alone and break together is what
+   * this catches.
+   */
+  requireUpToDate?: boolean
+  /**
+   * Only these users and teams may write to the branch, or null for anybody
+   * with push access.
+   *
+   * Enforced here as well as at the push gate because a merge writes to the
+   * base branch exactly as a push does - and a restriction with a merge button
+   * beside it is not a restriction.
+   */
+  restrictedTo?: { users: readonly string[], teams: readonly string[] } | null
+  /**
+   * Whether the rules above also bind somebody who administers the repository.
+   *
+   * `undefined` reads as **true**, matching the column's default and the
+   * behaviour every rule had before the column existed: a caller that has not
+   * been taught to load this must not thereby exempt every admin.
+   *
+   * Only the branch's own rules are ever waived. A conflict, a draft, an
+   * unmerged parent and a strategy the repository does not allow are not
+   * protections somebody is being held to - they are reasons the merge would
+   * not mean what it says - so an administrator is refused for them like
+   * anybody else.
+   */
+  enforceAdmins?: boolean
 }
 
 export interface MergeReadiness {
@@ -118,6 +153,16 @@ export interface MergeReadiness {
     pending: readonly string[]
     missing: readonly string[]
   }
+  /**
+   * Whether the base branch has moved on since the head last took it.
+   *
+   * `null` means git has not been asked, and like `mergeable` that is still a
+   * blocker rather than an assumption: merging on an unknown answer is how a
+   * rule meant to stop untested combinations lets exactly one through.
+   */
+  behindBase?: boolean | null
+  /** Who is pressing merge, for the two rules that turn on the answer. */
+  actor?: { handle: string | null, isAdmin: boolean, teams: readonly string[] } | null
 }
 
 /**
@@ -137,6 +182,19 @@ export function mergeBlockers(
   if (pullRequest.state === 'merged')
     return ['This pull request has already been merged']
 
+  /*
+   * Whether the branch's own rules apply to whoever is asking.
+   *
+   * False only when the rule was written with `enforce_admins` off *and* this
+   * person administers the repository - which is to say, only when somebody
+   * with the power to delete the rule outright has instead been given a way to
+   * merge past it and leave a record.
+   *
+   * The reasons below that are not branch rules ignore this entirely. A
+   * conflict is not a protection.
+   */
+  const bound = !(rules.enforceAdmins === false && readiness.actor?.isAdmin === true)
+
   if (pullRequest.state === 'closed')
     blockers.push('Reopen this pull request before merging it')
 
@@ -153,10 +211,32 @@ export function mergeBlockers(
   else if (pullRequest.mergeable === null)
     blockers.push('Whether this merges cleanly has not been checked yet')
 
-  if (readiness.blockingReviews > 0)
+  /*
+   * Who may write to this branch at all, first among the branch rules.
+   *
+   * Before the approval and check counts on purpose: telling somebody they need
+   * one more approval, when in fact no merge of theirs can land on this branch,
+   * sends them off to collect a review that will not help.
+   */
+  if (bound && rules.restrictedTo) {
+    const permitted = restrictionPermits(
+      { users: [...rules.restrictedTo.users], teams: [...rules.restrictedTo.teams] },
+      readiness.actor ?? null,
+    )
+
+    if (!permitted) {
+      blockers.push(
+        readiness.actor?.handle
+          ? `This branch takes changes only from named users and teams, and ${readiness.actor.handle} is not one of them`
+          : 'This branch takes changes only from named users and teams',
+      )
+    }
+  }
+
+  if (bound && readiness.blockingReviews > 0)
     blockers.push('Changes requested by a reviewer must be resolved')
 
-  if (readiness.approvals < rules.requiredApprovals) {
+  if (bound && readiness.approvals < rules.requiredApprovals) {
     const missing = rules.requiredApprovals - readiness.approvals
     const uncounted = readiness.uncountedApprovals ?? 0
 
@@ -175,10 +255,10 @@ export function mergeBlockers(
    * and a repository that wanted only the second would otherwise have to set
    * the first as a proxy for it.
    */
-  if (rules.requireHumanApprovalForAgents && readiness.authorIsMachine && (readiness.humanApprovals ?? 0) < 1)
+  if (bound && rules.requireHumanApprovalForAgents && readiness.authorIsMachine && (readiness.humanApprovals ?? 0) < 1)
     blockers.push('This branch requires a person to approve a change written by a machine account')
 
-  if (rules.requireThreadsResolved && readiness.unresolvedThreads > 0) {
+  if (bound && rules.requireThreadsResolved && readiness.unresolvedThreads > 0) {
     blockers.push(
       `${readiness.unresolvedThreads} review ${readiness.unresolvedThreads === 1 ? 'thread' : 'threads'} must be resolved`,
     )
@@ -186,7 +266,7 @@ export function mergeBlockers(
 
   // A check nobody required never blocks; the caller decides which are
   // required, and this only reports what that decision produced.
-  const checks = readiness.checks
+  const checks = bound ? readiness.checks : null
   if (checks) {
     if (checks.failing.length > 0)
       blockers.push(`Required ${checks.failing.length === 1 ? 'check' : 'checks'} failed: ${checks.failing.join(', ')}`)
@@ -200,12 +280,32 @@ export function mergeBlockers(
       blockers.push(`Waiting for ${checks.missing.join(', ')} to report for the first time`)
   }
 
+  /*
+   * Out of date with the base, which is what makes the checks above worth
+   * anything.
+   *
+   * Immediately after them because that is the order the reader needs: a green
+   * tick on a head that predates three merges to the base is a green tick for
+   * code nobody is going to ship, and the sentence has to arrive while they are
+   * still looking at the ticks.
+   *
+   * The unknown answer blocks, exactly as an unchecked mergeability does. A
+   * rule whose whole purpose is to stop untested combinations landing would be
+   * a strange one to skip the moment git failed to answer.
+   */
+  if (bound && rules.requireUpToDate) {
+    if (readiness.behindBase === true)
+      blockers.push('This branch is out of date with its base, so update it before merging')
+    else if (readiness.behindBase === null || readiness.behindBase === undefined)
+      blockers.push('Whether this branch is up to date with its base has not been checked yet')
+  }
+
   if (!rules.allowedStrategies.includes(strategy))
     blockers.push(`The ${strategy} strategy is not allowed on this branch`)
 
   // A merge commit has two parents, which is exactly what a linear history
   // forbids. Squash and rebase both produce one.
-  if (rules.requireLinearHistory && strategy === 'merge')
+  if (bound && rules.requireLinearHistory && strategy === 'merge')
     blockers.push('This branch requires a linear history, so use squash or rebase')
 
   // Merging a stacked pull request before its parent would take the parent's

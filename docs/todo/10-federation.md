@@ -256,4 +256,4 @@ and `POST /api/user/atproto` - and what is not built is named at the end.
 - [x] Phases 1 through 5 done. Federating a model that is still changing shape means changing it on
       both sides of a protocol.
 
-      Met: 01 (77/77), 02 (128/128), 03 (37/37), 04 (95/95), 05 (52/52).
+      Met: 01 (77/77), 02 (130/130), 03 (37/37), 04 (95/95), 05 (52/52).

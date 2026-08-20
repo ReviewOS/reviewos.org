@@ -1506,6 +1506,11 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `require_linear_history` | body | optional | custom |
 | `required_approvals` | body | optional | custom |
 | `required_checks` | body | optional | custom |
+| `require_up_to_date` | body | optional | custom |
+| `enforce_admins` | body | optional | custom |
+| `push_restrictions` | body | optional | custom |
+| `push_restrictions_users` | body | optional | custom |
+| `push_restrictions_teams` | body | optional | custom |
 
 | Status | Means |
 |---|---|

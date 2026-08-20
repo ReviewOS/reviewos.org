@@ -147,6 +147,9 @@ import { loadCoverage as loadCoverageImpl } from '../../app/Actions/Checks/cover
 import { checksPanel as checksPanelImpl } from '../../app/Actions/Checks/panel'
 import { annotationsByLine as annotationsByLineImpl, annotationsForLine as annotationsForLineImpl, renderAnnotations as renderAnnotationsImpl } from '../../app/Actions/Pull/annotations'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
+import { isBehindBase as isBehindBaseImpl } from '../../app/Actions/Pull/mergeability'
+import { parseRestrictions as parseRestrictionsImpl } from '../../app/Actions/Repo/branchRules'
+import { pushActorFor as pushActorForImpl } from '../../app/Actions/Git/access'
 
 export const parseDiff = parseDiffImpl
 export const diffTotals = diffTotalsImpl
@@ -170,6 +173,19 @@ export const changedPathsFor = changedPathsForImpl
 export const commitDiff = commitDiffImpl
 export const mergeBlockers = mergeBlockersImpl
 export const isMergeStrategy = isMergeStrategyImpl
+
+/*
+ * The three inputs a branch rule needs that the row alone does not carry.
+ *
+ * Re-exported so the page decides merge readiness from exactly the values the
+ * merge endpoint uses. A page that computed a *nearly* identical answer would
+ * be worse than one that computed none: it is where somebody decides to press
+ * the button, and being told the branch is ready by the screen and refused by
+ * the endpoint is the disagreement that costs the most trust.
+ */
+export const isBehindBase = isBehindBaseImpl
+export const parseRestrictions = parseRestrictionsImpl
+export const pushActorFor = pushActorForImpl
 export const requirementsSatisfied = requirementsSatisfiedImpl
 
 /**

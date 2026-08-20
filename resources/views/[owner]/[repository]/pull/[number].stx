@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, previewsFor, pullRequestDiff, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations, SSR_DIFF_BYTE_LIMIT } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, isBehindBase, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, parseRestrictions, previewsFor, pullRequestDiff, pushActorFor, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations, SSR_DIFF_BYTE_LIMIT } from '../../../../functions/review'
 import { testSummaryForPull } from '../../../../functions/tests'
 // The stack helpers from the module that owns them. They used to be
 // re-exported by `review.ts` so this line could be one import; two modules
@@ -21,7 +21,7 @@ import { testSummaryForPull } from '../../../../functions/tests'
 // in the product, so the convenience went.
 import { blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/stack'
 import { renderMarkdown, renderMarkdownHighlighted } from '../../../../functions/markdown'
-import { isTrue } from '../../../../functions/truth'
+import { isNotFalse, isTrue } from '../../../../functions/truth'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -567,6 +567,28 @@ const mergeability = pullRequest
     })
   : { state: 'unknown' as const, treeSha: null, conflictingPaths: [], recomputed: false }
 
+/*
+ * Whether the base has moved on since the head last took it.
+ *
+ * Only when a rule asks, because it is a git process on a page render. On a
+ * repository with no `require_up_to_date` rule - most of them - the answer is
+ * known without asking: nothing is waiting on it.
+ */
+const behindBase = pullRequest && protection?.require_up_to_date
+  ? await isBehindBase(String(access?.diskPath ?? ''), `refs/heads/${String(pullRequest.base_branch)}`, String(pullRequest.head_sha))
+  : false
+
+/*
+ * Who is reading, for the two rules that turn on it.
+ *
+ * Loaded only when a rule needs it. A page render is the wrong place to spend
+ * three queries on an answer nothing consults, and a branch with neither a
+ * push restriction nor an admin exemption has no use for one.
+ */
+const mergeActor = pullRequest && repoRow && access?.viewer && (protection?.push_restrictions || !isNotFalse(protection?.enforce_admins))
+  ? await pushActorFor(repoRow as any, Number(access.viewer.id))
+  : null
+
 const blockers = pullRequest
   ? mergeBlockers(
       {
@@ -583,12 +605,19 @@ const blockers = pullRequest
         requireLinearHistory: Boolean(protection?.require_linear_history),
         allowedStrategies: ['merge', 'squash', 'rebase'],
         requiredChecks,
+        requireUpToDate: Boolean(protection?.require_up_to_date),
+        restrictedTo: parseRestrictions(protection?.push_restrictions),
+        // Absent reads as bound, never as exempt - see the note in
+        // `MergePullRequestAction`, including why this is not `!== false`.
+        enforceAdmins: isNotFalse(protection?.enforce_admins),
       },
       {
         approvals: approval.approvals,
         blockingReviews: approval.blocking,
         unresolvedThreads,
         checks: checkResult,
+        behindBase,
+        actor: mergeActor,
       },
       'merge',
     )

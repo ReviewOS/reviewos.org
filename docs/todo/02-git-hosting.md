@@ -226,6 +226,31 @@ known to exactly one place.
       Creating, changing and removing one are all in the audit log, and the removal is the one that
       matters - a force push at an *unprotected* branch is an ordinary push and is recorded nowhere,
       so "remove the rule, rewrite the history, put it back" leaves no trace unless the removal does.
+- [x] The rest of what a branch protection call describes. A rule now carries `require_up_to_date`
+      (GitHub's `required_status_checks.strict`), `enforce_admins`, and `push_restrictions` - the
+      three knobs in a `PUT /repos/{owner}/{repo}/branches/{branch}/protection` payload that had
+      nowhere to land, next to the required approvals, dismissal, checks, force pushes and deletions
+      that already did. Each of the three decides the same way at the push gate and at the merge,
+      because a restriction enforced on one door has a button beside it. Two defaults are chosen
+      against GitHub's and both for the same reason - a migration must not weaken a rule somebody
+      already wrote. `enforce_admins` defaults to **on**, since every rule on every instance was
+      written when there was no bypass at all and a column defaulting to off would hand every
+      administrator a silent exemption the day it ran; and an unreadable `push_restrictions` reads
+      as unrestricted rather than as "nobody", which is the opposite of how an unreadable check list
+      is read, because the failure there is a weakened rule and the failure here is a branch nobody
+      can write to including whoever would fix the row. A push whose actor cannot be identified is
+      refused at a restricted branch, which is the one rule in the file that fails closed - and to
+      make that answerable at all, `git-receive-pack` over HTTP now carries the pusher's id into the
+      hook environment the way the SSH daemon always has. Until that, a push over HTTPS was
+      anonymous as far as the gate was concerned, which also meant every push-protection bypass was
+      logged against nobody. Using the admin exemption is written to the audit log at both doors:
+      an exemption nobody can find afterwards is indistinguishable from a protection that was never
+      on.
+- [x] A page that writes the rules, so the endpoint is not the only door. The settings screen has
+      claimed branch protection in its own description since it was written and had no section for
+      it, so every rule on every instance still needed an API client. One form per rule and one
+      blank one, posting to the endpoint the reference documents - what the page can express and
+      what a client can express are the same set, and neither can drift ahead of the other.
 - [x] Tests: force push to a protected branch is rejected, and a push that closes an issue does.
       Both against real git, including one that proves git runs the hooks at all - it says nothing
       when it skips a hook it cannot execute, so a hook that never runs and a hook that always

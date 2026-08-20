@@ -369,3 +369,173 @@ describe('defaultStrategy', () => {
       .toContain('The rebase strategy is not allowed on this branch')
   })
 })
+
+/**
+ * The base branch must already be in the head.
+ *
+ * GitHub calls this `required_status_checks.strict`, and it is the rule that
+ * makes the required checks worth anything: a green tick earned on a head that
+ * never contained the current tip of the base is a tick for code that is about
+ * to stop existing.
+ */
+describe('mergeBlockers: up to date with the base', () => {
+  const strict = { ...permissive, requireUpToDate: true }
+
+  test('a branch that already contains the base tip merges', () => {
+    expect(mergeBlockers(ready, strict, { ...clean, behindBase: false }, 'merge')).toEqual([])
+  })
+
+  test('a branch behind its base is refused, and told what to do', () => {
+    expect(mergeBlockers(ready, strict, { ...clean, behindBase: true }, 'merge').join())
+      .toContain('out of date with its base')
+  })
+
+  /**
+   * The unknown answer blocks, exactly as an unchecked mergeability does. A
+   * rule whose whole purpose is to stop untested combinations landing would be
+   * a strange one to skip the moment git failed to answer - and `isBehindBase`
+   * returns null rather than guessing precisely so this decision can be made
+   * here.
+   */
+  test('an unchecked answer blocks rather than being assumed current', () => {
+    expect(mergeBlockers(ready, strict, { ...clean, behindBase: null }, 'merge').join())
+      .toContain('has not been checked yet')
+
+    expect(mergeBlockers(ready, strict, clean, 'merge').join())
+      .toContain('has not been checked yet')
+  })
+
+  test('the rule off means the answer is never consulted', () => {
+    expect(mergeBlockers(ready, permissive, { ...clean, behindBase: true }, 'merge')).toEqual([])
+  })
+})
+
+/**
+ * Who may land on the branch, which a merge decides as much as a push does.
+ *
+ * Enforced here and at the receive hook from one predicate, because a
+ * restriction enforced on only one of the two doors has a button beside it.
+ */
+describe('mergeBlockers: restricted branches', () => {
+  const restricted = { ...permissive, restrictedTo: { users: ['ada'], teams: ['platform'] } }
+  const ada = { handle: 'ada', isAdmin: false, teams: [] as string[] }
+
+  test('a named user may merge', () => {
+    expect(mergeBlockers(ready, restricted, { ...clean, actor: ada }, 'merge')).toEqual([])
+  })
+
+  test('a member of a named team may merge', () => {
+    const actor = { handle: 'grace', isAdmin: false, teams: ['platform'] }
+
+    expect(mergeBlockers(ready, restricted, { ...clean, actor }, 'merge')).toEqual([])
+  })
+
+  test('anybody else is refused, by name so they know it is them', () => {
+    const actor = { handle: 'mallory', isAdmin: false, teams: ['design'] }
+    const blockers = mergeBlockers(ready, restricted, { ...clean, actor }, 'merge')
+
+    expect(blockers.join()).toContain('mallory')
+    expect(blockers.join()).toContain('only from named users and teams')
+  })
+
+  /** Fails closed. An unidentified merger is not "anybody". */
+  test('an unidentified caller is refused', () => {
+    expect(mergeBlockers(ready, restricted, clean, 'merge').join())
+      .toContain('only from named users and teams')
+  })
+
+  test('no restriction means anybody with push access', () => {
+    const actor = { handle: 'mallory', isAdmin: false, teams: [] as string[] }
+
+    expect(mergeBlockers(ready, permissive, { ...clean, actor }, 'merge')).toEqual([])
+  })
+})
+
+/**
+ * Whether the rules bind the people who could delete them.
+ *
+ * Only the branch's own rules are ever waived. A conflict, a draft and an
+ * unmerged stack parent are not protections somebody is being held to - they
+ * are reasons the merge would not mean what it says.
+ */
+describe('mergeBlockers: enforce_admins', () => {
+  const strict = {
+    ...permissive,
+    requiredApprovals: 2,
+    requireThreadsResolved: true,
+    requireLinearHistory: true,
+    requiredChecks: ['ci'],
+  }
+
+  const short = {
+    approvals: 0,
+    blockingReviews: 1,
+    unresolvedThreads: 3,
+    checks: { failing: ['ci'], pending: [], missing: [] },
+  }
+
+  const admin = { handle: 'ada', isAdmin: true, teams: [] as string[] }
+
+  test('an admin is held to the rules by default', () => {
+    expect(mergeBlockers(ready, strict, { ...short, actor: admin }, 'merge').length).toBeGreaterThan(0)
+  })
+
+  /**
+   * Absent reads as bound, never as exempt. A row written before the column
+   * existed has null here, and reading that as an exemption would hand every
+   * administrator on the instance a silent one the day the migration ran.
+   */
+  test('an unset flag is the same as enforcing it', () => {
+    const blockers = mergeBlockers(ready, { ...strict, enforceAdmins: undefined }, { ...short, actor: admin }, 'merge')
+
+    expect(blockers.length).toBeGreaterThan(0)
+  })
+
+  test('turning it off lets an admin past the branch rules', () => {
+    const waived = { ...strict, enforceAdmins: false }
+
+    expect(mergeBlockers(ready, waived, { ...short, actor: admin }, 'merge')).toEqual([])
+  })
+
+  test('and past a restriction they are not named in', () => {
+    const waived = { ...permissive, enforceAdmins: false, restrictedTo: { users: ['grace'], teams: [] } }
+
+    expect(mergeBlockers(ready, waived, { ...clean, actor: admin }, 'merge')).toEqual([])
+  })
+
+  test('the exemption is for admins, not for everybody', () => {
+    const waived = { ...strict, enforceAdmins: false }
+    const author = { handle: 'mallory', isAdmin: false, teams: [] as string[] }
+
+    expect(mergeBlockers(ready, waived, { ...short, actor: author }, 'merge').length).toBeGreaterThan(0)
+  })
+
+  /** A conflict is not a protection, so there is nothing to be exempt from. */
+  test('a conflict still blocks an exempt admin', () => {
+    const waived = { ...strict, enforceAdmins: false }
+    const blockers = mergeBlockers({ ...ready, mergeable: false }, waived, { ...short, actor: admin }, 'merge')
+
+    expect(blockers.join()).toContain('conflicts')
+  })
+
+  test('so does a draft, and a parent that has not landed', () => {
+    const waived = { ...strict, enforceAdmins: false }
+    const stacked = { ...ready, draft: true, stackParent: { state: 'open' as const } }
+    const blockers = mergeBlockers(stacked, waived, { ...short, actor: admin }, 'merge')
+
+    expect(blockers.join()).toContain('ready for review')
+    expect(blockers.join()).toContain('stacked on must be merged first')
+  })
+
+  /**
+   * The repository's merge settings are not branch protection either. A
+   * repository that only allows squashes is describing what its history looks
+   * like, not holding anybody to account.
+   */
+  test('a strategy the repository does not allow still refuses', () => {
+    const waived = { ...permissive, enforceAdmins: false, allowedStrategies: ['squash'] as const }
+
+    expect(mergeBlockers(ready, waived, { ...clean, actor: admin }, 'merge').join())
+      .toContain('not allowed on this branch')
+  })
+})

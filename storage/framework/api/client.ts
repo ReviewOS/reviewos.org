@@ -5233,7 +5233,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/protected-branches
    */
-  postReposProtectedBranches(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "pattern"?: string; "allow_deletion"?: unknown; "allow_force_push"?: unknown; "dismiss_stale_reviews"?: unknown; "require_conversation_resolution"?: unknown; "require_human_approval_for_agents"?: unknown; "require_linear_history"?: unknown; "required_approvals"?: unknown; "required_checks"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposProtectedBranches(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "pattern"?: string; "allow_deletion"?: unknown; "allow_force_push"?: unknown; "dismiss_stale_reviews"?: unknown; "require_conversation_resolution"?: unknown; "require_human_approval_for_agents"?: unknown; "require_linear_history"?: unknown; "required_approvals"?: unknown; "required_checks"?: unknown; "require_up_to_date"?: unknown; "enforce_admins"?: unknown; "push_restrictions"?: unknown; "push_restrictions_users"?: unknown; "push_restrictions_teams"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/protected-branches", input ?? {}, [], true, options)
   },
 

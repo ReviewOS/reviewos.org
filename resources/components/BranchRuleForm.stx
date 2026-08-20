@@ -1,0 +1,153 @@
+<script server>
+/*
+ * One protected branch rule, as a form.
+ *
+ * Every field is on every rule, and the endpoint upserts on the pattern - so
+ * this is the same markup whether it is being created or changed, and the only
+ * difference is what it arrives filled in with. That is deliberate: a separate
+ * "edit" form would be a second place for a field to go missing, and the field
+ * that goes missing from an edit form is the one that silently reverts to its
+ * default the next time somebody saves.
+ *
+ * No JavaScript. Every control posts to `/api/repos/protected-branches`, which
+ * is the same endpoint the API documents - so what the page can express and
+ * what a client can express are the same set, and neither can drift ahead.
+ *
+ * Flags arrive as '1' or '', because an attribute is a string and 'false' is a
+ * truthy one. The MergeBox lesson, and it costs a branch protection page more
+ * than most: a checkbox rendered checked because its value was the string
+ * 'false' is a rule that reads as enforced and is not.
+ */
+const on = (value) => String(value ?? '') === '1'
+
+const isNew = on(fresh)
+const rulePattern = String(pattern ?? '')
+const approvals = String(requiredApprovals ?? '0')
+const checks = String(requiredChecks ?? '')
+const users = String(restrictUsers ?? '')
+const teams = String(restrictTeams ?? '')
+</script>
+
+<form class="rule-form grid" method="post" action="/api/repos/protected-branches">
+  <CsrfField />
+  <input type="hidden" name="owner" value="{{ owner }}">
+  <input type="hidden" name="repo" value="{{ repo }}">
+  <input type="hidden" name="operation" value="save">
+
+  <label class="field">
+    <span class="label">Branch pattern</span>
+    @if (isNew)
+      <input class="input mono" name="pattern" required maxlength="255" placeholder="main, or release/*">
+      <span class="hint muted">
+        A glob. <span class="mono">*</span> stays inside one path segment and <span class="mono">**</span>
+        crosses them, so <span class="mono">release/*</span> covers <span class="mono">release/1.0</span>
+        and not <span class="mono">release/1.0/hotfix</span>. Everything else is literal.
+      </span>
+    @else
+      {{-- Fixed, because the pattern is the identity: the endpoint upserts on
+          it, so editing this field in place would leave the old rule behind
+          and quietly protect a branch nobody meant to protect. --}}
+      <input class="input mono" name="pattern" value="{{ rulePattern }}" readonly>
+    @endif
+  </label>
+
+  <label class="field">
+    <span class="label">Required approvals</span>
+    <input class="input input-small" type="number" name="required_approvals" min="0" max="20" value="{{ approvals }}">
+  </label>
+
+  <label class="field">
+    <span class="label">Required checks</span>
+    <input class="input mono" name="required_checks" value="{{ checks }}" placeholder="ci, build">
+    <span class="hint muted">
+      Comma separated. A name here is matched against both check runs and commit statuses, so it
+      does not matter which API your CI reports through.
+    </span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="require_up_to_date" value="1" {{ on(requireUpToDate) ? 'checked' : '' }}>
+    <span>The branch must be up to date with its base before merging</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="dismiss_stale_reviews" value="1" {{ on(dismissStale) ? 'checked' : '' }}>
+    <span>Dismiss approvals when new commits are pushed</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="require_conversation_resolution" value="1" {{ on(requireConversation) ? 'checked' : '' }}>
+    <span>Every review thread must be resolved</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="require_linear_history" value="1" {{ on(requireLinear) ? 'checked' : '' }}>
+    <span>Keep history linear, so squash or rebase rather than merge</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="require_human_approval_for_agents" value="1" {{ on(requireHumanApproval) ? 'checked' : '' }}>
+    <span>A change written by a machine account needs one person to approve it</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="allow_force_push" value="1" {{ on(allowForcePush) ? 'checked' : '' }}>
+    <span>Allow force pushes, which drop commits nobody can get back</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="allow_deletion" value="1" {{ on(allowDeletion) ? 'checked' : '' }}>
+    <span>Allow this branch to be deleted</span>
+  </label>
+
+  {{--
+    The hidden 0 in front of the checkbox, and the one place on this page that
+    needs one.
+
+    An unticked HTML checkbox sends nothing at all, and for `enforce_admins`
+    "nothing" cannot mean off: a client that has never heard of the field must
+    not switch it off by staying silent, so the endpoint reads absence as *on*.
+    That leaves the page with no way to turn it off - unless the page sends the
+    off value itself, which is what this is. Last value wins, so the checkbox
+    overrides it when ticked.
+  --}}
+  <input type="hidden" name="enforce_admins" value="0">
+  <label class="check">
+    <input type="checkbox" name="enforce_admins" value="1" {{ on(enforceAdmins) ? 'checked' : '' }}>
+    <span>Apply these rules to repository administrators too</span>
+  </label>
+
+  <label class="field">
+    <span class="label">Restrict pushes to these users</span>
+    <input class="input mono" name="push_restrictions_users" value="{{ users }}" placeholder="ada, grace">
+    <span class="hint muted">
+      Comma separated handles. Empty means anybody with push access, which is the usual answer.
+      This narrows who may write to the branch; it grants nobody access they did not already have.
+    </span>
+  </label>
+
+  <label class="field">
+    <span class="label">…and these teams</span>
+    <input class="input mono" name="push_restrictions_teams" value="{{ teams }}" placeholder="platform, release">
+  </label>
+
+  <div class="actions">
+    <button class="btn" type="submit">{{ isNew ? 'Add rule' : 'Save rule' }}</button>
+  </div>
+</form>
+
+@if (!isNew)
+  <form class="inline rule-remove" method="post" action="/api/repos/protected-branches">
+    <CsrfField />
+    <input type="hidden" name="owner" value="{{ owner }}">
+    <input type="hidden" name="repo" value="{{ repo }}">
+    <input type="hidden" name="operation" value="delete">
+    <input type="hidden" name="pattern" value="{{ rulePattern }}">
+    <button class="btn btn-danger" type="submit">Remove this rule</button>
+  </form>
+@endif
+
+<style>
+  .rule-form { margin-top: 4px; }
+  .rule-remove { margin-top: 12px; }
+</style>

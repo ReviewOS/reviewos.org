@@ -1,5 +1,6 @@
 import type { AuthenticatedToken } from '../Tokens/authenticate'
-import { canOnRepository, type RepositoryPermission, type RepositoryVisibility } from '../../Permissions'
+import type { PushActor } from './protection'
+import { canOnRepository, repositoryPermissionFor, type RepositoryPermission, type RepositoryVisibility } from '../../Permissions'
 import { tokenAllows, tokenReaches } from '../../TokenScopes'
 import { authenticateToken } from '../Tokens/authenticate'
 import { effectiveTeamsFor, teamPermissionsOn } from '../Team/resolve'
@@ -370,4 +371,74 @@ export async function servablePathFor(owner: string, name: string): Promise<stri
   const local = await ensureLocal(owner, name)
 
   return local.ok ? local.path! : null
+}
+
+/**
+ * Who is pushing, for the branch rules that care.
+ *
+ * Two of them do. `enforce_admins` needs to know whether this person could have
+ * removed the rule instead of pushing past it, and `push_restrictions` needs
+ * the handle and the team slugs it matches against.
+ *
+ * Everything here is read at push time rather than carried on the credential,
+ * because both answers change without the credential changing: somebody removed
+ * from a team keeps their token, and a token issued to an admin outlives the
+ * admin. A rule decided from a stale copy of either is a rule that applies to
+ * the wrong person.
+ *
+ * A database that will not answer produces the least privileged actor rather
+ * than a throw - not an admin, in no teams - so the failure is a rule that
+ * still applies rather than a push that lands unchecked.
+ */
+export async function pushActorFor(repository: GitRepositoryRow, userId: number | null): Promise<PushActor | null> {
+  if (userId === null)
+    return null
+
+  const unknown: PushActor = { userId, handle: null, isAdmin: false, teams: [] }
+
+  try {
+    const grants = await permissionOn(repository, userId)
+
+    const permission = repositoryPermissionFor({
+      userId,
+      visibility: repository.visibility,
+      ownerUserId: repository.owner_type === 'user' ? repository.owner_id : null,
+      ...grants,
+    })
+
+    const user = await db
+      .selectFrom('users')
+      .select(['handle'])
+      .where('id', '=', userId)
+      .executeTakeFirst()
+
+    /*
+     * The teams, by slug rather than by id.
+     *
+     * `effectiveTeamsFor` already walks the parent chain, so somebody in a
+     * child team is in its parents too - which is what a restriction naming the
+     * parent means to whoever wrote it.
+     */
+    const teamIds = repository.owner_type === 'organization'
+      ? await effectiveTeamsFor(userId, Number(repository.owner_id))
+      : []
+
+    const teams = teamIds.length === 0
+      ? []
+      : await db
+          .selectFrom('teams')
+          .select(['slug'])
+          .where('id', 'in', teamIds)
+          .execute()
+
+    return {
+      userId,
+      handle: user?.handle ? String(user.handle).toLowerCase() : null,
+      isAdmin: permission === 'admin',
+      teams: teams.map(row => String(row.slug ?? '').toLowerCase()).filter(Boolean),
+    }
+  }
+  catch {
+    return unknown
+  }
 }

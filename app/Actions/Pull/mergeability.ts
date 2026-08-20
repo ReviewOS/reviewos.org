@@ -141,3 +141,44 @@ export function isCurrent(
 ): boolean {
   return cached.baseSha === current.baseSha && cached.headSha === current.headSha
 }
+
+/**
+ * Whether the base branch has moved on since the head last took it.
+ *
+ * The question behind `required_status_checks.strict` - what GitHub calls a
+ * branch being out of date. False means the tip of the base is already an
+ * ancestor of the head, so every check that ran on the head ran on code that
+ * contained it.
+ *
+ * **Null when git could not answer**, which is why this is not `isAncestor`
+ * from the mirror code: that one reads a failure as "history was rewritten",
+ * which is the safe reading for a force push and the wrong one here. A missing
+ * object would silently become "out of date", and the pull request would sit
+ * there telling somebody to rebase a branch that is already current, forever.
+ *
+ * The caller treats null as a blocker with its own sentence, in the same way an
+ * unchecked mergeability is - stated as unknown rather than guessed either way.
+ *
+ * `base` is a revision, so callers pass `refs/heads/main` rather than the sha
+ * the pull request was opened against. Those are different commits the moment
+ * anything else lands, and the stored one would answer that every branch is
+ * up to date with a base that has since moved four times - which is the exact
+ * situation the rule exists to catch.
+ */
+export async function isBehindBase(
+  repositoryPath: string,
+  base: string,
+  headSha: string,
+): Promise<boolean | null> {
+  if (!isSafeRevision(base) || !isSafeRevision(headSha))
+    return null
+
+  const result = await runGit(repositoryPath, ['merge-base', '--is-ancestor', base, headSha])
+
+  if (result.code === 0)
+    return false
+
+  // git answers 1 for "no". Anything else - a missing object, a repository that
+  // is not there, a process that could not start - is not an answer.
+  return result.code === 1 ? true : null
+}

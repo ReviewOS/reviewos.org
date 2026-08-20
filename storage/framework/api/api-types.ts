@@ -14210,7 +14210,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: string; "pattern"?: string; "allow_deletion"?: unknown; "allow_force_push"?: unknown; "dismiss_stale_reviews"?: unknown; "require_conversation_resolution"?: unknown; "require_human_approval_for_agents"?: unknown; "require_linear_history"?: unknown; "required_approvals"?: unknown; "required_checks"?: unknown } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: string; "pattern"?: string; "allow_deletion"?: unknown; "allow_force_push"?: unknown; "dismiss_stale_reviews"?: unknown; "require_conversation_resolution"?: unknown; "require_human_approval_for_agents"?: unknown; "require_linear_history"?: unknown; "required_approvals"?: unknown; "required_checks"?: unknown; "require_up_to_date"?: unknown; "enforce_admins"?: unknown; "push_restrictions"?: unknown; "push_restrictions_users"?: unknown; "push_restrictions_teams"?: unknown } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }

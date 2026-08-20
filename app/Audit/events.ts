@@ -69,6 +69,17 @@ export type AuditEventName =
   // Protected branches and the rules on them.
   | 'branch:protection-changed'
   | 'branch:protection-removed'
+  /**
+   * A rule that would have refused a push did not, because the pusher
+   * administers the repository and the rule does not bind them.
+   *
+   * The only trace such a push leaves. Everything else about it looks like an
+   * ordinary push, which is precisely the problem: without this line, "the
+   * branch was protected and the history was rewritten anyway" has no record
+   * anybody can find, and the exemption becomes indistinguishable from a
+   * protection that was never really on.
+   */
+  | 'branch:protection-admin-bypass'
   | 'push:protection-bypassed'
   // Visibility, transfers, deletions.
   | 'repository:visibility-changed'
@@ -180,6 +191,7 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'two-factor:recovery-codes-reissued',
   'branch:protection-changed',
   'branch:protection-removed',
+  'branch:protection-admin-bypass',
   'push:protection-bypassed',
   'repository:visibility-changed',
   'repository:transferred',

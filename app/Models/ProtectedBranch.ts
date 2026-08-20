@@ -128,5 +128,71 @@ export default defineModel({
       validation: { rule: schema.boolean() },
       factory: () => false,
     },
+
+    /**
+     * The branch a pull request targets must already be in its head.
+     *
+     * GitHub spells this `required_status_checks.strict`, and the name hides
+     * what it is for: a check that passed on a head which never contained the
+     * current tip of the base did not test the code that is about to exist.
+     * Two branches that each pass on their own and break together is the
+     * failure this catches, and it is the one a green tick makes people stop
+     * looking for.
+     *
+     * Costly on a busy branch - every merge to the base makes every open pull
+     * request out of date - so it is off unless somebody asks for it, and it is
+     * separate from `required_checks` rather than folded into it. A repository
+     * can reasonably want a check to be required without wanting the branch
+     * rebased every twenty minutes.
+     */
+    require_up_to_date: {
+      order: 11,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    /**
+     * Whether the rule binds the people who could remove it.
+     *
+     * **Defaults to true, which is the opposite of GitHub's default and is
+     * deliberate.** Every rule on every existing instance was written when
+     * there was no bypass at all, so a column defaulting to false would hand
+     * every repository admin a silent exemption from protections they believe
+     * are in force, on the day the migration ran. A protection that stops
+     * applying without anybody changing it is the worst kind of change.
+     *
+     * Turning it off is a real thing to want - the branch nobody can fix at
+     * 3am is its own outage - so the exemption exists, and using it is written
+     * to the audit log rather than left to be inferred from the reflog.
+     */
+    enforce_admins: {
+      order: 12,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    /**
+     * Who may write to this branch at all, as JSON.
+     *
+     * `{"users":["ada"],"teams":["platform"]}`, matching GitHub's
+     * `restrictions`. Empty - the column's default - means unrestricted, which
+     * is what `restrictions: null` says there.
+     *
+     * A restriction, not a grant: being named here does not give anybody push
+     * access they did not already have. It narrows the set of people who
+     * already have it, which is why an empty list is the absence of a rule
+     * rather than a branch nobody can write to.
+     */
+    push_restrictions: {
+      order: 13,
+      fillable: true,
+      type: 'text',
+      validation: { rule: schema.string() },
+      factory: () => '',
+    },
   },
 } as const)

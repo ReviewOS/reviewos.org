@@ -10,6 +10,12 @@ import { updateWhereIn } from '../Support/rows'
 import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
 import { allowedStrategies, defaultStrategy, isMergeStrategy, mayDeleteHeadBranch, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { requirementsSatisfied, statusAsRun } from '../Checks/status'
+import { isBehindBase } from './mergeability'
+import { parseRestrictions } from '../Repo/branchRules'
+import { pushActorFor } from '../Git/access'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
+import { isNotFalse } from '../Support/sql'
 
 /**
  * Merge a pull request.
@@ -110,6 +116,22 @@ export default new Action({
       allowedStrategies: allowedStrategies(repository as any),
       requiredChecks,
       requireHumanApprovalForAgents: Boolean(protection?.require_human_approval_for_agents),
+      requireUpToDate: Boolean(protection?.require_up_to_date),
+      restrictedTo: parseRestrictions(protection?.push_restrictions),
+      /*
+       * Absent reads as bound, never as exempt.
+       *
+       * A row written before the column existed has null here, and `Boolean`
+       * would turn that into `false` - which is the value that hands every
+       * administrator a silent exemption from every rule on the instance. So
+       * the exemption has to be written down explicitly to exist.
+       *
+       * `isNotFalse` rather than `!== false`, because MySQL has no boolean and
+       * hands this back as `0` - which is not `false`, so the plain comparison
+       * would read every exemption on a MySQL instance as bound. See
+       * `app/Actions/Support/sql.ts`.
+       */
+      enforceAdmins: isNotFalse(protection?.enforce_admins),
     }
 
     const reviews = await db
@@ -188,6 +210,40 @@ export default new Action({
           .where('sha', '=', pullRequest.head_sha)
           .execute()
 
+    /*
+     * The repository on disk, needed before the blockers rather than after.
+     *
+     * `require_up_to_date` is a question only git can answer, so the path has
+     * to be in hand while the rules are being decided. A repository that is not
+     * there is a 404 either way; asking first only moves which of the two
+     * answers arrives when both are true.
+     */
+    const resolved = repositoryPath(String(request.get('owner')), repository.name)
+    if (!resolved.ok)
+      return response.json({ error: 'Repository not found' }, 404)
+
+    /*
+     * Whether the base has moved on since the head last took it.
+     *
+     * Asked only when a rule turns on the answer. It is a git process per merge
+     * attempt, and on a repository with no `require_up_to_date` rule - which is
+     * most of them - it would buy nothing.
+     */
+    const behindBase = protection?.require_up_to_date
+      ? await isBehindBase(resolved.path!, `refs/heads/${String(pullRequest.base_branch)}`, String(pullRequest.head_sha))
+      : false
+
+    /*
+     * Who is merging, for the two rules that turn on it.
+     *
+     * Loaded only when a rule needs it, for the same reason: it is three
+     * queries, and a branch with neither a restriction nor an admin exemption
+     * has no use for the answer.
+     */
+    const mergeActor = protection && (protection.push_restrictions || !isNotFalse(protection.enforce_admins))
+      ? await pushActorFor(repository as any, Number(user.id))
+      : null
+
     const checkResult = requirementsSatisfied(
       [
         ...checkStatuses.map((entry) => statusAsRun(entry)),
@@ -201,25 +257,28 @@ export default new Action({
       requiredChecks,
     )
 
-    const blockers = mergeBlockers(
-      {
-        state: pullRequest.state as 'open' | 'closed' | 'merged',
-        draft: Boolean(pullRequest.draft),
-        mergeable: pullRequest.mergeable_state === 'clean' ? true : pullRequest.mergeable_state === 'dirty' ? false : null,
-        stackParent: parent ? { state: parent.state as 'open' | 'closed' | 'merged' } : null,
-      },
-      rules,
-      {
-        approvals: approval.approvals,
-        blockingReviews: approval.blocking,
-        uncountedApprovals: approval.uncounted,
-        authorIsMachine: machineAccounts.has(Number(pullRequest.author_id)),
-        humanApprovals: approval.human,
-        unresolvedThreads: Number(unresolved?.count ?? 0),
-        checks: checkResult,
-      },
-      strategy,
-    )
+    // Named rather than inlined, so the audit pass below can ask the same
+    // question of the same inputs with one flag changed.
+    const candidate = {
+      state: pullRequest.state as 'open' | 'closed' | 'merged',
+      draft: Boolean(pullRequest.draft),
+      mergeable: pullRequest.mergeable_state === 'clean' ? true : pullRequest.mergeable_state === 'dirty' ? false : null,
+      stackParent: parent ? { state: parent.state as 'open' | 'closed' | 'merged' } : null,
+    }
+
+    const readiness = {
+      approvals: approval.approvals,
+      blockingReviews: approval.blocking,
+      uncountedApprovals: approval.uncounted,
+      authorIsMachine: machineAccounts.has(Number(pullRequest.author_id)),
+      humanApprovals: approval.human,
+      unresolvedThreads: Number(unresolved?.count ?? 0),
+      checks: checkResult,
+      behindBase,
+      actor: mergeActor,
+    }
+
+    const blockers = mergeBlockers(candidate, rules, readiness, strategy)
 
     if (checksUnreadable)
       blockers.push('The required checks for this branch could not be read')
@@ -227,9 +286,48 @@ export default new Action({
     if (blockers.length > 0)
       return response.json({ error: 'This pull request cannot be merged', blockers }, 409)
 
-    const resolved = repositoryPath(String(request.get('owner')), repository.name)
-    if (!resolved.ok)
-      return response.json({ error: 'Repository not found' }, 404)
+    /*
+     * A merge that only went through because the rule does not bind admins.
+     *
+     * Recorded, and only when the exemption changed the answer - re-running the
+     * same pure decision as though `enforce_admins` were on is the only way to
+     * tell "an admin merged a branch that was ready" from "an admin merged past
+     * two missing approvals and a failing check". Recording both would bury the
+     * second under the first.
+     *
+     * Cheap: every input is already in hand, and this asks git and the database
+     * nothing at all.
+     */
+    if (mergeActor?.isAdmin && !isNotFalse(protection?.enforce_admins)) {
+      // Scoped so this shows up when the repository's organization owner asks
+      // what happened, rather than only when an instance administrator does.
+      const scope = {
+        repositoryId: Number(repository.id),
+        organizationId: String(repository.owner_type) === 'organization' ? Number(repository.owner_id) : null,
+      }
+
+      const waived = mergeBlockers(
+        candidate,
+        { ...rules, enforceAdmins: true },
+        readiness,
+        strategy,
+      )
+
+      if (waived.length > 0) {
+        await auditEvent('branch:protection-admin-bypass', {
+          subject: { type: 'pull_request', id: Number(pullRequest.id) },
+          actorId: Number(user.id),
+          ...await auditFrom(request),
+          ...scope,
+          detail: {
+            pattern: String(protection?.pattern ?? ''),
+            branch: String(pullRequest.base_branch),
+            pull_request: number,
+            would_have_refused: waived,
+          },
+        })
+      }
+    }
 
     const commits = await subjectsOnBranch(resolved.path!, String(pullRequest.base_sha), String(pullRequest.head_sha))
     const message = mergeCommitMessage(strategy, {

@@ -196,3 +196,178 @@ describe('a mirrored repository', () => {
     expect(decision.refused[0].reason).toContain('overwritten by the next sync')
   })
 })
+
+/**
+ * Who may write to the branch at all.
+ *
+ * Unlike deletion and force push, this covers an ordinary fast-forward too:
+ * "only the release team lands on `release/*`" is a statement about people, and
+ * a rule that let anybody append to the branch would not be one.
+ */
+describe('allowsUpdate: restricted branches', () => {
+  const restricted = [{ pattern: 'main', push_restrictions: '{"users":["ada"],"teams":["platform"]}' }]
+
+  const ada = { userId: 1, handle: 'ada', isAdmin: false, teams: [] as string[] }
+  const grace = { userId: 2, handle: 'grace', isAdmin: false, teams: ['platform'] }
+  const mallory = { userId: 3, handle: 'mallory', isAdmin: false, teams: ['design'] }
+
+  test('a named user may push', () => {
+    expect(allowsUpdate(restricted, move('main'), false, ada).ok).toBe(true)
+  })
+
+  test('a member of a named team may push', () => {
+    expect(allowsUpdate(restricted, move('main'), false, grace).ok).toBe(true)
+  })
+
+  test('anybody else is refused, by name', () => {
+    const decision = allowsUpdate(restricted, move('main'), false, mallory)
+
+    expect(decision.ok).toBe(false)
+    expect(decision.reason).toContain('mallory')
+  })
+
+  /**
+   * Fails closed, and this is the one rule in the file that does.
+   *
+   * Everywhere else, guessing wrong means a protection that does not apply for
+   * a moment. Here it would mean "anybody whose identity we could not read may
+   * write to the release branch", which is not a weakened protection but the
+   * absence of one.
+   */
+  test('a pusher with no identity is refused', () => {
+    expect(allowsUpdate(restricted, move('main'), false, null).ok).toBe(false)
+    expect(allowsUpdate(restricted, move('main'), false).ok).toBe(false)
+  })
+
+  test('an unrestricted rule lets anybody with push access through', () => {
+    expect(allowsUpdate([{ pattern: 'main' }], move('main'), false, mallory).ok).toBe(true)
+    expect(allowsUpdate([{ pattern: 'main', push_restrictions: '' }], move('main'), false, null).ok).toBe(true)
+  })
+
+  /**
+   * A restriction that will not parse is read as no restriction, which is the
+   * opposite of how an unreadable required-check list is read - and the reason
+   * is the direction each one fails in. An unreadable allowlist read as
+   * "nobody" would lock every writer out of the branch, including whoever would
+   * fix the row.
+   */
+  test('an unreadable restriction does not lock the branch', () => {
+    const broken = [{ pattern: 'main', push_restrictions: '{not json' }]
+
+    expect(allowsUpdate(broken, move('main'), false, mallory).ok).toBe(true)
+  })
+
+  test('the restriction is reported before the force push, being the broader refusal', () => {
+    const both = [{ pattern: 'main', push_restrictions: '{"users":["ada"],"teams":[]}' }]
+    const decision = allowsUpdate(both, move('main'), true, mallory)
+
+    expect(decision.reason).toContain('restricted')
+  })
+
+  test('tags are not branches, so a restriction does not reach them', () => {
+    expect(allowsUpdate(restricted, tag('v1.0'), false, mallory).ok).toBe(true)
+  })
+})
+
+/**
+ * Whether a rule binds the people who could remove it.
+ *
+ * The default is bound. That is the opposite of GitHub's default and is
+ * deliberate: every rule written before the column existed reads as bound, so
+ * the migration cannot hand an exemption to anybody.
+ */
+describe('allowsUpdate: enforce_admins', () => {
+  const admin = { userId: 1, handle: 'ada', isAdmin: true, teams: [] as string[] }
+  const writer = { userId: 2, handle: 'grace', isAdmin: false, teams: [] as string[] }
+
+  test('an admin is bound by a rule that says nothing about it', () => {
+    expect(allowsUpdate([locked], remove('main'), false, admin).ok).toBe(false)
+    expect(allowsUpdate([{ ...locked, enforce_admins: true }], remove('main'), false, admin).ok).toBe(false)
+  })
+
+  test('turning it off lets an admin delete and force push', () => {
+    const waived = [{ ...locked, enforce_admins: false }]
+
+    expect(allowsUpdate(waived, remove('main'), false, admin).ok).toBe(true)
+    expect(allowsUpdate(waived, move('main'), true, admin).ok).toBe(true)
+  })
+
+  test('and past a restriction they are not named in', () => {
+    const waived = [{ pattern: 'main', enforce_admins: false, push_restrictions: '{"users":["grace"],"teams":[]}' }]
+
+    expect(allowsUpdate(waived, move('main'), false, admin).ok).toBe(true)
+  })
+
+  test('the exemption is for admins, not for everybody', () => {
+    const waived = [{ ...locked, enforce_admins: false }]
+
+    expect(allowsUpdate(waived, remove('main'), false, writer).ok).toBe(false)
+    expect(allowsUpdate(waived, remove('main'), false, null).ok).toBe(false)
+  })
+
+  /**
+   * Every matching rule has to grant it, for the same reason the most
+   * restrictive rule wins elsewhere: adding a broad `**` rule must not quietly
+   * hand out an exemption on the narrow branch somebody protected on purpose.
+   */
+  test('one rule that still binds admins is enough to bind them', () => {
+    const mixed = [
+      { pattern: 'main', enforce_admins: false },
+      { pattern: '**', enforce_admins: true },
+    ]
+
+    expect(allowsUpdate(mixed, remove('main'), false, admin).ok).toBe(false)
+  })
+})
+
+describe('decidePush with an actor', () => {
+  test('carries the actor to every update it judges', () => {
+    const rules = [{ pattern: 'main', push_restrictions: '{"users":["ada"],"teams":[]}' }]
+    const mallory = { userId: 3, handle: 'mallory', isAdmin: false, teams: [] as string[] }
+
+    const judged = [
+      { update: move('main'), isForced: false },
+      { update: move('topic'), isForced: false },
+    ]
+
+    const decision = decidePush(rules, judged, { mirror: null }, mallory)
+
+    expect(decision.ok).toBe(false)
+    expect(decision.refused).toHaveLength(1)
+    expect(decision.refused[0]!.ref).toBe('refs/heads/main')
+  })
+})
+
+/**
+ * The rules read a row, and a row's booleans depend on the engine.
+ *
+ * MySQL has no boolean type - `BOOLEAN` is a spelling of `TINYINT(1)` - so a
+ * column Postgres hands back as `true` arrives as `1`, and `x === true` is
+ * false of it. Two comparisons here were written that way, which on MySQL made
+ * `allow_force_push` and `allow_deletion` unsettable: the branch refuses
+ * whatever the row says. It fails in the safe direction, which is exactly why
+ * nobody would have found it from a bug report.
+ */
+describe('reading a row on either engine', () => {
+  test('1 and 0 mean what true and false mean', () => {
+    expect(allowsUpdate([{ pattern: 'main', allow_force_push: 1 as any }], move('main'), true).ok).toBe(true)
+    expect(allowsUpdate([{ pattern: 'main', allow_force_push: 0 as any }], move('main'), true).ok).toBe(false)
+
+    expect(allowsUpdate([{ pattern: 'main', allow_deletion: 1 as any }], remove('main'), false).ok).toBe(true)
+    expect(allowsUpdate([{ pattern: 'main', allow_deletion: 0 as any }], remove('main'), false).ok).toBe(false)
+  })
+
+  test('an admin exemption stored as 0 is still an exemption', () => {
+    const admin = { userId: 1, handle: 'ada', isAdmin: true, teams: [] as string[] }
+
+    expect(allowsUpdate([{ pattern: 'main', enforce_admins: 0 as any }], remove('main'), false, admin).ok).toBe(true)
+    expect(allowsUpdate([{ pattern: 'main', enforce_admins: 1 as any }], remove('main'), false, admin).ok).toBe(false)
+  })
+
+  /** Null is a row written before the column existed. It is not an exemption. */
+  test('a null flag is bound, not exempt', () => {
+    const admin = { userId: 1, handle: 'ada', isAdmin: true, teams: [] as string[] }
+
+    expect(allowsUpdate([{ pattern: 'main', enforce_admins: null }], remove('main'), false, admin).ok).toBe(false)
+  })
+})

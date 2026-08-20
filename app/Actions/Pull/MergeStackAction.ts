@@ -5,7 +5,12 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
 import { performMerge } from './apply'
+import type { PushActor } from '../Git/protection'
 import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
+import { isBehindBase } from './mergeability'
+import { parseRestrictions } from '../Repo/branchRules'
+import { pushActorFor } from '../Git/access'
+import { isNotFalse } from '../Support/sql'
 import { buildStack, landablePrefix } from './stack'
 
 /**
@@ -77,12 +82,33 @@ export default new Action({
 
     const stack = buildStack(members, target.id)
 
+    // Resolved before the readiness loop rather than after, because
+    // `require_up_to_date` is a question only git can answer and the rules are
+    // decided in there.
+    const resolved = repositoryPath(String(request.get('owner')), repository.name)
+    if (!resolved.ok)
+      return response.json({ error: 'Repository not found' }, 404)
+
+    /*
+     * Who is merging, worked out once for the whole stack.
+     *
+     * One person and one repository, so the answer cannot differ between
+     * members - and asking per member would be the same three queries a dozen
+     * times over.
+     *
+     * Unconditional here, unlike the single merge, which loads this only when
+     * the branch rule needs it. A stack spans several base branches and so
+     * several rules, and the cheapest correct thing is to ask once rather than
+     * to first read every rule to find out whether asking is necessary.
+     */
+    const stackActor = await pushActorFor(repository as any, Number(user.id))
+
     // Every member's blockers, so the run that can land is decided on the same
     // rules a single merge would apply.
     const readiness = []
     for (const member of stack) {
       const row = rows.find((candidate: any) => Number(candidate.id) === member.id)
-      readiness.push({ id: member.id, blockers: await blockersFor(repository, row) })
+      readiness.push({ id: member.id, blockers: await blockersFor(repository, row, resolved.path!, stackActor) })
     }
 
     const landable = landablePrefix(stack, readiness)
@@ -93,10 +119,6 @@ export default new Action({
 
       return response.json({ error: 'This stack cannot be merged yet', blockers: reason }, 409)
     }
-
-    const resolved = repositoryPath(String(request.get('owner')), repository.name)
-    if (!resolved.ok)
-      return response.json({ error: 'Repository not found' }, 404)
 
     const merged: number[] = []
 
@@ -207,7 +229,7 @@ export default new Action({
 })
 
 /** The blockers for one pull request, on the same rules a single merge uses. */
-async function blockersFor(repository: any, row: any): Promise<string[]> {
+async function blockersFor(repository: any, row: any, path: string, actor: PushActor | null): Promise<string[]> {
   if (!row)
     return ['This pull request could not be read']
 
@@ -298,6 +320,12 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
     requiredChecks,
   )
 
+  // Only when a rule asks. One git process per stack member is a real cost on
+  // a stack of ten, and it buys nothing on a branch with no such rule.
+  const behindBase = protection?.require_up_to_date
+    ? await isBehindBase(path, `refs/heads/${String(row.base_branch)}`, String(row.head_sha))
+    : false
+
   // The stack rule itself is left out: `landablePrefix` enforces the ordering,
   // and including it here would report every member as blocked by the one
   // below even while the whole stack is landing in order.
@@ -315,6 +343,12 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
       allowedStrategies: ['merge', 'squash', 'rebase'],
       requiredChecks,
       requireHumanApprovalForAgents: Boolean(protection?.require_human_approval_for_agents),
+      requireUpToDate: Boolean(protection?.require_up_to_date),
+      restrictedTo: parseRestrictions(protection?.push_restrictions),
+      // Absent reads as bound. See the note in `MergePullRequestAction`: a
+      // `Boolean` here would read a row written before the column existed as
+      // an admin exemption.
+      enforceAdmins: isNotFalse(protection?.enforce_admins),
     },
     {
       approvals: approval.approvals,
@@ -324,6 +358,8 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
       humanApprovals: approval.human,
       unresolvedThreads: Number(unresolved?.count ?? 0),
       checks,
+      behindBase,
+      actor,
     },
     'merge',
   )
