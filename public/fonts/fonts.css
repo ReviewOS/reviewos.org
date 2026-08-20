@@ -1,0 +1,39 @@
+/*
+ * The two typefaces this instance serves itself.
+ *
+ * They were loaded from Google Fonts, which is three problems on a page whose
+ * argument is that you run your own infrastructure: every visitor's address
+ * goes to a third party before they have decided anything, a self-hosted forge
+ * on a private network renders in a fallback because the request cannot leave,
+ * and the actual font URLs live inside somebody else's stylesheet - so they
+ * cannot be preloaded, and the browser learns about them only after that
+ * stylesheet has arrived and parsed.
+ *
+ * Both are variable fonts: one file per family covers 400 through 700, which is
+ * why replacing four weights and two families costs 52KB in two requests.
+ *
+ * `font-display: swap` on purpose. The alternative, `block`, holds the text
+ * invisible while the font loads - a blank page that scores well on layout
+ * shift by showing nothing at all. Swap shows the fallback immediately, and the
+ * metrics below keep the swap from moving anything when the real face arrives.
+ */
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-latin.woff2') format('woff2');
+  /* The subset actually shipped: Latin, punctuation, currency, arrows. A page
+     needing more falls back rather than rendering blank. */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

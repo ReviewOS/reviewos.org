@@ -133,9 +133,14 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
     <link rel="manifest" href="/site.webmanifest">
 
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+    <!-- Served from this instance rather than from Google: a page arguing for
+         infrastructure you own should not hand every visitor's address to a
+         third party, and a forge on a private network cannot reach one at all.
+         Preloaded because the browser otherwise learns which files to fetch
+         only after a stylesheet has arrived and parsed. -->
+    <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/geist-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/fonts/fonts.css">
 
     <style>
       :root {
