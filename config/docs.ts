@@ -44,6 +44,10 @@ const config: BunPressOptions = {
 
   nav: [
     { text: 'Roadmap', link: '/todo/' },
+    // Back into the instance, which the docs otherwise have no route to: a
+    // reader who followed Docs out of the top bar had Discover and nothing
+    // else to return through.
+    { text: 'Explore', link: 'https://reviewos.org/explore' },
     { text: 'Discover', link: 'https://reviewos.org/discover' },
     {
       text: 'Project',
@@ -175,6 +179,48 @@ const config: BunPressOptions = {
       ],
     },
     themeConfig: {
+      /*
+       * The product's teal, because this is the product's documentation.
+       *
+       * bunpress ships an indigo brand ramp, so `/docs` rendered its buttons,
+       * its links and its logotype in a colour that appears nowhere else on
+       * this instance - and the Docs item in the top bar therefore led somewhere
+       * that looked like a different project. The ramp below is the same
+       * `--accent` the application and the marketing pages use, and the dark
+       * half is the lighter teal those two switch to, because #0f6d72 on a dark
+       * background is a colour you cannot read a link in.
+       */
+      cssVars: {
+        '--bp-c-brand-1': '#0b565a',
+        '--bp-c-brand-2': '#0f6d72',
+        '--bp-c-brand-3': '#137e83',
+        '--bp-c-brand-soft': 'rgba(15, 109, 114, 0.14)',
+      },
+
+      /*
+       * The dark half, which `cssVars` alone cannot express: it emits one
+       * `:root` block, and bunpress switches theme by putting `.dark` on the
+       * document rather than by a media query. Emitted after that block, so the
+       * two tie on specificity and this one wins where it applies.
+       */
+      css: `
+        .dark {
+          --bp-c-brand-1: #7fd8db;
+          --bp-c-brand-2: #4ec5c9;
+          --bp-c-brand-3: #2a9ba0;
+          --bp-c-brand-soft: rgba(78, 197, 201, 0.16);
+
+          /*
+           * The ramp inverts in the dark - brand-1 is now the pale end, because
+           * it is what links are drawn in - and a filled button takes its
+           * background from brand-1 and its text from this. Left at its default
+           * white, the call to action on the front page of the documentation
+           * was white on pale teal: a button you can see and cannot read.
+           */
+          --bp-button-brand-text: #062023;
+        }
+      `,
+
       footer: {
         message: 'Released under the MIT License.',
         copyright: 'Copyright 2026-present ReviewOS contributors',
