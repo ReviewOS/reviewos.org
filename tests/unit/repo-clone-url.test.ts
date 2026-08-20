@@ -38,6 +38,26 @@ describe('originFor', () => {
     expect(originFor({ host: 'code.example.com' })).toBe('http://code.example.com')
   })
 
+  /**
+   * The bug this function existed to prevent, arriving through the one door it
+   * left open: on the deployed instance the page process is bound to
+   * `localhost:3072` behind a proxy, so `request.url` is that - and the clone
+   * box offered every visitor `http://localhost:3072/git/owner/repo.git`, a URL
+   * that resolves to their own machine.
+   */
+  it('prefers the host a request arrived on over the address the server is bound to', () => {
+    expect(originFor({ url: 'http://localhost:3072/stacks/wildloop', host: 'reviewos.org' }, 'reviewos.org'))
+      .toBe('https://reviewos.org')
+    expect(originFor({ url: 'http://127.0.0.1:3072/stacks/wildloop', host: 'code.example.com' }))
+      .toBe('http://code.example.com')
+  })
+
+  it('and leaves a developer on the port they are actually using', () => {
+    // Both halves loopback: nothing is in front, so the URL is the answer.
+    expect(originFor({ url: 'http://localhost:3100/anna/checkout', host: 'localhost:3100' }))
+      .toBe('http://localhost:3100')
+  })
+
   it('falls back to configuration only when there is no request', () => {
     expect(originFor(null, 'https://code.example.com')).toBe('https://code.example.com')
     expect(originFor(undefined, 'https://code.example.com')).toBe('https://code.example.com')

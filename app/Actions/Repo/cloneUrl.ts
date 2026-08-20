@@ -35,15 +35,68 @@ const DEFAULT_ORIGIN = 'http://localhost'
  */
 export function originFor(request: RequestOrigin | null | undefined, configured?: string | null): string {
   const fromUrl = parseOrigin(request?.url)
+  const host = stripTrailingSlash((request?.host ?? '').trim())
+
+  /*
+   * The host the request arrived on beats the address the process is bound to.
+   *
+   * Behind a proxy those are different, and the bound one is useless to a
+   * reader: on the deployed instance the page process sees
+   * `http://localhost:3072/...` while the visitor is on `reviewos.org`, so the
+   * clone box offered every visitor `http://localhost:3072/git/owner/repo.git`
+   * - a URL that resolves to their own machine. Only the loopback case defers
+   * to the Host header, because that is the only case where the URL is known
+   * not to be the one anybody typed.
+   *
+   * The scheme comes from configuration when configuration is talking about
+   * the same host - `APP_URL` names the public one - and is plain HTTP
+   * otherwise, which is the rule this function already followed for a bare
+   * Host header.
+   */
+  if (host && !isLoopbackHost(host) && (!fromUrl || isLoopbackHost(new URL(fromUrl).host)))
+    return `${configuredSchemeFor(host, configured)}//${host}`
+
   if (fromUrl)
     return fromUrl
 
-  const host = (request?.host ?? '').trim()
   if (host)
-    return `http://${stripTrailingSlash(host)}`
+    return `http://${host}`
 
   const fromConfig = parseOrigin(configured) ?? parseOrigin(`https://${(configured ?? '').trim()}`)
   return fromConfig ?? DEFAULT_ORIGIN
+}
+
+/** Loopback, in the spellings a bound server actually reports. */
+function isLoopbackHost(host: string): boolean {
+  const name = String(host ?? '').split(':')[0]?.toLowerCase() ?? ''
+
+  return name === 'localhost' || name === '127.0.0.1' || name === '::1' || name === '[::1]' || name === '0.0.0.0'
+}
+
+/**
+ * `https:` or `http:`, for a host we only know the name of.
+ *
+ * Configuration decides when configuration is describing this same host, which
+ * is the case an operator can actually correct - `APP_URL` is `reviewos.org`
+ * on the deployed instance, so its scheme is the one a visitor gets.
+ *
+ * Otherwise plain HTTP, for the reason the test above this states: assuming
+ * HTTPS from a name alone produces a URL that fails to connect on a machine
+ * serving over HTTP, while assuming HTTP in production produces one that
+ * redirects. Wrong visibly beats wrong silently.
+ */
+function configuredSchemeFor(host: string, configured?: string | null): string {
+  const origin = parseOrigin(configured) ?? parseOrigin(`https://${(configured ?? '').trim()}`)
+
+  try {
+    if (origin && new URL(origin).host.toLowerCase() === host.toLowerCase())
+      return new URL(origin).protocol
+  }
+  catch {
+    // A configured value that does not parse says nothing about the scheme.
+  }
+
+  return 'http:'
 }
 
 /**
