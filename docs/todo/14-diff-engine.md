@@ -1142,8 +1142,42 @@ whole before the loop comes back round.
       What to chase instead, with the benchmark now in place to check it: why CSS and Rust cost
       fifteen times what TypeScript does in the same tokenizer. The `Uint8Array` character-class
       table is already in `tokenizer.ts`, so the usual suspect is a pattern that backtracks.
-- [ ] Reuse the `Uint8Array` character-class table approach from `FastTokenizer` in the main
-      tokenizer where scope tracking allows it
+- [x] Reuse the `Uint8Array` character-class table approach from `FastTokenizer` in the main
+      tokenizer.
+
+      Already there for characters - `CHAR_TYPE` sits in `tokenizer.ts` and drives the whitespace,
+      identifier and number fast paths. What was missing is the same idea one level up: **which
+      patterns can start with this character.**
+
+      The tokenizer tried every pattern at every offset - eleven regexes per character for CSS, each
+      a long alternation - so the cost was a scan of the whole rule set repeated once per byte. That,
+      and not a backtracking pattern, is why CSS ran at 4 MB/s and TypeScript at 69: TypeScript's
+      bytes are mostly identifiers and whitespace, which the character fast paths catch before the
+      loop; CSS's are punctuation and selectors, which fall through to it.
+
+      Two things had to be right before the table did anything. Nearly every top-level entry in
+      these grammars is an `include` into the repository rather than a pattern with a `match`, so
+      the first version decided nothing and put every pattern in every bucket - CSS still tried
+      11.0 patterns per character, making it the same loop with a lookup in front. Following
+      includes brings it to 2.3. And the table is built once per grammar rather than per tokenizer:
+      charging construction to every run cost TypeScript 23% and wiped out the gain entirely.
+
+      | language | before | after |
+      |---|---|---|
+      | rust | 5.7 MB/s | 15.5 MB/s |
+      | python | 18.5 MB/s | 35.8 MB/s |
+      | css | 5.1 MB/s | 8.8 MB/s |
+      | typescript | 61.3 MB/s | 66.7 MB/s |
+      | javascript | 50.0 MB/s | 53.7 MB/s |
+      | json | 17.2 MB/s | 17.9 MB/s |
+
+      Best of three, same machine, back to back, with the control run immediately after the change
+      rather than from a note taken earlier - which is the mistake that cost a day on the diff
+      viewer. 944 library tests pass, so the colours are unchanged.
+
+      **CSS is better and still not good**: 8.8 against `FastTokenizer`'s 120. The pattern loop was
+      one cost in that path and evidently not the only one, and the box that chases the rest is the
+      per-line cache below. Released in `ts-syntax-highlighter@acb52a5`.
 - [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
       lines between hunks and between the two sides of a split view constantly.
 
