@@ -60,18 +60,32 @@ Numbers, so the work can be checked rather than argued about:
       the page made **two** requests, and one of them was a single `diff/rows` call that took
       **6,475ms to return 331KB** - forty files' worth of rendered rows.
 
-      So the bottleneck is **the row rendering on the server**, at roughly 160ms per file. Forty
-      files per six and a half seconds is the hundred-files-a-minute that was observed, and for
-      80,610 files it is hours. The manifest is not the problem - it streams 32,984 files in ninety
-      seconds - and neither is the client's parsing budget, which never gets the chance to be busy.
+      Then measuring the endpoint itself moved it again, and this is where it rests: **both servers
+      are fast and both stream, so there is nothing to fix there.** The row endpoint, asked for the
+      same forty files:
 
-      That is a different fix from the one the earlier note implied. The row endpoint highlights on
-      the server, the kernel has files far larger than anything this was tuned against, and the
-      candidates are a smaller batch so the first rows land sooner, the existing tokenization
-      ceiling applied by size rather than only by character count, and rendering the batch in
-      parallel instead of in series. None of them are guesses worth committing without measuring
-      each - which is the next session's work, and it now starts from a number and a named endpoint
-      rather than from a feeling.
+      | | highlight on | highlight off |
+      |---|---|---|
+      | first byte | 147ms | 9ms |
+      | all 40 files, 2.6MB | 6.21s | 5.90s |
+
+      Two things fall out of that table. **Syntax highlighting is not the cost** - five percent
+      between on and off, so the tokenizer is not what a reader waits for, and the "apply the
+      ceiling by file size" idea in the previous note would have bought nothing. And the endpoint
+      **streams**: first bytes in 147ms, with the client reading it as NDJSON as it arrives rather
+      than awaiting the whole response. Six seconds is how long 2.6MB of rendered HTML takes to
+      finish, not how long the first row takes to appear.
+
+      Which puts the remaining cost in the viewer's **per-file publishing work** - the tree entry,
+      the height estimate, the DOM - and not in git, the manifest, the tokenizer, the network or the
+      row endpoint. Each of those has now been measured and excluded, which is the useful half of
+      this: the next person starts with one suspect instead of six.
+
+      Three diagnoses in one sitting, each replacing the last, and the pattern is worth writing down
+      as much as the finding: the symptom was "the page fills slowly", the first two answers were
+      inferred from it, and both were wrong in a way that would have sent somebody optimising code
+      that was already fast. The one that survived came from timing the two endpoints directly with
+      a flag flipped between them.
 - [x] First diff line painted before the patch has finished downloading, on every diff, at every size
 
       **Measured on `v6.0...v7.0` of Linux**, which is 80,610 files, 12,753,613 insertions and
