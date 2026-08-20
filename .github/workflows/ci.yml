@@ -123,7 +123,26 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Typecheck
-        run: bun run typecheck
+        # `tsc` directly, not `bun run typecheck`.
+        #
+        # They are the same check; the difference is that the wrapper does not
+        # survive this runner. It hangs - a framework bug where a swallowed
+        # exception leaves the process alive with nothing to end it - and the
+        # job then sits until the 15-minute cap kills it. GitHub reports a
+        # timed-out job as *cancelled*, which reads like somebody pushed over
+        # it, so the run's other jobs all say success and the run says
+        # cancelled and nothing points at this step.
+        #
+        # That is the entire reason `deploy` has been skipped on every push:
+        # it needs typecheck, typecheck never finished, and the two greenest
+        # legs in the matrix went green underneath it for nothing.
+        #
+        # `deploy.yml` moved to `tsc` for exactly this on 2026-08-19 and its
+        # note says the rest: CI "gets away with the wrapper because it has the
+        # Pantry toolchain and a warm node_modules cache". It does not, and a
+        # check that only works with a warm cache is one that fails when it is
+        # needed most. The two paths run the same command again.
+        run: bun x --bun tsc --noEmit -p tsconfig.json --pretty false
 
   test:
     runs-on: ubuntu-latest
