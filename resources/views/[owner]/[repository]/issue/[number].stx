@@ -308,7 +308,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 @section('description', `Issue #${params.number} in ${params.owner}/${params.repository}, with its discussion and its cross-references.`)
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     @if (!issue)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such issue</h1>

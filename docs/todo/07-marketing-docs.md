@@ -55,7 +55,11 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       star counts and languages, placed where the argument runs out. Curated in
       `app/Actions/Explore/featured.ts` rather than computed, because trending and recently-active
       both rank by accidents of the import on a freshly mirrored instance
-- [ ] Pricing page, if a hosted offering ever exists
+- [x] Pricing page, if a hosted offering ever exists
+
+      **Not applicable, and recorded rather than left open.** There is no hosted offering, and the
+      condition on this box is the whole of it. A pricing page for software you self-host is a page
+      about nothing; if a hosted offering is ever built, this box comes back with it.
 - [ ] Per-feature screenshots, once the review interface renders real data
 
 ## Landing page
@@ -90,7 +94,7 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       `buddy generate:images --app-icons` resizes the PNG into `favicon.ico`, the apple-touch
       icon, and a `site.webmanifest` that names the application. The documentation site declares
       the same three, so the tab does not change identity at `/docs`.
-- [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
+- [x] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
       Measured rather than assumed, in a browser against the served page. **Layout shift is zero**
       across repeated loads, with no shift entries recorded at all, and **there is nothing to size**:
@@ -197,11 +201,29 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 
 ## Brand
 
-- [ ] Wordmark and icon
-- [ ] Favicon set
+- [x] Wordmark and icon
+
+      `public/wordmark.svg`: the mark and the name in one lockup, at the spacing the nav already
+      uses, with the icon alone remaining `favicon.svg` - the same two bars in the same square. One
+      file rather than two because a wordmark and its icon drifting apart is how a README ends up
+      with last year's logo beside this year's, and drawn as paths rather than set in Geist so it
+      renders identically anywhere it is embedded: a README on another forge, a slide, a badge,
+      none of which will have the typeface.
+- [x] Favicon set
+
+      Thirteen files under `public/`: the SVG that modern browsers prefer, the `.ico` for the tab
+      and for every crawler that still asks for `/favicon.ico`, the apple-touch icon, nine PNG
+      sizes from 16 to 512, and the `site.webmanifest` that names them. Declared by the marketing
+      page and by the documentation site, so the tab does not change identity at `/docs`.
 - [x] Colour and type scale recorded so the marketing page and the application agree.
       `docs/design.md` is generated from the three stylesheets that declare the palette, and
       `tests/unit/design-tokens.test.ts` fails when a token two of them share stops having the same
       value - which is how two copies of a palette drift, one hex at a time, with nothing failing
       because both files are valid CSS.
-- [ ] Social preview image
+- [x] Social preview image
+
+      Two halves, because a forge needs both. `public/images/social.png` is the static card for the
+      marketing pages, and `/api/og` draws one on demand for the things that actually get shared and
+      cannot be enumerated at build time - a repository, a pull request, an issue, a profile. The
+      page declares `og:image` with its type, width, height and alt text, because a card missing its
+      dimensions renders as a broken square on the platforms that will not fetch it to find out.

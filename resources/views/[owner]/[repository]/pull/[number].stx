@@ -729,7 +729,7 @@ const statePill = pullRequest
 @section('description', `Pull request #${params.number} in ${params.owner}/${params.repository}: the discussion, the reviews, and the merge state.`)
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     @if (!pullRequest)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such pull request</h1>

@@ -129,7 +129,7 @@ const name = String(params.repository)
 @section('description', `The webhook endpoints configured for ${owner}/${name}, and how their recent deliveries went.`)
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     @if (!access || !mayManage)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">Not found</h1>

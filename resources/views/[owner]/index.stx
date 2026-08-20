@@ -254,7 +254,7 @@ const profileRepositoryPath = `/${handle}/.profile`
 @section('description', found ? `${displayName} on ReviewOS: repositories, activity, and what they have been reviewing.` : 'No account with that handle exists on this instance.')
 
 @section('content')
-  <div class="shell" style="padding-top: 26px; padding-bottom: 64px;">
+  <div class="page">
     @if (movedTo)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">Moved</h1>

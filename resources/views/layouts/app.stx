@@ -609,8 +609,6 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         at the shell's gutter. The reading measure is worth keeping and the
         left edge is not the place to spend it: the container is the shell now,
         and the 900px cap moved onto the content inside it. */
-      .queue { width: 100%; max-width: 1320px; margin: 0 auto; padding: 32px 20px 64px; }
-      .queue > * { max-width: 900px; }
       .queue-head h1 { margin: 0 0 4px; font-size: 22px; }
       .queue-head p { margin: 0 0 28px; font-size: 14px; }
       .queue-section { margin-bottom: 36px; }
@@ -653,8 +651,6 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       /* The inbox. Built on the queue's row so the two read as the same
         product: a list of links, no script, every row carrying its own
         reason. */
-      .inbox { width: 100%; max-width: 1320px; margin: 0 auto; padding: 32px 20px 64px; }
-      .inbox > * { max-width: 900px; }
       .inbox-head h1 { margin: 0 0 4px; font-size: 22px; }
       .inbox-head p { margin: 0 0 20px; font-size: 14px; }
       .inbox-empty { margin: 0; font-size: 14px; }
@@ -899,18 +895,33 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       /* One card, one form, one thing to do: on the auth screens the button is
         the width of the fields above it rather than a small control tucked
         into a corner. */
-      .auth-card .field-actions { display: block; }
-      .auth-card .field-actions .btn { width: 100%; justify-content: center; }
+      .card-page .field-actions { display: block; }
+      .card-page .field-actions .btn { width: 100%; justify-content: center; }
 
-      /* The page an auth card sits on, rather than the same three inline
-        styles repeated on `/login`, `/register` and `/forgot-password`.
+      /* The two page shapes this product has, as two classes rather than as
+        the same inline `style` copied into thirty-two views.
         
-        Centred in what is left of the viewport under the bar, because a
-        420px card pinned to the top of a 900px screen reads as a page that
-        failed to finish loading. `align-content` rather than `place-items`,
-        so a tall card - registration has four fields and three hints - grows
-        downward and scrolls instead of being clipped at both ends. */
-      .auth-page {
+        `.page` is the working shape: everything with a heading and a list
+        under it. `.card-page` is the other one - a single card and nothing
+        else, which is every page somebody arrives at from outside (sign in,
+        register, reset, unsubscribe).
+        
+        The card is centred in what is left of the viewport under the bar,
+        because a 420px card pinned to the top of a 900px screen reads as a
+        page that failed to finish loading. `align-content` rather than
+        `place-items`, so a tall card - registration has four fields and three
+        hints - grows downward and scrolls instead of being clipped at both
+        ends. */
+      .page { width: 100%; max-width: 1320px; margin: 0 auto; padding: 22px 20px 64px; }
+
+      /* Pages that are a list to read rather than a surface to work on: the
+        review queue, the inbox, search results. A repository name and a line
+        of description stretched across 1225px is a line the eye has to travel,
+        and nothing is gained by the travelling. The wrapper keeps the full
+        measure so a wide table inside one can still opt out. */
+      .page-reading > * { max-width: 900px; }
+
+      .card-page {
         display: grid;
         align-content: center;
         justify-items: center;
@@ -1341,7 +1352,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       /* The unsubscribe page. Reached from an email with no session, so it is
         one card and one button and nothing else to decide. */
-      .unsub-card { max-width: 520px; margin: 0 auto; padding: 28px; text-align: center; }
+      .unsub-card { width: 100%; max-width: 520px; padding: 28px; text-align: center; }
       .unsub-title { margin: 0 0 10px; font-size: 20px; }
       .unsub-line { margin: 0 0 8px; font-size: 14px; }
       .unsub-form { margin: 18px 0; }

@@ -107,7 +107,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 @section('description', `Milestones in ${params.owner}/${params.repository}, and what is still open against each one.`)
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     @if (!repositoryRow)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such repository</h1>

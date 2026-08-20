@@ -53,7 +53,7 @@ if (!viewer)
 @section('description', 'The SSH and GPG keys on your account, and what each one is allowed to do.')
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     <SettingsNav current="keys" />
 
     @if (!viewer)

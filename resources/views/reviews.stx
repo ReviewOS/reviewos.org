@@ -76,7 +76,7 @@ const theirs = rowsFor(queue.waitingOnOthers)
 @section('description', 'The reviews waiting on you, and the pull requests waiting on somebody else.')
 
 @section('content')
-  <main class="queue">
+  <main class="page page-reading queue">
     <header class="queue-head">
       <h1>Reviews</h1>
       <p class="muted">Ordered by how long it has been waiting and how blocked the author is.</p>

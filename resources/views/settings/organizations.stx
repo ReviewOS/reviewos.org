@@ -51,7 +51,7 @@ if (!viewer)
 @section('description', 'The organizations you belong to, and the role you hold in each.')
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     <SettingsNav current="organizations" />
 
     @if (!viewer)

@@ -51,7 +51,7 @@ const website = String(account?.website ?? '')
 @section('description', 'Your name, handle, bio, and avatar on this instance.')
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     <SettingsNav current="profile" />
 
     @if (!viewer)

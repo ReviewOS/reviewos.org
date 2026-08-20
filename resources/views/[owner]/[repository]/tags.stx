@@ -80,7 +80,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 @section('description', `Every tag in ${params.owner}/${params.repository}, and the commit each one points at.`)
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="page">
     @if (!repoRow)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such repository</h1>

@@ -49,7 +49,7 @@ const site = originFor(serveContext, process.env.APP_URL).replace(/^https?:\/\//
 @section('description', 'Create an account on this ReviewOS instance.')
 
 @section('content')
-  <div class="auth-page">
+  <div class="card-page">
     <div class="auth-card panel">
       @if (alreadyIn)
         <h1 class="auth-title">You already have an account</h1>

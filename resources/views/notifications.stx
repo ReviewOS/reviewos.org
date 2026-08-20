@@ -125,7 +125,7 @@ const emptyLine = filtered
 @section('description', 'Your inbox: reviews waiting on you, mentions, and replies to threads you are in.')
 
 @section('content')
-  <main class="inbox">
+  <main class="page page-reading inbox">
     <header class="inbox-head">
       <h1>Inbox</h1>
       <p class="muted">Everything that happened to something you are subscribed to, and why you heard about it.</p>
