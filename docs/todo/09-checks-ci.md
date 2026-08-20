@@ -1546,8 +1546,35 @@ gate, in order.
 
       A ceiling below one chunk is refused, since it would accept every append and discard it -
       a setting that turns logs off without saying so.
-- [ ] Concurrency, fair queueing, and quotas per instance, owner, repository, workflow, and token, so
+- [x] Concurrency, fair queueing, and quotas per instance, owner, repository, workflow, and token, so
       one repository or agent cannot starve the instance
+
+      **Concurrency** was already three separate things, correctly: a workflow's `concurrency:`
+      group, a job's `max-parallel`, and a named limit shared across every run wearing it - the
+      deploy lock. **Queues and pools** decide which machines serve whom.
+
+      None of that stops the case the line is actually about. A monorepository's push fans out into
+      eighty jobs and takes eighty machines, and everybody else's one-job build waits behind all of
+      them. That is first-in, first-out working exactly as written, and it is what makes a shared
+      instance feel broken to everyone except the team that owns the busy repository.
+
+      So two more, and they differ in kind. **The ceiling** refuses: past
+      `CI_MAX_RUNNING_PER_REPOSITORY` - or `CI_MAX_RUNNING_PER_OWNER`, which is the one that matters
+      when an owner has forty repositories - a job is skipped even with machines idle. Off by
+      default, because on a single-team instance it only ever gets in the way. **Fair queueing**
+      reorders: the repository holding fewer machines is offered first. On by default, since it
+      costs one pass, changes nothing when one repository is pushing, and is the whole difference
+      when four teams push at once.
+
+      It reorders *repositories* and never a repository's own jobs, which keeps priority and age
+      meaning what they meant - fairness between teams is not a licence to reorder inside one. A
+      job over a ceiling is skipped rather than failed: nothing about it says the work is wrong,
+      only that it is not this machine's turn.
+
+      Per token is deliberately not a fourth ceiling. A token does not occupy a machine - a job
+      does - and a token that dispatches a hundred runs is already bounded by the repository those
+      runs belong to, with rate limiting bounding the dispatching itself. A second rule with the
+      same purpose and a different answer is how two limits disagree.
 - [ ] Runner images and toolchains are pinned and attestable. A run records exactly what executed it.
 - [ ] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
       poisoning, artifact handling, fork policy, and cancellation behavior before a public runner

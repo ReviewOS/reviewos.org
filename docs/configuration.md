@@ -40,7 +40,7 @@ Default: `reviewos.localhost`. Checked at boot, so a wrong value stops the insta
 Pretty HTTPS URLs are the default development experience. `./buddy dev`
 routes this hostname through rpx, which uses tlsx for local certificates.
 
-Read by `app/Actions/Atproto/client.ts`, `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Jobs/CheckpointRepositoriesJob.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`, `resources/components/RepoBrowser.stx`, `resources/views/register.stx`.
+Read by `app/Actions/Atproto/client.ts`, `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Actions/Screenshot/capture.ts`, `app/Jobs/CheckpointRepositoriesJob.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`, `resources/components/RepoBrowser.stx`, `resources/views/register.stx`.
 
 ### `APP_MAINTENANCE`
 
@@ -730,6 +730,41 @@ timings and the run's conclusion survive it; only the text goes.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_MAX_RUNNING_PER_REPOSITORY`
+
+Default: `20`, and the line is commented out.
+
+How much of the fleet one repository may hold at once.
+
+Concurrency groups stop a workflow racing itself and queues decide which
+machines serve whom; neither stops a monorepository's push fanning out into
+eighty jobs while everybody else's one-job build waits behind all of them.
+Off by default, because on a single-team instance a ceiling only gets in the
+way - and the operator who needs one knows they need it.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_MAX_RUNNING_PER_OWNER`
+
+Default: `60`, and the line is commented out.
+
+The same for an owner, which is the limit that matters on an instance hosting
+several organizations: a per-repository ceiling does nothing against an owner
+with forty repositories.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_FAIR_QUEUEING`
+
+Default: `off`, and the line is commented out.
+
+Fair queueing offers the repository holding fewer machines first. On by
+default: it costs one ordering pass, changes nothing when only one repository
+is pushing, and is the whole difference when four teams push at once. Set
+`off` for strict first-in, first-out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Exposed to the browser
 
 ### `FRONTEND_APP_ENV`
@@ -1157,6 +1192,14 @@ writing objects into somebody else's directory.
 - `HOME`
 - `LANG`
 - `PATH`
+
+## Read but not declared
+
+These are read by the application and absent from `.env.example`, which means the only way to
+find them is to read the source. That is the same as undocumented, so the list is here rather
+than nowhere - and the fix is a line in `.env.example`, not a line here.
+
+- `SCREENSHOT_URL`, read by `app/Actions/Screenshot/capture.ts`
 
 ## Set where the work runs, not on the instance
 

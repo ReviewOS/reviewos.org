@@ -19,6 +19,8 @@ import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import { hashToken } from './authenticate'
 import type { QueueFacts } from './fleet'
 import { queueAccepts } from './fleet'
+import { fairOrder, fleetLoad, withinQuota } from './quota'
+import { fairQueueing } from '../../../config/ci-quotas'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
 import { isTrue } from '../Support/sql'
@@ -197,10 +199,33 @@ export async function claimNextJob(
   if (await stopRequestedFor(runner.id))
     return null
 
-  for (const row of await candidates(runner)) {
+  /*
+   * What the fleet is holding, read once for this poll.
+   *
+   * Both the ceiling and the fairness need it, and asking per candidate would
+   * turn one query into fifty on the hottest path this instance has.
+   */
+  const load = await fleetLoad()
+
+  // One query for the candidates either way: the fair pass reorders what came
+  // back rather than asking for it twice.
+  const shortlist = await candidates(runner)
+  const offered = fairQueueing() ? fairOrder(shortlist, load) : shortlist
+
+  for (const row of offered) {
     const facts = factsOf(row)
 
     if (!mayClaim(runner, facts, now).ok)
+      continue
+
+    /*
+     * And what this repository is already holding.
+     *
+     * A skip rather than a failure: nothing about being over a ceiling says the
+     * work is wrong, only that it is not this machine's turn. The job stays
+     * queued and the next poll asks again.
+     */
+    if (!withinQuota(load, { repositoryId: facts.repositoryId, ownerId: facts.ownerId }))
       continue
 
     /*
