@@ -554,14 +554,33 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
 The workflow is a versioned resource, not whatever happens to be in the default branch when an old
 run is inspected.
 
-- [ ] The authoring contract is **both**, and the decision is now made rather than pending.
+- [x] The authoring contract is **both**, and the decision is now made rather than pending.
       [Phase 15](./15-pipelines.md) makes GitHub Actions-compatible YAML canonical, because the
       ecosystem is the product and a format nobody can leave with is a format nobody adopts. The
       constrained TypeScript API is the second front door for graphs that are decided at runtime,
       and it runs as an orchestrator job under the rules above. Both normalize to the same rows.
-- [ ] Neither front door can express something the other cannot represent in the run. A capability
+
+      Built and shipped, both of them. A `.github/workflows/*.yml` file is the canonical form; a
+      `.reviewos/workflows/*.ts` program declares its triggers in front matter, is translated to an
+      ordinary document, and runs as an orchestrator job whose `step()` calls are journaled. The
+      program below the front matter is never parsed or evaluated on this side of the boundary - it
+      is bytes on their way to a machine, like a `run:` script.
+- [x] Neither front door can express something the other cannot represent in the run. A capability
       reachable only from the SDK becomes a screen that renders differently depending on how a
       workflow was written, which is how two products grow inside one.
+
+      Guaranteed by construction rather than by discipline: **the SDK emits YAML**. It does not
+      produce rows, or a second document format, or a normalized graph of its own - it produces a
+      file a person could have written by hand, which then meets the same parser, the same
+      extension rules and the same refusals. So a capability the typed surface has and the file
+      format does not is not something to guard against; it is something that cannot be built
+      without noticing.
+
+      `tests/unit/workflow-two-front-doors.test.ts` is what turns that from an argument into a
+      check: every field the typed surface has, said at once, read back through the server's parser
+      with no errors, and compared against the same graph written by hand. The dispatch inputs get
+      their own case because they are the one part of a trigger that is validated later - a choice
+      that lost its options in translation would become a dispatch that accepts anything.
 - [x] `Workflow` and immutable `WorkflowVersion` models: owner, repository scope, source commit and
       path, content digest, trigger policy, state, and the normalized step graph
 
