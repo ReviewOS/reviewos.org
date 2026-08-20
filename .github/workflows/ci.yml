@@ -496,6 +496,7 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
           PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
+          MIRROR_GITHUB_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           missing=''
@@ -513,6 +514,20 @@ jobs:
             eval "value=\${$name:-}"
             [ -n "$value" ] || echo "::notice::$name is not set; DNS reconciliation will be skipped."
           done
+
+          # Not required, and worth saying out loud every time it is absent.
+          #
+          # Without it the mirrors read GitHub unauthenticated at sixty requests
+          # an hour, so descriptions, topics and issues import slowly or not at
+          # all. This deploy used to ship secrets.GITHUB_TOKEN instead, which
+          # is revoked the moment the job ends - every metadata sync answered
+          # 401 and the instance had 151 mirrored repositories and not one
+          # description.
+          if [ -z "${MIRROR_GITHUB_TOKEN:-}" ]; then
+            echo "::warning::MIRROR_GITHUB_TOKEN is not set; mirrors will read GitHub unauthenticated (60 requests an hour), so descriptions and issues import slowly. Set a PAT with public read: gh secret set MIRROR_GITHUB_TOKEN --repo ${{ github.repository }}"
+          else
+            echo "MIRROR_GITHUB_TOKEN: present (${#MIRROR_GITHUB_TOKEN} chars)"
+          fi
 
           [ -z "$missing" ] || {
             echo "::error::Empty repository secrets:$missing"
