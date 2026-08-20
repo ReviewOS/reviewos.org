@@ -113,6 +113,12 @@ CPU seconds are not wall time.
 - No immutable base image, no read-only checkout, no user separation between jobs.
 - Nothing verifies what executed a run. `Runner` records a name and labels the machine asserted.
 
+**Since this was written**, the boundary that would change all of the above has been designed and
+its decision layer built: [the execution plane](./ci-execution-plane.md), a microVM per job on KVM.
+Read it for what it does *not* protect. Nothing in this section changes yet - no VM has booted, the
+egress policy has never filtered a packet, and a rule that refuses the metadata endpoint is not the
+same achievement as a guest failing to reach it.
+
 **Verified.** Nothing here is verified, because there is nothing to verify. The absence is
 deliberate and documented; the risk is that a box elsewhere gets ticked as though it were present.
 

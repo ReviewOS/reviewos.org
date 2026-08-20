@@ -1460,10 +1460,49 @@ gate, in order.
       The consequence for everything above it: the control plane has to be complete and useful with
       no execution plane at all, or the default becomes a mode nobody runs. That is already this
       phase's shape, and it is why those boxes are not blocked by this gate.
+      **Designed, and phase A of it is built.** [The execution plane](../ci-execution-plane.md) is
+      the design for the boundary this table named: a microVM per job, on KVM, opt-in, on hardware an
+      operator provides. It is written before the launcher exists on purpose - the same ordering
+      `repairPolicy.ts` used against the repair agent, because a network policy written afterwards is
+      one written against whatever the first VM already did.
+
+      The split is `container.ts`'s, whose own comment makes the argument: a long configuration where
+      every mistake is silent, so the shape is decided in a pure function and the execution is three
+      lines elsewhere. **Phase A** - the machine spec, the egress policy, the image manifest - is
+      pure, tested and below. **Phase B** - boot, the guest agent, the vsock protocol, the rootfs
+      pipeline, tap and filter setup - needs a Linux host with KVM and is not written, because a tap
+      device attached to the wrong bridge looks exactly like one attached to the right bridge.
+
 - [ ] Ephemeral workspace per job, immutable base image, read-only source checkout where possible,
       no host socket, no sibling process visibility, and no repository storage mounted into a job
+
+      `app/Actions/Runner/microvm.ts` decides all six, and `tests/unit/runner-microvm.test.ts` holds
+      them: the base image is a read-only drive, the writable layer is a per-job overlay destroyed
+      with the machine, and the device list contains those two and nothing of the host - no
+      repository storage, no docker socket, no runner directory. There is nothing to escape *to*
+      through the filesystem, which removes the class rather than guarding against it.
+
+      Open because none of it has booted. A configuration that says `is_read_only` is not a read-only
+      disk until a hypervisor has read it.
 - [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
       access to instance-local services is not isolated.
+
+      `app/Actions/Runner/networkPolicy.ts`. Default-deny, an allowlist an operator writes, and a set
+      of destinations **no allowlist may name**: the cloud metadata endpoint, loopback, the instance's
+      own addresses, and the private ranges unless they were opened deliberately.
+
+      Two decisions worth keeping. A rule naming a forbidden destination is **refused** rather than
+      dropped - an allowlist that silently discards what somebody wrote is one that lies about what it
+      permits. And the refusal is by *overlap*, not membership: `169.254.169.254` is easy to refuse,
+      and the way in is a wider block that covers it, written by somebody thinking about something
+      else.
+
+      Names are resolved host-side and the resolved address is checked again, which is what closes
+      rebinding - a hostname allowlist enforced on names alone lets the guest resolve whatever it
+      likes.
+
+      Open because no packet has been filtered. This is the rule; the enforcement is a tap device and
+      a filter in phase B.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 
       **Output and wall time are done; CPU, file size and processes are available; memory and disk
@@ -1478,6 +1517,14 @@ gate, in order.
       forty-gigabyte file and does nothing about an attacker, which is why this box stays open: the
       line says *enforced outside the job*, and `ulimit` is enforced by the kernel against a process
       the job's own user owns.
+
+      **The machine spec is what makes the line true, once it boots.** A VM's vcpus and memory are
+      not a request: the guest cannot ask for a seventeenth core, and one that forks until it dies
+      takes only itself. Disk is the overlay's size and wall time is the supervisor's, which holds
+      because killing a VM is not a signal a process can catch. Every ceiling in `microvm.ts` is
+      clamped rather than trusted, since the caller assembling it is reading a workflow file - and a
+      memory figure taken from somebody else's document unclamped is a workflow that asks for the
+      host's memory and receives it.
 
       Two of the four are off by default because they count something wider than one step.
       `RLIMIT_NPROC` is per **user**: turning it on by default made `/bin/sh: fork: Resource
@@ -1617,6 +1664,16 @@ gate, in order.
       runs belong to, with rate limiting bounding the dispatching itself. A second rule with the
       same purpose and a different answer is how two limits disagree.
 - [ ] Runner images and toolchains are pinned and attestable. A run records exactly what executed it.
+
+      **The pinning is done; the attestation is the half that cannot be.** `vmImage.ts` refuses
+      anything but a `sha256:` digest - a tag is a name somebody can move after the run recorded it -
+      and pins the guest kernel separately, because a microVM boots a kernel the *host* supplies and
+      an image digest says nothing about it.
+
+      What a run records is marked `provenance: 'asserted'`, deliberately. Recording a digest proves
+      what the runner *said* it booted; proving what it *did* needs a measurement it cannot forge,
+      which needs the hypervisor and the hardware. The field exists now so that adding `measured`
+      later does not silently upgrade the meaning of every row written before it.
 - [ ] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
       poisoning, artifact handling, fork policy, and cancellation behavior before a public runner
       executes one command
