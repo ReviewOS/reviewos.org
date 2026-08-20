@@ -1769,8 +1769,32 @@ failed evidence into success.
       Swept when a pull request closes *and* whenever a deployment is recorded, which is not belt
       and braces: a preview recorded by a job that finished after the merge would otherwise stay
       active forever, and a slow deploy finishing after the merge is the ordinary case.
-- [ ] Gradual deployment stages with health checks, pause, promotion, and rollback expressed as
+- [x] Gradual deployment stages with health checks, pause, promotion, and rollback expressed as
       durable steps rather than an opaque provider operation
+
+      The alternative every provider offers is one opaque call: `deploy --canary`, eleven minutes of
+      something, and either it worked or a support ticket begins. What is missing there is not
+      features - it is **legibility**. Nobody can say which stage it reached, what the health check
+      actually returned, or why it went back.
+
+      So a rollout is the rows this product already has. The plan lives on the deployment
+      (`canary:10, half:50, all:100`), each promotion is a status with the stage named and its share,
+      a health report is a recorded fact rather than a callback nobody sees, and a rollback names
+      the deployment it restored. The history afterwards reads the same way it did during.
+
+      **Healthy promotes, unhealthy goes back, and nothing-yet holds.** The third value is the one
+      that carries the design: treating "unknown" as failure rolls back every deployment whose probe
+      is a second slow, and treating it as success promotes on no evidence at all.
+
+      A person's hold beats a healthy check - somebody watching a graph they do not like is the
+      reason the button exists, and a rollout that promoted anyway would be a button that does
+      nothing. It does not beat an unhealthy one: a held rollout that has gone bad is not a decision
+      anybody is still weighing, and holding would leave the bad build serving traffic while
+      somebody decides about a question already answered.
+
+      The automatic rollback goes through the same function a person's does, so there is one place
+      that knows what restoring means and the history cannot tell you who decided unless you look at
+      the actor.
 - [x] Deployment status API and webhooks use the same actions as the workflow and interface
 
       One action for the lot - `list`, `create`, `update`, `deactivate`, `rollback`, `history` - and

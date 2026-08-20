@@ -394,3 +394,133 @@ describe('a deployment\'s history', () => {
     }
   }, 180_000)
 })
+
+/*
+ * A rollout that arrives in stages, against the real endpoint.
+ *
+ * The property is legibility: afterwards, the history says which stage it
+ * reached, what the health check returned, and why it went back - which is
+ * exactly what one opaque provider call cannot tell anybody.
+ */
+describe('a staged rollout', () => {
+  test('promotes on a healthy check, and the history says what happened', async () => {
+    if (!available)
+      return
+
+    const made = await deployments({
+      operation: 'create',
+      environment: 'staged',
+      sha: '9'.repeat(40),
+      state: 'in_progress',
+      url: 'https://staged.test',
+      stages: 'canary:10, half:50, all:100',
+    })
+
+    const id = Number(made.body.deployment.id)
+
+    const first = await deployments({ operation: 'health', id, health: 'healthy' })
+
+    expect(first.body.verdict).toBe('promote')
+    expect(Number(first.body.deployment.stage_index)).toBe(1)
+
+    const second = await deployments({ operation: 'health', id, health: 'healthy' })
+
+    expect(second.body.verdict).toBe('promote')
+
+    const last = await deployments({ operation: 'health', id, health: 'healthy' })
+
+    expect(last.body.verdict).toBe('complete')
+
+    const { body } = await deployments({ operation: 'history', id })
+    const said = body.statuses.map((one: any) => String(one.description)).join(' | ')
+
+    // Each stage named with its share, so a reader afterwards can say where it
+    // got to rather than inferring it from timestamps.
+    expect(said).toContain('half')
+    expect(said).toContain('50%')
+  }, 180_000)
+
+  test('holds when the check has not answered, rather than guessing', async () => {
+    if (!available)
+      return
+
+    const made = await deployments({
+      operation: 'create',
+      environment: 'quiet',
+      sha: '8'.repeat(40),
+      state: 'in_progress',
+      stages: '10,100',
+    })
+
+    const id = Number(made.body.deployment.id)
+    const answer = await deployments({ operation: 'health', id })
+
+    expect(answer.body.verdict).toBe('hold')
+    expect(Number(answer.body.deployment.stage_index)).toBe(0)
+  }, 180_000)
+
+  test('and a person can hold one that is passing', async () => {
+    if (!available)
+      return
+
+    const made = await deployments({
+      operation: 'create',
+      environment: 'held',
+      sha: '7'.repeat(40),
+      state: 'in_progress',
+      stages: '10,100',
+    })
+
+    const id = Number(made.body.deployment.id)
+
+    await deployments({ operation: 'hold', id })
+
+    // Somebody watching a graph they do not like is the reason the button
+    // exists; a rollout that promoted anyway would be a button that does
+    // nothing.
+    expect((await deployments({ operation: 'health', id, health: 'healthy' })).body.verdict).toBe('hold')
+
+    await deployments({ operation: 'resume', id })
+
+    expect((await deployments({ operation: 'health', id, health: 'healthy' })).body.verdict).toBe('promote')
+  }, 180_000)
+
+  test('an unhealthy check puts the previous deployment back by itself', async () => {
+    if (!available)
+      return
+
+    const older = await deployments({
+      operation: 'create',
+      environment: 'rolling',
+      sha: '5'.repeat(40),
+      state: 'active',
+      url: 'https://five.test',
+    })
+
+    const rolling = await deployments({
+      operation: 'create',
+      environment: 'rolling',
+      sha: '6'.repeat(40),
+      state: 'in_progress',
+      url: 'https://six.test',
+      stages: '10,100',
+    })
+
+    const id = Number(rolling.body.deployment.id)
+    const answer = await deployments({ operation: 'health', id, health: 'unhealthy' })
+
+    expect(answer.body.verdict).toBe('roll-back')
+
+    /*
+     * Through the same path a person's rollback takes, so the history reads
+     * identically whether a graph or a human decided - and one place knows
+     * what restoring means.
+     */
+    const live = await deployments({ operation: 'list', environment: 'rolling' })
+    const active = live.body.deployments.filter((one: any) => one.state === 'active')
+
+    expect(active).toHaveLength(1)
+    expect(String(active[0].url)).toBe('https://five.test')
+    expect(String(active[0].reason)).toContain(String(older.body.deployment.id))
+  }, 180_000)
+})

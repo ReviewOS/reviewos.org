@@ -7,6 +7,9 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { expirePreviews } from './previews'
 import { announceDeployment, recordStatus } from './statuses'
+import type { Health } from './stages'
+import { decideStage, stagesFrom } from './stages'
+import { isTrue } from '../Support/sql'
 
 /**
  * Recording what was put where.
@@ -35,7 +38,7 @@ export default new Action({
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
-    operation: { rule: schema.enum(['list', 'create', 'update', 'deactivate', 'rollback', 'history']) },
+    operation: { rule: schema.enum(['list', 'create', 'update', 'deactivate', 'rollback', 'history', 'health', 'hold', 'resume']) },
     environment: { rule: schema.string(), required: false },
     sha: { rule: schema.string(), required: false },
     ref: { rule: schema.string(), required: false },
@@ -43,6 +46,13 @@ export default new Action({
     state: { rule: schema.enum(['in_progress', 'active', 'failed', 'inactive']), required: false },
     /** What the job wants to say about this status, in one line. */
     description: { rule: schema.string(), required: false },
+    /**
+     * The rollout, when a deployment arrives in stages: `10,50,100`, or
+     * `canary:10, half:50, all:100` when the names are worth having.
+     */
+    stages: { rule: schema.string(), required: false },
+    /** What the health check said: `healthy`, `unhealthy`, or nothing yet. */
+    health: { rule: schema.string(), required: false },
     pull_request: { rule: schema.number(), required: false },
     run: { rule: schema.number(), required: false },
     reason: { rule: schema.string(), required: false },
@@ -79,6 +89,124 @@ export default new Action({
       const limit = Number.isFinite(asked) && asked > 0 ? Math.min(Math.floor(asked), 100) : 30
 
       return response.json({ deployments: await listDeployments(repositoryId, environment, limit) })
+    }
+
+    /*
+     * A health check reporting, which is what moves a staged rollout.
+     *
+     * The decision is `decideStage` rather than anything written here: promote,
+     * hold or go back is the rule people argue about during an incident, and an
+     * argument settled by reading a test is shorter than one settled by
+     * re-running a deployment.
+     */
+    if (operation === 'health' || operation === 'hold' || operation === 'resume') {
+      const id = Number(request.get('id'))
+
+      if (!Number.isInteger(id) || id <= 0)
+        return response.json({ error: 'Which deployment?' }, 422)
+
+      const deployment: any = await db
+        .selectFrom('deployments')
+        .select(['id', 'environment', 'head_sha', 'ref', 'url', 'stages', 'stage_index', 'stage_held', 'workflow_run_id'])
+        .where('id', '=', id)
+        .where('repository_id', '=', repositoryId)
+        .executeTakeFirst()
+
+      if (!deployment)
+        return response.json({ error: 'No such deployment' }, 404)
+
+      if (operation === 'hold' || operation === 'resume') {
+        const held = operation === 'hold'
+
+        await db.updateTable('deployments').set({ stage_held: held }).where('id', '=', id).execute()
+
+        await recordStatus({
+          deploymentId: id,
+          repositoryId,
+          // Still `in_progress`: a held rollout is serving whatever share it
+          // reached, and a state saying otherwise would be the dangerous
+          // direction to be wrong in.
+          state: 'in_progress',
+          description: held ? 'Held where it is.' : 'Released to continue.',
+          actorId: auth.context.user?.id ?? null,
+        })
+
+        return response.json({ deployment: { id, held }, stages: stagesFrom(deployment.stages) })
+      }
+
+      const stages = stagesFrom(deployment.stages)
+      const current = Number(deployment.stage_index ?? 0) || 0
+      const health = healthFrom(request.get('health'))
+
+      const verdict = decideStage({ stages, current, health, held: isTrue(deployment.stage_held) })
+
+      await recordStatus({
+        deploymentId: id,
+        repositoryId,
+        state: verdict.action === 'roll-back' ? 'failed' : 'in_progress',
+        description: `Health: ${health}. ${verdict.reason}`,
+        actorId: auth.context.user?.id ?? null,
+      })
+
+      if (verdict.action === 'promote') {
+        await db
+          .updateTable('deployments')
+          .set({ stage_index: current + 1, state: 'active' })
+          .where('id', '=', id)
+          .execute()
+
+        await recordStatus({
+          deploymentId: id,
+          repositoryId,
+          state: 'active',
+          description: `${verdict.stage.name} is serving ${verdict.stage.percent}%.`,
+          actorId: auth.context.user?.id ?? null,
+        })
+      }
+
+      if (verdict.action === 'complete') {
+        await db
+          .updateTable('deployments')
+          .set({ state: 'active' })
+          .where('id', '=', id)
+          .execute()
+      }
+
+      /*
+       * A failed check puts the previous deployment back, through the same
+       * path a person's rollback takes - so the history reads identically
+       * whether a graph or a human decided, and there is one code path that
+       * knows what restoring means.
+       */
+      if (verdict.action === 'roll-back') {
+        const previous: any = await db
+          .selectFrom('deployments')
+          .select(['id'])
+          .where('repository_id', '=', repositoryId)
+          .where('environment', '=', String(deployment.environment))
+          .where('id', '!=', id)
+          .orderBy('id', 'desc')
+          .executeTakeFirst()
+          .catch(() => null)
+
+        await db
+          .updateTable('deployments')
+          .set({ state: 'failed', reason: verdict.reason, finished_at: new Date().toISOString() })
+          .where('id', '=', id)
+          .execute()
+
+        if (previous?.id)
+          await restoreDeployment(repositoryId, Number(previous.id), auth.context.user?.id ?? null)
+      }
+
+      await announceDeployment(repositoryId, id, verdict.action)
+
+      return response.json({
+        deployment: { id, stage_index: verdict.action === 'promote' ? current + 1 : current },
+        verdict: verdict.action,
+        reason: verdict.reason,
+        stages,
+      })
     }
 
     if (operation === 'history') {
@@ -272,6 +400,12 @@ export default new Action({
         url: String(request.get('url') ?? '').slice(0, 500),
         state: String(request.get('state') ?? 'in_progress'),
         created_by_id: auth.context.user?.id ?? null,
+        /*
+         * The rollout, stored as written. A plan is a sentence about intent,
+         * and expanding it into rows would be four records that can disagree
+         * with the deployment they belong to.
+         */
+        stages: String(request.get('stages') ?? '').slice(0, 500) || null,
       })
       .returning(['id'])
       .executeTakeFirst()
@@ -358,4 +492,92 @@ async function historyOf(repositoryId: number, deploymentId: number): Promise<Ar
     restored: row.restored_deployment_id ? Number(row.restored_deployment_id) : null,
     at: row.created_at ? String(row.created_at) : null,
   }))
+}
+
+/**
+ * Put an earlier deployment back, as a new deployment of the old commit.
+ *
+ * Shared by the operation a person calls and by the automatic rollback a failed
+ * health check triggers, so the history reads identically whether a graph or a
+ * human decided - and there is one place that knows what "restored" means.
+ *
+ * A new row rather than the old one revived, because that is what happened:
+ * something was deployed today, and it happens to be what was deployed before.
+ * Reviving would leave a history in which the older deployment ran for a week
+ * with a gap in the middle, which is not a thing that occurred.
+ */
+async function restoreDeployment(repositoryId: number, restoreId: number, actorId: number | null): Promise<number> {
+  const restored: any = await db
+    .selectFrom('deployments')
+    .select(['id', 'environment', 'head_sha', 'ref', 'url', 'workflow_run_id'])
+    .where('id', '=', restoreId)
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!restored)
+    return 0
+
+  // Whatever is live in that environment stops being live in the same pass:
+  // two active deployments of one environment is a listing that cannot say
+  // what is running.
+  await db
+    .updateTable('deployments')
+    .set({ state: 'inactive', reason: `rolled back to deployment ${restoreId}`, finished_at: new Date().toISOString() })
+    .where('repository_id', '=', repositoryId)
+    .where('environment', '=', String(restored.environment))
+    .where('state', 'in', ['in_progress', 'active'])
+    .execute()
+
+  const again: any = await db
+    .insertInto('deployments')
+    .values({
+      repository_id: repositoryId,
+      environment: String(restored.environment),
+      head_sha: String(restored.head_sha),
+      ref: String(restored.ref ?? ''),
+      workflow_run_id: restored.workflow_run_id ?? null,
+      url: String(restored.url ?? ''),
+      state: 'active',
+      reason: `restored from deployment ${restoreId}`,
+      created_by_id: actorId,
+    })
+    .returning(['id'])
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!again?.id)
+    return 0
+
+  await recordStatus({
+    deploymentId: Number(again.id),
+    repositoryId,
+    state: 'rolled_back',
+    description: `restored from deployment ${restoreId}`,
+    url: String(restored.url ?? ''),
+    restoredDeploymentId: restoreId,
+    actorId,
+  })
+
+  return Number(again.id)
+}
+
+/**
+ * What a caller said about the health of a stage.
+ *
+ * Anything that is not plainly one of the two is `unknown`, which holds. A
+ * probe that answered with a shrug must not promote on no evidence, and must
+ * not roll back a deployment that is fine - both are worse than waiting for the
+ * next report.
+ */
+function healthFrom(value: unknown): Health {
+  const said = String(value ?? '').trim().toLowerCase()
+
+  if (said === 'healthy' || said === 'pass' || said === 'passing' || said === 'true')
+    return 'healthy'
+
+  if (said === 'unhealthy' || said === 'fail' || said === 'failing' || said === 'false')
+    return 'unhealthy'
+
+  return 'unknown'
 }

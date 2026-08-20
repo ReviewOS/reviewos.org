@@ -119,6 +119,49 @@ export default defineModel({
       factory: () => 'in_progress',
     },
 
+    /**
+     * The rollout this deployment arrives through, when it arrives in stages.
+     *
+     * `10,50,100`, or `canary:10, half:50, all:100` when the names are worth
+     * having on a screen. Empty for the ordinary case, which is a deployment
+     * that is simply live.
+     *
+     * Stored as written rather than expanded into rows: a plan is a sentence
+     * about intent, and a table of stages would be four rows that can disagree
+     * with the deployment they belong to.
+     */
+    stages: {
+      order: 12,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /** Which stage is serving now, counting from zero. */
+    stage_index: {
+      order: 13,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    /**
+     * Whether an operator has stopped this rollout where it is.
+     *
+     * Beside the stage rather than expressed as a state, because a held rollout
+     * is still serving whatever share it reached - "paused" as a deployment
+     * state would say nothing is live, which is the opposite of true and the
+     * dangerous direction to be wrong in.
+     */
+    stage_held: {
+      order: 14,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     /** Why it ended, when something ended it: `the pull request merged`. */
     reason: {
       order: 9,

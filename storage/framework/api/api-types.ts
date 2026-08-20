@@ -13733,7 +13733,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate" | "rollback" | "history"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "description"?: string; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate" | "rollback" | "history" | "health" | "hold" | "resume"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "description"?: string; "stages"?: string; "health"?: string; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } } }
     responses: {
       "200": { content: never }
       "401": { content: never }

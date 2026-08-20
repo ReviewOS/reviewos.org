@@ -13389,6 +13389,33 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "stages",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "stage_index",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "stage_held",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -14716,7 +14743,7 @@
       }
     ]
   },
-  "hash": "e3b746fe41e9b8856c566236fb6634362206d656ea2890942937e8d14d228e9c",
+  "hash": "702ca256a0c951e260d9b6a7c23980c1f2538a460c90152c887cdd7f3efb6cfb",
   "dialect": "postgres",
-  "updatedAt": "2026-08-20T01:22:21.261Z"
+  "updatedAt": "2026-08-20T02:26:13.021Z"
 }

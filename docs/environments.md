@@ -99,7 +99,34 @@ separation a repository-wide credential cannot express: the deploy token is not
 reachable from the test job in the same run, and not reachable from the deploy
 job either while it waits for a reviewer.
 
-## What is not built yet
+## A deployment that arrives in stages
 
-- **Gradual stages** - health checks, promotion between stages, and rollback
-  expressed as durable steps rather than one opaque provider operation.
+A rollout is a plan on the deployment: `10,50,100`, or
+`canary:10, half:50, all:100` when the names are worth having on a screen. A
+plan that stops short is completed with a final `100` - a rollout that ends at
+half and calls itself finished is a deployment half the users never receive.
+
+```sh
+curl -sX POST https://reviewos.example/api/repos/deployments \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"owner":"acme","repo":"widgets","operation":"health",
+       "id":412,"health":"healthy"}'
+```
+
+Each report moves it: **healthy** promotes to the next stage, **unhealthy**
+puts the previous deployment back, and **nothing yet** holds. That third value
+is the one that matters - treating "unknown" as failure rolls back every
+deployment whose probe is a second slow, and treating it as success promotes on
+no evidence at all.
+
+`operation: hold` stops a rollout where it is and `resume` releases it. A hold
+beats a healthy check, because somebody watching a graph they do not like is
+the reason the button exists. It does *not* keep a failing deployment serving:
+a held rollout that has gone unhealthy is not a decision anybody is still
+weighing.
+
+An automatic rollback goes through the same path a person's does, so the
+history reads identically whether a graph or a human decided - and the restored
+deployment names what it put back. Which is the whole difference from one
+opaque `deploy --canary` call: afterwards, anybody can say which stage it
+reached, what the check returned, and why it went back.

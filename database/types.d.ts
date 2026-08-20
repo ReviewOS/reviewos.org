@@ -122,6 +122,28 @@ declare module '@stacksjs/database' {
       createdAt: string
       updatedAt: string | null
     }
+    atproto_auth_requests: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      state: string
+      did: string
+      handle: string
+      issuer: string
+      token_endpoint: string
+      verifier: string
+      sealed_key: string
+      nonce: string
+      user_id: number
+      expires_at: string
+      createdAt: string
+      updatedAt: string | null
+      tokenEndpoint: string
+      sealedKey: string
+      userId: number
+      expiresAt: string
+    }
     atproto_identities: {
       // columns
       id: number
@@ -676,6 +698,9 @@ declare module '@stacksjs/database' {
       workflow_run_id: number
       url: string
       state: "in_progress" | "active" | "failed" | "inactive"
+      stages: string
+      stage_index: number
+      stage_held: boolean
       reason: string
       created_by_id: number
       finished_at: string
@@ -685,6 +710,8 @@ declare module '@stacksjs/database' {
       headSha: string
       pullRequestId: number
       workflowRunId: number
+      stageIndex: number
+      stageHeld: boolean
       createdById: number
       finishedAt: string
     }

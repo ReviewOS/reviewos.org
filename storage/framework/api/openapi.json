@@ -37798,7 +37798,10 @@
                       "update",
                       "deactivate",
                       "rollback",
-                      "history"
+                      "history",
+                      "health",
+                      "hold",
+                      "resume"
                     ]
                   },
                   "environment": {
@@ -37823,6 +37826,12 @@
                     ]
                   },
                   "description": {
+                    "type": "string"
+                  },
+                  "stages": {
+                    "type": "string"
+                  },
+                  "health": {
                     "type": "string"
                   },
                   "pull_request": {
