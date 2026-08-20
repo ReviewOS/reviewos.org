@@ -41,7 +41,14 @@ export default new Action({
     if (pattern.length > 512)
       return response.json({ error: 'That pattern is too long to search for.' }, 422)
 
-    const viewerId = Number(request.user?.id ?? 0) || null
+    // `currentUser`, not `request.user`: the second is not populated on this
+    // path, so every search would have run as anonymous. It fails closed - a
+    // signed-in reader would have been shown only public repositories rather
+    // than shown somebody else's - but "your own private code is missing from
+    // the results" is a search nobody trusts either.
+    const { currentUser } = await import('../Identity/lookup')
+    const viewer = await currentUser(request)
+    const viewerId = viewer?.id ? Number(viewer.id) : null
 
     /*
      * Only repositories with a shard.

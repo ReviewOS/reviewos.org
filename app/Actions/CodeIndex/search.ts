@@ -156,10 +156,23 @@ export async function searchRepository(
   if (paths !== null && paths.length === 0)
     return null
 
-  // Past a few hundred pathspecs the argument list costs more than it saves,
-  // and git's own limit is a failure that reads as a git error rather than as
-  // too much narrowing.
-  const usable = paths && paths.length <= MAX_PATHSPECS ? paths : null
+  /*
+   * Past a few hundred pathspecs the argument list costs more than it saves,
+   * and git's own limit is a failure that reads as a git error rather than as
+   * too much narrowing.
+   *
+   * And a path git would read as something other than a path sends the whole
+   * repository to the grep instead. `pathspecs()` drops anything beginning with
+   * `:` - correctly, because that is magic to git and a query string should not
+   * be able to write `:(exclude)` - but a *file* legitimately named that way
+   * exists in the tree, and dropping it here would quietly exclude it from its
+   * own repository's search. A glob character is the same problem in reverse: a
+   * file called `a[1].ts` is a pattern rather than a name once git reads it.
+   * Both are rare and both fail in the one direction this index may not fail
+   * in, so either one gives up narrowing rather than narrowing wrongly.
+   */
+  const routable = paths?.every(path => !path.startsWith(':') && !/[*?[\]]/.test(path)) ?? true
+  const usable = paths && routable && paths.length <= MAX_PATHSPECS ? paths : null
 
   const args = searchArgs({
     pattern: request.pattern,
