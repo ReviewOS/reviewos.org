@@ -1151,6 +1151,21 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .profile-hint { margin: 0 0 24px; font-size: 13.5px; }
       .profile-hint code { font-family: var(--mono); font-size: 12.5px; }
 
+      /*
+       * The column's rhythm, set once here rather than by each block choosing
+       * its own margin.
+       *
+       * The profile README arrives as `MarkdownContent`, which carries an
+       * 18px top margin for the repository pages where something always
+       * precedes it. On a profile it is usually the first thing in the column,
+       * so that margin pushed it 18px below the avatar beside it - two columns
+       * of the same page starting at different heights - and then the
+       * repositories section, which had no top margin at all, began flush
+       * against the bottom of it.
+       */
+      .profile-main { display: flex; flex-direction: column; gap: 28px; }
+      .profile-main > .markdown-panel { margin-top: 0; }
+
       .profile-section { margin-bottom: 34px; }
       .profile-section:last-child { margin-bottom: 0; }
 
