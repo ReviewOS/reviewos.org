@@ -1757,6 +1757,25 @@ failed evidence into success.
       audit log.
 - [ ] Repository policy may forbid changes to workflow files, branch protection, tests, generated
       snapshots, or other validation surfaces during an automated repair
+
+      **The rules are written and tested; nothing stores them per repository yet.**
+      `app/Actions/Workflow/repairPolicy.ts` is the decision layer, built before any agent exists
+      because guardrails bolted on after the thing they guard are guardrails somebody has already
+      worked around.
+
+      What it encodes is the failure mode worth naming: not an agent that writes bad code - that
+      meets the same review everything else does - but an agent that **makes the evidence agree with
+      it**. Editing the test that failed, relaxing the check that blocked it, regenerating the
+      snapshot that disagreed, and presenting a green pipeline as a fix. That is the locally optimal
+      move for anything optimising "make the build pass".
+
+      So the defaults forbid the validation surface, every rule refuses rather than warns, one
+      forbidden path refuses the whole diff, and self-approval is refused with no policy switch to
+      turn it off - a rule an operator can disable is one that gets disabled during the incident it
+      exists for.
+
+      What remains for this box: a column or table so a repository can set its own, and the endpoint
+      to write it.
 - [ ] Tests: the agent cannot weaken a required check, access a deploy secret, push to the protected
       branch, approve itself, or continue past its budget
 
