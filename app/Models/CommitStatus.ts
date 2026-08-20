@@ -39,6 +39,18 @@ export default defineModel({
     useSeeder: { count: 0 },
   },
 
+  /*
+   * A status is about a commit *in* a repository, and outlives neither.
+   *
+   * Declared because it was not: with no `belongsTo` the generator emits a
+   * plain `REFERENCES`, and a row that survives the repository it describes
+   * does not merely leak - it makes the repository undeletable.
+   * `DeleteRepositoryAction` deletes one row and lets the database do the
+   * rest, so a foreign key with no action on it is a delete that fails.
+   * `check_runs`, the same idea one layer up, has always cascaded.
+   */
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }],
+
   attributes: {
     repository_id: {
       order: 1,

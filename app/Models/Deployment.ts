@@ -32,6 +32,18 @@ export default defineModel({
 
   traits: { useUuid: true, useTimestamps: true, useSeeder: { count: 0 } },
 
+  /*
+   * A deployment is something that happened to a repository.
+   *
+   * Cascading, because the record is meaningless once the repository is gone
+   * and because the chain below it already completes: `deployment_statuses`
+   * cascades from here, so removing a repository removes its deployments and
+   * their statuses in one statement. The pull request and the workflow run
+   * keep the plain reference they had - a deployment outliving the run that
+   * produced it is a fact worth keeping.
+   */
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, 'PullRequest', 'WorkflowRun'],
+
   attributes: {
     repository_id: {
       order: 1,

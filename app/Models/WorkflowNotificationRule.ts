@@ -35,6 +35,16 @@ export default defineModel({
 
   traits: { useUuid: true, useTimestamps: true, useSeeder: { count: 0 } },
 
+  /*
+   * "Tell me about this repository's workflows" cannot outlive the repository.
+   *
+   * `webhooks` is the same shape and has always cascaded; this one was left
+   * with a plain reference, which made every repository carrying a rule
+   * undeletable - `DeleteRepositoryAction` relies on the database to take
+   * what hangs off a repository with it.
+   */
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, 'User'],
+
   attributes: {
     repository_id: {
       order: 1,
