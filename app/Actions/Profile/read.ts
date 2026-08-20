@@ -15,7 +15,7 @@
  */
 
 import { raw } from 'bun-query-builder'
-import { readBlob } from '../Browse/load'
+import { listTree, readBlob } from '../Browse/load'
 import { primaryLanguages } from '../Explore/explore'
 import { renderMarkdownHighlighted } from '../Markdown/render'
 import { repositoryForView } from '../Repo/forView'
@@ -248,7 +248,15 @@ export function profileRepositoriesFor(handle: string, isOrganization: boolean):
    * where it keeps a person's. Compatibility rather than recommendation - the
    * name this forge asks for is the first one.
    */
-  return isOrganization ? ['.profile', '.github', owner] : ['.profile', owner]
+  /*
+   * `github` without the dot is the same repository under the name an import
+   * gave it. `isSafeSegment` refused a leading dot until this feature needed
+   * one, so every `.github` mirrored before that landed here as `github` - and
+   * the page that was supposed to read it looked for a name the instance could
+   * not have stored. It is read for `profile/README.md` only, which is not a
+   * path an ordinary repository called `github` carries.
+   */
+  return isOrganization ? ['.profile', '.github', 'github', owner] : ['.profile', owner]
 }
 
 /**
@@ -272,7 +280,7 @@ export function readmePathsIn(repository: string, isOrganization: boolean): read
   if (name === '.profile')
     return ['README.md', 'profile/README.md']
 
-  if (name === '.github')
+  if (name === '.github' || name === 'github')
     return ['profile/README.md']
 
   return isOrganization ? ['profile/README.md'] : PROFILE_README_PATHS
@@ -297,34 +305,102 @@ export async function profileReadme(handle: string, isOrganization: boolean, coo
     if (!access?.repository || !diskPath)
       continue
 
-    const ref = String((access.repository as any).default_branch || 'HEAD')
+    for (const ref of refsToRead((access.repository as any).default_branch)) {
+      for (const path of readmePathsIn(repository, isOrganization)) {
+        const found = await readReadme(diskPath, ref, path)
 
-    for (const path of readmePathsIn(repository, isOrganization)) {
-      const blob = await readBlob(diskPath, ref, path)
+        if (!found)
+          continue
 
-      if (!blob.ok || blob.binary || blob.tooLarge || !blob.text)
-        continue
-
-      // Rendered here rather than in the template: `@markdown` runs before
-      // interpolation, so it would render the literal token and drop the file's
-      // text into the page untouched - and this file is written by whoever owns
-      // the handle. `renderMarkdownHighlighted` is where the sanitising lives.
-      return {
-        // `ref` and `directory` are what let a profile README show its own
-        // images: a relative reference is relative to the file, and a browser
-        // resolves it against the profile's URL instead. See
-        // `app/Actions/Markdown/urls.ts`.
-        html: await renderMarkdownHighlighted(blob.text, {
-          owner,
+        // Rendered here rather than in the template: `@markdown` runs before
+        // interpolation, so it would render the literal token and drop the file's
+        // text into the page untouched - and this file is written by whoever owns
+        // the handle. `renderMarkdownHighlighted` is where the sanitising lives.
+        return {
+          // `ref` and `directory` are what let a profile README show its own
+          // images: a relative reference is relative to the file, and a browser
+          // resolves it against the profile's URL instead. See
+          // `app/Actions/Markdown/urls.ts`.
+          html: await renderMarkdownHighlighted(found.text, {
+            owner,
+            repository,
+            ref,
+            directory: found.path.split('/').slice(0, -1).join('/'),
+          }),
           repository,
-          ref,
-          directory: path.split('/').slice(0, -1).join('/'),
-        }),
-        repository,
-        path,
+          path: found.path,
+        }
       }
     }
   }
 
   return null
+}
+
+/**
+ * The refs to look in, in order.
+ *
+ * The branch the row records, then `HEAD` - because the row and the repository
+ * disagree more often than anything here would suggest. A mirror is created
+ * with `main` and fetches an upstream whose branch is `master`; an import
+ * records nothing at all; a default branch is renamed on the remote and the
+ * row keeps yesterday's name. In every one of those the file is right there
+ * under `HEAD` and the page said the owner had never written one.
+ *
+ * `HEAD` is not a second guess at the branch - it is what the repository
+ * itself says its default is, which is the answer the row was trying to cache.
+ */
+export function refsToRead(defaultBranch: unknown): string[] {
+  const declared = String(defaultBranch ?? '').trim()
+
+  return declared && declared !== 'HEAD' ? [declared, 'HEAD'] : ['HEAD']
+}
+
+/**
+ * One README, read at a path that may not be spelled the way this asks for it.
+ *
+ * The exact path first, which is what the convention documents and what almost
+ * every repository has. Failing that, the directory is listed and the name
+ * matched without case: `readme.md` and `Readme.md` are what people commit,
+ * git is case-sensitive on the server whatever their laptop did, and a profile
+ * page that renders nothing because of a capital letter is indistinguishable
+ * from one nobody wrote.
+ *
+ * The listing is one `ls-tree` of a single directory, and only on the path
+ * that was about to give up - so the ordinary case still costs exactly what it
+ * did before.
+ */
+export async function readReadme(
+  diskPath: string,
+  ref: string,
+  path: string,
+): Promise<{ path: string, text: string } | null> {
+  const exact = await readBlob(diskPath, ref, path)
+
+  if (usableBlob(exact))
+    return { path, text: String(exact.text) }
+
+  const cut = path.lastIndexOf('/')
+  const directory = cut < 0 ? '' : path.slice(0, cut)
+  const wanted = (cut < 0 ? path : path.slice(cut + 1)).toLowerCase()
+
+  const listing = await listTree(diskPath, ref, directory)
+
+  if (!listing.ok)
+    return null
+
+  const entry = listing.entries.find(row => row.type === 'blob' && String(row.name).toLowerCase() === wanted)
+
+  if (!entry || entry.name === path.slice(cut + 1))
+    return null
+
+  const actual = directory ? `${directory}/${entry.name}` : entry.name
+  const blob = await readBlob(diskPath, ref, actual)
+
+  return usableBlob(blob) ? { path: actual, text: String(blob.text) } : null
+}
+
+/** Readable text, rather than a missing file, a binary, or something too large to show. */
+function usableBlob(blob: { ok: boolean, binary: boolean, tooLarge: boolean, text: string | null }): boolean {
+  return blob.ok && !blob.binary && !blob.tooLarge && Boolean(blob.text)
 }

@@ -109,12 +109,20 @@ describe('which repository a profile page is read from', () => {
     // A mirrored `.github` is GitHub's place for an organization page and the
     // repository named after the handle is its place for a person's. Read as
     // compatibility, after the name this forge asks for.
-    expect(profileRepositoriesFor('stacks', true)).toEqual(['.profile', '.github', 'stacks'])
+    expect(profileRepositoriesFor('stacks', true)).toEqual(['.profile', '.github', 'github', 'stacks'])
     expect(profileRepositoriesFor('chrisbbreuer', false)).toEqual(['.profile', 'chrisbbreuer'])
   })
 
+  test('and under the name an older import gave it', () => {
+    // `isSafeSegment` refused a leading dot until this feature needed one, so a
+    // `.github` mirrored before that is on disk as `github`. Both names are
+    // read, and both give up `profile/README.md` and nothing else.
+    expect(profileRepositoriesFor('stacks', true)).toContain('github')
+    expect(readmePathsIn('github', true)).toEqual(['profile/README.md'])
+  })
+
   test('the handle is read the way a URL spells it', () => {
-    expect(profileRepositoriesFor('Stacks', true)).toEqual(['.profile', '.github', 'stacks'])
+    expect(profileRepositoriesFor('Stacks', true)).toEqual(['.profile', '.github', 'github', 'stacks'])
   })
 
   test('every name it asks for is one this forge can actually host', () => {
