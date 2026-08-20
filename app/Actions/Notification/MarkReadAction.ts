@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { dbTimestamp } from '../Support/sql'
+import { coerced } from '../inputs'
 
 /**
  * Mark notifications read: one, several, or the whole filtered view.
@@ -29,12 +30,14 @@ export default new Action({
   method: 'POST',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     id: { rule: schema.number() },
     ids: { rule: schema.string() },
-    mark_all: { rule: schema.string() },
+    mark_all: { rule: coerced },
     reason: { rule: schema.string() },
     repository: { rule: schema.string() },
   },

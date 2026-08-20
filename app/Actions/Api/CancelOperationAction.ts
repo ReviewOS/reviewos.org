@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { apiError } from '../../Api/errors'
 import { isTerminal, view } from '../../Api/operations'
 import { currentActor } from '../Identity/lookup'
+import { coerced } from '../inputs'
 
 /**
  * Ask an operation to stop.
@@ -25,7 +26,7 @@ export default new Action({
   method: 'POST',
 
   validations: {
-    id: { rule: schema.string() },
+    id: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {

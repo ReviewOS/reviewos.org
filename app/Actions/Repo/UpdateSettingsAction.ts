@@ -8,6 +8,7 @@ import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { allowedWhileArchived, decideSettings } from './settings'
+import { coerced } from '../inputs'
 
 /**
  * Change a repository's settings.
@@ -29,21 +30,23 @@ export default new Action({
   method: 'PUT',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
-    allow_merge_commit: { rule: schema.string() },
-    allow_rebase_merge: { rule: schema.string() },
-    allow_squash_merge: { rule: schema.string() },
+    allow_merge_commit: { rule: coerced },
+    allow_rebase_merge: { rule: coerced },
+    allow_squash_merge: { rule: coerced },
     default_branch: { rule: schema.string() },
     default_merge_strategy: { rule: schema.string() },
-    delete_branch_on_merge: { rule: schema.string() },
+    delete_branch_on_merge: { rule: coerced },
     description: { rule: schema.string() },
     homepage: { rule: schema.string() },
-    is_archived: { rule: schema.string() },
-    is_template: { rule: schema.string() },
+    is_archived: { rule: coerced },
+    is_template: { rule: coerced },
     name: { rule: schema.string() },
     visibility: { rule: schema.string() },
   },

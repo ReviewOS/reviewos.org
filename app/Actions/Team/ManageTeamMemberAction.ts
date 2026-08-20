@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
+import { coerced } from '../inputs'
 
 /**
  * Add somebody to a team, change their role in it, or remove them.
@@ -23,12 +24,14 @@ export default new Action({
   method: 'POST',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     operation: { rule: schema.string() },
     role: { rule: schema.string() },
-    team_id: { rule: schema.string() },
+    team_id: { rule: coerced },
     user_id: { rule: schema.number() },
   },
 

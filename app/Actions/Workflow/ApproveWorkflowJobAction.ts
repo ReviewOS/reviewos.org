@@ -8,6 +8,7 @@ import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { environmentRules, mayApprove } from './environments'
 import { settleRun } from './settle'
+import { coerced } from '../inputs'
 
 /**
  * Open a gate.
@@ -36,7 +37,7 @@ export default new Action({
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
     number: { rule: schema.number() },
-    job: { rule: schema.string() },
+    job: { rule: coerced },
   },
 
   responses: {

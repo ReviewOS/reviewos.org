@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from './authorize'
 import { decideRule, settingsOf } from './branchRules'
+import { coerced } from '../inputs'
 
 /**
  * Create, change, or remove a protected branch rule.
@@ -31,22 +32,43 @@ export default new Action({
   description: 'Create, change, or remove a protected branch rule',
   method: 'POST',
 
-  // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  /*
+   * Declared so the document can publish them: every key is one the handler
+   * reads.
+   *
+   * **These are enforced, not descriptive**, and the note that used to sit here
+   * said the opposite - "this describes the inputs rather than changing what
+   * the endpoint accepts". It changes what the endpoint accepts. Declaring
+   * `schema.string()` on `required_approvals` meant a JSON client sending the
+   * obvious `{"required_approvals": 2}` was refused with
+   * `Required approvals Must be a string` before the handler ran, while the
+   * browser form - which sends `"2"` - worked. Nobody noticed because the form
+   * is how it is used; the end-to-end suite noticed because it speaks JSON.
+   *
+   * So the rule has to say what `decideRule` actually takes. It coerces on
+   * purpose (`Number(...)`, `readFlag`, `readChecks`) precisely so one endpoint
+   * can serve a form and an API client, which means a flag arrives as `"on"`,
+   * `"true"` or `true`, a count as `2` or `"2"`, and a check list as a string,
+   * a JSON string, or an array. A type that admits one spelling of those is a
+   * type that rejects the others.
+   *
+   * The values are still checked - by `decideRule`, which is where the limits
+   * live and where the errors are worth reading: "Required approvals is a whole
+   * number from 0 to 20" rather than "Must be a string".
+   */
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
-    allow_deletion: { rule: schema.string() },
-    allow_force_push: { rule: schema.string() },
-    dismiss_stale_reviews: { rule: schema.string() },
     operation: { rule: schema.string() },
     pattern: { rule: schema.string() },
-    require_conversation_resolution: { rule: schema.string() },
-    require_human_approval_for_agents: { rule: schema.string() },
-    require_linear_history: { rule: schema.string() },
-    required_approvals: { rule: schema.string() },
-    required_checks: { rule: schema.string() },
+    allow_deletion: { rule: coerced },
+    allow_force_push: { rule: coerced },
+    dismiss_stale_reviews: { rule: coerced },
+    require_conversation_resolution: { rule: coerced },
+    require_human_approval_for_agents: { rule: coerced },
+    require_linear_history: { rule: coerced },
+    required_approvals: { rule: coerced },
+    required_checks: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {

@@ -4,6 +4,7 @@ import { browsePath, browseContext } from './context'
 import { BLOB_WINDOW_LINES, blobWindowFor, readBlobWindow } from './blobWindow'
 import { renderBlobRows } from './blobRows'
 import { highlightLines } from './highlight'
+import { coerced } from '../inputs'
 
 /**
  * A window of a file's lines, highlighted, as rows.
@@ -29,13 +30,15 @@ export default new Action({
   method: 'GET',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
     count: { rule: schema.number() },
-    from: { rule: schema.string() },
+    from: { rule: coerced },
     path: { rule: schema.string() },
     ref: { rule: schema.string() },
   },

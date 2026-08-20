@@ -16,6 +16,7 @@ import {
   signatureVerifies,
 } from './passkeys'
 import { dbTimestamp } from '../Support/sql'
+import { coerced } from '../inputs'
 
 /**
  * Registering a passkey, listing them, and removing one.
@@ -45,7 +46,7 @@ export default new Action({
 
   validations: {
     operation: { rule: schema.enum(['list', 'options', 'register', 'remove']) },
-    id: { rule: schema.string() },
+    id: { rule: coerced },
     credential: { rule: schema.string() },
   },
 

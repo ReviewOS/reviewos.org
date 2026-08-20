@@ -13,6 +13,7 @@ import { repositoryPath } from '../Git/storage'
 import { writeInitialCommit } from './initialCommit'
 import { scaffoldFiles } from './scaffold'
 import { recordSize } from './size'
+import { coerced } from '../inputs'
 
 /**
  * Create a repository: the row and the bare repository on disk.
@@ -27,8 +28,10 @@ export default new Action({
   method: 'POST',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     owner: { rule: schema.string() },
     default_branch: { rule: schema.string() },
@@ -38,7 +41,7 @@ export default new Action({
     license: { rule: schema.string() },
     license_holder: { rule: schema.string() },
     name: { rule: schema.string() },
-    readme: { rule: schema.string() },
+    readme: { rule: coerced },
     visibility: { rule: schema.string() },
   },
 

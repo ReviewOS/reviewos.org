@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
+import { coerced } from '../inputs'
 
 /**
  * Change an organization's profile, and its handle.
@@ -27,11 +28,13 @@ export default new Action({
   method: 'PUT',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     handle: { rule: schema.string() },
-    organization_id: { rule: schema.string() },
+    organization_id: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {

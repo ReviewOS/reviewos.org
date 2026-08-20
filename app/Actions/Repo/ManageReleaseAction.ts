@@ -5,6 +5,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { decideRelease, DRAFT, isUsableTagName, looksLikePrerelease, PUBLISHED } from './releases'
 import { dbTimestamp } from '../Support/sql'
+import { coerced } from '../inputs'
 
 /**
  * Publish, edit or delete a release.
@@ -27,13 +28,15 @@ export default new Action({
   method: 'POST',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
     body: { rule: schema.string() },
-    is_draft: { rule: schema.string() },
+    is_draft: { rule: coerced },
     is_prerelease: { rule: schema.string() },
     name: { rule: schema.string() },
     operation: { rule: schema.string() },

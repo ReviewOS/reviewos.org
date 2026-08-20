@@ -6,6 +6,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { contextLinesFrom, expandRange, MAX_EXPAND_LINES } from './expand'
 import { renderDiffRows } from './rows'
 import { escapeHtml } from './shell'
+import { coerced } from '../inputs'
 
 /**
  * The lines between two hunks, on request.
@@ -25,17 +26,19 @@ export default new Action({
   method: 'GET',
 
   // Declared so the document can publish them: every key is one the handler
-  // reads, and none is required, because this describes the inputs rather than
-  // changing what the endpoint accepts.
+  // reads. **Enforced, not descriptive**: the framework checks these before the
+  // handler runs and answers 422 itself, so a named type here is a promise that
+  // the endpoint refuses every other spelling of the value. A field the handler
+  // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
     number: { rule: schema.number() },
-    from: { rule: schema.string() },
+    from: { rule: coerced },
     layout: { rule: schema.string() },
-    offset: { rule: schema.string() },
+    offset: { rule: coerced },
     path: { rule: schema.string() },
-    to: { rule: schema.string() },
+    to: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {
