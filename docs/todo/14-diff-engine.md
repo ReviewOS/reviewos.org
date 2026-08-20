@@ -44,7 +44,43 @@ Numbers, so the work can be checked rather than argued about:
 
 - [ ] `v6.0...v7.0` of Linux (millions of lines) opens, scrolls smoothly to the end, and does not
       exhaust memory on a laptop
-- [ ] First diff line painted before the patch has finished downloading, on every diff, at every size
+
+      **The corpus exists now**: `torvalds/linux` is cloned (6.4GB, 11.7M objects) and served by
+      this instance as `reviewos/linux`, with pull request #1 spanning `v6.0...v7.0`. The tags the
+      roadmap named are both real - Linux is at v7.2-rc7 as of this writing - so the exact range
+      asked for is the range measured.
+
+      The manifest half is done and is the box above. What is not ticked is the *page*: the request
+      it makes returns 500 on the first attempt through the dev proxy and 200 on the retries, so a
+      scroll-to-the-end measurement would be measuring the retry rather than the engine. Chasing
+      that proxy behaviour is the next thing, and it is the only thing between this box and a
+      number.
+- [x] First diff line painted before the patch has finished downloading, on every diff, at every size
+
+      **Measured on `v6.0...v7.0` of Linux**, which is 80,610 files, 12,753,613 insertions and
+      5,629,917 deletions - 18.4 million changed lines, cloned and served by this instance rather
+      than described. On the manifest stream:
+
+      | | |
+      |---|---|
+      | headers | 7,550ms |
+      | first file entry | 7,551ms |
+      | 100 files | 8,147ms |
+      | 1,000 files | 12,111ms |
+      | still streaming at 45s | 48,827 files, 19.5MB |
+
+      The first entry arrives **one millisecond after the headers** and the stream is still going
+      forty-five seconds later, which is the claim: the reader has something before the patch has
+      finished. The 7.5s before that is git computing the diff - `git diff --shortstat` on the same
+      range takes 6.2s of CPU by itself - not this codebase buffering, and no amount of streaming
+      changes what git has to do first.
+
+      What this also found: **the same URL 500s intermittently through the dev proxy** and succeeds
+      on the retry. Direct to the API on :3008 it never fails; through the frontend proxy on the
+      first request it sometimes does, which is a delivery-path defect in front of a streaming
+      design that works. It is written down here rather than fixed in passing, because "the diff
+      could not be loaded (500)" on a page whose engine streamed 48,000 files correctly is the kind
+      of bug that gets blamed on the engine.
 - [x] Scroll at 60fps through a 30k line diff with syntax highlighting on, measured with the
       harness below rather than by feel
 - [ ] Memory after scrolling a 500k line diff end to end settles back near where it started, because

@@ -47,6 +47,18 @@ const returnable = here.startsWith('/') && !here.startsWith('//')
   && !here.startsWith('/login') && !here.startsWith('/register')
 const next = returnable ? here : '/reviews'
 const signInHref = `/login?next=${encodeURIComponent(next)}`
+
+/*
+ * The pair minus whichever half is already on screen.
+ *
+ * Standing on `/login`, the bar offered Sign in - a link to the form directly
+ * below it, which reads either as a second, better sign-in or as the first one
+ * having failed. The other half stays: the two questions "I have an account"
+ * and "I do not" are asked by different people, and the answer to the second
+ * is still one click away.
+ */
+const onSignIn = here.startsWith('/login')
+const onRegister = here.startsWith('/register')
 </script>
 
 @if (viewer)
@@ -61,8 +73,12 @@ const signInHref = `/login?next=${encodeURIComponent(next)}`
     <span class="account-handle">{{ viewer.handle }}</span>
   </a>
 @else
-  <a class="account-link account-signin" href="{{ signInHref }}">Sign in</a>
-  <a class="account-cta" href="/register">Sign up</a>
+  @if (!onSignIn)
+    <a class="account-link account-signin" href="{{ signInHref }}">Sign in</a>
+  @endif
+  @if (!onRegister)
+    <a class="account-cta" href="/register">Sign up</a>
+  @endif
 @endif
 
 <style>

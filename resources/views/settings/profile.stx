@@ -81,7 +81,7 @@ const website = String(account?.website ?? '')
           every repository URL under it, and a warning in a confirmation dialog
           is one people click through.
         --}}
-        <p class="auth-hint muted">
+        <p class="field-hint">
           Changing this moves your profile and every repository URL under it. Links people have
           already written down will stop working.
         </p>

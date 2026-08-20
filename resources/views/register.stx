@@ -16,6 +16,7 @@
 // `resources/components/RepoBrowser.stx`.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+import { originFor } from '../functions/repo'
 
 const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
@@ -29,6 +30,17 @@ const email = String(search.email ?? '')
 const name = String(search.name ?? '')
 
 const alreadyIn = Boolean(viewer)
+
+/*
+ * This instance's host, for the line that shows somebody their future URL.
+ *
+ * It said `reviewos.org/your-handle` to everybody, including the operator of a
+ * forge on their own domain - which is a promise the page cannot keep and, on
+ * a product whose argument is that you should host it yourself, an odd thing
+ * to say on the account form. `originFor` prefers the request over
+ * configuration for the reason written in `app/Actions/Repo/cloneUrl.ts`.
+ */
+const site = originFor(serveContext, process.env.APP_URL).replace(/^https?:\/\//, '')
 </script>
 
 @layout('app')
@@ -37,7 +49,7 @@ const alreadyIn = Boolean(viewer)
 @section('description', 'Create an account on this ReviewOS instance.')
 
 @section('content')
-  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+  <div class="auth-page">
     <div class="auth-card panel">
       @if (alreadyIn)
         <h1 class="auth-title">You already have an account</h1>
@@ -61,18 +73,18 @@ const alreadyIn = Boolean(viewer)
             handle is the one field here that cannot be changed without moving
             a page.
           --}}
-          <p class="auth-hint muted">Letters, numbers and hyphens. This is your URL: reviewos.org/your-handle</p>
+          <p class="field-hint">Letters, numbers and hyphens. This is your URL: {{ site }}/your-handle</p>
 
           <label class="field-label" for="name">Name</label>
           <input id="name" class="field-input" type="text" name="name" value="{{ name }}" maxlength="100" autocomplete="name">
-          <p class="auth-hint muted">Optional. Your handle is used when this is empty.</p>
+          <p class="field-hint">Optional. Your handle is used when this is empty.</p>
 
           <label class="field-label" for="email">Email</label>
           <input id="email" class="field-input" type="email" name="email" required value="{{ email }}" autocomplete="email">
 
           <label class="field-label" for="password">Password</label>
           <input id="password" class="field-input" type="password" name="password" required minlength="10" autocomplete="new-password">
-          <p class="auth-hint muted">At least 10 characters. Length is the only rule that helps.</p>
+          <p class="field-hint">At least 10 characters. Length is the only rule that helps.</p>
 
           <div class="field-actions">
             <button type="submit" class="btn btn-primary">Create account</button>

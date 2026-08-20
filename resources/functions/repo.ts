@@ -41,9 +41,19 @@ export const repositoryForView = repositoryForViewImpl
  * configuration.
  */
 import { cloneUrlFor as cloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
+import { originFor as originForImpl } from '../../app/Actions/Repo/cloneUrl'
 import { sshCloneUrlFor as sshCloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
 
 export const cloneUrlFor = cloneUrlForImpl
+
+/**
+ * The scheme and authority this instance answered on.
+ *
+ * Not only for clone URLs: any page that shows somebody what a URL of theirs
+ * will look like needs the host the reader is actually on, and this product is
+ * meant to be run by other people on other domains.
+ */
+export const originFor = originForImpl
 
 /** Null when no SSH daemon is configured, which is how the box knows to hide it. */
 export const sshCloneUrlFor = sshCloneUrlForImpl

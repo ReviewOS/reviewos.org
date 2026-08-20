@@ -75,7 +75,7 @@ const alreadyIn = Boolean(viewer)
 @section('description', 'Sign in to this ReviewOS instance with a password, a passkey, or a linked account.')
 
 @section('content')
-  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+  <div class="auth-page">
     <div class="auth-card panel">
       @if (alreadyIn)
         <h1 class="auth-title">You are signed in</h1>

@@ -902,12 +902,27 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .auth-card .field-actions { display: block; }
       .auth-card .field-actions .btn { width: 100%; justify-content: center; }
 
-      .auth-card { max-width: 420px; margin: 0 auto; padding: 28px; }
+      /* The page an auth card sits on, rather than the same three inline
+        styles repeated on `/login`, `/register` and `/forgot-password`.
+        
+        Centred in what is left of the viewport under the bar, because a
+        420px card pinned to the top of a 900px screen reads as a page that
+        failed to finish loading. `align-content` rather than `place-items`,
+        so a tall card - registration has four fields and three hints - grows
+        downward and scrolls instead of being clipped at both ends. */
+      .auth-page {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        min-height: calc(100vh - 56px);
+        padding: 48px 20px 72px;
+      }
+
+      .auth-card { width: 100%; max-width: 420px; padding: 28px; }
       .auth-title { margin: 0 0 14px; font-size: 20px; }
       .auth-line { margin: 14px 0 0; font-size: 14px; }
       .auth-line + .auth-line { margin-top: 4px; }
       .auth-form { margin: 0; }
-      .auth-hint { margin: 4px 0 0; font-size: 12px; }
 
       /* Loud enough to find without scrolling, quiet enough that a mistyped
         password does not read as a system failure. */
