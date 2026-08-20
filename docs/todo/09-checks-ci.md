@@ -1506,8 +1506,29 @@ gate, in order.
       without a file is an unpleasant 404, a file without a row is a byte nobody can reach and
       nobody will ever delete. A blob another artifact still points at survives its own row
       expiring, which on a matrix is the ordinary case.
-- [ ] Log streaming applies backpressure and redaction before persistence, with configurable
+- [x] Log streaming applies backpressure and redaction before persistence, with configurable
       retention and a hard ceiling per job
+
+      Three of the four were already load bearing. **Backpressure** is a `retry_after_ms` the runner
+      honours, so an instance under load slows a fleet down rather than dropping the middle of a
+      log. **Redaction** happens before the write, not on read - a secret that reaches the column is
+      a secret in every backup, and masking it on the way out would be masking it in one of the
+      places it is read. **The ceiling** is per job and enforced on the way in, because a runner
+      that streams forever is not stopped by a policy that runs tomorrow: it fills the disk tonight.
+
+      What was missing was that both numbers were constants, with a comment admitting they belonged
+      in configuration. They are `config/ci-logs.ts` now, because the right value depends entirely
+      on the disk somebody bought.
+
+      Retention defaults to **off**, and that is the decision rather than an omission: the first time
+      anybody wants a build log is usually weeks after they stopped caring about the run. An
+      operator who sets it is saying the text is worth less than the disk - true on a busy instance
+      and false on most. What the sweep removes is the text; the job, its steps, their timings and
+      the run's conclusion stay, because those are what somebody reads six months later and they are
+      the small part.
+
+      A ceiling below one chunk is refused, since it would accept every append and discard it -
+      a setting that turns logs off without saying so.
 - [ ] Concurrency, fair queueing, and quotas per instance, owner, repository, workflow, and token, so
       one repository or agent cannot starve the instance
 - [ ] Runner images and toolchains are pinned and attestable. A run records exactly what executed it.

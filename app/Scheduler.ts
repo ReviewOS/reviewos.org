@@ -134,6 +134,17 @@ export default function () {
     .everyMinute()
 
   /*
+   * Build output past its retention, daily.
+   *
+   * Off unless an operator configured it, and the sweep returns immediately
+   * when they have not - a job that scans a large table every day to decide it
+   * is switched off is a cost paid by every instance that never asked.
+   */
+  schedule
+    .job('ExpireJobLogs')
+    .daily()
+
+  /*
    * Work nothing could ever take, every ten minutes.
    *
    * A job asking for a label no runner carries is not waiting, it is stuck -

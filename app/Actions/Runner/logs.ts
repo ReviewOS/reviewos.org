@@ -14,6 +14,7 @@
  * chunk that will never be wanted, which is worse than dropping it.
  */
 
+import { maxJobLogBytes } from '../../../config/ci-logs'
 import { db } from '@stacksjs/database'
 import { countRedactions, MARKER, redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
@@ -25,10 +26,15 @@ import { isNotFalse } from '../Support/sql'
  *
  * Two megabytes is far more than a passing build writes and far less than a
  * loop printing to stderr can produce in a minute. It is a policy rather than a
- * law - the number belongs in configuration eventually - but a wrong ceiling is
+ * law, which is why it now lives in `config/ci-logs.ts` - the correct value
+ * depends entirely on the disk somebody bought - but a wrong ceiling is
  * recoverable and no ceiling is not.
+ *
+ * Read once, at module load, like every other setting in this codebase: a
+ * ceiling re-read per append would be a configuration change that takes effect
+ * halfway through a job's output.
  */
-export const MAX_JOB_LOG_BYTES = 2 * 1024 * 1024
+export const MAX_JOB_LOG_BYTES = maxJobLogBytes()
 
 /** And no single append may be more than a slice of it. */
 export const MAX_CHUNK_BYTES = 64 * 1024

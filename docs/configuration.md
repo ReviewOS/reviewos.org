@@ -702,6 +702,34 @@ does not have to say it twice.
 
 Read by `app/Actions/Git/blobsS3.ts`.
 
+## Ci
+
+### `CI_LOG_MAX_BYTES`
+
+Default: `2097152`, and the line is commented out.
+
+What a job's output costs this instance: how much of it one job may store, and
+how long any of it is kept.
+
+The ceiling is enforced on the way in, because a runner that streams forever
+is not stopped by a policy that runs tomorrow - it fills the disk tonight.
+Past it an append is accepted and discarded with one line saying so, which is
+honest; failing the upload would fail the job for a reason nobody can act on.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_LOG_RETENTION_DAYS`
+
+Default: `90`, and the line is commented out.
+
+Retention is off by default, and that is the decision rather than an
+omission: the first time anybody wants a build log is usually weeks after
+they stopped caring about the run. Setting it says the text is worth less than
+the disk - true on a busy instance, false on most. The job, its steps, their
+timings and the run's conclusion survive it; only the text goes.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Exposed to the browser
 
 ### `FRONTEND_APP_ENV`
