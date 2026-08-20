@@ -211,6 +211,14 @@ normal finish and after a wall-clock kill: no taps, no tables, no disks, no proc
 Also verified: a failing step ends the job and the steps after it do not run, and the wall clock kills
 the machine rather than asking it to stop.
 
+And a **fifth defect**, found when the host's disk filled during a run. `mkfs` failed partway and left
+a root-owned gigabyte behind, which survived teardown for two compounding reasons: the cleanup was
+registered only after a *successful* creation, so a partial disk was never registered at all - and the
+file it left could not have been removed by the unprivileged process anyway, because the chown that
+hands ownership over is the last line of a script that had already failed. The undo is now armed
+before the attempt and goes through the privileged path. Verified by reproducing it: a disk larger
+than the host can hold now fails and leaves nothing.
+
 ### Four defects the supervisor found, none of which a unit test would have
 
 1. **The payload disk was root-owned and Firecracker runs unprivileged.** Making the disk needs root -
@@ -272,11 +280,11 @@ applies.
 
 ## What is still not verified
 
-- **The source path has not booted.** It is written, typechecked and unit-tested - the packing script,
-  the staging cleanup, the "no checkout asked for" case - but no machine has started with a
-  repository on its payload disk. The host this was verified on ran out of disk before that run, and
-  a claim that it works is not one to make from a passing unit test. Everything above it in this
-  document was verified against real Firecracker; this section was not.
+- ~~The source path has not booted.~~ **It has.** A machine booted with a real repository on its
+  payload disk: the guest started in `/work/workspace`, saw the checked-out files, read their
+  contents, ran a checked-in script whose executable bit had survived the copy, and found `.git`
+  present. The clone token was **not** on the payload disk and **not** in `.git` - which is the claim
+  this design rests on, checked rather than asserted.
 - **Secrets are not designed into this.** On the host path a job's secrets reach a step through its
   environment. What that becomes in another machine is open, and the payload disk is the obvious
   answer and probably the wrong one: it is a disk the guest reads whenever it likes, which is a poor

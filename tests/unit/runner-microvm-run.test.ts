@@ -274,3 +274,95 @@ describe('how the source reaches the guest', () => {
     expect(script).toContain('"$M/nonce"')
   })
 })
+
+describe('a payload disk that could not be made', () => {
+  test('is still cleaned up, and with privilege', async () => {
+    /*
+     * A regression from a host whose disk filled mid-run. `mkfs` failed partway
+     * and left a root-owned gigabyte behind, and it survived teardown for two
+     * compounding reasons: the cleanup was registered only *after* a successful
+     * creation, so a partial disk was never registered at all - and the file it
+     * left could not have been removed by the unprivileged process anyway,
+     * because the chown that hands ownership over is the last line of a script
+     * that had already failed.
+     *
+     * So the undo is armed before the attempt and goes through the privileged
+     * path. Both halves are asserted here because either alone leaves the leak.
+     */
+    const { superviseJob } = await import('../../app/Actions/Runner/microvmSupervisor')
+    const { machineSpec } = await import('../../app/Actions/Runner/microvm')
+
+    const ran: string[][] = []
+
+    const outcome = await superviseJob({
+      spec: machineSpec({
+        jobId: 5,
+        imagePath: '/i',
+        imageDigest: `sha256:${'a'.repeat(64)}`,
+        kernelPath: '/k',
+        overlayPath: '/s/job-5.ext4',
+        policy: { mode: 'deny', rules: [], privateAllowed: false },
+      }),
+      steps: [{ run: 'true' }],
+      host: {
+        firecracker: '/x',
+        scratch: '/s',
+        hostAddress: '172.20.0.1',
+        guestAddress: '172.20.0.2',
+        privileged: async (argv) => {
+          ran.push([...argv])
+
+          // The disk is full: creation fails the way it did in the incident.
+          return argv[0] === 'sh'
+            ? { ok: false, output: 'dd: error writing: No space left on device' }
+            : { ok: true, output: '' }
+        },
+      },
+    })
+
+    expect(outcome.ok).toBe(false)
+    expect(outcome.reason).toContain('No space left')
+
+    // The partial disk was removed, and by the privileged path.
+    expect(ran.some(argv => argv[0] === 'rm' && argv.includes('/s/job-5.ext4'))).toBe(true)
+  })
+
+  test('and nothing later is set up after it fails', async () => {
+    /*
+     * A tap device and a filter table for a machine that will never boot are two
+     * more things to leak. The order is: make the disk, then the network - so a
+     * disk that failed stops before either exists.
+     */
+    const { superviseJob } = await import('../../app/Actions/Runner/microvmSupervisor')
+    const { machineSpec } = await import('../../app/Actions/Runner/microvm')
+
+    const ran: string[][] = []
+
+    await superviseJob({
+      spec: machineSpec({
+        jobId: 6,
+        imagePath: '/i',
+        imageDigest: `sha256:${'a'.repeat(64)}`,
+        kernelPath: '/k',
+        overlayPath: '/s/job-6.ext4',
+        policy: { mode: 'deny', rules: [], privateAllowed: false },
+      }),
+      steps: [{ run: 'true' }],
+      host: {
+        firecracker: '/x',
+        scratch: '/s',
+        hostAddress: '172.20.0.1',
+        guestAddress: '172.20.0.2',
+        privileged: async (argv) => {
+          ran.push([...argv])
+          return argv[0] === 'sh' && String(argv[2]).includes('mkfs')
+            ? { ok: false, output: 'no space' }
+            : { ok: true, output: '' }
+        },
+      },
+    })
+
+    expect(ran.some(argv => String(argv[2] ?? '').includes('ip tuntap add'))).toBe(false)
+    expect(ran.some(argv => argv[0] === 'nft' && argv[1] === '-f')).toBe(false)
+  })
+})

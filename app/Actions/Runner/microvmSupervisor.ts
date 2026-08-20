@@ -111,12 +111,25 @@ export async function superviseJob(input: {
      * The steps and the nonce go on it; the agent unlinks the nonce before the
      * first step runs.
      */
+    /*
+     * Registered **before** it is made, and removed with privilege.
+     *
+     * Both halves are a bug found by a disk filling up mid-run. `mkfs` failed
+     * partway and left a root-owned gigabyte behind: registering the cleanup
+     * after a successful creation meant a *partial* disk was never registered at
+     * all, and the file it left could not have been removed by the unprivileged
+     * process anyway, because the chown that hands it over is the last line of a
+     * script that had already failed.
+     *
+     * So the undo is armed first and goes through the privileged path. Removing
+     * something that was never created is what `rm -f` is for.
+     */
+    undo.push({ what: 'overlay', undo: async () => { await input.host.privileged(['rm', '-f', overlay]) } })
+
     const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.sourcePath)
 
     if (!made.ok)
       return { ok: false, steps: [], reason: made.output.slice(0, 400), noise: '' }
-
-    undo.push({ what: 'overlay', undo: () => rm(overlay, { force: true }).catch(() => {}) })
 
     const tap = input.spec.network.tapDevice
 
