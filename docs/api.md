@@ -246,7 +246,7 @@ _Inputs are not declared on `Actions/Auth/LogoutAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `before` | query | optional | string |
+| `before` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -518,7 +518,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `id` | path | required | string |
-| `id` | body | optional | string |
+| `id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -533,7 +533,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `confirm` | query | optional | string |
-| `organization_id` | query | optional | string |
+| `organization_id` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -561,7 +561,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `handle` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -574,7 +574,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `confirm` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -588,7 +588,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 |---|---|---|---|
 | `handle` | body | optional | string |
 | `name` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -600,7 +600,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `organization_id` | query | optional | string |
+| `organization_id` | query | optional | custom |
 | `user_id` | query | optional | number |
 
 | Status | Means |
@@ -614,7 +614,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `handle` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 | `role` | body | optional | string |
 
 | Status | Means |
@@ -628,7 +628,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `operation` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -640,7 +640,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 | `user_id` | body | optional | number |
 
 | Status | Means |
@@ -653,7 +653,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 | `role` | body | optional | string |
 | `user_id` | body | optional | number |
 
@@ -667,7 +667,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 | `role` | body | optional | string |
 | `user_id` | body | optional | number |
 
@@ -684,10 +684,10 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | `description` | body | optional | string |
 | `name` | body | optional | string |
 | `operation` | body | optional | string |
-| `organization_id` | body | optional | string |
-| `parent_team_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
+| `parent_team_id` | body | optional | custom |
 | `slug` | body | optional | string |
-| `team_id` | body | optional | string |
+| `team_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -701,7 +701,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 |---|---|---|---|
 | `operation` | body | optional | string |
 | `role` | body | optional | string |
-| `team_id` | body | optional | string |
+| `team_id` | body | optional | custom |
 | `user_id` | body | optional | number |
 
 | Status | Means |
@@ -714,7 +714,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 | Name | In | Required | Type |
 |---|---|---|---|
-| `organization_id` | query | optional | string |
+| `organization_id` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -727,7 +727,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `handle` | body | optional | string |
-| `organization_id` | body | optional | string |
+| `organization_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -785,7 +785,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | `license` | body | optional | string |
 | `license_holder` | body | optional | string |
 | `name` | body | optional | string |
-| `readme` | body | optional | string |
+| `readme` | body | optional | custom |
 | `visibility` | body | optional | string |
 
 | Status | Means |
@@ -800,16 +800,16 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 |---|---|---|---|
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
-| `allow_merge_commit` | body | optional | string |
-| `allow_rebase_merge` | body | optional | string |
-| `allow_squash_merge` | body | optional | string |
+| `allow_merge_commit` | body | optional | custom |
+| `allow_rebase_merge` | body | optional | custom |
+| `allow_squash_merge` | body | optional | custom |
 | `default_branch` | body | optional | string |
 | `default_merge_strategy` | body | optional | string |
-| `delete_branch_on_merge` | body | optional | string |
+| `delete_branch_on_merge` | body | optional | custom |
 | `description` | body | optional | string |
 | `homepage` | body | optional | string |
-| `is_archived` | body | optional | string |
-| `is_template` | body | optional | string |
+| `is_archived` | body | optional | custom |
+| `is_template` | body | optional | custom |
 | `name` | body | optional | string |
 | `visibility` | body | optional | string |
 
@@ -902,7 +902,7 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 | `owner` | query | optional | string |
 | `repo` | query | optional | string |
 | `count` | query | optional | number |
-| `from` | query | optional | string |
+| `from` | query | optional | custom |
 | `path` | query | optional | string |
 | `ref` | query | optional | string |
 
@@ -1289,7 +1289,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 |---|---|---|---|
 | `owner` | query | optional | string |
 | `repo` | query | optional | string |
-| `comment_id` | query | optional | string |
+| `comment_id` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1324,7 +1324,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
 | `body` | body | optional | string |
-| `comment_id` | body | optional | string |
+| `comment_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1392,7 +1392,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
 | `number` | body | optional | number |
-| `comment_id` | body | optional | string |
+| `comment_id` | body | optional | custom |
 | `content` | body | optional | string |
 
 | Status | Means |
@@ -1425,9 +1425,9 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `repo` | body | optional | string |
 | `number` | body | optional | number |
 | `checked` | body | optional | string |
-| `comment_id` | body | optional | string |
+| `comment_id` | body | optional | custom |
 | `expected` | body | optional | string |
-| `index` | body | optional | string |
+| `index` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1496,16 +1496,16 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 |---|---|---|---|
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
-| `allow_deletion` | body | optional | string |
-| `allow_force_push` | body | optional | string |
-| `dismiss_stale_reviews` | body | optional | string |
 | `operation` | body | optional | string |
 | `pattern` | body | optional | string |
-| `require_conversation_resolution` | body | optional | string |
-| `require_human_approval_for_agents` | body | optional | string |
-| `require_linear_history` | body | optional | string |
-| `required_approvals` | body | optional | string |
-| `required_checks` | body | optional | string |
+| `allow_deletion` | body | optional | custom |
+| `allow_force_push` | body | optional | custom |
+| `dismiss_stale_reviews` | body | optional | custom |
+| `require_conversation_resolution` | body | optional | custom |
+| `require_human_approval_for_agents` | body | optional | custom |
+| `require_linear_history` | body | optional | custom |
+| `required_approvals` | body | optional | custom |
+| `required_checks` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1655,11 +1655,11 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | query | optional | string |
 | `repo` | query | optional | string |
 | `number` | query | optional | number |
-| `from` | query | optional | string |
+| `from` | query | optional | custom |
 | `layout` | query | optional | string |
-| `offset` | query | optional | string |
+| `offset` | query | optional | custom |
 | `path` | query | optional | string |
-| `to` | query | optional | string |
+| `to` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1710,7 +1710,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `highlight` | query | optional | string |
 | `layout` | query | optional | string |
 | `open` | query | optional | string |
-| `to` | query | optional | string |
+| `to` | query | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -1948,7 +1948,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `repo` | body | optional | string |
 | `number` | body | optional | number |
 | `reason` | body | optional | string |
-| `review_id` | body | optional | string |
+| `review_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -2021,7 +2021,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
 | `resolved` | body | optional | string |
-| `thread_id` | body | optional | string |
+| `thread_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -2066,7 +2066,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
 | `body` | body | optional | string |
-| `is_draft` | body | optional | string |
+| `is_draft` | body | optional | custom |
 | `is_prerelease` | body | optional | string |
 | `name` | body | optional | string |
 | `operation` | body | optional | string |
@@ -2178,16 +2178,16 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 |---|---|---|---|
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
-| `allow_merge_commit` | body | optional | string |
-| `allow_rebase_merge` | body | optional | string |
-| `allow_squash_merge` | body | optional | string |
+| `allow_merge_commit` | body | optional | custom |
+| `allow_rebase_merge` | body | optional | custom |
+| `allow_squash_merge` | body | optional | custom |
 | `default_branch` | body | optional | string |
 | `default_merge_strategy` | body | optional | string |
-| `delete_branch_on_merge` | body | optional | string |
+| `delete_branch_on_merge` | body | optional | custom |
 | `description` | body | optional | string |
 | `homepage` | body | optional | string |
-| `is_archived` | body | optional | string |
-| `is_template` | body | optional | string |
+| `is_archived` | body | optional | custom |
+| `is_template` | body | optional | custom |
 | `name` | body | optional | string |
 | `visibility` | body | optional | string |
 
@@ -2236,7 +2236,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `repo` | body | optional | string |
 | `operation` | body | optional | string |
 | `permission` | body | optional | string |
-| `team_id` | body | optional | string |
+| `team_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -2517,7 +2517,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 |---|---|---|---|
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
-| `delivery_id` | body | optional | string |
+| `delivery_id` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -2601,7 +2601,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `owner` | body | optional | string |
 | `repo` | body | optional | string |
 | `number` | body | optional | number |
-| `job` | body | optional | string |
+| `job` | body | optional | custom |
 
 | Status | Means |
 |---|---|
@@ -3444,7 +3444,7 @@ _Inputs are not declared on `Actions/Identity/WhoAmIAction`, so they are not lis
 |---|---|---|---|
 | `duration` | body | optional | string |
 | `muted` | body | optional | string |
-| `subject_id` | body | optional | string |
+| `subject_id` | body | optional | custom |
 | `subject_type` | body | optional | string |
 
 | Status | Means |
@@ -3498,7 +3498,7 @@ _Inputs are not declared on `Actions/Notification/PushTestAction`, so they are n
 |---|---|---|---|
 | `id` | body | optional | number |
 | `ids` | body | optional | string |
-| `mark_all` | body | optional | string |
+| `mark_all` | body | optional | custom |
 | `reason` | body | optional | string |
 | `repository` | body | optional | string |
 
@@ -3530,7 +3530,7 @@ _Inputs are not declared on `Actions/Notification/PushTestAction`, so they are n
 | Name | In | Required | Type |
 |---|---|---|---|
 | `operation` | body | optional | string |
-| `id` | body | optional | string |
+| `id` | body | optional | custom |
 | `credential` | body | optional | string |
 
 | Status | Means |

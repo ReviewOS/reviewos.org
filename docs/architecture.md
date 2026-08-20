@@ -26,9 +26,16 @@ self-hosting is the product.
 
 ## A request becomes a git operation
 
-`git clone https://forge.example.com/anna/checkout.git` is four HTTP requests, and none of them are
-under `/api` - git asks for `/anna/checkout.git/info/refs`, so the wire protocol is registered at the
-root in `routes/git.ts` and mounted with an empty prefix.
+`git clone https://forge.example.com/git/anna/checkout.git` is four HTTP requests, and none of them
+are under `/api` - git asks for `{base}/info/refs` and then posts to `{base}/git-upload-pack`, so the
+wire protocol is registered at the root in `routes/git.ts`, mounted with an empty prefix.
+
+It is registered a second time under `/git`, and that is the copy a client reaches. A deployed
+instance runs the pages and the API as two processes: the page process owns `/` and proxies to the
+API only what `config/server.ts` names, and a prefix is the only wildcard that configuration has.
+Without the mount the opening GET was answered by the page server with a rendered HTML page, and
+every clone of every repository failed with `repository not found` - which reads as a typo or a
+permission rather than as a missing route, and is why it went unnoticed for as long as it did.
 
 1. **Resolve.** The path is parsed into an owner and a repository, and the repository is looked up.
 2. **Authorize.** The token in Basic auth is resolved to an account and its scopes. A repository the

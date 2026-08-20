@@ -21147,7 +21147,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -27698,7 +27698,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28393,7 +28393,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -28496,7 +28496,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28539,7 +28539,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28585,7 +28585,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28604,7 +28604,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           },
           {
@@ -28668,7 +28668,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "role": {
                     "type": "string"
@@ -28714,7 +28714,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28754,7 +28754,7 @@
                 "type": "object",
                 "properties": {
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "user_id": {
                     "type": "number"
@@ -28797,7 +28797,7 @@
                 "type": "object",
                 "properties": {
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "role": {
                     "type": "string"
@@ -28841,7 +28841,7 @@
                 "type": "object",
                 "properties": {
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "role": {
                     "type": "string"
@@ -28896,16 +28896,16 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "parent_team_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "slug": {
                     "type": "string"
                   },
                   "team_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -28951,7 +28951,7 @@
                     "type": "string"
                   },
                   "team_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "user_id": {
                     "type": "number"
@@ -28973,7 +28973,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -29031,7 +29031,7 @@
                     "type": "string"
                   },
                   "organization_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -36244,7 +36244,7 @@
                     "type": "string"
                   },
                   "readme": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "visibility": {
                     "type": "string"
@@ -36291,13 +36291,13 @@
                     "type": "string"
                   },
                   "allow_merge_commit": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "allow_rebase_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "allow_squash_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "default_branch": {
                     "type": "string"
@@ -36306,7 +36306,7 @@
                     "type": "string"
                   },
                   "delete_branch_on_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "description": {
                     "type": "string"
@@ -36315,10 +36315,10 @@
                     "type": "string"
                   },
                   "is_archived": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "is_template": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "name": {
                     "type": "string"
@@ -36654,7 +36654,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           },
           {
@@ -38747,7 +38747,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -38876,7 +38876,7 @@
                     "type": "string"
                   },
                   "comment_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -39090,7 +39090,7 @@
                     "type": "number"
                   },
                   "comment_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "content": {
                     "type": "string"
@@ -39197,13 +39197,13 @@
                     "type": "string"
                   },
                   "comment_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "expected": {
                     "type": "string"
                   },
                   "index": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -39432,35 +39432,35 @@
                   "repo": {
                     "type": "string"
                   },
-                  "allow_deletion": {
-                    "type": "string"
-                  },
-                  "allow_force_push": {
-                    "type": "string"
-                  },
-                  "dismiss_stale_reviews": {
-                    "type": "string"
-                  },
                   "operation": {
                     "type": "string"
                   },
                   "pattern": {
                     "type": "string"
                   },
+                  "allow_deletion": {
+                    "type": "custom"
+                  },
+                  "allow_force_push": {
+                    "type": "custom"
+                  },
+                  "dismiss_stale_reviews": {
+                    "type": "custom"
+                  },
                   "require_conversation_resolution": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "require_human_approval_for_agents": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "require_linear_history": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "required_approvals": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "required_checks": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -39998,7 +39998,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           },
           {
@@ -40014,7 +40014,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           },
           {
@@ -40030,7 +40030,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -40252,7 +40252,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "custom"
             }
           }
         ],
@@ -41093,7 +41093,7 @@
                     "type": "string"
                   },
                   "review_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -41349,7 +41349,7 @@
                     "type": "string"
                   },
                   "thread_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -41512,7 +41512,7 @@
                     "type": "string"
                   },
                   "is_draft": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "is_prerelease": {
                     "type": "string"
@@ -42187,13 +42187,13 @@
                     "type": "string"
                   },
                   "allow_merge_commit": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "allow_rebase_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "allow_squash_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "default_branch": {
                     "type": "string"
@@ -42202,7 +42202,7 @@
                     "type": "string"
                   },
                   "delete_branch_on_merge": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "description": {
                     "type": "string"
@@ -42211,10 +42211,10 @@
                     "type": "string"
                   },
                   "is_archived": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "is_template": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "name": {
                     "type": "string"
@@ -42373,7 +42373,7 @@
                     "type": "string"
                   },
                   "team_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -44140,7 +44140,7 @@
                     "type": "string"
                   },
                   "delivery_id": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -45036,7 +45036,7 @@
                     "type": "number"
                   },
                   "job": {
-                    "type": "string"
+                    "type": "custom"
                   }
                 }
               }
@@ -55951,7 +55951,7 @@
                     "type": "string"
                   },
                   "subject_id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "subject_type": {
                     "type": "string"
@@ -56120,7 +56120,7 @@
                     "type": "string"
                   },
                   "mark_all": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "reason": {
                     "type": "string"
@@ -56230,7 +56230,7 @@
                     ]
                   },
                   "id": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "credential": {
                     "type": "string"
@@ -60380,6 +60380,530 @@
         "summary": "/generate-two-factor-secret",
         "operationId": "post__generate_two_factor_secret",
         "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/bundles/checkpoint": {
+      "get": {
+        "summary": "/git/{owner}/{repository}/bundles/checkpoint",
+        "operationId": "get__git__owner___repository__bundles_checkpoint",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/git-receive-pack": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/git-receive-pack",
+        "operationId": "post__git__owner___repository__git_receive_pack",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/git-upload-pack": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/git-upload-pack",
+        "operationId": "post__git__owner___repository__git_upload_pack",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/locks": {
+      "get": {
+        "summary": "/git/{owner}/{repository}/info/lfs/locks",
+        "operationId": "get__git__owner___repository__info_lfs_locks",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "/git/{owner}/{repository}/info/lfs/locks",
+        "operationId": "post__git__owner___repository__info_lfs_locks",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/locks/verify": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/info/lfs/locks/verify",
+        "operationId": "post__git__owner___repository__info_lfs_locks_verify",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/locks/{id}/unlock": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/info/lfs/locks/{id}/unlock",
+        "operationId": "post__git__owner___repository__info_lfs_locks__id__unlock",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/objects/batch": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/info/lfs/objects/batch",
+        "operationId": "post__git__owner___repository__info_lfs_objects_batch",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/objects/{oid}": {
+      "get": {
+        "summary": "/git/{owner}/{repository}/info/lfs/objects/{oid}",
+        "operationId": "get__git__owner___repository__info_lfs_objects__oid_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "put": {
+        "summary": "/git/{owner}/{repository}/info/lfs/objects/{oid}",
+        "operationId": "put__git__owner___repository__info_lfs_objects__oid_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/lfs/verify": {
+      "post": {
+        "summary": "/git/{owner}/{repository}/info/lfs/verify",
+        "operationId": "post__git__owner___repository__info_lfs_verify",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/git/{owner}/{repository}/info/refs": {
+      "get": {
+        "summary": "/git/{owner}/{repository}/info/refs",
+        "operationId": "get__git__owner___repository__info_refs",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",

@@ -183,13 +183,45 @@ async function materializeIfPossible(owner: string, name: string, path: string):
 }
 
 /**
+ * Where the git wire protocol is reachable from outside.
+ *
+ * The routes are mounted at the root as well, and that is the form the API
+ * process serves and every test drives. It is not the form that works through
+ * the front door: on a deployed instance the page process owns `/` and proxies
+ * to the API by *prefix*, so `/{owner}/{repository}.git/info/refs` was answered
+ * with a rendered HTML page and `git clone` said the repository did not exist -
+ * for every repository on the instance, since the day it was deployed.
+ *
+ * A prefix is the one wildcard that proxy config has (`ApiProxyOptions` in
+ * `@stacksjs/types`), so the wire gets one. `config/server.ts` sends everything
+ * under it to the API, `routes/git.ts` answers there as well as at the root,
+ * and `git` is a reserved handle so the mount can never also be an owner.
+ */
+export const GIT_MOUNT = '/git'
+
+/**
+ * A wire-protocol path with the mount taken off, when it came in through it.
+ *
+ * Safe because `git` cannot be an owner - see `RESERVED_HANDLES` - so a first
+ * segment of `git` is always this mount and never somebody's namespace.
+ */
+export function stripGitMount(pathname: string): string {
+  const prefixed = `${GIT_MOUNT}/`
+
+  return pathname.startsWith(prefixed) ? pathname.slice(GIT_MOUNT.length) : pathname
+}
+
+/**
  * The `{owner}/{name}` pair in a git wire-protocol URL.
  *
  * git asks for `/{owner}/{name}.git/info/refs`, and clients vary on whether
  * they include the `.git`, so both spellings resolve to the same repository.
+ *
+ * The `/git` mount is taken off first, so a handler reads the same pair
+ * whichever door the request came through.
  */
 export function parseGitUrl(pathname: string): { owner: string, name: string, rest: string } | null {
-  const trimmed = pathname.replace(/^\/+/, '')
+  const trimmed = stripGitMount(pathname).replace(/^\/+/, '')
   const parts = trimmed.split('/')
 
   if (parts.length < 2)

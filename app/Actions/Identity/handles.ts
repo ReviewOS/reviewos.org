@@ -24,6 +24,11 @@ export const RESERVED_HANDLES = new Set([
   'docs',
   'explore',
   'favicon.ico',
+  // The git wire protocol's mount. See `GIT_MOUNT` in
+  // `app/Actions/Git/storage.ts`: `/git/{owner}/{repository}.git` is how a
+  // clone reaches the API process through the page server, and an owner called
+  // `git` would make the two indistinguishable.
+  'git',
   'help',
   'issues',
   'login',

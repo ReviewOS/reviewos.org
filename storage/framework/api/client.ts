@@ -3567,7 +3567,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/feed
    */
-  getFeed(input?: { "before"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getFeed(input?: { "before"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/feed", input ?? {}, ["before"], false, options)
   },
 
@@ -4162,7 +4162,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/operations/{id}/cancel
    */
-  postOperationsIdCancel(input: { "id": string; body?: { "id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOperationsIdCancel(input: { "id": string; body?: { "id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/operations/{id}/cancel", input ?? {}, [], true, options)
   },
 
@@ -4218,7 +4218,7 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/orgs
    */
-  putOrgs(input?: { body?: { "handle"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putOrgs(input?: { body?: { "handle"?: string; "organization_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/orgs", input ?? {}, [], true, options)
   },
 
@@ -4232,91 +4232,91 @@ export function createClient(config: ClientConfig) {
   /**
    * DELETE /api/orgs
    */
-  deleteOrgs(input?: { "confirm"?: string; "organization_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  deleteOrgs(input?: { "confirm"?: string; "organization_id"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/orgs", input ?? {}, ["confirm", "organization_id"], false, options)
   },
 
   /**
    * POST /api/orgs/delete
    */
-  postOrgsDelete(input?: { body?: { "confirm"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsDelete(input?: { body?: { "confirm"?: string; "organization_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/delete", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/machine-accounts
    */
-  postOrgsMachineAccounts(input?: { body?: { "handle"?: string; "name"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsMachineAccounts(input?: { body?: { "handle"?: string; "name"?: string; "organization_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/machine-accounts", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members
    */
-  postOrgsMembers(input?: { body?: { "handle"?: string; "organization_id"?: string; "role"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsMembers(input?: { body?: { "handle"?: string; "organization_id"?: unknown; "role"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/members", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/orgs/members
    */
-  deleteOrgsMembers(input?: { "organization_id"?: string; "user_id"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  deleteOrgsMembers(input?: { "organization_id"?: unknown; "user_id"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/orgs/members", input ?? {}, ["organization_id", "user_id"], false, options)
   },
 
   /**
    * POST /api/orgs/members/accept
    */
-  postOrgsMembersAccept(input?: { body?: { "operation"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsMembersAccept(input?: { body?: { "operation"?: string; "organization_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/members/accept", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members/remove
    */
-  postOrgsMembersRemove(input?: { body?: { "organization_id"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsMembersRemove(input?: { body?: { "organization_id"?: unknown; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/members/remove", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/orgs/members/role
    */
-  putOrgsMembersRole(input?: { body?: { "organization_id"?: string; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putOrgsMembersRole(input?: { body?: { "organization_id"?: unknown; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/orgs/members/role", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members/role
    */
-  postOrgsMembersRole(input?: { body?: { "organization_id"?: string; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsMembersRole(input?: { body?: { "organization_id"?: unknown; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/members/role", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/teams
    */
-  postOrgsTeams(input?: { body?: { "description"?: string; "name"?: string; "operation"?: string; "organization_id"?: string; "parent_team_id"?: string; "slug"?: string; "team_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsTeams(input?: { body?: { "description"?: string; "name"?: string; "operation"?: string; "organization_id"?: unknown; "parent_team_id"?: unknown; "slug"?: string; "team_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/teams", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/teams/members
    */
-  postOrgsTeamsMembers(input?: { body?: { "operation"?: string; "role"?: string; "team_id"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsTeamsMembers(input?: { body?: { "operation"?: string; "role"?: string; "team_id"?: unknown; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/teams/members", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/orgs/tokens
    */
-  getOrgsTokens(input?: { "organization_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getOrgsTokens(input?: { "organization_id"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/orgs/tokens", input ?? {}, ["organization_id"], false, options)
   },
 
   /**
    * POST /api/orgs/update
    */
-  postOrgsUpdate(input?: { body?: { "handle"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postOrgsUpdate(input?: { body?: { "handle"?: string; "organization_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/orgs/update", input ?? {}, [], true, options)
   },
 
@@ -4953,14 +4953,14 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos
    */
-  putRepos(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putRepos(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: unknown; "allow_rebase_merge"?: unknown; "allow_squash_merge"?: unknown; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: unknown; "description"?: string; "homepage"?: string; "is_archived"?: unknown; "is_template"?: unknown; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/repos", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos
    */
-  postRepos(input?: { body?: { "owner"?: string; "default_branch"?: string; "description"?: string; "gitignore"?: string; "host"?: string; "license"?: string; "license_holder"?: string; "name"?: string; "readme"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postRepos(input?: { body?: { "owner"?: string; "default_branch"?: string; "description"?: string; "gitignore"?: string; "host"?: string; "license"?: string; "license_holder"?: string; "name"?: string; "readme"?: unknown; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos", input ?? {}, [], true, options)
   },
 
@@ -5009,7 +5009,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/blob/rows
    */
-  getReposBlobRows(input?: { "owner"?: string; "repo"?: string; "count"?: number; "from"?: string; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposBlobRows(input?: { "owner"?: string; "repo"?: string; "count"?: number; "from"?: unknown; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/repos/blob/rows", input ?? {}, ["owner", "repo", "count", "from", "path", "ref"], false, options)
   },
 
@@ -5149,7 +5149,7 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/issues/comments
    */
-  putReposIssuesComments(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "comment_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putReposIssuesComments(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "comment_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/repos/issues/comments", input ?? {}, [], true, options)
   },
 
@@ -5163,7 +5163,7 @@ export function createClient(config: ClientConfig) {
   /**
    * DELETE /api/repos/issues/comments
    */
-  deleteReposIssuesComments(input?: { "owner"?: string; "repo"?: string; "comment_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  deleteReposIssuesComments(input?: { "owner"?: string; "repo"?: string; "comment_id"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/repos/issues/comments", input ?? {}, ["owner", "repo", "comment_id"], false, options)
   },
 
@@ -5191,7 +5191,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/issues/reactions
    */
-  postReposIssuesReactions(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "comment_id"?: string; "content"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposIssuesReactions(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "comment_id"?: unknown; "content"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/issues/reactions", input ?? {}, [], true, options)
   },
 
@@ -5205,7 +5205,7 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/issues/tasks
    */
-  putReposIssuesTasks(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "checked"?: string; "comment_id"?: string; "expected"?: string; "index"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putReposIssuesTasks(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "checked"?: string; "comment_id"?: unknown; "expected"?: string; "index"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/repos/issues/tasks", input ?? {}, [], true, options)
   },
 
@@ -5233,7 +5233,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/protected-branches
    */
-  postReposProtectedBranches(input?: { body?: { "owner"?: string; "repo"?: string; "allow_deletion"?: string; "allow_force_push"?: string; "dismiss_stale_reviews"?: string; "operation"?: string; "pattern"?: string; "require_conversation_resolution"?: string; "require_human_approval_for_agents"?: string; "require_linear_history"?: string; "required_approvals"?: string; "required_checks"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposProtectedBranches(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "pattern"?: string; "allow_deletion"?: unknown; "allow_force_push"?: unknown; "dismiss_stale_reviews"?: unknown; "require_conversation_resolution"?: unknown; "require_human_approval_for_agents"?: unknown; "require_linear_history"?: unknown; "required_approvals"?: unknown; "required_checks"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/protected-branches", input ?? {}, [], true, options)
   },
 
@@ -5296,7 +5296,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/pulls/diff/context
    */
-  getReposPullsDiffContext(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "layout"?: string; "offset"?: string; "path"?: string; "to"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposPullsDiffContext(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: unknown; "layout"?: string; "offset"?: unknown; "path"?: string; "to"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/repos/pulls/diff/context", input ?? {}, ["owner", "repo", "number", "from", "layout", "offset", "path", "to"], false, options)
   },
 
@@ -5317,7 +5317,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/pulls/diff/rows
    */
-  getReposPullsDiffRows(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "highlight"?: string; "layout"?: string; "open"?: string; "to"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposPullsDiffRows(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "highlight"?: string; "layout"?: string; "open"?: string; "to"?: unknown }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/repos/pulls/diff/rows", input ?? {}, ["owner", "repo", "number", "from", "highlight", "layout", "open", "to"], false, options)
   },
 
@@ -5422,7 +5422,7 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/pulls/reviews/dismiss
    */
-  putReposPullsReviewsDismiss(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "review_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putReposPullsReviewsDismiss(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "review_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/repos/pulls/reviews/dismiss", input ?? {}, [], true, options)
   },
 
@@ -5457,7 +5457,7 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/pulls/threads
    */
-  putReposPullsThreads(input?: { body?: { "owner"?: string; "repo"?: string; "resolved"?: string; "thread_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putReposPullsThreads(input?: { body?: { "owner"?: string; "repo"?: string; "resolved"?: string; "thread_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/repos/pulls/threads", input ?? {}, [], true, options)
   },
 
@@ -5478,7 +5478,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/releases
    */
-  postReposReleases(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "is_draft"?: string; "is_prerelease"?: string; "name"?: string; "operation"?: string; "tag_name"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposReleases(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "is_draft"?: unknown; "is_prerelease"?: string; "name"?: string; "operation"?: string; "tag_name"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/releases", input ?? {}, [], true, options)
   },
 
@@ -5520,7 +5520,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/settings
    */
-  postReposSettings(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposSettings(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: unknown; "allow_rebase_merge"?: unknown; "allow_squash_merge"?: unknown; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: unknown; "description"?: string; "homepage"?: string; "is_archived"?: unknown; "is_template"?: unknown; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/settings", input ?? {}, [], true, options)
   },
 
@@ -5541,7 +5541,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/teams
    */
-  postReposTeams(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "permission"?: string; "team_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposTeams(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "permission"?: string; "team_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/teams", input ?? {}, [], true, options)
   },
 
@@ -5639,7 +5639,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/webhooks/redeliver
    */
-  postReposWebhooksRedeliver(input?: { body?: { "owner"?: string; "repo"?: string; "delivery_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposWebhooksRedeliver(input?: { body?: { "owner"?: string; "repo"?: string; "delivery_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/webhooks/redeliver", input ?? {}, [], true, options)
   },
 
@@ -5667,7 +5667,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/workflow-runs/approve
    */
-  postReposWorkflowRunsApprove(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "job"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "job"?: { "job_id"?: string; "state"?: string }; "run"?: { "number"?: number; "state"?: string }; "outputs"?: Record<string, unknown> }>> {
+  postReposWorkflowRunsApprove(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "job"?: unknown } }, options?: RequestOptions): Promise<ApiResult<{ "job"?: { "job_id"?: string; "state"?: string }; "run"?: { "number"?: number; "state"?: string }; "outputs"?: Record<string, unknown> }>> {
     return request(config, "POST", "/api/repos/workflow-runs/approve", input ?? {}, [], true, options)
   },
 
@@ -6486,7 +6486,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/notifications/mutes
    */
-  postUserNotificationsMutes(input?: { body?: { "duration"?: string; "muted"?: string; "subject_id"?: string; "subject_type"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postUserNotificationsMutes(input?: { body?: { "duration"?: string; "muted"?: string; "subject_id"?: unknown; "subject_type"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/user/notifications/mutes", input ?? {}, [], true, options)
   },
 
@@ -6514,7 +6514,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/notifications/read
    */
-  postUserNotificationsRead(input?: { body?: { "id"?: number; "ids"?: string; "mark_all"?: string; "reason"?: string; "repository"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postUserNotificationsRead(input?: { body?: { "id"?: number; "ids"?: string; "mark_all"?: unknown; "reason"?: string; "repository"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/user/notifications/read", input ?? {}, [], true, options)
   },
 
@@ -6528,7 +6528,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/passkeys
    */
-  postUserPasskeys(input?: { body?: { "operation"?: "list" | "options" | "register" | "remove"; "id"?: string; "credential"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postUserPasskeys(input?: { body?: { "operation"?: "list" | "options" | "register" | "remove"; "id"?: unknown; "credential"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/user/passkeys", input ?? {}, [], true, options)
   },
 
@@ -7237,6 +7237,90 @@ export function createClient(config: ClientConfig) {
    */
   postGenerateTwoFactorSecret(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/generate-two-factor-secret", {}, [], false, options)
+  },
+
+  /**
+   * GET /git/{owner}/{repository}/bundles/checkpoint
+   */
+  getGitOwnerRepositoryBundlesCheckpoint(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/git/{owner}/{repository}/bundles/checkpoint", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/git-receive-pack
+   */
+  postGitOwnerRepositoryGitReceivePack(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/git-receive-pack", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/git-upload-pack
+   */
+  postGitOwnerRepositoryGitUploadPack(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/git-upload-pack", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /git/{owner}/{repository}/info/lfs/locks
+   */
+  getGitOwnerRepositoryInfoLfsLocks(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/git/{owner}/{repository}/info/lfs/locks", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/info/lfs/locks
+   */
+  postGitOwnerRepositoryInfoLfsLocks(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/info/lfs/locks", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/info/lfs/locks/verify
+   */
+  postGitOwnerRepositoryInfoLfsLocksVerify(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/info/lfs/locks/verify", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/info/lfs/locks/{id}/unlock
+   */
+  postGitOwnerRepositoryInfoLfsLocksIdUnlock(input: { "owner": string; "repository": string; "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/info/lfs/locks/{id}/unlock", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/info/lfs/objects/batch
+   */
+  postGitOwnerRepositoryInfoLfsObjectsBatch(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/info/lfs/objects/batch", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /git/{owner}/{repository}/info/lfs/objects/{oid}
+   */
+  getGitOwnerRepositoryInfoLfsObjectsOid(input: { "owner": string; "repository": string; "oid": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/git/{owner}/{repository}/info/lfs/objects/{oid}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /git/{owner}/{repository}/info/lfs/objects/{oid}
+   */
+  putGitOwnerRepositoryInfoLfsObjectsOid(input: { "owner": string; "repository": string; "oid": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/git/{owner}/{repository}/info/lfs/objects/{oid}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /git/{owner}/{repository}/info/lfs/verify
+   */
+  postGitOwnerRepositoryInfoLfsVerify(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/git/{owner}/{repository}/info/lfs/verify", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /git/{owner}/{repository}/info/refs
+   */
+  getGitOwnerRepositoryInfoRefs(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/git/{owner}/{repository}/info/refs", input ?? {}, [], false, options)
   },
 
   /**

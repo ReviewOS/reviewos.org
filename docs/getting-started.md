@@ -94,7 +94,7 @@ everything you can.
 **3. Push over HTTPS**, with the token as the password and any user name:
 
 ```bash
-git remote add origin https://reviewos.localhost/you/your-repository.git
+git remote add origin https://reviewos.localhost/git/you/your-repository.git
 git push -u origin main
 ```
 
@@ -127,7 +127,7 @@ feature is off.
 git init .profile && cd .profile
 printf '# Who we are\n' > README.md
 git add . && git commit -m 'the page my profile shows'
-git remote add origin https://reviewos.localhost/you/.profile.git
+git remote add origin https://reviewos.localhost/git/you/.profile.git
 git push -u origin main
 ```
 

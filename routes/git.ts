@@ -12,7 +12,7 @@ import { auditFrom } from '../app/Actions/Git/audit'
 import { decidePush, rulesFor } from '../app/Actions/Git/protection'
 import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
-import { gitService, parseGitUrl } from '../app/Actions/Git/storage'
+import { GIT_MOUNT, gitService, parseGitUrl } from '../app/Actions/Git/storage'
 import { handleRequest as handleLfsRequest } from 'ts-git-lfs'
 import { actorFrom, blobObjectStore, DatabaseLockStore, endpointFor } from '../app/Actions/Git/lfs'
 
@@ -115,7 +115,50 @@ function unauthorized(status: number): Response {
  * push, and a limit there would refuse a legitimate push under load - which
  * fails the push rather than protecting anything.
  */
-route.get('/{owner}/{repository}/info/refs', async (request: any) => {
+/**
+ * Every wire route, at the root and under `/git`.
+ *
+ * The root is what the API process has always served and what the tests drive.
+ * It is not what a client can reach: on a deployed instance the page process
+ * owns `/` and proxies to the API by prefix, so `GET /{owner}/{repo}.git/info/refs`
+ * was answered with a rendered HTML page and `git clone` reported that the
+ * repository did not exist. Every repository. Since the day it was deployed.
+ *
+ * So the same handlers answer under `GIT_MOUNT` too, which `config/server.ts`
+ * proxies wholesale, and `parseGitUrl` takes the mount off so a handler cannot
+ * tell which door it came through. The POSTs are already proxied by method -
+ * the default rule sends every mutating verb to the API - but they are
+ * registered here as well, because a client that clones from the mount posts
+ * its pack to the mount.
+ */
+function wire(method: 'get' | 'post' | 'put', pattern: string, handler: any) {
+  const registered = ['', GIT_MOUNT].map(prefix => (route as any)[method](`${prefix}${pattern}`, handler))
+
+  /*
+   * Both copies get whatever is chained on, which is the point: a `skipCsrf`
+   * or a throttle applied to one door and not the other is a route that
+   * behaves differently depending on how the client reached it - and the door
+   * that would have been missed is the only one clients use.
+   */
+  const both = {
+    skipCsrf() {
+      for (const entry of registered)
+        entry?.skipCsrf?.()
+
+      return both
+    },
+    middleware(...args: any[]) {
+      for (const entry of registered)
+        entry?.middleware?.(...args)
+
+      return both
+    },
+  }
+
+  return both
+}
+
+wire('get', '/{owner}/{repository}/info/refs', async (request: any) => {
   const url = new URL(request.url)
   const service = gitService(url.pathname, url.searchParams)
 
@@ -189,7 +232,7 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
  * A repository with no checkpoint answers 404, which is what a client that
  * asked speculatively should get - and it falls back to an ordinary clone.
  */
-route.get('/{owner}/{repository}/bundles/checkpoint', async (request: any) => {
+wire('get', '/{owner}/{repository}/bundles/checkpoint', async (request: any) => {
   const auth = await authorize(request, 'upload-pack')
 
   if (!auth.ok)
@@ -228,7 +271,7 @@ route.get('/{owner}/{repository}/bundles/checkpoint', async (request: any) => {
 }).skipCsrf().middleware('throttle:300,1m')
 
 /** Fetch and clone. */
-route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
+wire('post', '/{owner}/{repository}/git-upload-pack', async (request: any) => {
   const auth = await authorize(request, 'upload-pack')
   if (!auth.ok)
     return unauthorized(auth.status)
@@ -237,7 +280,7 @@ route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
 }).skipCsrf().middleware('throttle:300,1m')
 
 /** Push. */
-route.post('/{owner}/{repository}/git-receive-pack', async (request: any) => {
+wire('post', '/{owner}/{repository}/git-receive-pack', async (request: any) => {
   const auth = await authorize(request, 'receive-pack')
   if (!auth.ok)
     return unauthorized(auth.status)
@@ -991,11 +1034,11 @@ async function lfs(request: any): Promise<Response> {
  * decide for a host - where the objects live, who may read and write them, and
  * where locks are kept.
  */
-route.post('/{owner}/{repository}/info/lfs/objects/batch', lfs).skipCsrf()
-route.get('/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
-route.put('/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
-route.post('/{owner}/{repository}/info/lfs/verify', lfs).skipCsrf()
-route.post('/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
-route.get('/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
-route.post('/{owner}/{repository}/info/lfs/locks/verify', lfs).skipCsrf()
-route.post('/{owner}/{repository}/info/lfs/locks/{id}/unlock', lfs).skipCsrf()
+wire('post', '/{owner}/{repository}/info/lfs/objects/batch', lfs).skipCsrf()
+wire('get', '/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
+wire('put', '/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
+wire('post', '/{owner}/{repository}/info/lfs/verify', lfs).skipCsrf()
+wire('post', '/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
+wire('get', '/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
+wire('post', '/{owner}/{repository}/info/lfs/locks/verify', lfs).skipCsrf()
+wire('post', '/{owner}/{repository}/info/lfs/locks/{id}/unlock', lfs).skipCsrf()

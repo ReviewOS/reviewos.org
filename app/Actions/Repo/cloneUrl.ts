@@ -19,6 +19,8 @@ export interface RequestOrigin {
   host?: string
 }
 
+import { GIT_MOUNT } from '../Git/storage'
+
 const DEFAULT_ORIGIN = 'http://localhost'
 
 /**
@@ -49,9 +51,17 @@ export function originFor(request: RequestOrigin | null | undefined, configured?
  *
  * `.git` on the end because that is the path the wire protocol is served at,
  * and because a URL without it is a URL that browses rather than clones.
+ *
+ * **`/git` in front of it**, which is not decoration. A deployed instance runs
+ * the pages and the API as two processes; the page process owns `/` and hands
+ * the API only what `config/server.ts` names, and a prefix is the only wildcard
+ * that configuration has. Without the mount this URL was answered by the page
+ * server with an HTML page, and every `git clone` of every repository on the
+ * instance failed with `repository not found` - which reads as a typo or a
+ * permission, and is why it went unnoticed. See `GIT_MOUNT`.
  */
 export function cloneUrl(origin: string, owner: string, repository: string): string {
-  return `${stripTrailingSlash(origin)}/${owner}/${repository}.git`
+  return `${stripTrailingSlash(origin)}${GIT_MOUNT}/${owner}/${repository}.git`
 }
 
 /** The whole thing, for the one caller that has a request and wants a URL. */

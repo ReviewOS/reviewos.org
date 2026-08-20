@@ -67,24 +67,32 @@ describe('originFor', () => {
 describe('cloneUrl', () => {
   it('ends in .git, because that is where the wire protocol is served', () => {
     expect(cloneUrl('https://code.example.com', 'anna', 'checkout'))
-      .toBe('https://code.example.com/anna/checkout.git')
+      .toBe('https://code.example.com/git/anna/checkout.git')
+  })
+
+  it('carries the mount, because the bare path never reaches the wire', () => {
+    // The page process owns `/` on a deployed instance and hands the API only
+    // the prefixes `config/server.ts` names. Without `/git` this URL is
+    // answered with a rendered HTML page, and every clone of every repository
+    // fails with `repository not found`.
+    expect(cloneUrl('https://code.example.com', 'anna', 'checkout')).toContain('/git/')
   })
 
   it('does not double the slash when the origin carries one', () => {
     expect(cloneUrl('https://code.example.com/', 'anna', 'checkout'))
-      .toBe('https://code.example.com/anna/checkout.git')
+      .toBe('https://code.example.com/git/anna/checkout.git')
   })
 })
 
 describe('cloneUrlFor', () => {
   it('is the whole thing: a request in, a URL out', () => {
     expect(cloneUrlFor({ url: 'http://127.0.0.1:3012/anna/checkout' }, 'anna', 'checkout'))
-      .toBe('http://127.0.0.1:3012/anna/checkout.git')
+      .toBe('http://127.0.0.1:3012/git/anna/checkout.git')
   })
 
   it('is still a URL when the page was rendered with no request behind it', () => {
     expect(cloneUrlFor(null, 'anna', 'checkout', 'https://code.example.com'))
-      .toBe('https://code.example.com/anna/checkout.git')
+      .toBe('https://code.example.com/git/anna/checkout.git')
   })
 })
 

@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
+import { cloneUrlFor } from '../../app/Actions/Repo/cloneUrl'
 
 /** Everything this run created, removed in afterAll however it ends. */
 const created = { userId: 0, repositoryId: 0, tokenId: 0, token: '', handle: '', name: '', diskPath: '', temp: '' }
@@ -271,6 +272,46 @@ describe('the git wire protocol, end to end', () => {
 
     expect(port).toBeGreaterThan(0)
   }, 60_000)
+
+  /**
+   * The mount, which is the door a client actually knocks on.
+   *
+   * These routes are registered twice - at the root, which is what everything
+   * below drives, and under `/git`, which is what `cloneUrlFor` advertises and
+   * what `config/server.ts` proxies from the page process to this one. Only the
+   * second is reachable on a deployed instance: the page server owns `/` and
+   * hands the API the prefixes it is told about, so the bare path was answered
+   * with a rendered HTML page and every `git clone` on the instance failed with
+   * `repository not found`.
+   *
+   * Asserted here rather than left to the unit test on the URL, because a URL
+   * that is right and a route that does not exist is exactly the shape the
+   * failure had.
+   */
+  test('the mounted path advertises the same refs as the root one', async () => {
+    if (!available)
+      return
+
+    const mounted = `http://127.0.0.1:${port}/git/${created.handle}/${created.name}.git`
+    const response = await fetch(`${mounted}/info/refs?service=git-upload-pack`)
+    const body = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('application/x-git-upload-pack-advertisement')
+    expect(body).toContain('refs/heads/main')
+  })
+
+  test('and the URL the interface hands out is that one', async () => {
+    if (!available)
+      return
+
+    const advertised = cloneUrlFor({ url: `http://127.0.0.1:${port}/${created.handle}/${created.name}` }, created.handle, created.name)
+    const response = await fetch(`${advertised}/info/refs?service=git-upload-pack`)
+
+    // The pair is the point: copy what the clone box shows, and it clones.
+    expect(advertised).toContain('/git/')
+    expect(response.status).toBe(200)
+  })
 
   test('a public repository advertises its refs to a stranger', async () => {
     if (!available)
