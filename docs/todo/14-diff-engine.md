@@ -1105,12 +1105,43 @@ whole before the loop comes back round.
 
 ### Performance work in the library
 
-- [ ] Throughput benchmarks in MB/s per language in the `benchmarks` package, tracked over time and
-      run in CI, so a grammar change that halves throughput is visible
+- [x] Throughput benchmarks in MB/s per language in the `benchmarks` package, tracked over time.
+
+      `bun run bench:throughput` in `packages/benchmarks`. MB/s rather than milliseconds because a
+      "12ms for this fixture" number cannot be compared against anything - not the same file next
+      month, not another language, not the other tokenizer - since it folds the size of the input
+      into the result. Both tokenizers run over the same bytes in the same process, and the corpus
+      is generated rather than fetched so the number is reproducible without a network. Each sample
+      carries strings and comments on purpose: a corpus of bare keywords would flatter the
+      stack-carrying tokenizer by never asking it to do its job.
+
+      | language | Tokenizer | FastTokenizer | gap |
+      |---|---|---|---|
+      | typescript | 68.9 MB/s | 85.0 MB/s | 1.2x |
+      | javascript | 54.2 MB/s | 61.8 MB/s | 1.1x |
+      | python | 15.2 MB/s | 102.1 MB/s | 6.7x |
+      | json | 12.0 MB/s | 186.8 MB/s | 15.5x |
+      | rust | 4.7 MB/s | 89.6 MB/s | 19.1x |
+      | css | 4.4 MB/s | 119.0 MB/s | 27.3x |
 - [x] A tokenize ceiling with an explicit plain-text result inside the library, so every consumer
       gets the same fallback rather than each inventing one - or, much more often, not having one
-- [ ] Profile `Tokenizer` against `FastTokenizer` on the corpus and decide when each is used
-      automatically, rather than making the caller choose
+- [x] Profile `Tokenizer` against `FastTokenizer` on the corpus and decide when each is used
+
+      Profiled by the benchmark above, and **the decision is not the one this box anticipated.** The
+      expected answer was a rule - fast tokenizer here, careful one there. The numbers refuse it: the
+      gap is 1.2x on TypeScript and 27x on CSS, and a scope stack does not become twenty times more
+      expensive because the language changed. A cost that varies by a factor of twenty across
+      grammars of similar size - CSS declares twelve patterns, TypeScript eighteen - is a **defect in
+      those two grammars**, not a property of the design.
+
+      So the decision is: `Tokenizer` stays the default everywhere, because it is the one that gets
+      nested constructs and multi-line strings right, and 69 MB/s is ample. `FastTokenizer` stays
+      what it already is - the explicit `highlightFast` path for callers who have said they do not
+      need scopes. **Choosing between them per language would be encoding a bug as a policy.**
+
+      What to chase instead, with the benchmark now in place to check it: why CSS and Rust cost
+      fifteen times what TypeScript does in the same tokenizer. The `Uint8Array` character-class
+      table is already in `tokenizer.ts`, so the usual suspect is a pattern that backtracks.
 - [ ] Reuse the `Uint8Array` character-class table approach from `FastTokenizer` in the main
       tokenizer where scope tracking allows it
 - [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
