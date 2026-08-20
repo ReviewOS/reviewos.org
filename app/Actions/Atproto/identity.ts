@@ -57,6 +57,8 @@ export interface Fetcher {
   fetchImpl?: typeof fetch
   directory?: string
   now?: number
+  /** The TXT lookup, so a test can answer without a resolver. */
+  resolveTxt?: (name: string) => Promise<string[][]>
 }
 
 /** A syntactically valid DID of a method this understands. */
@@ -102,9 +104,15 @@ export function didWebDocumentUrl(did: string): string | null {
 
 /** The DID document for a DID, from the directory or from the domain. */
 export async function fetchDocument(did: string, options: Fetcher = {}): Promise<any | null> {
+  // Checked here as well as by the caller, because this is exported: the DID
+  // goes into a URL unescaped - the directory expects `did:plc:xyz`, not a
+  // percent-encoded copy of it - so the shape has to be known first.
+  if (!isSupportedDid(did))
+    return null
+
   const fetchImpl = options.fetchImpl ?? fetch
   const url = did.startsWith('did:plc:')
-    ? `${options.directory ?? PLC_DIRECTORY}/${encodeURIComponent(did)}`
+    ? `${options.directory ?? PLC_DIRECTORY}/${did}`
     : didWebDocumentUrl(did)
 
   if (!url)
@@ -157,18 +165,30 @@ export function readDocument(document: any): AtprotoIdentity | null {
 /**
  * The DID a handle claims, by asking the handle's own domain.
  *
- * Two ways, both from the specification and both tried because hosts differ:
- * the `_atproto` DNS TXT record, and `/.well-known/atproto-did`. Only the
- * second is done here - a forge running on Bun has HTTP and does not have a
- * resolver it can trust to be present in every deployment - and the DNS route
- * is left for an operator who wants it, because the well-known route is
- * sufficient and the answer is verified against the document either way.
+ * Two ways, both from the specification, and **both are needed** - which is
+ * something only reality said. The first version did the HTTP one alone, on the
+ * reasoning that a forge on Bun has HTTP and may not have a resolver worth
+ * trusting. Its tests passed. Then it was pointed at three real handles and
+ * resolved none of them: `bsky.app` publishes `_atproto` as a DNS TXT record
+ * and serves no well-known path at all, and so does nearly every handle that
+ * exists. A design that is right about the specification and wrong about the
+ * network is wrong.
+ *
+ * So: TXT first, because that is what handles actually publish, and the
+ * well-known path second, because it is what a host behind a CDN with no
+ * control of its own DNS can offer. Either answer is verified against the DID
+ * document afterwards, so neither is trusted on its own.
  */
 export async function didForHandle(handle: string, options: Fetcher = {}): Promise<string | null> {
   const normalized = normalizeHandle(handle)
 
   if (!normalized)
     return null
+
+  const fromDns = await didFromTxt(normalized, options)
+
+  if (fromDns)
+    return fromDns
 
   const fetchImpl = options.fetchImpl ?? fetch
 
@@ -185,6 +205,33 @@ export async function didForHandle(handle: string, options: Fetcher = {}): Promi
     return isSupportedDid(did) ? did : null
   }
   catch {
+    return null
+  }
+}
+
+/** The `_atproto` TXT record's `did=` value, when there is one. */
+async function didFromTxt(handle: string, options: Fetcher = {}): Promise<string | null> {
+  try {
+    const resolveTxt = options.resolveTxt ?? (await import('node:dns/promises')).resolveTxt
+
+    // A record may be split into several strings by the resolver, and a name
+    // may carry several records: joined within, searched across.
+    for (const record of await resolveTxt(`_atproto.${handle}`)) {
+      const value = record.join('').trim()
+
+      if (!value.startsWith('did='))
+        continue
+
+      const did = value.slice('did='.length).trim()
+
+      if (isSupportedDid(did))
+        return did
+    }
+
+    return null
+  }
+  catch {
+    // NXDOMAIN, no resolver, a timeout: all of them mean "ask the other way".
     return null
   }
 }
