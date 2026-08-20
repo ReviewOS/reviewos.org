@@ -182,17 +182,63 @@ running Firecracker v1.16.1 with a 6.1.128 guest kernel.
 Both are the failure this document predicted in its first paragraph: not a boot that fails, a machine
 that works and is wrong.
 
+## The supervisor
+
+`microvmSupervisor.ts` is the piece that makes a job actually boot into one of these, and
+`microvmProtocol.ts` is how the host and guest talk. Both are verified against real Firecracker on
+the host above: **a three-step job ran inside a machine, each step's output came back separately, and
+the machine and everything it needed were gone afterwards.**
+
+The channel is the serial console rather than vsock. Vsock is the better wire and is more to build -
+a device, a guest client, a host listener, and a framing protocol anyway - and the framing is the part
+that carries the security, so it would have to be written either way. The console already exists and
+already carries the job's output.
+
+**A step can print whatever the agent prints**, which on a shared channel means a step could announce
+its own success. Two things close it. The agent declares a byte *length* and the host reads exactly
+that many without scanning them, so content cannot terminate a frame it never gets parsed for. And
+the header carries a nonce the host generated, delivered on the payload disk and unlinked by the agent
+before the first step runs - so there is nowhere left for a step to read it from. Verified by running
+a step that prints a well-formed frame: it came back as that step's output, and no phantom step
+appeared in the results.
+
+Teardown is a list built as resources are made and released in reverse, unconditionally. A supervisor
+that cleaned up only on the happy path would leak a tap device, a filter table and a disk on every
+crash and every timeout, and a runner that has leaked forty tap devices stops being able to start
+machines for a reason nobody will connect to a build that failed weeks earlier. Checked after a
+normal finish and after a wall-clock kill: no taps, no tables, no disks, no processes.
+
+Also verified: a failing step ends the job and the steps after it do not run, and the wall clock kills
+the machine rather than asking it to stop.
+
+### Four defects the supervisor found, none of which a unit test would have
+
+1. **The payload disk was root-owned and Firecracker runs unprivileged.** Making the disk needs root -
+   a loop mount does - and booting deliberately does not. The two never agreed, and the failure came
+   after the disk, the tap and the filter had all been created successfully.
+2. **The agent tried to `mkdir /work` on a read-only root.** The mount point has to exist in the
+   image. This is now an image-build requirement rather than something the agent can fix.
+3. **The agent had nowhere to write.** With the root read-only it needs a tmpfs for its own scratch.
+4. **The serial console translates `\n` to `\r\n`.** Fatal to length framing rather than untidy: the
+   host is told how many bytes to expect and the line discipline inserts more, so every count is wrong
+   by the number of newlines. A job whose three steps had all run correctly reported nothing, because
+   every header carried a trailing `\r` and stopped being a header. Fixed in the guest, which turns
+   the translation off before writing, and tolerated in the host parser as well.
+
 ## What is still not verified
 
-- **No job has run in one of these.** `localExecutor.ts` still executes steps as host processes.
-  What has been proven is that the mechanisms work; what does not exist is the supervisor that claims
-  a job, boots a machine for it, feeds it the source, and collects the result. Until that is written,
-  the roadmap's boxes describe a product behaviour that is not there, so they stay open.
-- **The vsock protocol and the guest agent do not exist.** The guest ran a probe script, not an agent.
-- **No image build pipeline.** The image used was assembled by hand for the test.
+- **It is not wired into the runner.** `localExecutor.ts` still claims jobs and runs their steps as
+  host processes; nothing yet routes a claimed job to `superviseJob`. The supervisor is a component
+  with an end-to-end test, not a mode the product can be put into - so the roadmap's boxes stay open.
+- **No source reaches the guest.** The steps do; a checkout does not. A real job needs its repository,
+  and that is the next thing the payload disk carries.
+- **No image build pipeline.** The image used was assembled by hand, and requirements it must satisfy -
+  an agent at a known path, a `/work` mount point - are written here rather than enforced anywhere.
+- **Secrets have not been designed into this at all.** A job's secrets currently reach a step through
+  its environment on the host. What that becomes when the step runs in another machine is an open
+  question, and putting them on the payload disk is the obvious answer and probably the wrong one.
 - **Ceilings were accepted, not exercised.** Firecracker took `vcpu_count` and `mem_size_mib`; no test
-  has yet confirmed that a guest which forks endlessly dies inside its own memory rather than the
-  host's.
+  confirms a guest which forks endlessly dies inside its own memory rather than the host's.
 - **aarch64 only.** The x86 path most operators would run is untested.
 - **Nothing about the hypervisor's own surface.** A microVM moves the escape from a kernel bug to a
   hypervisor bug; it does not remove it.
