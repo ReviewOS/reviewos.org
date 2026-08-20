@@ -1,0 +1,72 @@
+# The diff engine, timed against the fixed corpus.
+#
+# Not on every push, and that is deliberate. The corpus is a bare clone of the
+# Linux kernel - six gigabytes and eleven million objects - so running this on
+# every commit would spend more CI minutes on cloning than the numbers are
+# worth. It runs on a schedule, and on demand when somebody wants a
+# before-and-after around a change to the engine.
+#
+# The runner is a shared machine and its floor is higher and noisier than a
+# laptop's. That is why the warm column exists: comparing warm against warm
+# across runs cancels most of what the neighbours are doing, while a cold number
+# from a shared runner mostly measures the disk somebody else is also using.
+name: bench
+
+on:
+  schedule:
+    # Weekly. Often enough to catch a regression while the change is still
+    # recent, rarely enough that the clone cache is doing most of the work.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'One corpus entry (small, medium, large, kernel)'
+        required: false
+        default: ''
+
+concurrency:
+  group: bench
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # The shape of the corpus, which needs no clone and so runs first: if the
+      # manifest is malformed there is no point spending twenty minutes fetching
+      # eleven million objects to find out.
+      - name: The corpus describes itself
+        run: bun test tests/unit/bench-corpus.test.ts
+
+      - name: Cache the corpus clone
+        id: corpus
+        uses: actions/cache@v4
+        with:
+          path: storage/repos/reviewos/linux.git
+          # Keyed by the manifest: new shas mean the cache may not contain them.
+          key: linux-corpus-${{ hashFiles('app/Actions/Bench/corpus.ts') }}
+          restore-keys: linux-corpus-
+
+      - name: Clone the corpus if the cache was cold
+        if: steps.corpus.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p storage/repos/reviewos
+          git clone --bare https://github.com/torvalds/linux.git storage/repos/reviewos/linux.git
+
+      # Before any timing: if the manifest and git disagree, every number below
+      # would be measured against a diff nobody described.
+      - name: The manifest still matches git
+        run: ./buddy bench --verify
+
+      - name: Time it
+        run: ./buddy bench ${{ github.event.inputs.only && format('--only {0}', github.event.inputs.only) || '' }}
