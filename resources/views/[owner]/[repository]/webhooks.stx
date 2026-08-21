@@ -131,9 +131,9 @@ const name = String(params.repository)
 @section('content')
   <div class="page">
     @if (!access || !mayManage)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Not found</h1>
-      </div>
+      <PageEmpty
+        title="Not found"
+      />
     @else
       {{-- The repository this belongs to, and the way back to it. This page
           named it nowhere: the heading said "Webhooks" and the reader had to

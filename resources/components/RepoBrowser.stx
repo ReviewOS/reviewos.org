@@ -400,19 +400,17 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
 
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (movedTo)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Moved</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <code>{{ owner }}</code> is now <a href="{{ movedPath }}">{{ movedTo }}</a>.
-        </p>
-      </div>
+      <PageEmpty
+        title="Moved"
+        detail="{{ owner }} is now {{ movedTo }}."
+        linksJson="{{ JSON.stringify([{ href: movedPath, label: `Go to ${movedTo}` }]) }}"
+      />
     @elseif (notFound)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-        <p class="muted" style="margin-top: 6px;">
-          Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}.
-        </p>
-      </div>
+      <PageEmpty
+        title="No such repository"
+        detail="Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}."
+        linksJson="{{ JSON.stringify([{ href: `/${ownerHandle}`, label: `Back to ${ownerHandle}` }, { href: '/explore', label: 'Explore' }]) }}"
+      />
     @else
       <RepoHeader
         owner="{{ ownerHandle }}"

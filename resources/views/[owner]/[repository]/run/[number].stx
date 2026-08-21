@@ -848,12 +848,11 @@ const base = `/${ownerHandle}/${repositoryName}`
 @section('content')
   <div class="page">
     @if (!repoRow || !run)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such workflow run</h1>
-        <p class="muted" style="margin-top: 8px;">
-          <a href="{{ base }}/runs">All runs</a>
-        </p>
-      </div>
+      <PageEmpty
+        title="No such workflow run"
+        detail="That run is not on this repository."
+        linksJson="{{ JSON.stringify([{ href: `${base}/runs`, label: 'All runs' }]) }}"
+      />
     @else
       {{-- `RepoHeader`, like every other repository screen. --}}
       <RepoHeader

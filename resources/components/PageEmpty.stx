@@ -1,0 +1,45 @@
+<script server>
+/**
+ * The panel a page shows when there is nothing to show: a repository that
+ * does not exist, a comparison that cannot be made, a page that needs somebody
+ * signed in.
+ *
+ * Thirty-five copies of it were written out by hand, as
+ * `style="padding: 32px; text-align: center"` with an `<h1 style="font-size:
+ * 20px">` inside, and they had already drifted: five said what was missing -
+ * "Nothing is published at owner/repo" - and twelve showed the bare heading
+ * and nothing else. So which explanation a reader got depended on which URL
+ * they had typed.
+ *
+ * **A way out is part of the state.** A dead end that says only "No such
+ * repository" leaves the reader to edit the URL or press back; every one of
+ * these pages knows something better to offer - the owner whose page it isn't,
+ * or the instance's own index.
+ *
+ * Laid out in utilities. Padding and centring are not a design decision that
+ * wants a name; `panel` and `muted` are, and stay classes.
+ *
+ * **Not `EmptyState`**, which is the name `@stacksjs/components` already uses.
+ * stx resolved the framework's one first, so the pages rendered its icon-in-a-
+ * circle and silently dropped every prop this takes - a component that looks
+ * like it worked and shows none of what it was given.
+ */
+const links = typeof linksJson === 'string' ? JSON.parse(linksJson || '[]') : (linksJson ?? [])
+const detailText = String(detail ?? '')
+</script>
+
+<div class="panel p-[32px] text-center">
+  <h1 class="text-[20px]">{{ title }}</h1>
+
+  @if (detailText)
+    <p class="muted mt-[6px]">{{ detailText }}</p>
+  @endif
+
+  @if (links.length > 0)
+    <div class="mt-[18px] flex gap-2 justify-center flex-wrap">
+      @foreach (links as link)
+        <a class="btn" href="{{ link.href }}">{{ link.label }}</a>
+      @endforeach
+    </div>
+  @endif
+</div>

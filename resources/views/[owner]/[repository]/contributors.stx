@@ -106,9 +106,11 @@ const commits = rows.reduce((sum: number, row: any) => sum + Number(row.commits 
 @section('content')
   <div class="page">
     @if (!repoRow)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-      </div>
+      <PageEmpty
+        title="No such repository"
+        detail="Nothing is published at {{ ownerHandle }}/{{ repositoryName }}."
+        linksJson="{{ JSON.stringify([{ href: `/${ownerHandle}`, label: `Back to ${ownerHandle}` }, { href: '/explore', label: 'Explore' }]) }}"
+      />
     @else
       <RepoHeader
         owner="{{ ownerHandle }}"

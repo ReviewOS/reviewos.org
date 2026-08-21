@@ -71,15 +71,11 @@ if (!visible)
 @section('content')
   <div class="page">
     @if (!visible)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Not found</h1>
-        <p class="muted" style="margin-top: 6px;">
-          There is no page here.
-          @if (!viewer)
-            If you were expecting one, <a href="/login">sign in</a> first.
-          @endif
-        </p>
-      </div>
+      <PageEmpty
+        title="Not found"
+        detail="There is no page here."
+        linksJson="{{ JSON.stringify(viewer ? [] : [{ href: `/login?next=/${handle}/tokens`, label: 'Sign in' }]) }}"
+      />
     @else
       <header class="people-head">
         <h1 class="people-title">

@@ -87,9 +87,11 @@ const browseHref = `${base}/tree/${joinRefAndPath(ref, scopedPath)}`
 @section('content')
   <div class="page">
     @if (!repoRow)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-      </div>
+      <PageEmpty
+        title="No such repository"
+        detail="Nothing is published at {{ ownerHandle }}/{{ repositoryName }}."
+        linksJson="{{ JSON.stringify([{ href: `/${ownerHandle}`, label: `Back to ${ownerHandle}` }, { href: '/explore', label: 'Explore' }]) }}"
+      />
     @else
       {{-- `RepoHeader`, the same identity block every other repository screen
           draws. This page carried its own: a name and a caption, without the

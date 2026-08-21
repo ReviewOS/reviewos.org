@@ -55,12 +55,11 @@ const website = String(account?.website ?? '')
     <SettingsNav current="profile" />
 
     @if (!viewer)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Sign in to edit your profile</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <a href="/login?next=/settings/profile">Sign in</a> to change your handle, name and bio.
-        </p>
-      </div>
+      <PageEmpty
+        title="Sign in to edit your profile"
+        detail="Change your handle, name and bio."
+        linksJson="{{ JSON.stringify([{ href: '/login?next=/settings/profile', label: 'Sign in' }]) }}"
+      />
     @else
       <header class="keys-head">
         <h1 class="keys-title">Profile</h1>

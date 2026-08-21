@@ -55,13 +55,11 @@ if (!viewer)
     <SettingsNav current="organizations" />
 
     @if (!viewer)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Sign in to see your organizations</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <a href="/login">Sign in</a> to see the organizations you belong to and any invitations
-          waiting for you.
-        </p>
-      </div>
+      <PageEmpty
+        title="Sign in to see your organizations"
+        detail="See the organizations you belong to, and any invitations waiting for you."
+        linksJson="{{ JSON.stringify([{ href: '/login?next=/settings/organizations', label: 'Sign in' }]) }}"
+      />
     @else
       <header class="orgs-head">
         <h1 class="orgs-title">Organizations</h1>

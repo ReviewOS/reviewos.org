@@ -130,12 +130,11 @@ if (viewer?.is_admin || maintainsPools) {
     <SettingsNav current="tokens" />
 
     @if (!viewer)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Sign in to manage your tokens</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <a href="/login">Sign in</a> to issue an access token for a script, a CI job, or a client.
-        </p>
-      </div>
+      <PageEmpty
+        title="Sign in to manage your tokens"
+        detail="Issue an access token for a script, a CI job, or a client."
+        linksJson="{{ JSON.stringify([{ href: '/login?next=/settings/tokens', label: 'Sign in' }]) }}"
+      />
     @else
       <header class="tok-head">
         <h1 class="tok-title">Access tokens</h1>

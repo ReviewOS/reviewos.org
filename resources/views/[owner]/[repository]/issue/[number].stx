@@ -315,12 +315,10 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 @section('content')
   <div class="page">
     @if (!issue)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such issue</h1>
-        <p class="muted" style="margin-top: 6px;">
-          {{ ownerHandle }}/{{ repositoryName }} has no issue numbered {{ params.number }}.
-        </p>
-      </div>
+      <PageEmpty
+        title="No such issue"
+        detail="{{ ownerHandle }}/{{ repositoryName }} has no issue numbered {{ params.number }}."
+      />
     @else
       <header class="issue-head">
         {{-- Which repository this is, and the way back to it. The page named it

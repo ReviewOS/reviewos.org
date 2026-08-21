@@ -223,12 +223,11 @@ const notFound = !repoRow
 
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (notFound)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-        <p class="muted" style="margin-top: 6px;">
-          Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}.
-        </p>
-      </div>
+      <PageEmpty
+        title="No such repository"
+        detail="Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}."
+        linksJson="{{ JSON.stringify([{ href: `/${ownerHandle}`, label: `Back to ${ownerHandle}` }, { href: '/explore', label: 'Explore' }]) }}"
+      />
     @else
       {{-- `RepoHeader`, the same one the code screen draws. This page carried a
           cut-down copy of it: the name and the visibility pill, without the

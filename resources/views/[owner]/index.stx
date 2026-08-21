@@ -273,17 +273,17 @@ const pageDescription = found
 @section('content')
   <div class="page">
     @if (movedTo)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Moved</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <code>{{ handle }}</code> is now <a href="{{ movedPath }}">{{ movedTo }}</a>.
-        </p>
-      </div>
+      <PageEmpty
+        title="Moved"
+        detail="{{ handle }} is now {{ movedTo }}."
+        linksJson="{{ JSON.stringify([{ href: movedPath, label: `Go to ${movedTo}` }]) }}"
+      />
     @elseif (!found)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Not found</h1>
-        <p class="muted" style="margin-top: 6px;">There is no account called {{ handle }} here.</p>
-      </div>
+      <PageEmpty
+        title="Not found"
+        detail="There is no account called {{ handle }} here."
+        linksJson="{{ JSON.stringify([{ href: '/explore', label: 'Explore this instance' }, { href: '/discover', label: 'Discover' }]) }}"
+      />
     @else
       <div class="profile">
         <aside class="profile-side">

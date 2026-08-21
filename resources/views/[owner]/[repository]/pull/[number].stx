@@ -760,12 +760,10 @@ const statePill = pullRequest
 @section('content')
   <div class="page">
     @if (!pullRequest)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such pull request</h1>
-        <p class="muted" style="margin-top: 6px;">
-          {{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}.
-        </p>
-      </div>
+      <PageEmpty
+        title="No such pull request"
+        detail="{{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}."
+      />
     @else
       {{--
         What changed while you were reading this, and who else is here.

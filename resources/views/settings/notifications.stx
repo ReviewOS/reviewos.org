@@ -273,12 +273,11 @@ const dayBoxes = [
     <SettingsNav current="notifications" />
 
     @if (!viewer)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Sign in to change how you are notified</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <a href="/login">Sign in</a> to set what reaches you, and when.
-        </p>
-      </div>
+      <PageEmpty
+        title="Sign in to change how you are notified"
+        detail="Set what reaches you, and when."
+        linksJson="{{ JSON.stringify([{ href: '/login?next=/settings/notifications', label: 'Sign in' }]) }}"
+      />
     @else
       <header class="keys-head">
         <h1 class="keys-title">Notifications</h1>

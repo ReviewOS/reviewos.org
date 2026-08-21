@@ -57,12 +57,11 @@ if (!viewer)
     <SettingsNav current="keys" />
 
     @if (!viewer)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Sign in to manage your keys</h1>
-        <p class="muted" style="margin-top: 6px;">
-          <a href="/login">Sign in</a> to add an SSH key for pushing, or a GPG key for signing.
-        </p>
-      </div>
+      <PageEmpty
+        title="Sign in to manage your keys"
+        detail="Add an SSH key for pushing, or a GPG key for signing."
+        linksJson="{{ JSON.stringify([{ href: '/login?next=/settings/keys', label: 'Sign in' }]) }}"
+      />
     @else
       <header class="keys-head">
         <h1 class="keys-title">Keys</h1>

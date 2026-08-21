@@ -82,26 +82,23 @@ const title = repoRow && request
 @section('content')
   <div class="page">
     @if (!repoRow)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-      </div>
+      <PageEmpty
+        title="No such repository"
+      />
     @endif
 
     @if (repoRow && !request)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">Nothing to compare</h1>
-        <p class="muted" style="margin-top: 6px;">
-          Name two refs as <span class="mono">base...head</span>, or one branch to compare
-          against <span class="mono">{{ repoRow.default_branch }}</span>.
-        </p>
-      </div>
+      <PageEmpty
+        title="Nothing to compare"
+        detail="Name two refs as base...head, or one branch to compare against {{ repoRow.default_branch }}."
+      />
     @endif
 
     @if (repoRow && request && (!comparison || !comparison.ok))
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">These refs cannot be compared</h1>
-        <p class="muted" style="margin-top: 6px;">{{ comparison?.error ?? 'One of them does not exist.' }}</p>
-      </div>
+      <PageEmpty
+        title="These refs cannot be compared"
+        detail="{{ comparison?.error ?? 'One of them does not exist.' }}"
+      />
     @endif
 
     @if (repoRow && request && comparison && comparison.ok)

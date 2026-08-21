@@ -74,16 +74,16 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
 @section('content')
   <div class="page">
     @if (!repoRow)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such repository</h1>
-      </div>
+      <PageEmpty
+        title="No such repository"
+        detail="Nothing is published at {{ ownerHandle }}/{{ repositoryName }}."
+        linksJson="{{ JSON.stringify([{ href: `/${ownerHandle}`, label: `Back to ${ownerHandle}` }, { href: '/explore', label: 'Explore' }]) }}"
+      />
     @elseif (!commit)
-      <div class="panel" style="padding: 32px; text-align: center;">
-        <h1 style="font-size: 20px;">No such commit</h1>
-        <p class="muted" style="margin-top: 6px;">
-          Nothing in this repository is called <span class="mono">{{ revision }}</span>.
-        </p>
-      </div>
+      <PageEmpty
+        title="No such commit"
+        detail="Nothing in this repository is called {{ revision }}."
+      />
     @else
       {{-- `RepoHeader`, like every other repository screen. This one drew a
           bare title: no visibility pill, no description, no clone URL. --}}
