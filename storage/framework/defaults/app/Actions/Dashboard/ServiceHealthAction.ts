@@ -157,7 +157,7 @@ export default new Action({
     while ((depMatch = depPattern.exec(depsConf)) !== null) {
       const depName = depMatch[1]
       const depVer = depMatch[2]
-      if (depName.includes('.') || depName === 'redis' || depName === 'mailpit') {
+      if (depName.includes('.') || depName === 'redis') {
         systemDeps.push({ name: depName, version: depVer })
       }
     }
