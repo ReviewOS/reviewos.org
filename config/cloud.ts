@@ -807,7 +807,13 @@ export const tsCloud: TsCloudConfig = {
        * restarts five seconds later and the site is back in the half minute it
        * takes to compile the views. A blip on a timer beats a hang nobody
        * notices.
+       *
+       * `memoryHigh` is said out loud rather than left out, because leaving it
+       * out is not the same as turning it off: ts-cloud defaults it to 2G, and
+       * a soft limit sitting on the hard one throttles first and kills only if
+       * reclaim fails - which is the hang again, at a different number.
        */
+      memoryHigh: 'infinity',
       memoryMax: '2G',
       // The published package ships `dist` and not `src`, so the entry is used
       // as built rather than rebuilt here. The template's build step assumes a
