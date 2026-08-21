@@ -39,7 +39,7 @@ publishing nothing. The config is how you say "these files are the site".
 ## Turning it on
 
 1. **Add the workflow.** The starter is on the repository's workflows page, or
-   write `.reviewos/workflows/pages.yml` yourself. All it has to do is upload an
+   write `.github/workflows/pages.yml` yourself. All it has to do is upload an
    artifact named `pages` containing a tarball whose root is the built site:
 
    ```yaml

@@ -195,7 +195,12 @@ jobs:
     id: 'pages',
     name: 'Pages',
     description: 'Build the documentation and publish it. Finds a `docs/` folder on its own; falls back to markdown in the root.',
-    path: '.reviewos/workflows/pages.yml',
+    // `.github/workflows`, like every other starter, and that matters more here
+    // than it looks: `.reviewos/workflows` wins *outright* when it exists, so a
+    // repository that adopted this file into that directory would have every
+    // workflow it already had in `.github/workflows` stop running. Adding a docs
+    // site must not switch off somebody's test suite.
+    path: '.github/workflows/pages.yml',
     tags: ['docs', 'pages', 'bunpress', 'stx'],
     content: `name: Pages
 

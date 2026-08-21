@@ -157,9 +157,18 @@ describe('what may publish', () => {
 describe('the Pages starter', () => {
   const starter = STARTERS.find(template => template.id === 'pages')
 
-  test('exists, and lands in this product’s own workflow directory', () => {
+  test('exists, and lands beside whatever workflows the repository already has', () => {
     expect(starter).toBeDefined()
-    expect(starter!.path).toBe('.reviewos/workflows/pages.yml')
+    /*
+     * `.github/workflows`, never `.reviewos/workflows`.
+     *
+     * The discovery rule is that `.reviewos/workflows` wins *outright* when it
+     * exists - not merged. A repository that adopted a Pages starter into that
+     * directory would have every workflow it already had in `.github/workflows`
+     * stop running, and adding a documentation site must not switch off
+     * somebody's test suite.
+     */
+    expect(starter!.path).toBe('.github/workflows/pages.yml')
   })
 
   test('detects a docs folder, a bunpress config, stx, and a committed site', () => {
