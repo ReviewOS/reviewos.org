@@ -500,6 +500,20 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [lint, typecheck, test, compile, deployment-target]
+    # The same lock `deploy.yml` holds, because there are two ways to deploy
+    # this instance and they were not aware of each other: the workflow-level
+    # group here is `ci-<ref>`, so a push's deploy job and a manual deploy could
+    # run at the same time and the one that finished last won. That is not
+    # theoretical - the box spent an evening serving a release three commits
+    # behind `main` because an earlier push's CI deploy landed after a manual
+    # deploy of a newer commit, and nothing anywhere said so.
+    #
+    # Serialising them does not order them: a queued deploy of an older commit
+    # still ships an older commit when its turn comes. What it stops is two
+    # deploys switching the release symlink underneath each other.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
