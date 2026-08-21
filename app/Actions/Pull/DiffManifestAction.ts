@@ -65,14 +65,6 @@ export default new Action({
     if (!path)
       return response.json({ error: 'Repository not found' }, 404)
 
-    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha))
-    if (!diff) {
-      // The shas came out of our own table, so this means the row is corrupt
-      // rather than the caller being hostile. Still refused rather than passed
-      // to git.
-      return response.json({ error: 'This pull request has no usable revisions' }, 422)
-    }
-
     // Unified unless the reader asked for split. The layout decides the row
     // markup, so it has to be known before anything is rendered; switching
     // afterwards costs a refetch of the rows and nothing else, because the
@@ -113,6 +105,29 @@ export default new Action({
      * is one `cat-file` for a diff of any size, and cached for the next.
      */
     const languageRules = await languageRulesFor(path, String(pullRequest.head_sha), readBlob)
+
+    /*
+     * Spawned last, immediately before it is read.
+     *
+     * git starts writing the moment it is spawned, and a child's stdout here
+     * does not hold what nobody has asked for - so every `await` between the
+     * spawn and the first read is a window in which the whole diff can be
+     * produced and dropped. It was spawned at the top of this action, above
+     * three of them: the threads, the coverage and the language rules. A diff
+     * small enough to finish inside that window - four hundred bytes, one
+     * file, which is most pull requests - arrived as nothing, and git exited 0
+     * while it did, so `done.ok` was true and the screen rendered "0 files"
+     * for a pull request that changes one.
+     *
+     * Nothing below this line awaits anything before reading `chunks`.
+     */
+    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha))
+    if (!diff) {
+      // The shas came out of our own table, so this means the row is corrupt
+      // rather than the caller being hostile. Still refused rather than passed
+      // to git.
+      return response.json({ error: 'This pull request has no usable revisions' }, 422)
+    }
 
     const records = manifestToNdjson(streamManifest(diff, {
       rows: { layout, threads, skipCollapsed: true, highlight, coverage, languageRules },

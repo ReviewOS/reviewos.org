@@ -150,10 +150,6 @@ export default new Action({
       // two endpoints hold one opinion about where every thread sits.
       trackTo: { diskPath: path, headSha: String(pullRequest?.head_sha ?? '') },
     })
-    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
-    if (!diff)
-      return response.json({ error: 'This pull request has no usable revisions' }, 422)
-
     // No budget: the caller named the files, so the size of the answer is the
     // size of what was asked for. The budget exists to stop a whole diff being
     // rendered eagerly, which is not what this is.
@@ -170,6 +166,15 @@ export default new Action({
     // when its rows are fetched separately. Cached from that request in the
     // ordinary case, since this is the same repository at the same head.
     const languageRules = await languageRulesFor(path, String(pullRequest.head_sha), readBlob)
+
+    /*
+     * Spawned last, immediately before it is read - see `DiffManifestAction`,
+     * which had the same two `await`s between the spawn and the first read and
+     * lost the whole diff to them whenever git finished first.
+     */
+    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
+    if (!diff)
+      return response.json({ error: 'This pull request has no usable revisions' }, 422)
 
     const records = manifestToNdjson(streamManifest(diff, {
       rows: {
