@@ -73,6 +73,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/_pages/*": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/_stacks/mail/preview": {
     get: {
     parameters: {
@@ -14190,6 +14213,33 @@ export interface paths {
     requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "description"?: string; "due_on"?: string; "id"?: number; "operation"?: string; "title"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/pages": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "show" | "update"; "enabled"?: boolean; "source_branch"?: string; "domain"?: string; "visibility"?: "public" | "repository" } } }
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "409": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

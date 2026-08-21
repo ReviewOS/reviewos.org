@@ -114,6 +114,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /_pages/*
+   */
+  getPages(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/_pages/*", {}, [], false, options)
+  },
+
+  /**
    * GET /_stacks/mail/preview
    */
   getStacksMailPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -4330,7 +4337,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/pages
    */
-  getPages(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getPages2(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/pages", {}, [], false, options)
   },
 
@@ -5228,6 +5235,13 @@ export function createClient(config: ClientConfig) {
    */
   postReposMilestones(input?: { body?: { "owner"?: string; "repo"?: string; "description"?: string; "due_on"?: string; "id"?: number; "operation"?: string; "title"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/milestones", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/pages
+   */
+  postReposPages(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "show" | "update"; "enabled"?: boolean; "source_branch"?: string; "domain"?: string; "visibility"?: "public" | "repository" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/pages", input ?? {}, [], true, options)
   },
 
   /**

@@ -351,22 +351,55 @@ Default: `public`, and the line is commented out.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Pages
+
+### `PAGES_DOMAIN`
+
+Default: empty.
+
+The driver. `log` writes what would have been sent to the log and sends
+nothing, which is the framework's default and is fine in development and a
+silent failure in production - a password reset nobody receives looks like a
+broken account. `buddy instance:check` warns about it when `APP_ENV`=production.
+Pages. The hostname published sites are served under, e.g.
+`pages.example.com`, so a site is reached at
+`https://<owner>.pages.example.com/<repository>/`.
+
+Empty means Pages is off, and it is empty by default deliberately: a
+published site is somebody else's HTML and JavaScript, and the only thing
+separating it from every session on this instance is the origin. Serving it
+under this instance's own host would hand every repository owner a script tag
+on everybody's dashboard. One wildcard DNS record and one wildcard
+certificate is the price, and it is the whole boundary.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `PAGES_CUSTOM_DOMAINS`
+
+Default: `true`.
+
+Whether a site may claim a domain of its own. Leave off unless the gateway in
+front of this instance can obtain a certificate for a name it does not own.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Email
 
 ### `MAIL_MAILER`
 
 Default: `smtp`.
 
-The driver. `log` writes what would have been sent to the log and sends
-nothing, which is the framework's default and is fine in development and a
-silent failure in production - a password reset nobody receives looks like a
-broken account. `buddy instance:check` warns about it when `APP_ENV`=production.
-
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_HOST`
 
-Default: `127.0.0.1`, the local mail catcher `./buddy mail:dev` runs - the mail server with delivery switched off, reading at http://localhost:8025. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+Default: `127.0.0.1`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+
+The local mail catcher: `./buddy mail:dev` runs the mail server with delivery
+switched off, so every notification this instance sends is accepted, stored
+and readable at http://localhost:8025, and none of it leaves the machine. It
+is the same binary a deployed instance runs, so a digest that renders locally
+has been through the code that will handle it for real.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
