@@ -1534,20 +1534,81 @@ at any point, which is what makes this affordable on a page load rather than a j
 DiffsHub exists because a URL swap is a lower-friction pitch than a migration. Phase 13 makes the same
 argument for mirroring. The same argument makes this worth doing.
 
-- [ ] A route that renders any public GitHub pull request, commit, compare, `.diff` or `.patch` URL,
+- [x] A route that renders any public GitHub pull request, commit, compare, `.diff` or `.patch` URL,
       reachable by swapping the hostname
-- [ ] Path canonicalization: `/pull/123/files` and `/pull/123.diff` both resolve to the same viewer
+
+      `resources/views/view/[...target].stx`, and a **view** rather than a route because the server
+      that answers a browser resolves file-based stx views for everything outside `/api` - a route
+      here would be a route nothing reaches, which is the same lesson `/docs` cost. The rows are the
+      review screen's own, from `renderDiffFile`: a separate rendering path built for the demo would
+      be a demo of something that is not the product.
+- [x] Path canonicalization: `/pull/123/files` and `/pull/123.diff` both resolve to the same viewer
       URL, with a redirect so links are stable
-- [ ] An optional fine-grained personal access token, stored in `localStorage` only, never sent to our
+
+      Five spellings, one diff: `/pull/123`, `/pull/123/files`, `/pull/123/commits`, `.diff` and
+      `.patch`. The redirect happens *before* the fetch, so a URL about to be redirected does not
+      spend an outbound request on somebody else's patch first.
+- [x] An optional fine-grained personal access token, stored in `localStorage` only, never sent to our
       server except as a `Bearer` header on the proxy request, used for private diffs and for
       expanding collapsed context
-- [ ] The proxy tries the public URL first, then the authenticated web URL, then the API, and reports
+
+      Header only, and the reason is worth stating: a query string is written into the access log of
+      every proxy between the browser and this server, and a personal access token in a log file
+      outlives the request by months. The endpoint uses it for one outbound fetch and drops it -
+      storing it would be asking a stranger to hand over a credential to somebody else's
+      repositories, which is a different product and a much worse one.
+
+      **Expanding context is not offered here, and that is a fact about the patch rather than a
+      gap.** Every other diff on this instance can expand because the file is on disk at a commit
+      this server has. A patch fetched over the network is all there is - the lines between two
+      hunks were never sent - so an expand control would be a control that cannot work.
+- [x] The proxy tries the public URL first, then the authenticated web URL, then the API, and reports
       **why** access failed: token expired, SSO not authorized, repository not selected on the
       fine-grained token, pull request not readable. A bare 404 sends someone to guess.
-- [ ] Rate limiting and an allowlist of upstream hosts, because this is a fetcher pointed at the
+
+      Four problems arrive as a 404 or a 403 and GitHub says which in the headers, so the reason is
+      decided in `fetch.ts` where the status and the headers are rather than inferred later from a
+      code that cannot tell them apart. The one worth naming: **a 404 with a token GitHub accepted
+      is not "no such repository", it is "this repository is not selected on that token"** - the
+      commonest fine-grained token mistake and the one nothing anywhere tells you about.
+
+      A fifth turned up in testing and is now handled: `/pull/12.diff` for a number that is an
+      *issue* redirects to `/issues/12`, which answers 406 for a diff `Accept` - and following it
+      without checking would have handed an HTML page to the diff parser and rendered a confident
+      "this change is empty".
+- [x] Rate limiting and an allowlist of upstream hosts, because this is a fetcher pointed at the
       internet
-- [ ] Decide whether this ships on the marketing domain or the app, and whether it advertises
+
+      **Five hosts, and no input ever reaches `fetch` as a URL**: the upstream URL is *built* from a
+      parsed target, which closes the whole class where a redirect, a punycode homograph or a
+      `@`-in-userinfo turns a fetcher into a way to read this server's network. Redirects are
+      followed by hand, one hop at a time, with the host checked at each - `redirect: 'follow'`
+      would hand the allowlist to the upstream, and GitHub genuinely does redirect a `.diff` to its
+      CDN, so refusing them outright was not an option either.
+
+      **Two limits, because there are two doors.** The endpoint is throttled per address by the API
+      middleware; the *page* is served by the other process, which never sees that middleware. So
+      there is an instance-wide ceiling on outbound requests as well, which is also the honest shape
+      of the promise: what an operator needs to be able to say is "this box will not fetch more than
+      thirty patches from GitHub in five minutes", and no per-caller limit says that.
+
+      Plus a byte ceiling read as it streams rather than after, and a timeout.
+- [x] Decide whether this ships on the marketing domain or the app, and whether it advertises
       ReviewOS or is quiet about it
+
+      **On the app, at `/view`, and it says what it is.** Recorded in `config/publicdiff.ts` with
+      the reasoning, and the middle of those three is the one that took thinking about: the root of
+      this instance is the owner namespace, so a viewer at the root would either shadow real
+      repositories or be shadowed by them. An operator who wants the bare hostname swap points a
+      host at `/view` in their gateway, which is one rewrite.
+
+      On the marketing domain was rejected because it would mean a second deployment of the diff
+      engine, and the first time the two versions differed the demo would be arguing against the
+      thing it demonstrates.
+
+      **Off by default.** This is a fetcher pointed at the internet running on the server that holds
+      every repository on the instance. The allowlist and the ceilings are structural rather than
+      configurable, and turning it on is still a decision somebody makes.
 
 ## The benchmark harness
 

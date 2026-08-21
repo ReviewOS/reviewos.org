@@ -6610,6 +6610,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/view/{owner}/{repo}/{kind}/{ref}
+   */
+  getViewOwnerRepoKindRef(input: { "owner": string; "repo": string; "kind": string; "ref": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/view/{owner}/{repo}/{kind}/{ref}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/waitlist-products
    */
   getWaitlistProducts(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {

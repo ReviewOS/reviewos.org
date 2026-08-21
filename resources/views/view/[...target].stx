@@ -1,0 +1,182 @@
+<script server>
+/**
+ * Any public GitHub diff, opened here by swapping the hostname.
+ *
+ * DiffsHub's pitch, and it is a good one: a URL swap is a lower-friction
+ * argument than a migration. Somebody with a diff GitHub renders slowly, or
+ * crashes a phone on, changes the host and reads it. Nothing is imported,
+ * nothing is signed up for, and the thing they are looking at *is* the review
+ * surface this product is built around.
+ *
+ * ## Why a view rather than a route
+ *
+ * The same reason `/docs` is a view: the server that answers a browser resolves
+ * file-based stx views for everything outside `/api`, and the route registry
+ * belongs to the API process. A route here is a route nothing reaches. The
+ * catch-all sits under `/view`, which is deliberate - see `config/publicdiff.ts`
+ * for why not the root - and it is the only thing in front of `[owner]`.
+ *
+ * ## What the server renders, and what it does not
+ *
+ * The public attempt, here, with no token: that is the ninety-nine percent
+ * case, it needs no script running, and it is the fastest thing that can
+ * happen. A diff the public URL cannot reach renders the *reason* instead,
+ * along with the box where a reader can put their own fine-grained token -
+ * which stays in their browser and is sent as a header on one proxy request.
+ * See `app/Actions/PublicDiff/ViewPatchAction.ts`.
+ */
+import { escapeHtml } from '../../../app/Actions/Pull/shell'
+import { FAILURE_TITLES, MOUNT, parseDiffPath, publicDiffEnabled, renderTargetDiff } from '../../functions/publicdiff'
+
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const requested = String(params.target ?? '')
+const target = publicDiffEnabled ? parseDiffPath(requested) : null
+
+/*
+ * `/pull/123/files` and `/pull/123.diff` are the same diff, so they answer at
+ * one URL and the others send a reader to it. A viewer where the same change
+ * has five links is a viewer where none of them is the one to share.
+ */
+const canonical = target ? target.canonical : ''
+const shouldRedirect = Boolean(target) && `${MOUNT}/${requested.replace(/^\/+/, '')}` !== canonical
+
+if (!publicDiffEnabled)
+  setStatus(404)
+else if (!target)
+  setStatus(404)
+
+/*
+ * Fetched only when this is the URL it will stay at.
+ *
+ * A request that is about to be redirected should not spend an outbound fetch
+ * of somebody else's patch first - the reader is going to ask again in a
+ * moment, and the rate limit this endpoint has is counted in outbound requests.
+ */
+const rendered = target && !shouldRedirect
+  ? await renderTargetDiff(target)
+  : null
+
+const failureTitle = rendered && !rendered.ok && rendered.reason
+  ? (FAILURE_TITLES[rendered.reason] ?? 'That diff could not be fetched')
+  : ''
+
+const subject = target
+  ? (target.kind === 'pull'
+      ? `${target.owner}/${target.repository}#${target.ref}`
+      : `${target.owner}/${target.repository}@${target.ref}`)
+  : ''
+
+const upstream = target
+  ? `https://github.com/${target.owner}/${target.repository}/${target.kind === 'pull' ? `pull/${target.ref}` : target.kind === 'commit' ? `commit/${target.ref}` : `compare/${target.ref}`}`
+  : ''
+
+const diffHtml = rendered?.ok ? rendered.html : ''
+const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file' : 'files'}` : ''
+const escapedCanonical = escapeHtml(canonical)
+</script>
+
+@layout('app')
+
+@section('title', target ? `${subject} · Diff viewer` : 'Diff viewer')
+@section('description', 'Open any public GitHub pull request, commit or compare range in the ReviewOS diff viewer by swapping the hostname.')
+
+@section('content')
+<div class="page page-reading">
+@if (shouldRedirect)
+  <meta http-equiv="refresh" content="0; url={{ canonical }}">
+  <p class="page-note">
+    This diff lives at <a href="{{ canonical }}">{{ canonical }}</a>.
+  </p>
+@elseif (!publicDiffEnabled)
+  <section class="panel page-empty">
+    <h1>The diff viewer is not enabled here</h1>
+    <p>
+      This instance has not turned on the public diff viewer. It fetches patches
+      from GitHub, so an operator switches it on deliberately.
+    </p>
+  </section>
+@elseif (!target)
+  <section class="panel page-empty">
+    <h1>That is not a diff URL</h1>
+    <p>
+      Swap <code>github.com</code> for this host on a pull request, a commit or
+      a compare range and the diff opens here. A tree, a file or an issue does
+      not - there is no diff in one.
+    </p>
+    <p class="muted">
+      <code>{{ MOUNT }}/owner/repository/pull/123</code>,
+      <code>{{ MOUNT }}/owner/repository/commit/abc1234</code>, or
+      <code>{{ MOUNT }}/owner/repository/compare/v1...v2</code>.
+    </p>
+  </section>
+@else
+  <header class="panel view-head">
+    <h1>{{ subject }}</h1>
+    <p class="muted">
+      Rendered by ReviewOS from
+      <a href="{{ upstream }}" rel="noreferrer noopener">github.com</a>.
+      @if (counts)
+        <span>{{ counts }}</span>
+      @endif
+    </p>
+  </header>
+
+  @if (rendered && rendered.ok)
+    @if (rendered.message)
+      <p class="page-note">{{ rendered.message }}</p>
+    @endif
+    <div class="diff" data-diff-root>
+      {!! diffHtml !!}
+    </div>
+  @else
+    <section class="panel page-empty" data-view-failure>
+      <h1>{{ failureTitle }}</h1>
+      <p>{{ rendered ? rendered.message : '' }}</p>
+    </section>
+  @endif
+
+  {{--
+    The token box. Always present, not only after a failure: a reader who knows
+    their diff is private should not have to be told no first.
+
+    The token never leaves this browser except as an `Authorization` header on
+    the request for this one diff. It is not posted in a form, not put in the
+    query string - where every proxy in between would log it - and not stored on
+    this server at any point.
+  --}}
+  <details class="panel view-token">
+    <summary>Use a GitHub token for a private diff</summary>
+    <div class="view-token-body">
+      <p class="muted">
+        A fine-grained personal access token with <strong>read access to
+        contents and pull requests</strong> on the repositories you want to
+        read. It is kept in this browser and sent only with the request for the
+        diff you are looking at.
+      </p>
+      <label class="view-token-field">
+        <span class="visually-hidden">GitHub token</span>
+        <input type="password" data-view-token placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="view-token-actions">
+        <button type="button" class="btn btn-small" data-view-token-save>Save and reload the diff</button>
+        <button type="button" class="btn btn-small" data-view-token-clear>Forget it</button>
+        <span class="muted" data-view-token-status aria-live="polite"></span>
+      </div>
+    </div>
+  </details>
+@endif
+</div>
+@endsection
+
+{{--
+  Imported by its path from the project root, not relatively: a `<script client>`
+  block is bundled from the project root rather than from the file it is written
+  in, so a relative specifier resolves against the wrong directory and the
+  bundle is silently empty.
+--}}
+<script client>
+import { mountPublicDiff } from '@/resources/functions/publicdiffclient'
+
+mountPublicDiff()
+</script>

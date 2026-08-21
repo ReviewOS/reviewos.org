@@ -2164,6 +2164,27 @@ const themeCss = syntaxThemeCss()
       /* The theme picker. A full-width select rather than the radio row its
         neighbours use, because sixteen themes is a list to scan rather than a
         row to read. */
+      /* The public diff viewer: somebody else's diff, opened by URL swap. */
+      .view-head h1 { margin: 0; font-size: 17px; }
+      .view-head { padding: 14px 16px; margin-bottom: 14px; }
+      .view-head p { margin: 4px 0 0; font-size: 12.5px; }
+      .view-token { margin-top: 16px; }
+      .view-token > summary { padding: 12px 16px; cursor: pointer; font-size: 13px; }
+      .view-token-body { padding: 0 16px 14px; display: grid; gap: 10px; }
+      .view-token-body p { margin: 0; font-size: 12.5px; }
+      .view-token-field input {
+        width: 100%;
+        padding: 7px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+      .view-token-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+
       .diff-settings-select { display: block; }
       .diff-settings-select select {
         width: 100%;

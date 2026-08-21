@@ -552,6 +552,24 @@ route.get('/repos/commit', 'Actions/Browse/CommitAction')
 route.get('/repos/branches', 'Actions/Browse/BranchesAction')
 route.get('/repos/tags', 'Actions/Browse/TagsAction')
 route.get('/repos/blame', 'Actions/Browse/BlameAction')
+
+/*
+ * Somebody else's diff, fetched from GitHub and rendered here.
+ *
+ * Throttled far tighter than the rest of the API, and for a different reason:
+ * every one of these is an *outbound* request for an unbounded patch, so the
+ * limit is what keeps a shared instance from being used as somebody's crawler
+ * rather than what keeps this instance's own database from being hammered. The
+ * action refuses outright when `PUBLIC_DIFF_ENABLED` is off, which is the
+ * default - an endpoint that fetches arbitrary URLs must not exist on an
+ * instance whose operator did not ask for it.
+ *
+ * A GET, and therefore not a CSRF surface at all: it reads nothing belonging to
+ * this instance and writes nothing anywhere. Its only credential is a token the
+ * *reader* types in for their own repositories, which no cross-site request can
+ * forge because no browser attaches it.
+ */
+route.get('/view/{owner}/{repo}/{kind}/{ref}', 'Actions/PublicDiff/ViewPatchAction').middleware('throttle:30,5m')
 /*
  * Code search, in one repository, at a ref.
  *

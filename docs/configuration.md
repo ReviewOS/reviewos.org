@@ -419,6 +419,31 @@ front of this instance can obtain a certificate for a name it does not own.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Public
+
+### `PUBLIC_DIFF_ENABLED`
+
+Default: `false`.
+
+The public diff viewer: open any public GitHub pull request, commit or
+compare range here by swapping the hostname. Off by default, because it is a
+fetcher pointed at the internet running on the server that holds every
+repository on this instance - the host allowlist and the byte ceiling are in
+the code and not configurable, but turning it on is still a decision. See
+config/publicdiff.ts for where it is served and why.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `PUBLIC_DIFF_RATE`
+
+Default: `30`.
+
+Proxy requests per five minutes per address. Each one is an outbound fetch of
+somebody else's patch, so this is what keeps a shared instance from being
+used as a crawler.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Email
 
 ### `MAIL_MAILER`
