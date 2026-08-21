@@ -491,6 +491,80 @@ describe('acknowledging a cancellation over HTTP', () => {
     const row: any = await db.selectFrom('workflow_jobs').select(['state']).where('id', '=', job.id).executeTakeFirst()
     expect(String(row.state)).toBe('cancelling')
   })
+
+  test('and the revoked credential cannot write through another runner endpoint', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await ask(job.id)
+
+    /*
+     * The conclusion endpoint already refused a late success. These are the
+     * side channels the prepared review called out: without the shared lease
+     * check, cancellation stopped the verdict while leaving the same token
+     * able to change everything around it.
+     */
+    const requests = [
+      fetch(`http://127.0.0.1:${port}/api/runner/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${job.token}` },
+        body: JSON.stringify({ sequence: 1, content: 'after cancellation' }),
+      }),
+      fetch(`http://127.0.0.1:${port}/api/runner/artifacts`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${job.token}`, 'X-Artifact-Name': 'after-cancellation.txt' },
+        body: 'not an artifact any more',
+      }),
+      fetch(`http://127.0.0.1:${port}/api/runner/caches`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${job.token}`,
+          'X-Cache-Key': 'after-cancellation',
+          'X-Cache-Digest': 'a'.repeat(64),
+        },
+        body: 'not a cache any more',
+      }),
+      fetch(`http://127.0.0.1:${port}/api/runner/annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${job.token}` },
+        body: JSON.stringify({
+          context: 'after-cancellation',
+          annotations: [{ path: 'src/index.ts', start_line: 1, message: 'too late' }],
+        }),
+      }),
+      fetch(`http://127.0.0.1:${port}/api/runner/oidc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${job.token}` },
+        body: '{}',
+      }),
+    ]
+
+    const answers = await Promise.all(requests)
+
+    expect(answers.map(answer => answer.status)).toEqual([401, 401, 401, 401, 401])
+
+    expect(await db.selectFrom('workflow_job_logs').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
+    expect(await db.selectFrom('workflow_artifacts').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
+  })
+
+  test('a live-looking job token is refused once its lease naturally expires', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ lease_expires_at: new Date(Date.now() - 1000).toISOString() })
+      .where('id', '=', job.id)
+      .execute()
+
+    const answer = await call('/runner/logs', { sequence: 1, content: 'from a stale worker' }, job.token)
+
+    expect(answer.status).toBe(401)
+    expect(await db.selectFrom('workflow_job_logs').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
+  })
 })
 
 describe('the run lifecycle, as a program hears it', () => {

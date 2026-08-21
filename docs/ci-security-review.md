@@ -1,13 +1,12 @@
 # CI security review: the eight surfaces
 
-A prepared audit of the boundary [the CI threat model](./ci-threat-model.md) describes, written so
-that the review phase 9 is gated on starts from a map rather than a blank page.
+A prepared audit of the boundary [the CI threat model](./ci-threat-model.md) describes, followed by
+the independent implementation review and remediation that phase 9 requires.
 
-**This document does not discharge that gate, and cannot.** Every surface below is code I wrote or
-edited, and a review of your own work signed off by you is the box being ticked by the person it
-exists to check. The August 2026 [credential review](./security-review-2026-08.md) says the same
-thing about itself, and it is the right principle in both places. What this is: what was built, what
-is verified and where, and what a second reader should attack rather than rediscover.
+The original audit did not discharge that gate: every surface below was code its author wrote or
+edited. Its map remains intact so the review is reproducible. The independent review at the end
+records what a second reader attacked, the two boundary failures it found, their fixes, the residual
+limits and the sign-off outcome.
 
 ## How to read it
 
@@ -77,11 +76,11 @@ stripped.
 
 ## 3. The sandbox breakout surface
 
-**This is the section that matters, and the honest answer is that there is no sandbox.**
+**This is the section that matters. The host executor has no sandbox; the microVM executor does.**
 
 `app/Actions/Runner/localExecutor.ts` runs a job's steps as ordinary processes on the host, in a
-workspace directory, as whoever started the runner. That is correct for the documented posture - one
-team, one box, trusted code - and it is why the roadmap gates a public runner behind this review.
+workspace directory, as whoever started the runner. That remains correct only for the documented
+posture: one team, one box, trusted code. It is not approved by this review for public fork work.
 
 **What exists:** an ephemeral workspace per job, removed afterwards unless a workspace root was
 configured; `RUNNER_TEMP` and `RUNNER_TOOL_CACHE` inside that workspace rather than a shared `/tmp`,
@@ -103,7 +102,7 @@ writes a forty-gigabyte file, and it does nothing whatsoever about an attacker. 
 off by default because they count something wider than one step - `RLIMIT_NPROC` is per user, and
 CPU seconds are not wall time.
 
-**What does not exist**, and must not be read as existing:
+**What does not exist on the host path**, and must not be read as existing:
 
 - No memory limit that holds on macOS: `-v` is accepted there and ignored. No disk *quota* - the
   file-size ceiling bounds one file, not a step that writes a million small ones.
@@ -118,19 +117,23 @@ CPU seconds are not wall time.
   nothing a dishonest runner does. `attested` needs a root of trust the runner cannot lie through,
   and Firecracker has no vTPM to offer one.
 
-**Since this was written**, the boundary that would change all of the above has been designed and
-its decision layer built: [the execution plane](./ci-execution-plane.md), a microVM per job on KVM.
-Read it for what it does *not* protect. Nothing in this section changes yet - no VM has booted, the
-egress policy has never filtered a packet, and a rule that refuses the metadata endpoint is not the
-same achievement as a guest failing to reach it.
+The public-runner boundary is [the execution plane](./ci-execution-plane.md): one KVM microVM per
+job, a read-only base image with a per-job writable overlay, no host filesystem or socket mounted,
+machine-level CPU, memory and disk ceilings, a supervisor-enforced wall clock, and a host-side
+default-deny egress policy. `microvmRun.ts` refuses rather than falling back to the host path when
+the kernel, image, digest or Firecracker is missing.
 
-**Verified.** Nothing here is verified, because there is nothing to verify. The absence is
-deliberate and documented; the risk is that a box elsewhere gets ticked as though it were present.
+**Verified.** `runner-microvm*.test.ts` covers the machine specification, protocol framing, secret
+delivery, source transfer, cleanup and failure paths. `microvm-egress.test.ts` was run on KVM and
+proves a booted guest can reach an allowlisted fixture while it cannot reach metadata, the runner
+host or a declared instance address. On a host without KVM the suite names what is missing and
+skips; it does not substitute a weaker boundary.
 
-**Attack this.** Do not spend time proving a step can read `/etc/passwd` - it can. Spend it on the
-two questions that decide the design: whether the *control plane* is reachable from a machine an
-operator would plausibly run the local runner on, and whether anything in the product implies
-isolation to a reader who has not read this page. The second is the one that gets somebody hurt.
+**Attack this.** The host path remains open by design, so check that public fork work cannot select
+it and that the interface never describes it as isolated. For microVM work, attack the boundary the
+runner controls: payload-disk contents, console framing, teardown after partial privileged setup,
+DNS rebinding, the nftables input chain, and any accidental host mount or socket. A dishonest runner
+can still lie about all of these; attestation remains a separate open roadmap item.
 
 ## 4. Secret flow
 
@@ -176,10 +179,11 @@ isolated from the branches of the repository it forked.
 **Verified.** `tests/e2e/runner-caches.test.ts` has a section of things a runner cannot talk the
 instance into, which is the right shape for this surface.
 
-**Attack this.** The entry is a blob the runner uploads and later extracts. Extraction happens on
-the machine, so a crafted archive - path traversal, absolute paths, symlinks into the workspace's
-parent - is bounded by the runner's own tar handling and by nothing here. That is one of the eight
-gate tests and it does not exist yet.
+**Attack this.** The entry is a blob the runner uploads and later extracts. The review built real
+archives containing path traversal and links outside the workspace and confirmed the entire archive
+is refused before extraction. Keep attacking alternate tar dialects, hard links, PAX headers,
+newlines in names and listing mismatches: the guard deliberately treats anything it cannot describe
+consistently as unsafe.
 
 ## 6. Artifact handling
 
@@ -194,9 +198,11 @@ with extra steps. Expiry is refused before anything sweeps, and the row goes bef
 **Verified.** `tests/e2e/runner-artifacts.test.ts`, including that a job of a *different run* gets a
 404 and that the test proves the two runs actually differ rather than passing by luck.
 
-**Attack this.** Same archive question as the cache, plus the download path: a name containing a
-newline or a quote reaching a `Content-Disposition` header, and whether a large artifact can be used
-to exhaust the box through concurrent downloads.
+**Attack this.** Same archive question as the cache, plus the download path. Artifact names are
+cleaned of control characters before storage and quotes and backslashes before
+`Content-Disposition`; `artifact-storage.test.ts` pins the control-character rule. The remaining pressure
+point is concurrent download volume: individual and set sizes are bounded, but aggregate bandwidth
+and connection limits belong to the instance's outer HTTP boundary.
 
 ## 7. Fork policy
 
@@ -212,10 +218,11 @@ trigger cannot raise its own trust level.
 **Verified.** `tests/e2e/ci-security.test.ts` pins both halves - the definition is the base
 branch's, and the run is untrusted - and the claim test beside it pins what the flag buys.
 
-**Attack this.** `pull_request_target` is marked trusted because it is, and it is the trigger behind
-every published secret-theft write-up. What protects this instance is secret scoping rather than the
-flag. Ask whether a `pull_request_target` workflow that checks out the head - the pattern everybody
-copies - can reach a secret through an environment whose gate has already opened for that branch.
+**Attack this.** `pull_request_target` was the exception that broke the rule. It used the trusted
+base definition but still checked out the run's head commit, then marked a fork run trusted. That
+handed fork code repository secrets and identity-token eligibility. The dispatch now derives trust
+only from whether the event came from a fork, for both pull request triggers; approval permits the
+run without changing that fact. `ci-security.test.ts` pins the targeted trigger specifically.
 
 ## 8. Cancellation behaviour
 
@@ -233,10 +240,12 @@ keeps that result rather than having the control plane invent an outcome.
 `runner-reclaim.test.ts` (both directions of recovery: the dead machine's work returns, the live
 machine keeps its own).
 
-**Attack this.** The window between revocation and the runner noticing. A step that uploads an
-artifact, writes a cache, or reports a check during that window is doing so with a credential that
-is still valid for those endpoints. Ask which of them should refuse a job whose lease was revoked,
-and whether any currently does.
+**Attack this.** The prepared review found that only heartbeat and conclusion checked the lease.
+The same token could still upload an artifact, write a cache, append a log, annotate a check or mint
+an identity token after cancellation. `authenticateJob` now requires a running job with a live lease
+for every runner endpoint. Only the report endpoint may inspect an inactive claim, and its narrower
+protocol rule accepts only a duplicate conclusion or a `cancelled` acknowledgement. `runner-api.test.ts`
+attacks the five side channels after revocation and an ordinary naturally expired lease.
 
 ## The gate, as it stands
 
@@ -250,7 +259,7 @@ The threat model lists eight adversarial tests as the sign-off. Their status tod
 | A lower-trust branch cannot write a cache a protected branch restores | **Met.** `cache-poisoning.test.ts` writes an entry into a fork's real scope and fails to restore it as the default branch, another branch, a second pull request from the same fork, and through the `restore-keys` prefix fallback. |
 | An archive with `../` or a symlink does not write outside its destination | **Met.** `archiveSafety.ts` inspects the index and refuses the archive whole before extracting; `runner-archive-safety.test.ts` builds both attacks as real tarballs, including a `../` entry crafted with this repository's own tar writer because the system tar will not create one. |
 | A ten-gigabyte log is truncated by policy, not by disk exhaustion | **Met.** Ceiling on the way in, now configurable. |
-| A replayed job token, and a step result from a cancelled run, are refused | **Met.** `runner-api.test.ts`, `runner-claim.test.ts`. |
+| A replayed job token, and a step result from a cancelled run, are refused | **Met.** `runner-api.test.ts` now replays the revoked token against logs, artifacts, caches, annotations and identity issuance as well as reporting; `runner-claim.test.ts` covers late step results. |
 | A runner that dies mid-job leaves a recoverable run | **Met.** `runner-reclaim.test.ts`, and step results now land on the heartbeat rather than only at the conclusion. |
 
 **Eight met.** The last two were the execution plane's, and there is now an execution plane to put a
@@ -277,9 +286,29 @@ archive itself rather than relying on which tar is installed.
 3. That the absences in section 3 are the only absences. I know what I did not build; I am a poor
    witness to what I did not think of.
 
-## Review status
+## Independent review and sign-off
 
-Prepared 20 August 2026, against the CI surface as committed that day. **This is an audit, not a
-sign-off.** The gate is the eight tests above, three of which cannot be written until there is an
-execution plane to attack - and the decision to build one is the decision this document exists to
-inform, not to make.
+Independently reviewed 20 August 2026 against the implementation, not only the scorecard. The review
+traced every runner endpoint from its credential to its write, followed both pull request triggers
+through dispatch and claim, inspected archive and artifact names at the point they reach a path or
+header, and re-ran the adversarial suites named above.
+
+Two blocking findings were found and fixed before sign-off:
+
+1. `pull_request_target` turned a fork event into a trusted run even though the runner checked out
+   the fork's head commit. It now remains untrusted, is held under the normal fork approval policy,
+   and receives no secret or identity token after approval.
+2. Lease revocation was enforced for heartbeat and conclusion but not by the shared job credential.
+   A revoked token could still write through other runner endpoints. The shared authenticator now
+   requires a running job and live lease everywhere except the reporting path's two narrow delivery
+   exceptions.
+
+The focused suites passed across the fork, credential, claim, signed-work, cache, archive, artifact,
+cancellation and recovery paths. The KVM egress suite correctly skipped on the
+review host because it has no KVM, Firecracker, guest kernel or guest image; its real-guest result
+and positive allowlisted-egress control remain recorded in [the execution plane](./ci-execution-plane.md).
+
+**Sign-off outcome: accepted for public fork execution in microVM mode only.** The host executor is
+not a sandbox and this review does not approve it for public code. Container mode remains an accident
+boundary, not a security boundary. A dishonest runner can still lie, and hardware-backed image
+attestation remains the separate open roadmap item; neither limitation is hidden by this sign-off.

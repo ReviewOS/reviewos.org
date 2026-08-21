@@ -63,7 +63,14 @@ export default new Action({
     if (!protocol.ok)
       return refuseProtocol(protocol)
 
-    const held = await authenticateJob(request)
+    /*
+     * Reporting is the sole exception to the shared live-lease check. The
+     * protocol below still needs to accept a duplicate conclusion, and a
+     * runner's `cancelled` acknowledgement after cancellation revoked the
+     * lease. `reportJob` applies those two narrower rules and refuses every
+     * other result from an inactive claim.
+     */
+    const held = await authenticateJob(request, { allowInactiveLease: true })
     if (!held)
       return runnerJson({ error: 'Unknown job credential' }, 401)
 

@@ -169,7 +169,7 @@ export function mayClaim(runner: RunnerFacts, job: JobFacts, now: Date): ClaimDe
 }
 
 /** Whether the lease on a job has not yet lapsed. */
-export function leaseIsLive(job: JobFacts, now: Date): boolean {
+export function leaseIsLive(job: Pick<JobFacts, 'leaseExpiresAt'>, now: Date): boolean {
   if (!job.leaseExpiresAt)
     return false
 

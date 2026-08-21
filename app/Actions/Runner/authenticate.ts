@@ -12,7 +12,7 @@
 
 import { db } from '@stacksjs/database'
 import type { RunnerFacts } from './protocol'
-import { splitLabels } from './protocol'
+import { leaseIsLive, splitLabels } from './protocol'
 
 /** SHA-256, the same way registration wrote it. */
 export function hashToken(token: string): string {
@@ -89,6 +89,19 @@ export interface AuthenticatedJob {
   runner: RunnerFacts
 }
 
+export interface AuthenticateJobOptions {
+  /**
+   * Let the reporting endpoint inspect a terminal or revoked claim.
+   *
+   * Reporting has two protocol exceptions that need the old credential: an
+   * at-least-once duplicate is answered as already recorded, and a runner may
+   * acknowledge `cancelled` after cancellation deliberately revoked its lease.
+   * `reportJob` applies those narrower rules. No other runner endpoint gets
+   * this exception.
+   */
+  allowInactiveLease?: boolean
+}
+
 /**
  * The job a per-claim token belongs to, and the runner holding it.
  *
@@ -103,19 +116,41 @@ export interface AuthenticatedJob {
  * *is* the claim on that job, which is the property the wrong-job case in
  * `protocol.ts` had to be defended against by hand.
  */
-export async function authenticateJob(request: RequestInstance): Promise<AuthenticatedJob | null> {
+export async function authenticateJob(
+  request: RequestInstance,
+  options: AuthenticateJobOptions = {},
+): Promise<AuthenticatedJob | null> {
   const token = bearerFrom(request)
   if (!token)
     return null
 
   const job = await db
     .selectFrom('workflow_jobs')
-    .select(['id', 'runner_id', 'state'])
+    .select(['id', 'runner_id', 'state', 'lease_expires_at'])
     .where('job_token_hash', '=', hashToken(token))
     .executeTakeFirst()
 
   if (!job?.runner_id)
     return null
+
+  /*
+   * The job credential dies with its lease, for every endpoint, not only for
+   * heartbeats and conclusions.
+   *
+   * Cancellation expires a lease before the runner has necessarily stopped.
+   * Without this check, that runner could no longer publish a green result but
+   * could still upload an artifact, poison a cache, append a log, annotate a
+   * check or mint an identity token during the exact window revocation exists
+   * to close.
+   */
+  if (!options.allowInactiveLease) {
+    const active = String(job.state) === 'running' && leaseIsLive({
+      leaseExpiresAt: job.lease_expires_at ? String(job.lease_expires_at) : null,
+    }, new Date())
+
+    if (!active)
+      return null
+  }
 
   const runner = await db
     .selectFrom('runners')
