@@ -14,6 +14,17 @@
  */
 import { repositoryForView } from '../../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../../functions/identity'
+import { themeChoices } from '../../../../../functions/site'
+
+/**
+ * The themes the picker offers, read from the library rather than listed here.
+ *
+ * The layout has already put a rule in the document for every one of them; this
+ * is the same set as names, so the two cannot come to disagree about which
+ * themes exist.
+ */
+const syntaxThemes = themeChoices()
+
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
@@ -263,7 +274,29 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
               </fieldset>
 
               <fieldset>
-                <legend>Colours</legend>
+                <legend>Syntax theme</legend>
+                {{--
+                  A select rather than radios, because there are sixteen of them
+                  and four of the sixteen are the ones a reader with a colour
+                  vision deficiency actually needs - which is a list to scan, not
+                  a row to scan past.
+
+                  The rules for every theme are already in the document, so
+                  choosing one is a style recalculation: no fetch, no
+                  re-tokenizing, and no frame where the page is half themed.
+                --}}
+                <label class="diff-settings-select">
+                  <select data-diff-pref="syntaxTheme">
+                    <option value="default">Built in</option>
+                    @foreach (syntaxThemes as choice)
+                      <option value="{{ choice.id }}">{{ choice.name }}</option>
+                    @endforeach
+                  </select>
+                </label>
+              </fieldset>
+
+              <fieldset>
+                <legend>Diff colours</legend>
                 <label><input type="radio" name="diff-palette" value="classic" data-diff-pref="palette"> Red and green</label>
                 <label><input type="radio" name="diff-palette" value="deuteranopia" data-diff-pref="palette"> Blue and orange</label>
                 <label><input type="radio" name="diff-palette" value="tritanopia" data-diff-pref="palette"> Teal and magenta</label>

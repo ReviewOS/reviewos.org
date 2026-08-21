@@ -13,6 +13,20 @@
  * than a place to send somebody to read code.
  */
 
+import { syntaxThemeCss as syntaxThemeCssImpl, themeChoices as themeChoicesImpl } from '../../app/Actions/Browse/themeCss'
+
+/**
+ * Every syntax theme the library ships, as CSS rules.
+ *
+ * Re-exported here rather than imported straight into the layout, because a
+ * layout's server script is the one place in this project where an import that
+ * cannot resolve renders a blank page rather than throwing something legible.
+ */
+export const syntaxThemeCss = syntaxThemeCssImpl
+
+/** The same themes as a list, for the picker that chooses between them. */
+export const themeChoices = themeChoicesImpl
+
 /** The owner handle this instance keeps its own repository under. */
 export const SOURCE_OWNER = 'reviewos'
 

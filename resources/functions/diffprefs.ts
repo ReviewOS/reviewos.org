@@ -42,6 +42,26 @@ export type DiffPalette = 'classic' | 'deuteranopia' | 'tritanopia' | 'contrast'
  */
 export type ColourScheme = 'system' | 'light' | 'dark'
 
+/**
+ * Which syntax theme colours the code, and the page around it.
+ *
+ * `default` is the built-in pair - the palette this product shipped with, in
+ * its light and dark forms - and anything else is the id of a theme
+ * `ts-syntax-highlighter` ships, whose rules are in the document already. A
+ * document-level choice like the colour scheme, and for a stronger reason: a
+ * theme carries the page's background, so applying it late is a flash rather
+ * than a recolour.
+ *
+ * Held as a string rather than a union because the set comes from the library
+ * and a union here would be a second list to keep in step. It is validated on
+ * the way in as the shape a data attribute can hold, which is what stops a
+ * stored value from ever becoming a selector.
+ */
+export type SyntaxTheme = string
+
+/** The built-in palette, and what a reader who has never chosen has. */
+export const DEFAULT_SYNTAX_THEME = 'default'
+
 export interface DiffPreferences {
   layout: DiffLayout
   /**
@@ -62,6 +82,8 @@ export interface DiffPreferences {
   changeBackground: boolean
   /** Wrap long lines instead of scrolling the file sideways. */
   wrap: boolean
+  /** See `SyntaxTheme`. `default` is the palette built into the page. */
+  syntaxTheme: SyntaxTheme
 }
 
 export const DEFAULT_PREFERENCES: DiffPreferences = {
@@ -72,6 +94,7 @@ export const DEFAULT_PREFERENCES: DiffPreferences = {
   lineNumbers: true,
   changeBackground: true,
   wrap: false,
+  syntaxTheme: DEFAULT_SYNTAX_THEME,
 }
 
 /** One key for the whole set. */
@@ -119,6 +142,19 @@ function isPalette(value: unknown): value is DiffPalette {
 }
 
 /**
+ * A theme id, or nothing.
+ *
+ * The shape rather than the list, because the list lives in the library. The
+ * shape is the part that matters here: this value is written into a data
+ * attribute that CSS selects on, so anything outside `[a-z0-9-]` is refused
+ * before it can be stored. A name no rule matches simply leaves the page on its
+ * built-in palette, which is the same as not choosing.
+ */
+function isSyntaxTheme(value: unknown): value is SyntaxTheme {
+  return typeof value === 'string' && /^[a-z0-9-]+$/.test(value) && value.length <= 64
+}
+
+/**
  * The reader's choices, with anything missing or unrecognised defaulted.
  *
  * Field by field rather than trusting the stored object wholesale: this is
@@ -154,6 +190,7 @@ export function readPreferences(): DiffPreferences {
       ? stored.changeBackground
       : DEFAULT_PREFERENCES.changeBackground,
     wrap: typeof stored.wrap === 'boolean' ? stored.wrap : DEFAULT_PREFERENCES.wrap,
+    syntaxTheme: isSyntaxTheme(stored.syntaxTheme) ? stored.syntaxTheme : DEFAULT_PREFERENCES.syntaxTheme,
   }
 }
 
@@ -179,12 +216,31 @@ export function applyPreferences(root: HTMLElement, preferences: DiffPreferences
   // element - which is also where the inline script in the layout sets it
   // before first paint, and the two have to agree or the page flashes.
   applyColourScheme(preferences.scheme)
+  applySyntaxTheme(preferences.syntaxTheme)
 
   root.dataset.diffIndicators = preferences.indicators
   root.dataset.diffPalette = preferences.palette
   root.dataset.diffNumbers = preferences.lineNumbers ? 'on' : 'off'
   root.dataset.diffBackgrounds = preferences.changeBackground ? 'on' : 'off'
   root.dataset.diffWrap = preferences.wrap ? 'on' : 'off'
+}
+
+/**
+ * Put the syntax theme where the stylesheet can see it.
+ *
+ * On the document element rather than on the diff root, because the theme
+ * carries the page's background, text and border colours as well as the code's
+ * - that is what makes a themed page one surface rather than somebody else's
+ * code in our frame. The layout's inline script writes the same attribute
+ * before first paint, and the two have to agree or the page flashes.
+ */
+export function applySyntaxTheme(theme: SyntaxTheme): void {
+  const root = document.documentElement
+
+  if (theme === DEFAULT_SYNTAX_THEME || !isSyntaxTheme(theme))
+    delete root.dataset.syntaxTheme
+  else
+    root.dataset.syntaxTheme = theme
 }
 
 /**
@@ -225,6 +281,11 @@ function assign(preferences: DiffPreferences, key: keyof DiffPreferences, value:
       if (!isPalette(value))
         return false
       preferences.palette = value
+      return true
+    case 'syntaxTheme':
+      if (value !== DEFAULT_SYNTAX_THEME && !isSyntaxTheme(value))
+        return false
+      preferences.syntaxTheme = value as SyntaxTheme
       return true
     case 'scheme':
       if (!isScheme(value))

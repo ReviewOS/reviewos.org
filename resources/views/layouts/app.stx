@@ -15,6 +15,7 @@
  * `resources/functions/meta.ts`.
  */
 import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, pageMeta } from '../../functions/meta'
+import { syntaxThemeCss } from '../../functions/site'
 
 // The identifier is bound on the path that serves a request and on no other,
 // and an undeclared identifier is a ReferenceError that would take every other
@@ -23,6 +24,20 @@ import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, pageMeta } from '../../functions/me
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 const ambientContext = (globalThis as any).__stxServeContext
 const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path ?? '/') })
+
+/**
+ * Every syntax theme the library ships, as rules keyed on the reader's choice.
+ *
+ * In the document rather than a stylesheet per theme fetched when chosen: the
+ * whole set is a few kilobytes of custom properties, and the alternative is a
+ * network round trip between choosing a theme and wearing it - or a page that
+ * paints in one theme and repaints in another a frame later, which is exactly
+ * the flash the colour-scheme choice is applied before first paint to avoid.
+ *
+ * The chrome comes from the theme too, through the library's `themeChrome`, so
+ * a page set to Nord is one surface rather than Nord code in our own greys.
+ */
+const themeCss = syntaxThemeCss()
 </script>
 
 <!DOCTYPE html>
@@ -107,6 +122,14 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         var stored = JSON.parse(localStorage.getItem('reviewos:diff') || '{}')
         var scheme = stored && stored.scheme
         document.documentElement.dataset.theme = scheme === 'light' || scheme === 'dark' ? scheme : 'system'
+
+        // The syntax theme is applied here for the same reason and at the same
+        // cost: it carries the page's background, so reading it a frame late is
+        // the same flash by another route. An unset value leaves the attribute
+        // off, which is the built-in palette below.
+        var syntax = stored && stored.syntaxTheme
+        if (typeof syntax === 'string' && /^[a-z0-9-]+$/.test(syntax) && syntax !== 'default')
+          document.documentElement.dataset.syntaxTheme = syntax
       }
       catch (error) {
         document.documentElement.dataset.theme = 'system'
@@ -554,36 +577,61 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         salad. Hue carries the meaning, not intensity.
 
         They live in the layout rather than in either component so the two
-        cannot drift into disagreeing about what a keyword looks like. */
-      .t-keyword { color: #8250df; }
-      .t-string { color: #0a6640; }
-      .t-comment { color: var(--muted); font-style: italic; }
-      .t-numeric { color: #0550ae; }
-      .t-function { color: #6639ba; }
-      .t-type { color: #953800; }
-      .t-tag { color: #0a6640; }
-      .t-attribute { color: #6639ba; }
-      .t-operator, .t-punctuation { color: var(--muted); }
-      .t-variable, .t-text { color: inherit; }
+        cannot drift into disagreeing about what a keyword looks like.
+
+        Each one reads a variable with the built-in value as its fallback, so a
+        reader who has chosen a theme gets that theme's colour and a reader who
+        has not gets exactly what they saw before the choice existed. The
+        variables are set by the generated block further down, one rule per
+        theme, keyed on `data-syntax-theme`. */
+      .t-keyword { color: var(--t-keyword, #8250df); }
+      .t-string { color: var(--t-string, #0a6640); }
+      .t-comment { color: var(--t-comment, var(--muted)); font-style: var(--t-comment-style, italic); }
+      .t-numeric { color: var(--t-numeric, #0550ae); }
+      .t-function { color: var(--t-function, #6639ba); }
+      .t-type { color: var(--t-type, #953800); }
+      .t-tag { color: var(--t-tag, #0a6640); }
+      .t-attribute { color: var(--t-attribute, #6639ba); }
+      .t-operator { color: var(--t-operator, var(--muted)); }
+      .t-punctuation { color: var(--t-punctuation, var(--muted)); }
+      .t-variable { color: var(--t-variable, inherit); }
+      .t-text { color: inherit; }
 
       @media (prefers-color-scheme: dark) {
-        .t-keyword { color: #d2a8ff; }
-        .t-string { color: #7ee787; }
-        .t-numeric { color: #79c0ff; }
-        .t-function { color: #d2a8ff; }
-        .t-type { color: #ffa657; }
-        .t-tag { color: #7ee787; }
-        .t-attribute { color: #d2a8ff; }
-            }
+        :root[data-theme='system']:not([data-syntax-theme]) {
+          --t-keyword: #d2a8ff;
+          --t-string: #7ee787;
+          --t-numeric: #79c0ff;
+          --t-function: #d2a8ff;
+          --t-type: #ffa657;
+          --t-tag: #7ee787;
+          --t-attribute: #d2a8ff;
+        }
+      }
 
-      /* The same palette, when they have. */
-      :root[data-theme='dark'] .t-keyword { color: #d2a8ff; }
-        :root[data-theme='dark'] .t-string { color: #7ee787; }
-        :root[data-theme='dark'] .t-numeric { color: #79c0ff; }
-        :root[data-theme='dark'] .t-function { color: #d2a8ff; }
-        :root[data-theme='dark'] .t-type { color: #ffa657; }
-        :root[data-theme='dark'] .t-tag { color: #7ee787; }
-        :root[data-theme='dark'] .t-attribute { color: #d2a8ff; }
+      /* The same palette, when they have.
+
+        `:not([data-syntax-theme])` on both, because a chosen theme carries its
+        own dark and light: setting Nord and then having the page's dark mode
+        paint GitHub's purple over Nord's blue is two themes fighting, and the
+        one the reader picked loses. */
+      :root[data-theme='dark']:not([data-syntax-theme]) {
+        --t-keyword: #d2a8ff;
+        --t-string: #7ee787;
+        --t-numeric: #79c0ff;
+        --t-function: #d2a8ff;
+        --t-type: #ffa657;
+        --t-tag: #7ee787;
+        --t-attribute: #d2a8ff;
+      }
+
+      /* One rule per theme the library ships, generated from the themes
+        themselves - the token colours and, through `themeChrome`, the page's
+        own background, text, surface, border and muted values. See
+        `app/Actions/Browse/themeCss.ts` for what is deliberately left ours:
+        the accent, the review states, and the diff's own palette, which is a
+        separate reader choice with its own colour-vision variants. */
+      {!! themeCss !!}
 
 
       /* ---- The diff ----
@@ -2113,6 +2161,21 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .diff-settings-panel legend { padding: 0 0 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
       .diff-settings-panel label { display: flex; align-items: center; gap: 7px; padding: 3px 0; cursor: pointer; }
 
+      /* The theme picker. A full-width select rather than the radio row its
+        neighbours use, because sixteen themes is a list to scan rather than a
+        row to read. */
+      .diff-settings-select { display: block; }
+      .diff-settings-select select {
+        width: 100%;
+        padding: 5px 8px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 12.5px;
+      }
+
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
@@ -2265,38 +2328,16 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .selection-surface[data-copied='true'] { border-color: var(--ok); }
       .selection-surface[data-copied='false'] { border-color: var(--bad); }
 
-      /* Syntax colours. Deliberately low-saturation: they sit on top of the green
-        and red diff backgrounds, and a vivid palette turns a reviewed line into a
-        fruit salad. Hue carries the meaning, not intensity. */
-      .t-keyword { color: #8250df; }
-      .t-string { color: #0a6640; }
-      .t-comment { color: var(--muted); font-style: italic; }
-      .t-numeric { color: #0550ae; }
-      .t-function { color: #6639ba; }
-      .t-type { color: #953800; }
-      .t-tag { color: #0a6640; }
-      .t-attribute { color: #6639ba; }
-      .t-operator, .t-punctuation { color: var(--muted); }
-      .t-variable, .t-text { color: inherit; }
+      /* The syntax colours are declared once, further up this file.
 
-      @media (prefers-color-scheme: dark) {
-        .t-keyword { color: #d2a8ff; }
-        .t-string { color: #7ee787; }
-        .t-numeric { color: #79c0ff; }
-        .t-function { color: #d2a8ff; }
-        .t-type { color: #ffa657; }
-        .t-tag { color: #7ee787; }
-        .t-attribute { color: #d2a8ff; }
-            }
-
-      /* The same palette, when they have. */
-      :root[data-theme='dark'] .t-keyword { color: #d2a8ff; }
-        :root[data-theme='dark'] .t-string { color: #7ee787; }
-        :root[data-theme='dark'] .t-numeric { color: #79c0ff; }
-        :root[data-theme='dark'] .t-function { color: #d2a8ff; }
-        :root[data-theme='dark'] .t-type { color: #ffa657; }
-        :root[data-theme='dark'] .t-tag { color: #7ee787; }
-        :root[data-theme='dark'] .t-attribute { color: #d2a8ff; }
+        They were declared twice - the same seventeen rules with the same hex
+        values, four hundred lines apart - and the second copy won every one of
+        them by being later in the cascade. That was invisible while the two
+        agreed and became load-bearing the moment the first copy started reading
+        custom properties: a reader who chose a theme would have got that
+        theme's background with GitHub's purple keywords on it. Deleted rather
+        than kept in step, because keeping two copies in step is the thing that
+        already failed. */
 
 
       .visually-hidden {

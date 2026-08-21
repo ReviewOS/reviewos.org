@@ -181,3 +181,42 @@ describe('a diff larger than the page renders', () => {
     expect(text).toContain('big.txt')
   }, 60_000)
 })
+
+/**
+ * The screen the banner sends the reader to, and the theme it wears.
+ *
+ * Asserted through the real page rather than as a unit, because everything
+ * about this feature is arrangement: the rules have to be in the document, the
+ * picker has to be able to name them, and the inline script has to apply the
+ * choice before anything is painted. Each of those is correct in isolation and
+ * the feature only exists when all three are on the same page.
+ */
+describe('the files screen carries the syntax themes', () => {
+  test('a rule for every theme, a picker that names them, and a script that applies one', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/1/files`)
+    const html = await answer.text()
+
+    expect(answer.status).toBe(200)
+
+    // The rules, generated from the library's own themes.
+    expect(html).toContain('data-syntax-theme=\'nord\'')
+    expect(html).toContain('data-syntax-theme=\'monochrome-dark\'')
+
+    // The token classes read them, with the built-in palette as the fallback -
+    // so a reader who has chosen nothing sees what they always saw.
+    expect(html).toContain('var(--t-keyword, #8250df)')
+
+    // The picker, offering the built-in palette and the library's themes.
+    expect(html).toContain('data-diff-pref="syntaxTheme"')
+    expect(html).toContain('<option value="default">')
+    expect(html).toContain('<option value="deuteranopia-dark">')
+
+    // And applied before first paint, for the same reason the colour scheme is:
+    // a theme carries the page background, so reading it a frame late is a
+    // flash rather than a recolour.
+    expect(html).toContain('dataset.syntaxTheme')
+  }, 60_000)
+})
