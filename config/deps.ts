@@ -125,12 +125,18 @@ export const config: PantryConfig = {
      */
     'valkey.io': '^8.1.8',
     // The mail server, which is also the local mail catcher: `./buddy mail:dev`
-    // runs this binary with delivery switched off and the webmail UI on 8025.
+    // runs this binary in trap mode - every recipient accepted, nothing
+    // delivered onward, all of it readable in the webmail UI on 8025.
+    //
+    // 0.3.2 or newer, and not as a preference: `catch_all` and the webmail
+    // database that does not depend on SMTP AUTH both arrived in it, and
+    // without them the catcher refuses almost every message and serves no
+    // inbox.
     // Declared rather than commented out because `MAIL_MAILER` defaults to
     // `smtp` against 127.0.0.1:1025 - an instance whose machine has no mail
     // server is one where every password reset fails silently in development.
     // Nothing starts it; `./buddy mail:dev` does, when somebody wants it.
-    'github.com/mail-os/mail': '^0.3.1',
+    'github.com/mail-os/mail': '^0.3.2',
     // craft is not declared here: it ships inside @stacksjs/stx (its `./craft`
     // export), so pantry installing it again is a second copy nothing uses.
     // Uncomment as needed:
