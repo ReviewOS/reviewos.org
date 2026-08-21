@@ -148,6 +148,28 @@ export default {
     default: '',
   },
 
+  /*
+   * Pages.
+   *
+   * `PAGES_DOMAIN` is the whole security boundary of published sites and has no
+   * default on purpose - see `config/pages.ts`. Empty means Pages is off, which
+   * is what an instance that never set it gets.
+   */
+  PAGES_DOMAIN: {
+    validation: schema.string(),
+    default: '',
+  },
+
+  PAGES_CUSTOM_DOMAINS: {
+    validation: schema.boolean(),
+    default: true,
+  },
+
+  PAGES_MAX_AGE: {
+    validation: schema.number(),
+    default: 60,
+  },
+
   MAIL_MAILER: {
     validation: schema.enum(['ses', 'sendgrid', 'mailgun', 'mailtrap', 'smtp', 'postmark', 'sendmail', 'log']),
     default: 'ses',

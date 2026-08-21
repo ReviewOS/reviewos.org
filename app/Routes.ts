@@ -55,4 +55,13 @@ export default {
   wellknown: { path: 'wellknown', prefix: '' },
   actions: { path: 'actions', prefix: '' },
   git: { path: 'git', prefix: '' },
+  /*
+   * Published sites, at the root and *after* `git`.
+   *
+   * Last of all, because when Pages is configured this file registers a `/*`
+   * catch-all for the Pages hostname. First match wins, so anything registered
+   * after it would never run - and a catch-all that shadows the git wire
+   * protocol is an instance where nobody can clone.
+   */
+  pages: { path: 'pages', prefix: '' },
 } satisfies RouteRegistry

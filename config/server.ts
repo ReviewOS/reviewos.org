@@ -30,6 +30,13 @@ import type { ServerConfig } from '@stacksjs/types'
  */
 export default {
   proxy: {
-    prefixes: ['/git/'],
+    /*
+     * `/_pages/` joins `/git/` for the same reason `/git/` is here at all: it
+     * is a GET at a path of its own, so the default rule - `/api/**` plus every
+     * mutating verb - does not cover it, and the page process would answer a
+     * request for somebody's published documentation with a rendered forge
+     * page. Which reads, to whoever published it, as Pages not working.
+     */
+    prefixes: ['/git/', '/_pages/'],
   },
 } satisfies ServerConfig

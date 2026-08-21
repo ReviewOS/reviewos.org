@@ -1,0 +1,85 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Pages for every repository · ReviewOS'
+const pageDescription = 'A docs folder is a documentation site. Push, and the site is the branch.'
+const related = FEATURES.filter(feature => feature.slug !== 'pages').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'A docs folder needs no configuration',
+  'bunpress for markdown, stx for templates',
+  'Private repositories can publish privately',
+  'Builds run where your CI runs',
+]
+
+const actions = [
+  {'href': '/docs/pages', 'label': 'Read the Pages docs', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Operations</p>
+      <h1 class="page-title">Every repository can publish a website</h1>
+      <p class="page-lede">A <code>docs</code> folder is a documentation site with navigation and search. Push to your default branch, and what a visitor reads is what the branch says.</p>
+    </header>
+
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+      <div class="prose">
+        <h2>It reads the repository, not a settings page</h2>
+        <p>You do not pick a generator. The build looks at the tree and knows what to do with it.</p>
+        <ul>
+          <li>A <code>docs/</code> folder is built by <strong>bunpress</strong> — no configuration required, and a config in the tree decides the title, sidebar and theme.</li>
+          <li>Markdown in the root, with a bunpress config, builds the same way.</li>
+          <li>A <code>pages/</code> folder or an <code>index.stx</code> is rendered by <strong>stx</strong>.</li>
+          <li>An <code>index.html</code> is already a site, and is published as it stands.</li>
+        </ul>
+        <p>A repository with none of those is not a failure. It is a repository with no site, and the run says so and passes.</p>
+
+        <h2>Private repositories can publish privately</h2>
+        <p>A site defaults to whoever may read the repository, which for a private one means a signed-in member. Internal documentation gets a URL, a search index and a link you can paste, without becoming public.</p>
+        <p>A site somebody may not read answers 404, never 403 — because "you may not read this" confirms it exists.</p>
+
+        <h2>Your build, not ours</h2>
+        <p>The contract is one artifact named <code>pages</code>, containing your built site. Anything that can produce it publishes: the starter workflow, your own build script, a generator this product has never heard of.</p>
+
+        <h2>Nothing runs on the forge</h2>
+        <p>A documentation build executes your code — a config file is a module, a template evaluates expressions. So builds happen on the machines your CI already runs on, under the same isolation and the same fork policy, and this instance only publishes and serves the result.</p>
+        <p>The same rule decides what can publish: a pull request cannot replace a site, because a site has an address strangers read.</p>
+
+        <h2>Your own domain</h2>
+        <p>Point a <code>CNAME</code> at the site and it answers there instead. Same files, your name.</p>
+      </div>
+
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
+    </div>
+
+    <PageCta
+      heading="Publish the docs you already wrote"
+      line="MIT licensed, open source, and yours to operate."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

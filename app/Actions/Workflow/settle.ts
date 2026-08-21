@@ -652,6 +652,25 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
        */
       await deliverRunNotifications(runId)
 
+      /*
+       * And the published site, when this run built one.
+       *
+       * Here rather than in a listener for the reason the notifications are:
+       * publishing needs the run's conclusion *and* its artifacts, and this is
+       * the moment both are settled. Silent and swallowing for every run that
+       * was never going to publish, which is almost all of them - see
+       * `publishRun`.
+       *
+       * Errors cannot reach the run. A site that failed to publish is recorded
+       * on the site's own row and read on its settings page; a run whose
+       * conclusion was lost because a tarball was malformed would be a much
+       * worse trade.
+       */
+      if (state === 'succeeded') {
+        const { publishRun } = await import('../Pages/publish')
+        await publishRun(runId).catch(() => null)
+      }
+
       const finished = await db
         .selectFrom('workflow_runs')
         .select(['repository_id', 'concurrency_group'])

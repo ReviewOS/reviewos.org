@@ -130,6 +130,7 @@ const config: BunPressOptions = {
             { text: 'Webhook payloads', link: '/webhooks' },
             { text: 'Runner protocol', link: '/runner-protocol' },
             { text: 'Self-hosting', link: '/self-hosting' },
+            { text: 'Pages', link: '/pages' },
             { text: 'CI threat model', link: '/ci-threat-model' },
             { text: 'The execution plane', link: '/ci-execution-plane' },
             { text: 'CI security review', link: '/ci-security-review' },

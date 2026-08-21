@@ -1019,6 +1019,16 @@ route.post('/repos/workflow-notifications', 'Actions/Workflow/NotificationRulesA
 route.post('/repos/deployments', 'Actions/Deploy/DeploymentsAction').middleware('auth')
 
 /*
+ * A repository's published site: its settings, and what is currently live.
+ *
+ * One endpoint for both, the way the other settings surfaces here work -
+ * `operation: 'show'` takes read, `operation: 'update'` takes
+ * `repository:settings`, because putting a repository's contents at a URL is a
+ * disclosure decision rather than a push.
+ */
+route.post('/repos/pages', 'Actions/Pages/PagesAction').middleware('auth')
+
+/*
  * Secrets: set, removed, and listed by name.
  *
  * There is deliberately no endpoint that returns a value. A reveal button is

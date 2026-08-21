@@ -128,6 +128,14 @@ export type AuditEventName =
   | 'workflow:environment-configured'
   | 'workflow:environment-removed'
   | 'workflow:repair-configured'
+  /*
+   * Publishing a repository's site is a disclosure decision.
+   *
+   * "Who made this repository's documentation public, and when" is a question
+   * somebody asks after the fact, and a settings page that only shows the
+   * current value cannot answer it.
+   */
+  | 'pages:updated'
   | 'workflow:repair-attempted'
   | 'workflow:repair-refused'
   | 'workflow:repair-proposed'
@@ -223,6 +231,7 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'workflow:environment-configured',
   'workflow:environment-removed',
   'workflow:repair-configured',
+  'pages:updated',
   'workflow:repair-attempted',
   'workflow:repair-refused',
   'workflow:repair-proposed',

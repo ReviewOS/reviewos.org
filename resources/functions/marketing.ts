@@ -105,6 +105,13 @@ export const FEATURES: readonly FeatureLink[] = [
     icon: 'i-hugeicons-server-stack-01',
     group: 'Operations',
   },
+  {
+    slug: 'pages',
+    name: 'Pages for every repository',
+    summary: 'A docs folder is a documentation site. Push, and the site is the branch.',
+    icon: 'i-hugeicons-global',
+    group: 'Operations',
+  },
 ]
 
 export const FEATURE_GROUPS = ['Review', 'Repositories', 'Automation', 'Operations'] as const

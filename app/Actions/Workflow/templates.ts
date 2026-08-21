@@ -191,6 +191,97 @@ jobs:
       - run: ./scripts/audit
 `,
   },
+  {
+    id: 'pages',
+    name: 'Pages',
+    description: 'Build the documentation and publish it. Finds a `docs/` folder on its own; falls back to markdown in the root.',
+    path: '.reviewos/workflows/pages.yml',
+    tags: ['docs', 'pages', 'bunpress', 'stx'],
+    content: `name: Pages
+
+# Only the default branch. A site has an address strangers read, so a pull
+# request must not be able to replace it - and the publisher enforces that too,
+# independently of what this file says.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # What to build, decided by what is in the tree rather than by a setting
+      # somebody has to keep in sync with it:
+      #
+      #   docs/                    -> bunpress builds the docs site
+      #   a bunpress config        -> bunpress builds the root's markdown
+      #   pages/ or index.stx      -> stx builds the templates
+      #   index.html               -> already built; published as it stands
+      #
+      # A repository with none of those is not a mistake and is not failed. It
+      # is a repository that has no site, and this says so and stops.
+      - name: Detect
+        id: detect
+        run: |
+          if [ -d docs ]; then
+            echo "builder=bunpress" >> "$GITHUB_OUTPUT"
+            echo "dir=docs" >> "$GITHUB_OUTPUT"
+          elif [ -f bunpress.config.ts ] || [ -f bunpress.config.js ] || [ -f .config/bunpress.ts ] || [ -f docs.config.ts ] || [ -f .config/docs.ts ]; then
+            echo "builder=bunpress" >> "$GITHUB_OUTPUT"
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          elif [ -d pages ] || [ -f index.stx ]; then
+            echo "builder=stx" >> "$GITHUB_OUTPUT"
+          elif [ -f index.html ]; then
+            echo "builder=static" >> "$GITHUB_OUTPUT"
+          else
+            echo "builder=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Nothing to publish
+        if: steps.detect.outputs.builder == 'none'
+        run: |
+          echo "No site found. Pages looks for, in order:"
+          echo "  a docs/ folder, a bunpress config, a pages/ folder or index.stx, or an index.html."
+          exit 0
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.detect.outputs.builder != 'none' && steps.detect.outputs.builder != 'static'
+
+      # bunpress needs no config to build a docs/ folder - it has defaults for
+      # everything - so a repository that only has markdown gets a site. A
+      # config in the tree is picked up automatically and decides the title,
+      # the sidebar and the theme.
+      - name: Build with bunpress
+        if: steps.detect.outputs.builder == 'bunpress'
+        run: bunx --bun bunpress build "\${{ steps.detect.outputs.dir }}" --outdir dist
+
+      - name: Build with stx
+        if: steps.detect.outputs.builder == 'stx'
+        run: bunx --bun stx build --out dist
+
+      - name: Use the committed site
+        if: steps.detect.outputs.builder == 'static'
+        run: mkdir -p dist && cp -R ./. dist/ 2>/dev/null || true
+
+      # The contents of the output directory, not the directory itself: the
+      # publisher expects index.html at the archive root and says so if it is
+      # not there.
+      - name: Package
+        if: steps.detect.outputs.builder != 'none'
+        run: tar -czf pages.tar.gz -C dist .
+
+      # The name is the contract. ReviewOS publishes the artifact named
+      # pages from a successful run on the source branch, and nothing else.
+      - uses: actions/upload-artifact@v4
+        if: steps.detect.outputs.builder != 'none'
+        with:
+          name: pages
+          path: pages.tar.gz
+`,
+  },
 ]
 
 /** One starter by id, or nothing when the id names none. */
