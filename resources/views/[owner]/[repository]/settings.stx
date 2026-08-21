@@ -185,6 +185,42 @@ const topics: any[] = repoRow && mayEdit
   : []
 
 const topicList = topics.map(row => String(row.topic)).join(', ')
+
+/*
+ * The published site, and whether this instance can serve one at all.
+ *
+ * Read here rather than fetched by the panel, for the reason every other
+ * section on this page is: a settings screen that renders and then fills itself
+ * in is a screen that shows the wrong answer for a moment, and the wrong answer
+ * here is "your documentation is public".
+ *
+ * Guarded like the rest. A repository whose Pages row cannot be read still gets
+ * its rename form.
+ */
+const mayPublish = Boolean(repoAccess?.can('repository:settings'))
+const pagesConfig = (await import('../../../../config/pages')).default
+
+let pagesSite: any = null
+try {
+  if (repoRow && mayPublish) {
+    pagesSite = await db
+      .selectFrom('pages_sites')
+      .select(['enabled', 'source_branch', 'domain', 'visibility', 'live_sha', 'live_at', 'last_error'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .executeTakeFirst()
+  }
+}
+catch {
+  // The table may not exist on an instance that has not migrated. Pages is off
+  // there, which is what a null row already means.
+  pagesSite = null
+}
+
+const pagesUrl = pagesSite?.domain
+  ? `https://${pagesSite.domain}/`
+  : pagesConfig.domain
+    ? `https://${ownerHandle}.${pagesConfig.domain}/${repositoryName}/`
+    : ''
 const base = `/${ownerHandle}/${repositoryName}`
 const isArchived = Boolean(repoRow?.is_archived)
 const fullName = `${ownerHandle}/${repositoryName}`
@@ -381,6 +417,103 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </div>
         </form>
       </section>
+
+      @if (mayPublish)
+        <section class="card panel">
+          <h2 class="card-title">Pages</h2>
+
+          @if (!pagesConfig.domain)
+            {{-- Said here rather than offering a switch that does nothing. An
+                 operator has to give the instance a Pages hostname first, and a
+                 form that accepted the setting anyway would leave somebody
+                 waiting for a URL that was never going to answer. --}}
+            <p class="muted">
+              This instance serves no Pages host, so nothing can be published yet.
+              An operator sets <span class="mono">PAGES_DOMAIN</span> — see
+              <a href="/docs/pages">the Pages documentation</a>.
+            </p>
+          @else
+            <form class="grid" method="post" action="/api/repos/pages">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input type="hidden" name="operation" value="update">
+
+              <label class="field">
+                <span class="label">Publish this repository</span>
+                <select class="input" name="enabled">
+                  <option value="false" @if (!pagesSite?.enabled) selected @endif>Off</option>
+                  <option value="true" @if (pagesSite?.enabled) selected @endif>On</option>
+                </select>
+                <span class="hint muted">
+                  A run on the source branch that uploads an artifact named
+                  <span class="mono">pages</span> becomes the site. Nothing is built here;
+                  the build happens wherever your CI runs.
+                </span>
+              </label>
+
+              <label class="field">
+                <span class="label">Who can read it</span>
+                <select class="input" name="visibility">
+                  <option value="repository" @if ((pagesSite?.visibility ?? 'repository') === 'repository') selected @endif>
+                    Whoever can read the repository
+                  </option>
+                  <option value="public" @if (pagesSite?.visibility === 'public') selected @endif>
+                    Anybody
+                  </option>
+                </select>
+                <span class="hint muted">
+                  A private repository's site stays private on the first setting. On the
+                  second it is readable by strangers, whatever the repository is.
+                </span>
+              </label>
+
+              <label class="field">
+                <span class="label">Source branch</span>
+                <input class="input" name="source_branch" value="{{ pagesSite?.source_branch ?? '' }}" placeholder="{{ repoRow?.default_branch ?? 'main' }}">
+                <span class="hint muted">
+                  Blank means the default branch. Only runs on this branch publish, so a
+                  pull request cannot replace the site.
+                </span>
+              </label>
+
+              @if (pagesConfig.customDomains)
+                <label class="field">
+                  <span class="label">Custom domain</span>
+                  <input class="input" name="domain" value="{{ pagesSite?.domain ?? '' }}" placeholder="docs.example.com">
+                  <span class="hint muted">
+                    Point a <span class="mono">CNAME</span> at
+                    <span class="mono">{{ ownerHandle }}.{{ pagesConfig.domain }}</span> and set it here.
+                  </span>
+                </label>
+              @endif
+
+              <div class="actions">
+                <button class="btn" type="submit">Save Pages</button>
+              </div>
+            </form>
+
+            @if (pagesSite?.enabled && pagesUrl)
+              <p class="muted">
+                @if (pagesSite?.live_sha)
+                  Live at <a href="{{ pagesUrl }}">{{ pagesUrl }}</a>, from
+                  <span class="mono">{{ String(pagesSite.live_sha).slice(0, 7) }}</span>.
+                @else
+                  Nothing published yet. It will appear at <a href="{{ pagesUrl }}">{{ pagesUrl }}</a>
+                  after the first run uploads a <span class="mono">pages</span> artifact.
+                @endif
+              </p>
+            @endif
+
+            @if (pagesSite?.last_error)
+              {{-- The last attempt that failed, in the sentence the publisher
+                   wrote. "My docs did not update" is answered here and nowhere
+                   else. --}}
+              <p class="notice">{{ pagesSite.last_error }}</p>
+            @endif
+          @endif
+        </section>
+      @endif
 
       @if (mayProtect)
         <section class="card panel">
