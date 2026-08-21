@@ -1,0 +1,55 @@
+# What a crawler may walk here, and what it may not.
+#
+# `resources/functions/meta.ts` already decided this and wrote the reason down:
+# some pages are personal, and some are "generated views of the same data - an
+# unbounded URL space that a crawler will happily walk forever". It expressed
+# that decision as a <meta name="robots"> tag, which a crawler reads after it
+# has fetched the page - so the expensive work was already done, and the tag
+# only kept the result out of an index.
+#
+# It was not a theory. A crawler walked /tree/ across every branch and every
+# tag of every mirrored repository, a page at a time, until the page process
+# reached its memory ceiling and the site stopped answering. Twice.
+#
+# So the same policy, said in the one place that stops the fetch instead of the
+# indexing. `tests/unit/robots-txt.test.ts` fails if this file and the meta
+# policy ever disagree.
+
+User-agent: *
+
+# Personal, or a form. Nothing here for somebody arriving from a search.
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /unsubscribe
+Disallow: /unsubscribed
+Disallow: /settings
+Disallow: /notifications
+Disallow: /reviews
+Disallow: /new
+Disallow: /search
+
+# The unbounded spaces. Every one of these takes a ref or a range, so the
+# number of URLs is the number of refs times the number of paths, and a crawler
+# has no way to know it is walking the same repository over and over.
+Disallow: /*/*/tree/
+Disallow: /*/*/blob/
+Disallow: /*/*/raw/
+Disallow: /*/*/commit/
+Disallow: /*/*/commits
+Disallow: /*/*/compare
+Disallow: /*/*/run/
+Disallow: /*/*/runs
+Disallow: /*/*/tests
+Disallow: /*/*/insight
+
+# Administrative views of a repository, and of an owner.
+Disallow: /*/*/settings
+Disallow: /*/*/webhooks
+Disallow: /*/*/labels
+Disallow: /*/*/milestones
+Disallow: /*/tokens
+Disallow: /*/people
+
+# The git wire protocol. A crawler that follows a clone URL gets a pack file.
+Disallow: /git/
