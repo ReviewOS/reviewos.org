@@ -315,9 +315,16 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 @section('content')
   <div class="page">
     @if (!issue)
+      {{-- With somewhere to go, for the reason written on the pull request
+          page: a panel that only says no leaves the back button as the only
+          way on. --}}
       <PageEmpty
         title="No such issue"
         detail="{{ ownerHandle }}/{{ repositoryName }} has no issue numbered {{ params.number }}."
+        linksJson="{{ JSON.stringify([
+          { href: `/${ownerHandle}/${repositoryName}/issues`, label: 'All issues' },
+          { href: `/${ownerHandle}/${repositoryName}`, label: `${ownerHandle}/${repositoryName}` },
+        ]) }}"
       />
     @else
       <header class="issue-head">

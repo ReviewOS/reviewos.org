@@ -370,3 +370,37 @@ describe('the review page with no JavaScript', () => {
     expect(page).toMatch(/<button[^>]*type="submit"|<input[^>]*type="submit"/i)
   })
 })
+
+/*
+ * The same question the run page already asks, asked of the pull request page,
+ * which was the one page in the product answering it wrongly.
+ *
+ * A soft 404 is not a cosmetic problem here. This instance is walked by
+ * crawlers - that is what took the site down twice - and a 200 on
+ * `/owner/repo/pull/999999` tells them every number in the sequence is a page
+ * worth fetching, which is an unbounded space dressed up as content.
+ */
+describe('a pull request number nobody has', () => {
+  test('is a 404 rather than an empty page under a 200', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/999999`, {
+      headers: { Accept: 'text/html' },
+    })
+
+    expect(answer.status).toBe(404)
+  })
+
+  test('and says where to go instead, rather than only saying no', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/999999`, {
+      headers: { Accept: 'text/html' },
+    })
+    const html = await answer.text()
+
+    expect(html).toContain(`/${created.handle}/${created.name}/pulls`)
+  })
+})
