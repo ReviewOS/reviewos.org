@@ -370,11 +370,19 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         border: 1px solid var(--line);
       }
 
+      /* Scrolls rather than shrinks, for the reason written out in
+        `RepoTabs.stx`: a flex row of tabs that overflows a phone answers by
+        squeezing its items until the labels break mid-word, and the last tab
+        ends up off-screen with nothing to scroll. */
       .tabs {
         display: flex;
         gap: 4px;
         border-bottom: 1px solid var(--line);
+        overflow-x: auto;
+        scrollbar-width: none;
       }
+
+      .tabs::-webkit-scrollbar { display: none; }
 
       .tab {
         padding: 10px 12px;
@@ -383,6 +391,8 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         text-decoration: none;
         font-size: 14px;
         font-weight: 500;
+        flex: 0 0 auto;
+        white-space: nowrap;
       }
 
       .tab[aria-current='page'] {

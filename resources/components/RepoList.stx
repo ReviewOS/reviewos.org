@@ -469,7 +469,7 @@ const notFound = !repoRow
 </script>
 
 <style>
-  .list-filters-end { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+  .list-filters-end { margin-left: auto; display: flex; gap: 14px; align-items: center; flex: 0 0 auto; }
 
   .list-keys { margin-top: 14px; text-align: center; font-size: 12px; }
   .list-keys kbd {
@@ -512,11 +512,19 @@ const notFound = !repoRow
     border-radius: var(--r-control);
   }
 
+  /* Scrolls rather than shrinks - see `RepoTabs.stx`. This row had the worse
+    version of that bug: the filters squeezed to three lines apiece, and New
+    issue, which is the whole point of the screen, sat off the right edge of a
+    phone with nothing to scroll to it. */
   .list-filters {
     display: flex;
     gap: 4px;
     margin: 18px 0 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .list-filters::-webkit-scrollbar { display: none; }
 
   .list-filter {
     padding: 6px 12px;
@@ -524,6 +532,8 @@ const notFound = !repoRow
     font-size: 13px;
     color: var(--muted);
     text-decoration: none;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .list-filter:hover { background: var(--surface-tint); }

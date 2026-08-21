@@ -30,13 +30,24 @@ const base = `/${ownerHandle}/${repositoryName}`
     gap: 2px;
     margin-top: 14px;
     border-bottom: 1px solid var(--line);
+    /* Six tabs do not fit a phone, and a flex row that cannot scroll deals
+      with that by shrinking its items: "Pull requests" broke across two lines
+      and Insight sat off the right edge with no way to reach it. Scrolling
+      keeps every tab whole and every tab reachable. */
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .repo-tabs::-webkit-scrollbar { display: none; }
 
   .repo-tab {
     padding: 8px 14px;
     font-size: 13px;
     color: var(--muted);
     text-decoration: none;
+    /* Natural width, held: the point of the scroller above. */
+    flex: 0 0 auto;
+    white-space: nowrap;
     /* The underline is on the tab rather than a separate marker so it lands on
       the same pixel row as the container border. */
     border-bottom: 2px solid transparent;

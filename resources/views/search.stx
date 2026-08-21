@@ -217,12 +217,18 @@ function tabHref(key) {
   .search-hint { font-size: 12.5px; line-height: 1.6; max-width: 70ch; }
   .search-hint code { font-size: 12px; }
 
+  /* Scrolls rather than shrinks - see `RepoTabs.stx`. Three scopes fit a
+    phone with nothing to spare, and a fourth would break the labels. */
   .search-tabs {
     display: flex;
     gap: 4px;
     margin-bottom: 16px;
     border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .search-tabs::-webkit-scrollbar { display: none; }
 
   .search-tab {
     padding: 8px 12px;
@@ -231,6 +237,8 @@ function tabHref(key) {
     text-decoration: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .search-tab:hover { color: var(--text); }
