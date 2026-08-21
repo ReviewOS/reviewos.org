@@ -923,8 +923,23 @@ reader ever pays it. Recorded rather than fixed, because the obvious fix - warm 
 - has nowhere to be called from: `app/Routes.ts` is a config object and this framework has no boot
 hook. An exported `warmHighlighter()` that nothing calls is dead code.
 
-- [ ] A boot hook in Stacks to hang warm-up on, then warm the grammars from it. Belongs upstream in
+- [x] A boot hook in Stacks to hang warm-up on, then warm the grammars from it. Belongs upstream in
       the framework, not worked around here.
+
+      `route.booting(name, run)`, shipped in Stacks 0.72.43, and the framework had no equivalent
+      because an application had a place to declare routes, a place to declare middleware, and
+      nowhere to say "do this once when the process starts". The hooks run inside `serve()`, after
+      the routes and before the first request, which is the one moment an application can prepare
+      something without racing a reader for it.
+
+      A hook that throws is logged and the boot continues - refusing to start a server because a
+      cache could not be pre-warmed is the worse failure - and `routes/boot.ts` is as forgiving
+      about *registering* one, for a sharper reason: a route file that throws takes the whole route
+      registry with it, so an instance on an older router would answer nothing at all rather than
+      answer slightly slower.
+
+      Here it warms eight languages, not forty-eight: a grammar nobody opens is boot time spent for
+      nothing. About 30ms, against the ~1s hold the first reader was paying.
 
 ### The bug that came with it
 

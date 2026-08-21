@@ -80,6 +80,7 @@
     "@stacksjs/orm": "^0.72.34",
     "@stacksjs/queue": "^0.72.32",
     "@stacksjs/search-engine": "^0.72.32",
+    "@stacksjs/router": "^0.72.43",
     "@stacksjs/server": "^0.72.32",
     "@stacksjs/stx": "^0.2.199",
     "@stacksjs/ts-ssh": "^0.1.1",

@@ -41,6 +41,13 @@ export default {
   // load with the routes rather than in any one server's boot script.
   views: { path: 'views', prefix: '' },
   /*
+   * Registers nothing either: it hangs this instance's warm-up on the
+   * framework's boot hook, which runs inside `serve()` once the routes are
+   * loaded. Here for the same reason `views` is - it has to load wherever
+   * serving happens, and both boot paths import the route files.
+   */
+  boot: { path: 'boot', prefix: '' },
+  /*
    * The mirrored actions, at the root and *before* `git`.
    *
    * `/actions/{host}/{owner}/{name}.git/info/refs` would otherwise be caught by
