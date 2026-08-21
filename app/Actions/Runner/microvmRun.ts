@@ -29,6 +29,8 @@
 
 import { mkdir, rm } from 'node:fs/promises'
 import { checkoutCode } from './checkout'
+import type { ActionShip, GuestStep } from './microvmActions'
+import { expandSteps } from './microvmActions'
 import { deliverableSecrets } from './microvmSecrets'
 import { machineSpec } from './microvm'
 import type { EgressPolicy, EgressRule } from './networkPolicy'
@@ -66,35 +68,95 @@ export interface MicrovmRunOutcome {
 }
 
 /**
- * The steps a job wants run, as commands.
+ * The steps a job wants run, as commands the guest can execute.
  *
- * Only `run:` steps. A `uses:` step is an action - a program the runner fetches
- * and executes with a protocol around it - and none of that exists for a guest.
- * Refused by name rather than skipped, because a job whose `uses:` steps
- * silently did not happen is a job reporting success for work nobody did.
+ * A `uses:` step is expanded here rather than run there: the host resolves the
+ * reference, applies the policy, fetches what needs fetching and reads the
+ * manifest, and a composite action becomes the commands it is made of.
+ * `microvmActions.ts` explains why that division is the right one rather than a
+ * shortcut.
  */
-export function stepsFor(job: any): { ok: true, steps: JobStep[] } | { ok: false, reason: string } {
-  const raw: any[] = Array.isArray(job?.steps) ? job.steps : []
-  const steps: JobStep[] = []
+export async function stepsFor(input: {
+  job: any
+  workspace: string
+  actionsRoot: string
+  /** Where fetched actions are cached, host-side. */
+  cacheRoot: string
+  /** The checkout, host-side, which is where a local action lives. */
+  sourcePath?: string
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+}): Promise<{ ok: true, steps: GuestStep[], ship: ActionShip[] } | { ok: false, reason: string }> {
+  const raw: any[] = Array.isArray(input.job?.steps) ? input.job.steps : []
 
-  for (const [index, step] of raw.entries()) {
-    if (step?.uses) {
-      return {
-        ok: false,
-        reason: `Step ${index + 1} uses \`${String(step.uses)}\`, and actions do not run in a microVM yet. This runner will not pretend to have run it.`,
-      }
-    }
+  const expanded = await expandSteps({
+    steps: raw,
+    workspace: input.workspace,
+    actionsRoot: input.actionsRoot,
+    resolve: uses => resolveAction(uses, input),
+  })
 
-    if (!step?.run)
-      continue
+  if (!expanded.ok)
+    return { ok: false, reason: expanded.reason }
 
-    steps.push({ run: String(step.run) })
-  }
+  for (const warning of expanded.warnings)
+    await input.onOutput(`::warning::${warning}\n`, 'stdout').catch(() => {})
 
-  if (steps.length === 0)
+  if (expanded.steps.length === 0)
     return { ok: false, reason: 'This job has no commands to run.' }
 
-  return { ok: true, steps }
+  return { ok: true, steps: expanded.steps, ship: expanded.ship }
+}
+
+/**
+ * A reference, as a directory on the host.
+ *
+ * The policy is checked before anything is fetched, which is the ordering that
+ * makes it a policy: a reference that would be refused must not have been
+ * downloaded first.
+ */
+async function resolveAction(
+  uses: string,
+  context: { cacheRoot: string, sourcePath?: string },
+): Promise<{ ok: true, directory: string, local: boolean, label: string, relative?: string } | { ok: false, reason: string }> {
+  const { parseActionRef, defaultPolicy, checkPolicy } = await import('./actionRef')
+
+  const reference = parseActionRef(uses)
+
+  if (reference.kind === 'container') {
+    return {
+      ok: false,
+      reason: `\`${uses}\` is a container action, and a microVM is already the isolation boundary - it does not run a container runtime inside itself.`,
+    }
+  }
+
+  if (reference.kind === 'unknown')
+    return { ok: false, reason: `\`${uses}\` is not an action reference this runner understands` }
+
+  if (reference.kind === 'local') {
+    if (!context.sourcePath)
+      return { ok: false, reason: `\`${uses}\` is an action in this repository, and this job has no checkout` }
+
+    const relative = String(reference.path ?? '').replace(/^\.\//, '')
+
+    return { ok: true, directory: `${context.sourcePath}/${relative}`, local: true, label: uses, relative }
+  }
+
+  const decision = checkPolicy(reference, defaultPolicy())
+
+  if (!decision.allowed)
+    return { ok: false, reason: decision.reason ?? `\`${uses}\` is not allowed by this instance's action policy` }
+
+  const { fetchAction } = await import('./actionCache')
+
+  const fetched = await fetchAction(reference, {
+    root: context.cacheRoot,
+    defaultHost: defaultPolicy().defaultHost,
+  } as any)
+
+  if (!fetched.ok || !fetched.path)
+    return { ok: false, reason: fetched.reason ?? `\`${uses}\` could not be fetched` }
+
+  return { ok: true, directory: fetched.path, local: false, label: uses }
 }
 
 /**
@@ -165,11 +227,6 @@ export async function runJobInMachine(input: {
   if (refusal)
     return { state: 'failed', reason: refusal, exitStatus: null }
 
-  const steps = stepsFor(input.job)
-
-  if (!steps.ok)
-    return { state: 'failed', reason: steps.reason, exitStatus: null }
-
   const own = instanceAddresses()
   const policy = policyFrom(egressRules(), own)
 
@@ -233,9 +290,29 @@ export async function runJobInMachine(input: {
   }
 
   try {
+    /*
+     * The steps are worked out *after* the checkout, because a `uses:` naming an
+     * action in this repository can only be resolved once the repository is on
+     * disk. A job whose action cannot be expanded fails here rather than in the
+     * machine - which is the right place, since nothing about it is the guest's
+     * business.
+     */
+    const steps = await stepsFor({
+      job: input.job,
+      workspace: '/work/workspace',
+      actionsRoot: '/work/actions',
+      cacheRoot: `${scratch}/actions`,
+      sourcePath,
+      onOutput: input.onOutput,
+    })
+
+    if (!steps.ok)
+      return { state: 'failed', reason: steps.reason, exitStatus: null }
+
     const outcome = await (input.supervise ?? superviseJob)({
       spec,
       steps: steps.steps,
+      ship: steps.ship,
       host,
       sourcePath,
       /*

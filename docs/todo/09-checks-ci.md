@@ -1473,7 +1473,7 @@ gate, in order.
       pipeline, tap and filter setup - needs a Linux host with KVM and is not written, because a tap
       device attached to the wrong bridge looks exactly like one attached to the right bridge.
 
-- [ ] Ephemeral workspace per job, immutable base image, read-only source checkout where possible,
+- [x] Ephemeral workspace per job, immutable base image, read-only source checkout where possible,
       no host socket, no sibling process visibility, and no repository storage mounted into a job
 
       `app/Actions/Runner/microvm.ts` decides all six, and `tests/unit/runner-microvm.test.ts` holds
@@ -1487,11 +1487,15 @@ gate, in order.
       real Firecracker on real KVM: a job carrying `trusted: false` - the case the host path refuses
       outright - ran its steps in a machine with a read-only image, and nothing was left behind.
 
-      Still open for one reason, and it is not a detail: **no source reaches the guest.** The steps do;
-      a checkout does not. A mode that cannot give a job its repository cannot run anybody's CI, so
-      ticking a line about a read-only source checkout for it would describe a product nobody can use.
-      That is the next thing the payload disk carries.
-- [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
+      **The source reaches it, and so do actions and secrets.** A job checks out on the host and is
+      handed the tree as bytes; composite actions are expanded host-side into the commands they are
+      made of, including nested ones; and secrets arrive over the console rather than on any disk.
+      All verified against real Firecracker.
+
+      What a microVM job cannot do is a JavaScript or Docker action - the first needs a Node in an
+      image an operator built, the second a container runtime inside the thing that *is* the
+      isolation boundary. Both are refused by name rather than skipped.
+- [x] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
       access to instance-local services is not isolated.
 
       `app/Actions/Runner/networkPolicy.ts`. Default-deny, an allowlist an operator writes, and a set
@@ -1519,8 +1523,8 @@ gate, in order.
       never reaches `forward`, so a forward-only ruleset left every service on the supervising host
       reachable from the guest. Found by running it.
 
-      Still open for the same reason as the box above - a policy protecting a mode that cannot check
-      out a repository is not yet protecting anybody's CI.
+      The mode it protects now runs real jobs - source, actions and secrets all reach the guest - so
+      this is a policy in front of something rather than in front of nothing.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 
       **Output and wall time are done; CPU, file size and processes are available; memory and disk

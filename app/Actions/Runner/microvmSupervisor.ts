@@ -47,6 +47,28 @@ import { Masker, secretsFrame } from './microvmSecrets'
 export interface JobStep {
   /** The shell command this step runs, exactly as the workflow wrote it. */
   run: string
+  /**
+   * What the step needs in its environment - an action's inputs, mostly.
+   *
+   * Written into the step's own script as `export` lines rather than delivered
+   * separately, because a step script is already a thing the host writes and a
+   * second channel would be a second thing to get wrong. Values are quoted here,
+   * so an input containing a quote or a newline is one value.
+   *
+   * Never secrets. Those arrive over the console and are referenced
+   * symbolically - see `microvmActions.ts`.
+   */
+  env?: Record<string, string>
+  /**
+   * The same, for values the guest's shell must expand.
+   *
+   * Emitted as written rather than quoted, because they are already quoted shell
+   * strings holding secret references - a secret is deliberately not a literal
+   * here, since a literal would be written onto the payload disk.
+   */
+  envExpr?: Record<string, string>
+  /** Where it runs, guest-side. The workspace when absent. */
+  cwd?: string
 }
 
 export interface SupervisorHost {
@@ -96,6 +118,8 @@ export async function superviseJob(input: {
   host: SupervisorHost
   /** A checkout on the host to hand the guest as its working directory. */
   sourcePath?: string
+  /** Action directories to carry over beside it. */
+  ship?: readonly { hostPath: string, guestPath: string }[]
   /** Live output, as the console produces it. Already masked. */
   onOutput?: (text: string) => Promise<void>
   /**
@@ -135,7 +159,7 @@ export async function superviseJob(input: {
      */
     undo.push({ what: 'overlay', undo: async () => { await input.host.privileged(['rm', '-f', overlay]) } })
 
-    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.sourcePath)
+    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.sourcePath, input.ship ?? [])
 
     if (!made.ok)
       return { ok: false, steps: [], reason: made.output.slice(0, 400), noise: '' }
@@ -334,6 +358,8 @@ export async function makeOverlay(
   nonce: string,
   /** A checkout on the host, copied in as the guest's working directory. */
   sourcePath?: string,
+  /** Action directories the host fetched, copied in beside it. */
+  ship: readonly { hostPath: string, guestPath: string }[] = [],
 ): Promise<{ ok: boolean, output: string }> {
   const files: string[] = [
     `mkdir -p "$M/steps" "$M/workspace"`,
@@ -356,8 +382,22 @@ export async function makeOverlay(
   if (sourcePath)
     files.push(`cp -a ${shellQuote(sourcePath)}/. "$M/workspace/"`)
 
+  /*
+   * The actions a job uses, carried over as files.
+   *
+   * Only the fetched ones: an action that lives in the repository arrived with
+   * the checkout and is addressed where it already is. This is the only thing a
+   * `uses:` step adds to the payload disk.
+   */
+  for (const one of ship) {
+    const inside = one.guestPath.replace(/^\/work\//, '')
+
+    files.push(`mkdir -p "$M/${inside}"`)
+    files.push(`cp -a ${shellQuote(one.hostPath)}/. "$M/${inside}/"`)
+  }
+
   steps.forEach((step, index) => {
-    files.push(`printf '%s' ${shellQuote(step.run)} > "$M/steps/${index}.sh"`)
+    files.push(`printf '%s' ${shellQuote(stepScript(step))} > "$M/steps/${index}.sh"`)
   })
 
   /*
@@ -385,6 +425,41 @@ export async function makeOverlay(
     `rmdir "$M"`,
     `chown ${owner} ${shellQuote(path)}`,
   ].join('\n')])
+}
+
+/**
+ * One step, as the script the guest runs.
+ *
+ * The environment and the working directory are a prologue rather than a
+ * separate file: the host is already writing this script, and a second channel
+ * carrying half of a step's meaning is a second thing to get out of step with
+ * it.
+ *
+ * `cd` before `export`, and both before the command, so a step that fails to
+ * find its directory fails there rather than three lines into somebody's build.
+ */
+export function stepScript(step: JobStep): string {
+  const lines: string[] = []
+
+  if (step.cwd)
+    lines.push(`cd ${shellQuote(step.cwd)} || exit 1`)
+
+  for (const [name, value] of Object.entries(step.env ?? {})) {
+    // A name that is not a shell variable is dropped rather than written: the
+    // alternative is a script that fails to parse, which reports as the step
+    // failing for a reason nobody can see in the workflow.
+    if (/^[A-Z_][A-Z0-9_]*$/i.test(name))
+      lines.push(`export ${name}=${shellQuote(value)}`)
+  }
+
+  for (const [name, expression] of Object.entries(step.envExpr ?? {})) {
+    if (/^[A-Z_][A-Z0-9_]*$/i.test(name))
+      lines.push(`export ${name}=${expression}`)
+  }
+
+  lines.push(step.run)
+
+  return lines.join('\n')
 }
 
 /** The commands that bring a tap device up for one machine. */

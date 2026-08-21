@@ -91,27 +91,171 @@ describe('a runner that asked to isolate but cannot', () => {
 })
 
 describe('the steps a job offers', () => {
-  test('are its commands', () => {
-    const found = stepsFor({ steps: [{ run: 'a' }, { name: 'x', run: 'b' }] })
+  /** Expand with a resolver that answers from a table rather than a disk. */
+  async function expand(steps: any[], actions: Record<string, { yml: string, local?: boolean }> = {}) {
+    const { expandSteps } = await import('../../app/Actions/Runner/microvmActions')
 
-    expect(found.ok && found.steps).toEqual([{ run: 'a' }, { run: 'b' }])
+    // `expandSteps` reads the manifest from a directory, so the table is written
+    // to a temporary one - the point under test is the expansion, not the file.
+    const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+
+    const root = mkdtempSync(join(tmpdir(), 'reviewos-actions-'))
+
+    try {
+      for (const [name, action] of Object.entries(actions)) {
+        const dir = join(root, name.replace(/[^a-z0-9]/gi, '_'))
+
+        mkdirSync(dir, { recursive: true })
+        writeFileSync(join(dir, 'action.yml'), action.yml)
+      }
+
+      return await expandSteps({
+        steps,
+        workspace: '/work/workspace',
+        actionsRoot: '/work/actions',
+        resolve: async (uses) => {
+          const action = actions[uses]
+
+          if (!action)
+            return { ok: false as const, reason: `no such action ${uses}` }
+
+          return {
+            ok: true as const,
+            directory: join(root, uses.replace(/[^a-z0-9]/gi, '_')),
+            local: action.local ?? false,
+            label: uses,
+            relative: uses.replace(/^\.\//, ''),
+          }
+        },
+      })
+    }
+    finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  test('a plain command is one step', async () => {
+    const found = await expand([{ run: 'a' }, { name: 'x', run: 'b' }])
+
+    expect(found.ok && found.steps.map(s => s.run)).toEqual(['a', 'b'])
   })
 
-  test('and an action refuses the job rather than being skipped', () => {
+  test('and a composite action becomes the commands it is made of', async () => {
     /*
-     * A `uses:` step is a program the runner fetches and executes with a
-     * protocol around it, and none of that exists for a guest. Skipping it would
-     * report success for work nobody did, which is worse than refusing.
+     * The whole design: the host finishes the work and the guest runs commands.
+     * Resolving an action needs the network, the cache and the policy, all of
+     * which are the host's - a guest that could fetch its own actions would be a
+     * guest with a route out and a say in what it runs.
      */
-    const found = stepsFor({ steps: [{ run: 'a' }, { uses: 'actions/checkout@v4' }] })
+    const found = await expand(
+      [{ uses: 'acme/setup@v1', with: { version: '20' } }],
+      {
+        'acme/setup@v1': {
+          yml: [
+            'name: setup',
+            'inputs:',
+            '  version:',
+            '    description: v',
+            'runs:',
+            '  using: composite',
+            '  steps:',
+            '    - run: echo one',
+            '    - run: echo two',
+          ].join('\n'),
+        },
+      },
+    )
+
+    expect(found.ok && found.steps.map(s => s.run)).toEqual(['echo one', 'echo two'])
+    // The action's inputs reach every step it is made of.
+    expect(found.ok && found.steps[0]!.env?.INPUT_VERSION).toBe('20')
+  })
+
+  test('and a fetched action is carried onto the payload disk, a local one is not', async () => {
+    /*
+     * An action that lives in the repository arrived with the checkout and is
+     * addressed where it already is. Copying it again would be a second copy of
+     * the same bytes on a disk with a size limit.
+     */
+    const yml = 'runs:\n  using: composite\n  steps:\n    - run: echo hi'
+
+    const remote = await expand([{ uses: 'acme/a@v1' }], { 'acme/a@v1': { yml } })
+    const local = await expand([{ uses: './tools/a' }], { './tools/a': { yml, local: true } })
+
+    expect(remote.ok && remote.ship).toHaveLength(1)
+    expect(remote.ok && remote.steps[0]!.env?.GITHUB_ACTION_PATH).toBe('/work/actions/0')
+
+    expect(local.ok && local.ship).toHaveLength(0)
+    expect(local.ok && local.steps[0]!.env?.GITHUB_ACTION_PATH).toBe('/work/workspace/tools/a')
+  })
+
+  test('and a JavaScript action is refused by name rather than skipped', async () => {
+    /*
+     * Named rather than generic: a JavaScript action is a thing an *image* could
+     * support and this one may not, which sends somebody to the image rather
+     * than to the workflow. Skipping it would report success for work nobody
+     * did.
+     */
+    const found = await expand(
+      [{ uses: 'acme/js@v1' }],
+      { 'acme/js@v1': { yml: 'runs:\n  using: node20\n  main: index.js' } },
+    )
 
     expect(found.ok).toBe(false)
-    expect(!found.ok && found.reason).toContain('actions/checkout@v4')
-    expect(!found.ok && found.reason).toContain('will not pretend')
+    expect(!found.ok && found.reason).toContain('JavaScript action')
+    expect(!found.ok && found.reason).toContain('acme/js@v1')
   })
 
-  test('and a job with nothing to run says so', () => {
-    expect(stepsFor({ steps: [] }).ok).toBe(false)
+  test('and a container action is refused, because the machine is the boundary', async () => {
+    const found = await expand(
+      [{ uses: 'acme/d@v1' }],
+      { 'acme/d@v1': { yml: 'runs:\n  using: docker\n  image: docker://alpine' } },
+    )
+
+    expect(!found.ok && found.reason).toContain('container action')
+  })
+
+  test('and an action that uses itself is refused rather than recursed', async () => {
+    const found = await expand(
+      [{ uses: 'acme/loop@v1' }],
+      { 'acme/loop@v1': { yml: 'runs:\n  using: composite\n  steps:\n    - uses: acme/loop@v1' } },
+    )
+
+    expect(found.ok).toBe(false)
+    expect(!found.ok && found.reason).toContain('uses itself')
+  })
+
+  test('and an action that cannot be resolved fails the job', async () => {
+    const found = await expand([{ uses: 'acme/missing@v1' }])
+
+    expect(found.ok).toBe(false)
+  })
+})
+
+describe('a secret written into an action input', () => {
+  test('stays a shell reference rather than becoming the value', async () => {
+    /*
+     * The one place this expansion could undo the secrets design. `with:` values
+     * are filled in on the host, so writing the value here would put a
+     * credential into a step script on the payload disk - at rest, on the
+     * runner's real filesystem, which is exactly what that design refused.
+     *
+     * Left as `"$TOKEN"`, the guest's own shell substitutes it from the
+     * environment it was handed over the console.
+     */
+    const { symbolicSecrets } = await import('../../app/Actions/Runner/microvmActions')
+
+    expect(symbolicSecrets('curl -H "Bearer ${{ secrets.API_TOKEN }}"')).toBe('curl -H "Bearer "$API_TOKEN""')
+    expect(symbolicSecrets('echo ${{ secrets.a_b }}')).toBe('echo "$A_B"')
+  })
+
+  test('and leaves everything else alone', async () => {
+    const { symbolicSecrets } = await import('../../app/Actions/Runner/microvmActions')
+
+    expect(symbolicSecrets('echo ${{ github.sha }}')).toBe('echo ${{ github.sha }}')
+    expect(symbolicSecrets('echo plain')).toBe('echo plain')
   })
 })
 

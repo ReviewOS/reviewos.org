@@ -254,9 +254,7 @@ fork's pull request needs an isolated runner"; this is that runner. Verified wit
 `trusted: false` - the case the host path will not touch - which ran in a machine and had the
 metadata endpoint blocked by a policy built from the runner's own environment.
 
-**`uses:` steps are refused by name.** An action is a program the runner fetches and executes with a
-protocol around it, and none of that exists for a guest. Skipping them would report success for work
-nobody did.
+**Composite actions run; the others are refused by name.** See below.
 
 ## The source
 
@@ -318,6 +316,48 @@ step that printed its secret, and with one that printed it across two writes.
    a masker. The unit test missed it because a short stream never reaches the release path at all:
    everything sits in the buffer until `flush()`, which redacts it. The fix is to redact the whole
    buffer before releasing any of it, and the test now feeds enough output to force releases.
+
+## Actions
+
+`microvmActions.ts`. A `uses:` step is a program the runner fetches, reads a manifest for, maps inputs
+into and executes, and none of that machinery exists in a guest that is a shell and a payload disk.
+The choice was to build it there or to finish the work on the host.
+
+**The host finishes it.** It resolves the reference, applies the policy, fetches what needs fetching,
+reads the manifest, and expands a composite action into the commands it is made of. The guest runs
+commands, as before. That is where the work belongs rather than a shortcut around it: resolving an
+action needs the network, the cache and the policy, all of which are the host's - a guest that could
+fetch its own actions would be a guest with a route out and a say in what it runs.
+
+Verified on real KVM: a composite action with an input, its `GITHUB_ACTION_PATH`, and a **nested**
+action whose steps ran in order between its parent's.
+
+**JavaScript and Docker actions are refused by name.** A JavaScript action needs a Node in an image an
+operator built, so assuming one would fail at the first step with a message about `node` rather than
+about the action. A Docker action needs a container runtime inside a guest whose whole point is being
+the isolation boundary. Naming them sends somebody to the right page; skipping them would report
+success for work nobody did.
+
+**A local action is addressed in place**, since it arrived with the checkout; only a fetched one is
+carried onto the payload disk. The guest path for a local action comes from the *reference*, not from
+the host directory - joining an absolute host path to the guest workspace produced a path with the
+runner's home in the middle of it, which is how that was found.
+
+### Secrets survive the expansion
+
+The one place this could have undone the secrets design. `with:` values are filled in on the host, so
+a workflow writing `${{ secrets.TOKEN }}` in one would have put a credential into a step script - and
+step scripts live on the payload disk, which is the at-rest storage that design refused.
+
+So an input holding a secret is not filled in. It becomes a shell *expression* the guest evaluates:
+`export INPUT_KEY="$API_TOKEN"`, with the value arriving over the console. Verified by reading the
+step script from inside the guest - it contains the reference, the payload disk does not contain the
+value, and the step still receives all thirty-three characters of it.
+
+That needed two forms rather than one. Inside a command, `"$TOKEN"` is already a word. In an
+assignment it is not: `export K=Bearer "$T"` is two words and the second is lost, so a value mixing
+text and secrets becomes one double-quoted string with the references inside it and everything else
+escaped for that context.
 
 ## What is still not verified
 
