@@ -11,7 +11,16 @@
 const ownerHandle = String(owner)
 const repositoryName = String(repository)
 // 'code', 'pulls', 'issues', 'runs', 'tests' or 'insight'.
-const current = String(active ?? 'code')
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the component rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const current = typeof active === 'undefined' ? 'code' : String(active ?? 'code')
 const base = `/${ownerHandle}/${repositoryName}`
 </script>
 

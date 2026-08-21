@@ -20,7 +20,16 @@
  * already in it. Built by the page, so this component does not know how a pull
  * request is addressed.
  */
-const fetchUrl = String(url ?? '')
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the component rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const fetchUrl = typeof url === 'undefined' ? '' : String(url ?? '')
 </script>
 
 <details class="panel side-panel suggest-box" data-suggested-reviewers data-url="{{ fetchUrl }}">

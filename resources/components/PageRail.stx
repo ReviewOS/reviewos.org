@@ -26,9 +26,18 @@ const summaryLines = typeof summaryJson === 'undefined'
 const relatedItems = typeof relatedJson === 'undefined'
   ? []
   : typeof relatedJson === 'string' ? JSON.parse(relatedJson || '[]') : (relatedJson ?? [])
-const summaryHeading = String(summaryLabel ?? 'In short')
-const relatedHeading = String(relatedLabel ?? 'Related')
-const prefix = String(relatedPrefix ?? '/features')
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the component rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const summaryHeading = typeof summaryLabel === 'undefined' ? 'In short' : String(summaryLabel ?? 'In short')
+const relatedHeading = typeof relatedLabel === 'undefined' ? 'Related' : String(relatedLabel ?? 'Related')
+const prefix = typeof relatedPrefix === 'undefined' ? '/features' : String(relatedPrefix ?? '/features')
 </script>
 
 <aside class="sticky top-[92px] flex flex-col gap-[14px]">

@@ -21,11 +21,20 @@
 const on = (value) => String(value ?? '') === '1'
 
 const isNew = on(fresh)
-const rulePattern = String(pattern ?? '')
-const approvals = String(requiredApprovals ?? '0')
-const checks = String(requiredChecks ?? '')
-const users = String(restrictUsers ?? '')
-const teams = String(restrictTeams ?? '')
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the component rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const rulePattern = typeof pattern === 'undefined' ? '' : String(pattern ?? '')
+const approvals = typeof requiredApprovals === 'undefined' ? '0' : String(requiredApprovals ?? '0')
+const checks = typeof requiredChecks === 'undefined' ? '' : String(requiredChecks ?? '')
+const users = typeof restrictUsers === 'undefined' ? '' : String(restrictUsers ?? '')
+const teams = typeof restrictTeams === 'undefined' ? '' : String(restrictTeams ?? '')
 </script>
 
 <form class="rule-form grid" method="post" action="/api/repos/protected-branches">

@@ -11,9 +11,18 @@ const blockerList = typeof blockersJson === 'undefined'
 const conflictList = typeof conflictsJson === 'undefined'
   ? []
   : typeof conflictsJson === 'string' ? JSON.parse(conflictsJson || '[]') : (conflictsJson ?? [])
-const armedStrategy = String(autoStrategy ?? '')
-const armedByHandle = String(autoArmedBy ?? '')
-const canMerge = String(mayMerge ?? '') === '1'
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the merge box rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const armedStrategy = typeof autoStrategy === 'undefined' ? '' : String(autoStrategy ?? '')
+const armedByHandle = typeof autoArmedBy === 'undefined' ? '' : String(autoArmedBy ?? '')
+const canMerge = typeof mayMerge !== 'undefined' && String(mayMerge ?? '') === '1'
 
 /*
  * Whether there is anybody to offer the button to, and where to send them.
@@ -23,8 +32,9 @@ const canMerge = String(mayMerge ?? '') === '1'
  * only to decide whether auto-merge could be disarmed. The merge form itself
  * was rendered to everyone.
  */
-const signedIn = String(viewerSignedIn ?? '') === '1'
-const signInHref = `/login?next=${encodeURIComponent(String(returnTo ?? '/'))}`
+const signedIn = typeof viewerSignedIn !== 'undefined' && String(viewerSignedIn ?? '') === '1'
+const returnPath = typeof returnTo === 'undefined' ? '/' : String(returnTo ?? '/')
+const signInHref = `/login?next=${encodeURIComponent(returnPath)}`
 
 /*
  * Settled, or still being decided.
@@ -35,8 +45,9 @@ const signInHref = `/login?next=${encodeURIComponent(String(returnTo ?? '/'))}`
  * yet." beside a disabled merge button, on a page whose header already said
  * Merged. Three statements, one of them contradicting the other two.
  */
-const settled = String(pullState ?? '') === 'merged' || String(pullState ?? '') === 'closed'
-const merged = String(pullState ?? '') === 'merged'
+const state = typeof pullState === 'undefined' ? '' : String(pullState ?? '')
+const settled = state === 'merged' || state === 'closed'
+const merged = state === 'merged'
 </script>
 
 {{--

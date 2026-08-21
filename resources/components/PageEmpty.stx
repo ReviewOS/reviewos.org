@@ -27,7 +27,7 @@
 const links = typeof linksJson === 'undefined'
   ? []
   : typeof linksJson === 'string' ? JSON.parse(linksJson || '[]') : (linksJson ?? [])
-const detailText = String(detail ?? '')
+const detailText = typeof detail === 'undefined' ? '' : String(detail ?? '')
 </script>
 
 <div class="panel p-[32px] text-center">

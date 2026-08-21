@@ -28,6 +28,15 @@ import { relativeTime } from '../../../functions/browse'
 // `resources/components/RepoBrowser.stx`.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
+/*
+ * Offered only to a reader `access` already says may see the repository - see
+ * the panel below. Built here rather than in the attribute: an expression with
+ * a `${}` in it does not survive one.
+ */
+const repositoryLinks = JSON.stringify([
+  { href: `/${params.owner}/${params.repository}`, label: `${params.owner}/${params.repository}` },
+])
+
 const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
@@ -131,8 +140,16 @@ const name = String(params.repository)
 @section('content')
   <div class="page">
     @if (!access || !mayManage)
+      {{-- One answer for two questions - no such repository, and no permission
+          on one that exists - because telling them apart is how somebody maps
+          the private repositories they cannot see.
+
+          The way back is offered only when `access` says the repository is
+          already visible to this reader. Offering it in the other case would
+          answer the question the single panel exists to refuse. --}}
       <PageEmpty
         title="Not found"
+        linksJson="{{ access ? repositoryLinks : '[]' }}"
       />
     @else
       {{-- The repository this belongs to, and the way back to it. This page

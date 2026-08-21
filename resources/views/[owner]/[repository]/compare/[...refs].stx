@@ -27,6 +27,15 @@ const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.co
 // `resources/components/RepoBrowser.stx`.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
+/*
+ * Where somebody who followed a stale link was going anyway. Built here rather
+ * than in the attribute: an expression with a `${}` in it does not survive one.
+ */
+const repositoryLinks = JSON.stringify([
+  { href: `/${owner}/${repositoryName}`, label: `${owner}/${repositoryName}` },
+  { href: `/${owner}/${repositoryName}/branches`, label: 'Branches' },
+])
+
 const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
@@ -103,6 +112,9 @@ const title = repoRow && request
 @section('content')
   <div class="page">
     @if (!repoRow)
+      {{-- No links here on purpose: naming the owner would be a link to a
+          page that may not exist either, and the point of this panel is that
+          we are not saying what does. --}}
       <PageEmpty
         title="No such repository"
       />
@@ -112,6 +124,7 @@ const title = repoRow && request
       <PageEmpty
         title="Nothing to compare"
         detail="Name two refs as base...head, or one branch to compare against {{ repoRow.default_branch }}."
+        linksJson="{{ repositoryLinks }}"
       />
     @endif
 
@@ -119,6 +132,7 @@ const title = repoRow && request
       <PageEmpty
         title="These refs cannot be compared"
         detail="{{ comparison?.error ?? 'One of them does not exist.' }}"
+        linksJson="{{ repositoryLinks }}"
       />
     @endif
 

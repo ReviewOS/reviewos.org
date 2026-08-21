@@ -403,4 +403,23 @@ describe('a pull request number nobody has', () => {
 
     expect(html).toContain(`/${created.handle}/${created.name}/pulls`)
   })
+
+  /*
+   * And from the other tab. This is the same pull request seen through the
+   * review screen, which had no status handling at all - so the conversation
+   * tab answered 404 for a number nobody has and the files tab answered 200
+   * for the same number.
+   */
+  test('and the review screen agrees with the conversation tab', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/999999/files`, {
+      headers: { Accept: 'text/html' },
+    })
+    const html = await answer.text()
+
+    expect(answer.status).toBe(404)
+    expect(html).toContain(`/${created.handle}/${created.name}/pulls`)
+  })
 })

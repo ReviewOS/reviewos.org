@@ -43,6 +43,11 @@ const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
 
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
 const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
@@ -54,6 +59,20 @@ const pullRequest: any = repoRow
       .where('number', '=', number)
       .executeTakeFirst()
   : undefined
+
+// The conversation tab answers 404 for a number nobody has; this is the same
+// pull request seen from a different tab, and it was answering 200.
+if (!pullRequest)
+  setStatus(404)
+
+/*
+ * Where somebody who followed a stale link was going anyway. Built here rather
+ * than in the attribute: an expression with a `${}` in it does not survive one.
+ */
+const notFoundLinks = JSON.stringify([
+  { href: `/${owner}/${repositoryName}/pulls`, label: 'All pull requests' },
+  { href: `/${owner}/${repositoryName}`, label: `${owner}/${repositoryName}` },
+])
 
 /*
  * The verdict surface. The roadmap's keyboard-first item names this as its
@@ -177,6 +196,7 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
       <PageEmpty
         title="No such pull request"
         detail="{{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}."
+        linksJson="{{ notFoundLinks }}"
       />
     @else
       <header class="files-head">

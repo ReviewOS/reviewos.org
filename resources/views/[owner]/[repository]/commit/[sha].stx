@@ -63,6 +63,15 @@ if (repoRow && !commit)
   setStatus(404)
 
 const base = `/${ownerHandle}/${repositoryName}`
+
+/*
+ * Where somebody who followed a stale link was going anyway. Built here rather
+ * than in the attribute: an expression with a `${}` in it does not survive one.
+ */
+const notFoundLinks = JSON.stringify([
+  { href: `${base}/commits`, label: 'All commits' },
+  { href: base, label: `${ownerHandle}/${repositoryName}` },
+])
 const files = commit?.files ?? []
 
 // One commit, one gpg process. Affordable here and not in a list of thirty,
@@ -90,6 +99,7 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
       <PageEmpty
         title="No such commit"
         detail="Nothing in this repository is called {{ revision }}."
+        linksJson="{{ notFoundLinks }}"
       />
     @else
       {{-- `RepoHeader`, like every other repository screen. This one drew a

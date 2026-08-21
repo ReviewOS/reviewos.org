@@ -19,7 +19,8 @@ const ownerHandle = String(owner)
 const repositoryName = String(repository)
 // 'pulls' or 'issues'. The component reads one table or the other; everything
 // else on the page is the same.
-const kind = String(sort ?? 'pulls') === 'issues' ? 'issues' : 'pulls'
+// Read through `typeof` before it is named - see `PageEmpty.stx`.
+const kind = (typeof sort === 'undefined' ? 'pulls' : String(sort ?? 'pulls')) === 'issues' ? 'issues' : 'pulls'
 
 // The filter and page arrive as props rather than being read here: a component
 // receives only what it is passed, and the query string belongs to the request

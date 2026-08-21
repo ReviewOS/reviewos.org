@@ -11,7 +11,16 @@
  * and a nav that highlights the wrong item is worse than one that highlights
  * nothing.
  */
-const active = String(current ?? '')
+/*
+ * The optional props, read through `typeof` before they are named.
+ *
+ * A component asked for without one of its optional props does not receive an
+ * `undefined` - under `route.serve()` it receives nothing at all, and naming an
+ * identifier that was never declared throws where it is named. stx catches that
+ * and renders the whole component as nothing, so one missing attribute empties
+ * the component rather than defaulting one value. See `PageEmpty.stx`.
+ */
+const active = typeof current === 'undefined' ? '' : String(current ?? '')
 
 const pages = [
   { key: 'profile', href: '/settings/profile', label: 'Profile' },

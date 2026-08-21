@@ -29,11 +29,16 @@ function listFrom(value) {
   }
 }
 
-const topics = listFrom(typeof topicsJson === 'undefined' ? about?.topics : topicsJson)
-const links = listFrom(typeof linksJson === 'undefined' ? about?.links : linksJson)
-const counts = listFrom(typeof countsJson === 'undefined' ? about?.counts : countsJson)
-const contributors = listFrom(typeof contributorsJson === 'undefined' ? about?.contributors : contributorsJson)
-const languages = listFrom(typeof languagesJson === 'undefined' ? about?.languages : languagesJson)
+// Named through `typeof` first, like everything else optional here: `about?.`
+// is too late, because an identifier that was never declared throws before the
+// chain is reached. See `PageEmpty.stx`.
+const facts = typeof about === 'undefined' ? {} : (about ?? {})
+
+const topics = listFrom(typeof topicsJson === 'undefined' ? facts.topics : topicsJson)
+const links = listFrom(typeof linksJson === 'undefined' ? facts.links : linksJson)
+const counts = listFrom(typeof countsJson === 'undefined' ? facts.counts : countsJson)
+const contributors = listFrom(typeof contributorsJson === 'undefined' ? facts.contributors : contributorsJson)
+const languages = listFrom(typeof languagesJson === 'undefined' ? facts.languages : languagesJson)
 </script>
 
 {{--

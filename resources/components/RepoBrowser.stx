@@ -74,7 +74,13 @@ const diskPath = String(repoAccess?.diskPath ?? '')
 const branches = repoRow ? await branchNames(diskPath) : []
 const allTags = repoRow ? await tagNames(diskPath) : []
 
-const addressed = splitRefAndPath(joinRefAndPath(String(refName ?? ''), String(path ?? '')), [...branches, ...allTags])
+// Read through `typeof` before they are named: every caller passes both today,
+// and an identifier that was never declared throws where it is named rather
+// than arriving undefined, which would render this whole screen as nothing.
+// See `PageEmpty.stx`.
+const refProp = typeof refName === 'undefined' ? '' : String(refName ?? '')
+const pathProp = typeof path === 'undefined' ? '' : String(path ?? '')
+const addressed = splitRefAndPath(joinRefAndPath(refProp, pathProp), [...branches, ...allTags])
 const requestedPath = addressed.path
 const ref = String(addressed.ref || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
 
