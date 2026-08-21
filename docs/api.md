@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-202 of the 214 operations below declare their inputs on the action, and this page
+203 of the 215 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -189,6 +189,21 @@ _Inputs are not declared on `Actions/Auth/LogoutAction`, so they are not listed 
 | `code` | query | optional | string |
 | `state` | query | optional | string |
 | `error` | query | optional | string |
+
+| Status | Means |
+|---|---|
+| `200` | Successful response |
+| `422` | Validation failed |
+| `500` | Server error |
+
+### `POST /api/auth/{provider}/callback`
+
+| Name | In | Required | Type |
+|---|---|---|---|
+| `provider` | path | required | string |
+| `code` | body | optional | string |
+| `state` | body | optional | string |
+| `error` | body | optional | string |
 
 | Status | Means |
 |---|---|

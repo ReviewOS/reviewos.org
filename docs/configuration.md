@@ -265,6 +265,42 @@ Default: `""`.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Apple
+
+### `APPLE_CLIENT_ID`
+
+Default: empty.
+
+Sign in with Apple. `APPLE_CLIENT_ID` is the Services ID, not the primary App
+ID. Store the downloaded .p8 contents with literal \n separators when setting
+`APPLE_PRIVATE_KEY` through `buddy env:set`.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `APPLE_TEAM_ID`
+
+Default: empty.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `APPLE_KEY_ID`
+
+Default: empty.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `APPLE_PRIVATE_KEY`
+
+Default: empty.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `APPLE_REDIRECT_URL`
+
+Default: empty.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## AWS
 
 ### `AWS_ACCOUNT_ID`
