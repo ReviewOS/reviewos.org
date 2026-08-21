@@ -238,6 +238,10 @@ stty -echo < /dev/console 2>/dev/null || stty -echo 2>/dev/null || true
 
 NONCE=$(cat /work/nonce 2>/dev/null || echo missing)
 
+# How much one step may print. Not a secret, so it travels on the payload disk
+# with the steps rather than over the console with the credentials.
+MAXOUT=$(cat /work/maxout 2>/dev/null || echo 1048576)
+
 # Read once, then remove. After this line there is nowhere for a step to learn
 # the token from: not the disk, not this script's arguments, not /proc/cmdline.
 rm -f /work/nonce
@@ -308,6 +312,21 @@ emit() {
   # Declare the length, then the bytes. The host reads exactly that many and
   # never scans them, so output containing a header is output.
   size=$(wc -c < "$1")
+
+  # Bounded, because the way out is a serial console.
+  #
+  # It is slow in a way a pipe is not: a step that printed fifty megabytes did
+  # not produce a large log, it produced a machine still transmitting when the
+  # wall clock killed it - and a job that failed with a timeout saying nothing
+  # about the step being chatty. Truncating turns that into a log with a line
+  # naming what is missing, which is the trade the host runner's ceiling makes.
+  if [ "$size" -gt "$MAXOUT" ] 2>/dev/null; then
+    head -c "$MAXOUT" "$1" > /tmp/.rvos-trunc
+    printf '\n[%s bytes dropped: this step printed more than this runner allows]\n' "$((size - MAXOUT))" >> /tmp/.rvos-trunc
+    set -- /tmp/.rvos-trunc
+    size=$(wc -c < "$1")
+  fi
+
   say "DATA $size"
   cat "$1"
   printf '\n'

@@ -359,6 +359,40 @@ assignment it is not: `export K=Bearer "$T"` is two words and the second is lost
 text and secrets becomes one double-quoted string with the references inside it and everything else
 escaped for that context.
 
+## The ceilings, exercised
+
+Accepting `vcpu_count` and `mem_size_mib` is not the same as a guest being unable to exceed them, so
+each was attacked on real KVM with the host watched throughout.
+
+| Attempt | What happened |
+|---|---|
+| Read the machine's shape | `nproc` was 2 and `MemTotal` about 485 MB, against 2 vcpus and 512 MiB configured |
+| Write 2 GB into a tmpfs, in a 512 MiB machine | The guest died and the job failed; the host's free memory did not move |
+| Fork twenty thousand times | The step failed; the host went from 141 processes to 142 |
+| Write 4 GB into a 2 GiB overlay | Refused at about 1.9 GB with no space left; the host's disk was untouched |
+| Print 50 MB | See below - this one found a defect |
+
+The first four are the roadmap's sentence being true: a guest cannot ask for a seventeenth core, and
+one that forks until it dies takes only itself. None of that is `ulimit` asking nicely.
+
+### Output was not bounded, and a serial console makes that fatal
+
+A step printing 50 MB did not produce a large log. It produced a machine still transmitting when the
+wall clock killed it - and a job that failed with a timeout saying nothing about the step being
+chatty. On a pipe this is a question of log size; on a serial console it is a question of whether the
+job finishes at all.
+
+So the agent truncates a step's output to a ceiling and prints a line naming what it dropped, which is
+the same trade the host runner's own log ceiling makes. The same test now succeeds, with about a
+megabyte of console traffic instead of fifty. The ceiling is `REVIEWOS_MICROVM_MAX_STEP_OUTPUT`,
+a megabyte by default - more than any step's useful output and far less than a console can carry in
+the time a job has. It travels on the payload disk with the steps rather than over the console with
+the credentials, because it is a number an operator set rather than a secret.
+
+A second thing worth knowing: `diskMib` has a floor of 1024, so a smaller request is silently raised.
+The payload disk carries the repository as well as whatever the job writes, and a 64 MiB overlay is a
+machine that cannot check out.
+
 ## What is still not verified
 
 - ~~The source path has not booted.~~ **It has.** A machine booted with a real repository on its
@@ -369,7 +403,6 @@ escaped for that context.
 - ~~Secrets are not designed into this.~~ **They are.** See below.
 - **No image build pipeline.** What an image must contain - an agent at `/sbin/reviewos-agent`, a
   `/work` mount point - is written here and enforced nowhere.
-- **Ceilings were accepted, not exercised.** No test confirms a guest which forks endlessly dies
-  inside its own memory rather than the host's.
+- ~~Ceilings were accepted, not exercised.~~ **They have been.** See below.
 - **aarch64 only**, and **nothing about the hypervisor's own surface** - a microVM moves the escape
   from a kernel bug to a hypervisor bug rather than removing it.

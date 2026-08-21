@@ -40,6 +40,7 @@ import { join } from 'node:path'
 import type { MachineSpec } from './microvm'
 import { firecrackerConfig } from './microvm'
 import { nftRuleset } from './networkPolicy'
+import { maxOutputBytes } from '../../../config/ci-execution'
 import type { StepReport } from './microvmProtocol'
 import { bootNonce, readConsole } from './microvmProtocol'
 import { Masker, secretsFrame } from './microvmSecrets'
@@ -364,6 +365,7 @@ export async function makeOverlay(
   const files: string[] = [
     `mkdir -p "$M/steps" "$M/workspace"`,
     `printf '%s' ${shellQuote(nonce)} > "$M/nonce"`,
+    `printf '%s' ${shellQuote(String(maxOutputBytes()))} > "$M/maxout"`,
   ]
 
   /*

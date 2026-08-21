@@ -200,3 +200,34 @@ describe('the read-only root the agent boots on', () => {
     expect(guestAgent()).toContain('mount -t tmpfs tmpfs /tmp')
   })
 })
+
+describe('what one step may print', () => {
+  test('is bounded, because the way out is a serial console', () => {
+    /*
+     * A pipe would make this a question of log size; a serial console makes it a
+     * question of whether the job finishes at all. A step that printed fifty
+     * megabytes did not produce a large log - it produced a machine still
+     * transmitting when the wall clock killed it, and a job that failed with a
+     * timeout saying nothing about the step being chatty.
+     */
+    const agent = guestAgent()
+
+    expect(agent).toContain('MAXOUT=')
+    expect(agent).toContain('head -c "$MAXOUT"')
+  })
+
+  test('and says what it dropped rather than trailing off', () => {
+    // A truncated log that does not admit it is a log somebody reads to the end
+    // and then hunts for a failure that was never printed.
+    expect(guestAgent()).toContain('bytes dropped')
+  })
+
+  test('and the ceiling travels on the disk, not the console', () => {
+    /*
+     * It is not a secret - it is a number an operator set - so it goes with the
+     * steps rather than on the channel reserved for credentials, which the agent
+     * reads once and closes.
+     */
+    expect(guestAgent()).toContain('/work/maxout')
+  })
+})

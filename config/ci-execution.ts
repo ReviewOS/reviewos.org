@@ -38,6 +38,8 @@ export interface CiExecutionConfig {
   vcpus: number
   memoryMib: number
   diskMib: number
+  /** How much one step may print before it is truncated. */
+  maxOutputBytes: number
 }
 
 /**
@@ -117,6 +119,21 @@ export function machineMemoryMib(env: Record<string, string | undefined> = proce
   return whole(env.REVIEWOS_MICROVM_MEMORY_MIB, 2048)
 }
 
+/**
+ * How much one step may print.
+ *
+ * The way out of a machine is a serial console, which is slow in a way a pipe is
+ * not - a step that printed fifty megabytes did not produce a large log, it
+ * produced a machine still transmitting when the wall clock killed it, and a job
+ * that failed with a timeout saying nothing about the step being chatty.
+ *
+ * A megabyte by default, which is more than any step's useful output and far
+ * less than a console can carry in the time a job has.
+ */
+export function maxOutputBytes(env: Record<string, string | undefined> = process.env): number {
+  return whole(env.REVIEWOS_MICROVM_MAX_STEP_OUTPUT, 1_048_576)
+}
+
 export function machineDiskMib(env: Record<string, string | undefined> = process.env): number {
   return whole(env.REVIEWOS_MICROVM_DISK_MIB, 2048)
 }
@@ -174,4 +191,5 @@ export default {
   vcpus: machineVcpus(),
   memoryMib: machineMemoryMib(),
   diskMib: machineDiskMib(),
+  maxOutputBytes: maxOutputBytes(),
 } satisfies CiExecutionConfig

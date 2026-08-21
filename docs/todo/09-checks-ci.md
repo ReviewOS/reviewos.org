@@ -1525,7 +1525,7 @@ gate, in order.
 
       The mode it protects now runs real jobs - source, actions and secrets all reach the guest - so
       this is a policy in front of something rather than in front of nothing.
-- [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
+- [x] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 
       **Output and wall time are done; CPU, file size and processes are available; memory and disk
       are not.** `app/Actions/Runner/limits.ts` puts a bare `ulimit` in front of a step's command -
@@ -1540,7 +1540,20 @@ gate, in order.
       line says *enforced outside the job*, and `ulimit` is enforced by the kernel against a process
       the job's own user owns.
 
-      **The machine spec is what makes the line true, once it boots.** A VM's vcpus and memory are
+      **The machine spec is what makes the line true, and it has now booted.** Each ceiling was
+      attacked on real KVM with the host watched: a guest reads two vcpus and 512 MiB as its
+      hardware; 2 GB written into a tmpfs killed the guest and left the host's free memory unmoved;
+      twenty thousand forks failed the step and took the host from 141 processes to 142; and 4 GB
+      written into a 2 GiB overlay was refused at about 1.9 GB with the host's disk untouched.
+
+      **Output was the one that was not enforced, and a serial console makes that fatal rather than
+      untidy.** A step printing 50 MB produced a machine still transmitting when the wall clock
+      killed it - a job failing with a timeout that said nothing about the step being chatty. The
+      agent now truncates to a ceiling and names what it dropped, which is the trade the host
+      runner's own log ceiling already makes; the same test succeeds with a megabyte of console
+      traffic instead of fifty.
+
+      The original note below stands as the reason this needed a machine at all: A VM's vcpus and memory are
       not a request: the guest cannot ask for a seventeenth core, and one that forks until it dies
       takes only itself. Disk is the overlay's size and wall time is the supervisor's, which holds
       because killing a VM is not a signal a process can catch. Every ceiling in `microvm.ts` is

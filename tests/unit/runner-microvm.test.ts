@@ -170,3 +170,36 @@ describe('what the run records', () => {
     expect(spec().imageDigest).toBe('sha256:abc')
   })
 })
+
+describe('the ceilings a guest cannot raise', () => {
+  test('are the machine\'s, and a guest reads them as its hardware', () => {
+    /*
+     * Verified on real KVM rather than asserted: a machine given two vcpus and
+     * 512 MiB reported `nproc=2` and a `MemTotal` of about 485 MB. A guest cannot
+     * ask for a seventeenth core, which is what "enforced outside the job" means
+     * and what `ulimit` never was.
+     */
+    const built = spec({ vcpus: 2, memoryMib: 512 })
+
+    expect((firecrackerConfig(built) as any)['machine-config']).toEqual({
+      vcpu_count: 2,
+      mem_size_mib: 512,
+      smt: false,
+    })
+  })
+
+  test('and the writable layer is a fixed size, so filling it is ENOSPC rather than the host\'s disk', () => {
+    // A 2048 MiB overlay refused a 4 GiB write at about 1.9 GB, and the host's
+    // free space did not move.
+    expect(spec({ diskMib: 2048 }).diskMib).toBe(2048)
+  })
+
+  test('and a disk too small to hold a checkout is raised rather than honoured', () => {
+    /*
+     * The floor exists because the payload disk carries the repository as well as
+     * whatever the job writes, and a 64 MiB overlay is a machine that cannot
+     * check out. Worth stating because a request for less is silently raised.
+     */
+    expect(spec({ diskMib: 64 }).diskMib).toBe(1024)
+  })
+})
