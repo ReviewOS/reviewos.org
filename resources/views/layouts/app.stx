@@ -328,6 +328,25 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       .btn-primary:hover { filter: brightness(1.06); background: var(--accent); }
 
+      /* The other half of the pair, for the button that takes something away.
+        Seven of these already existed - Remove, Revoke, Rotate, Cancel, across
+        the keys, tokens and people screens - all of them written as
+        `btn btn-quiet` against a rule nobody had written, so each one rendered
+        as an ordinary button standing level with the affirmative one beside
+        it. Quiet until you reach for it, and then it admits what it does. */
+      .btn-quiet {
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      .btn-quiet:hover {
+        border-color: var(--bad);
+        background: var(--bad-bg);
+        color: var(--bad);
+      }
+
       .btn:disabled, .btn[aria-disabled='true'] {
         opacity: 0.55;
         cursor: not-allowed;
