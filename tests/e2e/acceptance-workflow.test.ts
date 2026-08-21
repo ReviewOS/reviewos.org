@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 const created = { ownerId: 0, repositoryId: 0, runnerId: 0, handle: '', name: '', diskPath: '', temp: '', token: '', headSha: '' }
 
@@ -280,8 +280,14 @@ afterAll(async () => {
   }
   catch { /* the files still go, below */ }
 
-  if (created.diskPath)
+  if (created.diskPath) {
     removeRepositoryDirectory(created.diskPath)
+    // And the owner directory the repository sat in, which is this test's too:
+    // the handle is generated per run, so leaving it behind puts one empty
+    // `storage/repos/bar<hex>` on disk for every run this suite has ever had.
+    // Removed only when empty, so a suite running beside this one keeps its own.
+    removeRepositoryOwnerDirectory(created.diskPath)
+  }
 
   if (created.temp)
     rmSync(created.temp, { recursive: true, force: true })
@@ -331,16 +337,37 @@ describe('a real repository\'s workflow directory, copied across', () => {
 
     expect(run).toBeTruthy()
 
-    const jobs = await db
-      .selectFrom('workflow_jobs')
-      .select(['job_id', 'needs', 'state'])
-      .where('workflow_run_id', '=', Number(run.id))
-      .orderBy('position')
-      .execute()
+    /*
+     * Polled too, and for a reason the run row does not make obvious: a run
+     * exists before its graph does.
+     *
+     * `dispatchPush` inserts the run and *then* builds the jobs, one insert per
+     * job with its steps copied after each - so between the two there is a
+     * window where the run is on the table with one job under it, or none. This
+     * test used to read the jobs the moment a run appeared and land in that
+     * window, which is why it failed on pushes that touched only CSS: it saw
+     * `['lint']` where the file describes four jobs, in ten milliseconds rather
+     * than at the deadline, and read as leftover state from the run before.
+     *
+     * So wait for the graph the file describes rather than for the row that
+     * announces it. A wait that never holds still fails on the assertion below,
+     * with the jobs it did find in the diff.
+     */
+    const expected = ['lint', 'publish-commit', 'test', 'typecheck']
+
+    const jobs = await waitFor(
+      () => db
+        .selectFrom('workflow_jobs')
+        .select(['job_id', 'needs', 'state'])
+        .where('workflow_run_id', '=', Number(run.id))
+        .orderBy('position')
+        .execute(),
+      (rows: any[]) => rows.length >= expected.length,
+    )
 
     // The file's own graph: three jobs in parallel and one that waits for all
     // three. Nothing here edited it to make that true.
-    expect(jobs.map((one: any) => String(one.job_id)).sort()).toEqual(['lint', 'publish-commit', 'test', 'typecheck'])
+    expect(jobs.map((one: any) => String(one.job_id)).sort()).toEqual(expected)
 
     const publish = jobs.find((one: any) => String(one.job_id) === 'publish-commit')
 
