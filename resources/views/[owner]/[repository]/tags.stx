@@ -105,6 +105,12 @@ const base = `/${ownerHandle}/${repositoryName}`
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
+      @if (tags.length > 0)
+        <p class="muted repo-page-caption">
+          {{ tags.length }} {{ tags.length === 1 ? 'tag' : 'tags' }}, newest first.
+        </p>
+      @endif
+
       @if (tags.length === 0)
         <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
           <p class="muted">No tags yet. Push one with <span class="mono">git push --tags</span>.</p>

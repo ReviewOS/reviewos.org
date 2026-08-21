@@ -112,7 +112,11 @@ const browseHref = `${base}/tree/${joinRefAndPath(ref, scopedPath)}`
           in a repository with no way back to the rest of it. --}}
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
-      <div class="commits-caption">
+      {{-- The caption row, in utilities rather than a class of its own: this
+          is the same line `branches`, `tags` and `contributors` carry, with an
+          action on the end. A `.commits-caption` that means "flex, apart" is a
+          name for nothing - see `PageRail.stx`. --}}
+      <div class="flex items-center justify-between gap-3 mt-[14px] text-[13px]">
         @if (scopedPath)
           <p class="muted">Commits touching <span class="mono">{{ scopedPath }}</span> on <span class="mono">{{ ref }}</span></p>
         @else
@@ -134,15 +138,6 @@ const browseHref = `${base}/tree/${joinRefAndPath(ref, scopedPath)}`
 @endsection
 
 <style>
-  .commits-caption {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 14px;
-    font-size: 13px;
-  }
-
   .commits-browse {
     flex: none;
     display: inline-flex;

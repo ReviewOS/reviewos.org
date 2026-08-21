@@ -141,6 +141,12 @@ function fileSize(bytes: number): string {
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
+      @if (releases.length > 0)
+        <p class="muted repo-page-caption">
+          {{ releases.length }} {{ releases.length === 1 ? 'release' : 'releases' }}, newest first.
+        </p>
+      @endif
+
       @if (releases.length === 0)
         <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
           <p class="muted">No releases yet.</p>

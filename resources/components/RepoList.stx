@@ -57,6 +57,24 @@ const repoRow: any = repoAccess?.repository ?? null
 // `app/Actions/Repo/standing.ts`.
 const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
 
+/*
+ * Whether the reader can actually triage.
+ *
+ * The bulk bar was rendered to everybody, so a signed-out visitor was offered
+ * Close, Reopen and a label box on a repository they cannot write to - and the
+ * only way to learn otherwise was to tick a box, press Close, and be refused
+ * by the endpoint. The checkboxes beside each row go with it: a selection that
+ * cannot be acted on is a column of furniture.
+ *
+ * `can` comes from `repositoryForView`, which is the same permission the bulk
+ * endpoint asks `authorizeRepository` for - see `app/Actions/Issue/bulk.ts`,
+ * where close and reopen want `issue:close` and the label buttons want
+ * `issue:label`.
+ */
+const mayClose = Boolean(repoAccess?.can?.('issue:close'))
+const mayLabel = Boolean(repoAccess?.can?.('issue:label'))
+const mayTriage = mayClose || mayLabel
+
 
 const table = kind === 'issues' ? 'issues' : 'pull_requests'
 const repositoryId = repoRow ? Number(repoRow.id) : 0
@@ -274,26 +292,30 @@ const notFound = !repoRow
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
 
-        @if (kind === 'issues')
+        @if (kind === 'issues' && mayTriage)
           <div class="bulk-bar panel">
             <span class="bulk-hint muted">With the selected issues:</span>
-            <button class="bulk-btn" type="submit" name="operation" value="close">Close</button>
-            <button class="bulk-btn" type="submit" name="operation" value="reopen">Reopen</button>
-            <label class="visually-hidden" for="bulk-label">Label</label>
-            <input class="bulk-input" id="bulk-label" name="label" placeholder="Label name" list="bulk-labels">
-            <datalist id="bulk-labels">
-              @foreach (labelNames as name)
-                <option value="{{ name }}"></option>
-              @endforeach
-            </datalist>
-            <button class="bulk-btn" type="submit" name="operation" value="label">Add</button>
-            <button class="bulk-btn" type="submit" name="operation" value="unlabel">Remove</button>
+            @if (mayClose)
+              <button class="bulk-btn" type="submit" name="operation" value="close">Close</button>
+              <button class="bulk-btn" type="submit" name="operation" value="reopen">Reopen</button>
+            @endif
+            @if (mayLabel)
+              <label class="visually-hidden" for="bulk-label">Label</label>
+              <input class="bulk-input" id="bulk-label" name="label" placeholder="Label name" list="bulk-labels">
+              <datalist id="bulk-labels">
+                @foreach (labelNames as name)
+                  <option value="{{ name }}"></option>
+                @endforeach
+              </datalist>
+              <button class="bulk-btn" type="submit" name="operation" value="label">Add</button>
+              <button class="bulk-btn" type="submit" name="operation" value="unlabel">Remove</button>
+            @endif
           </div>
         @endif
 
         <ul class="list-rows panel" data-list>
           @foreach (listRows as row)
-            <IssueListItem :row="row" :selectable="kind === 'issues'" />
+            <IssueListItem :row="row" :selectable="kind === 'issues' && mayTriage" />
           @endforeach
         </ul>
         </form>
@@ -304,8 +326,14 @@ const notFound = !repoRow
         <p class="list-keys muted" data-keys hidden>
           <kbd>j</kbd> <kbd>k</kbd> move &middot;
           <kbd>Enter</kbd> open &middot;
-          @if (kind === 'issues')
+          {{-- `x` is only listed to somebody who has something to select: the
+              checkboxes go with the bulk bar, so advertising the key to a
+              reader who cannot triage is teaching a shortcut that does
+              nothing. --}}
+          @if (kind === 'issues' && mayTriage)
             <kbd>x</kbd> select &middot;
+          @endif
+          @if (kind === 'issues')
             <kbd>c</kbd> new issue &middot;
           @endif
           <kbd>Esc</kbd> leave

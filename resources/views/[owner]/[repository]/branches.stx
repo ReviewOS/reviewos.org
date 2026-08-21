@@ -104,6 +104,18 @@ const base = `/${ownerHandle}/${repositoryName}`
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
+      {{-- What this page is, in the words the rest of the repository uses.
+          Branches, tags and releases each rendered a bare list under a
+          heading that says only the repository's name: the tab bar reads
+          "Code" on all three, so nothing on the page said which one you had
+          opened. `contributors`, `tests` and `workflows` have always said. --}}
+      @if (branches.length > 0)
+        <p class="muted repo-page-caption">
+          {{ branches.length }} {{ branches.length === 1 ? 'branch' : 'branches' }}, and
+          <span class="mono">{{ defaultBranch }}</span> is the one a clone checks out.
+        </p>
+      @endif
+
       @if (branches.length === 0)
         <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
           <p class="muted">This repository has no branches yet. Push one.</p>
