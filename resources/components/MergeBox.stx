@@ -12,6 +12,17 @@ const armedByHandle = String(autoArmedBy ?? '')
 const canMerge = String(mayMerge ?? '') === '1'
 
 /*
+ * Whether there is anybody to offer the button to, and where to send them.
+ *
+ * `mayMerge` is already the answer to "can this reader merge" - the page
+ * derives it from `pull:merge` on the repository - and the box was using it
+ * only to decide whether auto-merge could be disarmed. The merge form itself
+ * was rendered to everyone.
+ */
+const signedIn = String(viewerSignedIn ?? '') === '1'
+const signInHref = `/login?next=${encodeURIComponent(String(returnTo ?? '/'))}`
+
+/*
  * Settled, or still being decided.
  *
  * A merged pull request has exactly one blocker - "This pull request has
@@ -43,6 +54,22 @@ const merged = String(pullState ?? '') === 'merged'
         This pull request was merged.
       @else
         This pull request was closed without merging.
+      @endif
+    </p>
+  @elseif (blockerList.length === 0 && !canMerge)
+    {{-- Green, and not yours to press.
+        
+        The form below was rendered to everybody: a signed-out reader was
+        offered a strategy select and a Merge pull request button on somebody
+        else's repository, and the only way to find out was to press it and be
+        refused. The state is still worth saying - "this is mergeable" is the
+        answer most people came for - so it says that, and stops there. --}}
+    <p class="merge-state ok">Everything checks out.</p>
+    <p class="muted side-note">
+      @if (signedIn)
+        Merging this needs write access to the repository.
+      @else
+        <a href="{{ signInHref }}">Sign in</a> to merge it, if you have write access.
       @endif
     </p>
   @elseif (blockerList.length === 0)

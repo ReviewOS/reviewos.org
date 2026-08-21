@@ -1125,6 +1125,8 @@ const statePill = pullRequest
             autoStrategy="{{ autoMergeArmed ?? '' }}"
             autoArmedBy="{{ autoMergeArmedBy?.handle ?? '' }}"
             mayMerge="{{ viewerMayMerge ? '1' : '' }}"
+            viewerSignedIn="{{ access?.viewer ? '1' : '' }}"
+            returnTo="{{ `/${owner}/${repositoryName}/pull/${number}` }}"
           />
 
           {{-- Who should look, above who has looked. Hidden rather than empty
@@ -1218,11 +1220,11 @@ const statePill = pullRequest
   .pr-where a { text-decoration: none; }
   .pr-where a:hover { text-decoration: underline; }
 
-  .pr-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .pr-title { font-size: 25px; }
-  .pr-number { font-size: 20px; font-weight: 400; }
-
-  .pr-meta { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 14px; }
+  {{-- `.pr-title-row`, `.pr-title`, `.pr-number` and `.pr-meta` moved to
+      `layouts/app.stx`: the review screen writes the same markup and could not
+      see them here, so the same pull request's title was 25px on this tab and
+      15px on that one - the layout's default, because the class it asked for
+      did not exist there. --}}
   .pr-counts { margin-top: 7px; font-size: 13px; display: flex; gap: 8px; }
 
   .pr-body {

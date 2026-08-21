@@ -1214,6 +1214,20 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       /* What a repository page is showing, under its tabs: "Commits on main",
         and whatever the next screen needs. Below the tabs rather than in the
         header, because it describes the page rather than the repository. */
+      /*
+       * The identity of a pull request, on every screen that shows one.
+       *
+       * These lived in the conversation page's own style block while the
+       * review screen wrote the same markup - so `.pr-title` did nothing
+       * there and the title rendered at the layout's default 15px beside a
+       * `#1` that had dropped onto its own line. Two headers for one pull
+       * request, decided by which tab you were on.
+       */
+      .pr-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      .pr-title { font-size: 25px; }
+      .pr-number { font-size: 20px; font-weight: 400; }
+      .pr-meta { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 14px; }
+
       .repo-page-caption { margin: 14px 0 0; font-size: 13px; }
 
       /* An empty repository: the commands, because there is nothing else to
