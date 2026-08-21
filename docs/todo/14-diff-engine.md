@@ -54,8 +54,51 @@ Numbers, so the work can be checked rather than argued about:
       file tree, hunks, syntax colour, the mechanical-hunk labels - against 80,610 files of real
       kernel history. Heap sits at 13MB while it does.
 
-      What stops this box being ticked is a number the corpus made visible, and it took two attempts
-      to name correctly. The first reading was "the client ingests more slowly than the server
+      ## What stops this box being ticked, measured 2026-08-21
+
+      Two things, and the second is the one nobody had looked for. Both were found by driving a
+      real browser at the real corpus rather than by reasoning about it, and the earlier notes in
+      this box - kept below, because being wrong three times in the same place is the useful part of
+      the record - were all about a third thing that turned out not to be the problem.
+
+      **The scroll range hits the browser's ceiling, and the tail of the diff is unreachable.** The
+      viewer sets the content element's height to the diff's true height and lets the browser
+      scroll it. At 27,408 files it asked for **40,300,800px** and Chrome gave it **33,554,428px**,
+      which is 2^25 - 4 and the most a layout box may be. The full diff is 78,985 files, so the
+      final height would be somewhere around 110 million pixels and roughly **two thirds of the
+      diff would sit past the end of the scrollbar** - reachable by no scroll, because there is no
+      scroll position that maps to it. Measured at a device pixel ratio of 1; at 2 the ceiling is
+      halved again, so a retina laptop loses more.
+
+      This is not a slow path or a missing optimisation. It is a hard limit in every browser
+      (Firefox's is around 17.8M, Safari's is 2^24), and the fix is scroll-space compression: map a
+      bounded scroll range onto an unbounded content range, the way an editor does for a very large
+      file. That is a real change to the geometry model rather than a tuning pass, which is why this
+      box stays open with the work named rather than ticked with a caveat.
+
+      **And the main thread stops answering at around twenty seconds.** On a visible page - which
+      matters, because a hidden tab suspends `requestAnimationFrame` and throttles timers, and
+      measuring one produces numbers that say nothing - the page reached 27,408 files at t=21s with
+      72 frames rendered and 26MB of heap, and then stopped responding to the debugger entirely for
+      minutes. Not slow: unresponsive.
+
+      **The server is not the problem, and now there is a number for that.** Asked for the same
+      manifest with `curl`, this instance streamed the whole thing - 79,194 records, 25MB, 78,985
+      files - in **35.5 seconds**, and finished. The browser was still ingesting a third of it when
+      it stopped answering. Whatever this is, it is on the client side of the wire.
+
+      **The one part of the box that is satisfied is memory.** 26MB of heap at 27,408 files, and it
+      did not climb: 24MB at 20,000, 29MB at 39,000. Nothing here exhausts a laptop. What it does
+      is stop.
+
+      ### The earlier readings, kept
+
+      Three diagnoses came before those, each replacing the last, and the shape of the error was the
+      same every time: the symptom was slowness, and slowness reads as something being slow. The
+      last of them found a real scheduling bug and fixed it. None of them found either of the two
+      above, because none of them scrolled.
+
+      The first reading was "the client ingests more slowly than the server
       produces". Measuring the requests rather than the symptom says otherwise: in twenty seconds
       the page made **two** requests, and one of them was a single `diff/rows` call that took
       **6,475ms to return 331KB** - forty files' worth of rendered rows.
@@ -155,9 +198,52 @@ Numbers, so the work can be checked rather than argued about:
       it was a missing process, and the honest correction is worth more than the guess.
 - [x] Scroll at 60fps through a 30k line diff with syntax highlighting on, measured with the
       harness below rather than by feel
-- [ ] Memory after scrolling a 500k line diff end to end settles back near where it started, because
+- [x] Memory after scrolling a 500k line diff end to end settles back near where it started, because
       rows are recycled and the raw patch text is not retained
+
+      **Measured on Linux `v6.0...v6.1`** - 13,003 files and 1,021,149 changed lines, so twice the
+      diff this box asks for - in a real browser, loaded to completion and then scrolled to the end
+      in 120 steps, each waited out over two animation frames so the viewer actually mounted and
+      released rather than being teleported past its own work.
+
+      | | |
+      |---|---|
+      | heap after load | 45 MB |
+      | heap after scrolling to the end | **29 MB** |
+      | heap after a forced collection | 32 MB |
+      | mounts / releases / **recycled** | 531 / 529 / **491** |
+      | hosts still mounted at the end | 2 |
+      | last file index reached | 13,002 of 13,002 |
+
+      It settles *below* where it started, which is the claim and more. Three readings rather than
+      two, because the middle one alone cannot tell a leak from a collector that has not run, and
+      the last one alone calls every uncollected byte a leak.
+
+      Ninety-two percent of mounts came from the pool, and two hosts were mounted at the end of a
+      thirteen-thousand-file scroll - which is the other half of the same claim: mounting is a
+      function of how far somebody scrolled, not of how large the diff is.
+
+      And it reached the end, which is worth stating separately because the box above it does not:
+      `scrollTop` finished at the maximum and the last mounted file was the last file. That works
+      here and not on `v6.0...v7.0` for one reason, and it is the reason box one is still open - a
+      million lines lays out to 16.0M pixels, which is under the browser's ceiling. Eighteen million
+      lines is not.
 - [ ] Mobile Safari renders the bun and node pull requests DiffsHub uses as demos without blanking
+
+      **Blocked on having a Mobile Safari to test in, and that is the whole of it.** This machine has
+      Xcode's command line tools and not Xcode, so there is no iOS Simulator; desktop Safari is
+      reachable but is not the engine under test on a phone, and a Chrome device-emulation run would
+      answer a question nobody asked - blanking is WebKit's memory killer, and Blink pretending to
+      be a phone does not have one.
+
+      Recorded rather than approximated, because an approximation here would be worse than nothing:
+      "it held 30MB in emulated mobile Chrome" reads as evidence and is not.
+
+      **What did change is that the test is now set up.** The public front door renders any GitHub
+      diff by URL, so those exact demo pull requests open on this instance at
+      `/view/oven-sh/bun/pull/N` - which is what the box needs a browser pointed at. When there is a
+      simulator, the run is: open two of them, scroll each end to end, and watch for the tab
+      reloading itself, which is what blanking is.
 - [x] No regression for the small case: a fifteen-file pull request is still readable with JavaScript
       disabled. The conversation page renders every row, every syntax token and every review thread
       server-side, and its reply and resolve controls are plain forms - checked by fetching the page
