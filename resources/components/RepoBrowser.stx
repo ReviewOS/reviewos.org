@@ -562,7 +562,17 @@ git push -u origin {{ defaultBranch }}</pre>
                 @endif
               </div>
 
-              <RepoAbout :about="about" />
+              {{-- The arrays go as JSON beside the object: they do not survive
+                  the attribute as themselves, and every loop in the panel was
+                  quietly rendering nothing. See `RepoAbout.stx`. --}}
+              <RepoAbout
+                :about="about"
+                topicsJson="{{ JSON.stringify(about.topics ?? []) }}"
+                linksJson="{{ JSON.stringify(about.links ?? []) }}"
+                countsJson="{{ JSON.stringify(about.counts ?? []) }}"
+                contributorsJson="{{ JSON.stringify(about.contributors ?? []) }}"
+                languagesJson="{{ JSON.stringify(about.languages ?? []) }}"
+              />
             </div>
           @else
             <FileTree :rows="rows" />

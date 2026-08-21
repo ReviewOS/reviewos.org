@@ -1,3 +1,41 @@
+<script server>
+/**
+ * The arrays, recovered.
+ *
+ * `about` arrived as a bound object and its scalars came through intact, so
+ * the description, the homepage and the release all rendered - which is why
+ * this went unnoticed. Its arrays did not: an array does not survive an stx
+ * attribute as itself, the same trap written up in `StackNav.stx` and
+ * `PageRail.stx`. Every `@foreach` in this file was walking something that was
+ * no longer a list, so topics, links, counts, contributors and languages
+ * rendered nothing at all, on every repository page, while the panel around
+ * them looked fine. The server said so on each request and the page did not.
+ *
+ * So the arrays come in as JSON and are parsed here. The scalars keep coming
+ * through `about` because they work and because passing the whole object twice
+ * would leave two things to disagree.
+ */
+function listFrom(value) {
+  if (Array.isArray(value))
+    return value
+  if (typeof value !== 'string')
+    return []
+  try {
+    const parsed = JSON.parse(value || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  }
+  catch {
+    return []
+  }
+}
+
+const topics = listFrom(typeof topicsJson === 'undefined' ? about?.topics : topicsJson)
+const links = listFrom(typeof linksJson === 'undefined' ? about?.links : linksJson)
+const counts = listFrom(typeof countsJson === 'undefined' ? about?.counts : countsJson)
+const contributors = listFrom(typeof contributorsJson === 'undefined' ? about?.contributors : contributorsJson)
+const languages = listFrom(typeof languagesJson === 'undefined' ? about?.languages : languagesJson)
+</script>
+
 {{--
   What this repository is, beside the files that say so.
 
@@ -33,20 +71,20 @@
     </p>
   @endif
 
-  @if (about.topics.length > 0)
+  @if (topics.length > 0)
     {{-- Each one links to the repositories that share it, which is the entire
         reason topics are a table rather than a string on the repository - and
         nothing anywhere linked to that query until now. --}}
     <ul class="about-topics">
-      @foreach (about.topics as topic)
+      @foreach (topics as topic)
         <li><a class="about-topic" href="{{ topic.href }}">{{ topic.name }}</a></li>
       @endforeach
     </ul>
   @endif
 
-  @if (about.links.length > 0)
+  @if (links.length > 0)
     <ul class="about-links">
-      @foreach (about.links as link)
+      @foreach (links as link)
         <li>
           <a href="{{ link.href }}">
             <span class="{{ link.icon }}" aria-hidden="true"></span>
@@ -58,7 +96,7 @@
   @endif
 
   <ul class="about-counts">
-    @foreach (about.counts as count)
+    @foreach (counts as count)
       <li>
         <span class="{{ count.icon }}" aria-hidden="true"></span>
         <strong>{{ count.value }}</strong>
@@ -101,7 +139,7 @@
           here. On a mirror that is almost nobody, and a row that drew only
           them would credit four of the two hundred. --}}
       <ul class="about-faces">
-        @foreach (about.contributors as person)
+        @foreach (contributors as person)
           <li>
             @if (person.href)
               <a class="about-face" href="{{ person.href }}" title="{{ person.title }}">
@@ -122,28 +160,28 @@
         @endforeach
       </ul>
 
-      @if (about.contributorCount > about.contributors.length)
-        <a class="about-more" href="{{ about.contributorsHref }}">+ {{ about.contributorCount - about.contributors.length }} contributors</a>
+      @if (about.contributorCount > contributors.length)
+        <a class="about-more" href="{{ about.contributorsHref }}">+ {{ about.contributorCount - contributors.length }} contributors</a>
       @else
         <a class="about-more" href="{{ about.contributorsHref }}">All contributors</a>
       @endif
     </section>
   @endif
 
-  @if (about.languages.length > 0)
+  @if (languages.length > 0)
     <section class="about-section">
       <h3 class="about-heading">Languages</h3>
 
       {{-- One bar rather than a row of them, because the proportions are the
           point and proportions read as segments of a whole. --}}
       <div class="about-language-bar" aria-hidden="true">
-        @foreach (about.languages as language)
+        @foreach (languages as language)
           <span class="about-language-slice {{ language.swatch }}" style="width: {{ language.width }}"></span>
         @endforeach
       </div>
 
       <ul class="about-language-list">
-        @foreach (about.languages as language)
+        @foreach (languages as language)
           <li>
             <span class="about-language-dot {{ language.swatch }}" aria-hidden="true"></span>
             <span>{{ language.name }}</span>
