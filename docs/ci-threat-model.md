@@ -189,10 +189,13 @@ The gate, restated as tests rather than intentions. Each is an adversarial test 
 
 ## Review status
 
-Written 2026-08-11. The decision above - **no execution plane by default, microVM where a public
-instance wants fork execution, container mode documented as not a security boundary** - is what the
-implementation is being built against. The adversarial tests are the sign-off, and they are listed
-here rather than assumed so that "we reviewed it" cannot mean "we discussed it".
+Written 2026-08-11 and independently reviewed 2026-08-20. The implementation now follows the
+decision above: **no execution plane by default, microVM where a public instance wants fork
+execution, container mode documented as not a security boundary**. All eight adversarial tests exist;
+the review found and fixed a fork-trust bypass through `pull_request_target` and job credentials that
+outlived their leases on non-reporting endpoints. The review and residual limits are recorded in
+[the CI security review](./ci-security-review.md).
 
-The boxes this unblocks are the control plane's, which never runs repository code. The execution
-plane's boxes stay closed until those tests exist and pass.
+The sign-off is for public fork execution in microVM mode only. It does not turn the host executor or
+container mode into a security boundary, and it does not close the separate hardware-attestation
+item.

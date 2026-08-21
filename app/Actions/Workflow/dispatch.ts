@@ -639,10 +639,10 @@ export async function dispatchPullRequest(input: PullRequestDispatchInput): Prom
 
   for (const version of versions) {
     /*
-     * `pull_request` and `pull_request_target` are asked separately, because
-     * they are the same event with the opposite trust. A workflow that names
-     * both gets two runs, which is what Actions does and what a reader of the
-     * run list needs to see: one of them may touch secrets and one may not.
+     * `pull_request` and `pull_request_target` are asked separately because a
+     * workflow may name either or both. The trigger changes which definition
+     * is selected; it does not override the fork boundary below. A fork event
+     * remains untrusted whichever spelling started it.
      */
     for (const target of [false, true]) {
       const decision = pullRequestStartsRun(version, input.event, { target })
@@ -697,7 +697,7 @@ async function createPullRequestRun(
    * asking for work never sees it, so there is no second place to get this
    * right.
    */
-  const trusted = target ? true : !input.event.fromFork
+  const trusted = !input.event.fromFork
   const approval = forkApprovalVerdict(await forkApprovalFacts({
     repositoryId: input.repositoryId,
     actorId: input.actorId ?? null,
@@ -731,12 +731,12 @@ async function createPullRequestRun(
          * branch, from somebody with write access, is not - the code and the
          * workflow are both from this repository.
          *
-         * `pull_request_target` is the exception that makes the rule: it runs
-         * the base branch's workflow, so it is trusted in the sense that
-         * matters here, and it is exactly the trigger behind the published
-         * secret-theft write-ups. It is marked trusted because it is, and what
-         * protects the instance is that secrets are scoped per environment and
-         * job rather than handed to a run for existing.
+         * `pull_request_target` still uses the base branch's definition, but a
+         * trusted definition does not make the code it checks out trusted.
+         * This runner checks out `head_sha`, and for a fork that is the fork's
+         * code. Marking the run trusted would hand that code repository secrets
+         * and a write-scoped identity solely because the workflow used the
+         * trigger behind most published CI secret-theft write-ups.
          */
         trusted,
         actor_id: input.actorId ?? null,

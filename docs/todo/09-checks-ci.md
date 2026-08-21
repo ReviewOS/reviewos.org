@@ -1722,23 +1722,25 @@ gate, in order.
       It needs a vTPM quote or an SEV-SNP or TDX report - and Firecracker's device model has no vTPM,
       so it also needs a different VMM for that mode. The machine this was verified on has no TPM, no
       measured boot and no SEV, so it could not have been tested even if it had been written.
-- [ ] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
+- [x] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
       poisoning, artifact handling, fork policy, and cancellation behavior before a public runner
       executes one command
 
-      **The audit is written; the sign-off is not, and cannot be by the person who wrote the code.**
+      **The audit and independent sign-off are complete.**
       [`docs/ci-security-review.md`](../ci-security-review.md) is a pass over all eight surfaces:
       what each boundary is, the paths that enforce it, the tests that fail if it stops being true,
-      and what a reviewer should attack rather than rediscover. It exists so the review this box
-      waits on starts from a map.
+      and what a reviewer should attack rather than rediscover.
 
-      It also scores the threat model's own gate - the eight adversarial tests - as four met, one
-      partial and three not. All three that are not met are the execution plane, which is the
-      ordering the threat model set.
+      The review found two boundary failures rather than signing off the map as written.
+      `pull_request_target` made a fork run trusted while the runner still checked out its head,
+      which could deliver repository secrets and identity-token eligibility to fork code. And a
+      revoked job token remained usable on runner endpoints other than heartbeat and conclusion,
+      including artifacts, caches, logs, annotations and identity issuance. Both now have
+      adversarial end-to-end tests and both are fixed at their shared decision points.
 
-      The box stays open deliberately. Every surface in that document is code written in this phase,
-      and a review of your own work signed off by yourself is the box being ticked by the person it
-      exists to check.
+      Sign-off is for public fork execution in microVM mode only. The host executor remains openly
+      unsandboxed, container mode remains an accident boundary, and hardware-backed attestation is
+      still the separate open item above.
 - [x] Adversarial tests: fork secret theft, cache poisoning, symlink escape, oversized logs and
       artifacts, process escape, internal-network access, job credential replay, and cancellation
 

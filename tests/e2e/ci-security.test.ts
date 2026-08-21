@@ -473,6 +473,60 @@ describe('a fork\'s pull request and the workflow it runs', () => {
 
     await db.deleteFrom('workflows').where('path', '=', path).where('repository_id', '=', created.repositoryId).execute()
   }, 120_000)
+
+  test('stays untrusted when the base workflow uses pull_request_target', async () => {
+    if (!available)
+      return
+
+    /*
+     * The dangerous variation on the ordinary fork case. The definition is
+     * trusted, but this runner checks out the run's head commit, and that is
+     * still the fork's code. The trigger must not turn that code into a secret
+     * or identity-token recipient.
+     */
+    const path = '.github/workflows/target.yml'
+    const baseSha = unique('t').padEnd(40, '0').slice(0, 40)
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path,
+      source: 'name: Target\non: pull_request_target\njobs:\n  inspect:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make inspect\n',
+      sha: baseSha,
+    })
+
+    const { dispatchPullRequest } = await import('../../app/Actions/Workflow/dispatch')
+
+    await dispatchPullRequest({
+      repositoryId: created.repositoryId,
+      headSha: unique('x').padEnd(40, '0').slice(0, 40),
+      ref: 'refs/pull/8/head',
+      number: 8,
+      event: {
+        activity: 'opened',
+        headBranch: 'their-target-branch',
+        baseBranch: 'main',
+        fromFork: true,
+      },
+    })
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['event', 'state', 'approval_state', 'trusted', 'definition_sha'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('event_ref', '=', 'refs/pull/8/head')
+      .where('event', '=', 'pull_request_target')
+      .executeTakeFirst()
+
+    expect(run).toBeTruthy()
+    expect(String(run.definition_sha)).toBe(baseSha)
+    expect(isTrue(run.trusted)).toBe(false)
+    expect(String(run.state)).toBe('waiting')
+    expect(String(run.approval_state)).toBe('required')
+
+    await db.deleteFrom('workflows').where('path', '=', path).where('repository_id', '=', created.repositoryId).execute()
+  }, 120_000)
 })
 
 describe('a token that may dispatch and nothing more', () => {
