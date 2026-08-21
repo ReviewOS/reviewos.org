@@ -134,11 +134,11 @@ const base = `/${ownerHandle}/${repositoryName}`
         <input type="hidden" name="repo" value="{{ repositoryName }}">
         <input type="hidden" name="operation" value="create">
         <div class="set-fields">
-          <input class="field field-grow" name="title" placeholder="Milestone title" required maxlength="120">
+          <input class="field field-grow" name="title" placeholder="Milestone title" required maxlength="120" aria-label="Milestone title">
           <input class="field" name="due_on" type="date" aria-label="Due date">
           <button class="btn btn-primary" type="submit">Create milestone</button>
         </div>
-        <input class="field field-full" name="description" placeholder="Description (optional)" maxlength="200">
+        <input class="field field-full" name="description" placeholder="Description (optional)" maxlength="200" aria-label="Description">
       </form>
 
       @if (milestoneList.length === 0)

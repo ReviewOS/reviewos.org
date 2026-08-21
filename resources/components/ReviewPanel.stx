@@ -73,7 +73,7 @@ const canReview = String(mayReview ?? '') === '1'
         <span>Comment</span>
       </label>
 
-      <textarea class="verdict-body" name="body" rows="3" placeholder="Say what you saw"></textarea>
+      <textarea class="verdict-body" name="body" rows="3" placeholder="Say what you saw" aria-label="What you saw"></textarea>
       <button type="submit" class="btn merge-button">Submit review</button>
     </form>
   @endif

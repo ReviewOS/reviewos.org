@@ -165,7 +165,7 @@ if (!visible)
                   <CsrfField />
                   <input type="hidden" name="organization_id" value="{{ organization.id }}">
                   <input type="hidden" name="user_id" value="{{ person.id }}">
-                  <select name="role" class="person-select" onchange="this.form.submit()">
+                  <select name="role" class="person-select" onchange="this.form.submit()" aria-label="Role for {{ person.handle }}">
                     <option value="member" {{ person.role === 'member' ? 'selected' : '' }}>Member</option>
                     <option value="admin" {{ person.role === 'admin' ? 'selected' : '' }}>Admin</option>
                     @if (isOwner)

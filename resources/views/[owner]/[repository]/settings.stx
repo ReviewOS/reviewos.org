@@ -786,7 +786,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
               <CsrfField />
               <input type="hidden" name="owner" value="{{ ownerHandle }}">
               <input type="hidden" name="repo" value="{{ repositoryName }}">
-              <input class="input input-small" name="to" placeholder="new owner" required>
+              <input class="input input-small" name="to" placeholder="new owner" required aria-label="New owner's handle">
               <button class="btn btn-danger" type="submit">Transfer</button>
             </form>
           </div>
@@ -812,7 +812,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
               <CsrfField />
               <input type="hidden" name="owner" value="{{ ownerHandle }}">
               <input type="hidden" name="repo" value="{{ repositoryName }}">
-              <input class="input input-small" name="confirm" placeholder="{{ fullName }}" required>
+              <input class="input input-small" name="confirm" placeholder="{{ fullName }}" required aria-label="Type {{ fullName }} to confirm">
               <button class="btn btn-danger" type="submit">Delete</button>
             </form>
           </div>

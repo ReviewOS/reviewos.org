@@ -97,11 +97,11 @@ const base = `/${ownerHandle}/${repositoryName}`
         <input type="hidden" name="repo" value="{{ repositoryName }}">
         <input type="hidden" name="operation" value="create">
         <div class="set-fields">
-          <input class="field" name="name" placeholder="Label name" required maxlength="50">
+          <input class="field" name="name" placeholder="Label name" required maxlength="50" aria-label="Label name">
           {{-- Stored without the `#`, so the colour input's value is trimmed on
               the way in by the same normalizer the default set uses. --}}
           <input class="field field-color" name="color" type="color" value="#d73a4a" aria-label="Label colour">
-          <input class="field field-grow" name="description" placeholder="Description (optional)" maxlength="200">
+          <input class="field field-grow" name="description" placeholder="Description (optional)" maxlength="200" aria-label="Description">
           <button class="btn btn-primary" type="submit">Create label</button>
         </div>
       </form>

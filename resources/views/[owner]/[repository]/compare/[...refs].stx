@@ -158,7 +158,7 @@ const title = repoRow && request
             <input type="hidden" name="repo" value="{{ repositoryName }}">
             <input type="hidden" name="base" value="{{ request.base }}">
             <input type="hidden" name="head" value="{{ request.head }}">
-            <input class="input" name="title" placeholder="What this change does" required>
+            <input class="input" name="title" placeholder="What this change does" required aria-label="Pull request title">
             <button type="submit" class="btn btn-primary">Open pull request</button>
           </form>
           <p class="hint muted" style="margin-top: 8px;">
