@@ -36,7 +36,7 @@ const actions = [
       <p class="page-lede">An agent can open twenty pull requests before lunch. The bottleneck moves to review, and review is the part of a forge nobody rebuilt. This one was built for it.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Agents are authors, and they are reviewers</h2>
         <p>An agent needs the same things a person does: a personal access token scoped to what it may touch, an identity on the pull request so the history says who wrote what, and a review state it can submit. It gets them. There is no separate second-class path where machine output arrives as a patch file and somebody pastes it in.</p>

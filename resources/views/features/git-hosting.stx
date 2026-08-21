@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">Nothing about your history is locked inside this application. Stop the server and your repositories are still repositories.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>The git binary does the git work</h2>
         <p>Repositories live at a predictable path and are driven by spawned git plumbing commands. There is no reimplementation of git in TypeScript and no library standing between your objects and the tool that understands them.</p>

@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">Large work arrives as a sequence: the refactor, the change it enables, the tests. One pull request makes it unreviewable. Three unrelated ones make it incoherent.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Each one shows only its own work</h2>
         <p>A stacked pull request diffs against its parent rather than the base branch. A reviewer opening the third change in a stack sees the third change, not the two below it repeated.</p>

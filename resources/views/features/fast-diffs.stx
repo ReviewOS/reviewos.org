@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">Diff rendering is where forges get slow, and it is slowest exactly when the review matters most.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Rendered on the server</h2>
         <p>The browser receives HTML, not a diff library and a JSON payload to assemble. There is no spinner between opening a pull request and reading it, and a large diff degrades into a long page rather than a hung tab.</p>

@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">A framework upgrade touching two hundred files gets one approval and no comments. Everyone knows that approval means nothing.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Split it, without losing the thread</h2>
         <p>A stack turns one unreviewable change into a sequence of reviewable ones that still merge in order. Each pull request diffs against its parent, so reviewing the fourth means reading the fourth, not the first three again.</p>

@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">An issue tracker earns its place by how well it links to everything else, not by how many fields it has.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>One number sequence</h2>
         <p>Issues and pull requests share a counter, so a number means one thing in a repository. `#12` resolves whether it is an issue or a pull request, and it resolves in commit messages, in other issues, and in review comments.</p>

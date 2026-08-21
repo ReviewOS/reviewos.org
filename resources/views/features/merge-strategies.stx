@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">Every reason a pull request cannot merge is collected and shown together. Being sent round the loop one blocker at a time is the thing contributors hate most.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Three strategies, done properly</h2>
         <p>A merge commit keeps both histories. A squash produces one commit whose parent is the base, carrying the pull request title and the individual commit subjects as notes. A rebase replays each commit, so the branch keeps its shape.</p>

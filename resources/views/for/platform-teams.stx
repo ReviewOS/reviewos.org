@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">You are the team that gets paged. The question is not what a product can do, it is what it does at three in the morning.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>What it actually needs</h2>
         <p>Bun, Postgres, and the git binary. That is the dependency list to start. Queues, caches, and search are drivers you enable when there is a reason, not prerequisites in an install guide.</p>

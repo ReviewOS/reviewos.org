@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">The bar is that a reviewer can rely on them without also watching a chat channel, and that nobody has to turn them off to get work done.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>Every notification carries its reason</h2>
         <p>Being asked to review something is a request addressed to you. Watching a repository is a standing interest. Telling a requested reviewer they are receiving a message "because you are watching" is how people learn to ignore notifications.</p>

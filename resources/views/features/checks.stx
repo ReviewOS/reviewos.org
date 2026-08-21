@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">ReviewOS does not run your tests. It accepts reports from whatever does, and enforces them where it counts.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>A check is reported against a commit</h2>
         <p>Not against a pull request. The same report then serves every pull request whose head is that commit, and it stays meaningful when a branch moves.</p>

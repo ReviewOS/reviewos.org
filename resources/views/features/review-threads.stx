@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">A thread is written against one commit. The branch then gains commits, is rebased, or is force pushed. In most forges that is where the conversation goes quiet.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>What a thread is anchored to</h2>
         <p>Four things, not one: a path, a line, a side of the diff, and the commit the comment was written against. The last two are what most implementations skip, and skipping them is why a comment on a removed line reappears under the line that replaced it.</p>

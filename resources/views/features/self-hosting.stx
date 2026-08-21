@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">A forge you can run on a machine you already have, without operating a queue cluster before the first repository exists.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>What it needs to run</h2>
         <p>Bun, Postgres, and the git binary. The local environment is provisioned by pantry, which installs the toolchain, starts the database, and creates it from your environment file.</p>

@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">Forgejo, and Gitea before it, proved that a small self-hosted forge is a good idea. This is the closest comparison on this site, and the most useful one.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>What Forgejo has that this does not, yet</h2>
         <p>Forgejo is mature, widely deployed, and broad. Being honest about the gap is more useful than pretending it is not there.</p>

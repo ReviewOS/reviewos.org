@@ -35,7 +35,7 @@ const actions = [
       <p class="page-lede">A webhook URL is supplied by whoever can configure one, and the request leaves from inside your network. That is the highest-risk feature in any forge.</p>
     </header>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
+    <div class="grid grid-cols-1 gap-[44px] items-start md:grid-cols-[minmax(0,1fr)_280px]">
       <div class="prose">
         <h2>The address is checked, not the hostname</h2>
         <p>A hostname is whatever DNS says it is at the moment of the request, and plenty of public names resolve to 127.0.0.1 on purpose. So the check that matters runs on the resolved address, and it runs again on every redirect.</p>
