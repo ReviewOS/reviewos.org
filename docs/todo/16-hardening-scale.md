@@ -166,6 +166,21 @@ indexes it buffers unboundedly.
       regression test here when it lands; a FIFO-per-request detour was considered and rejected as
       exactly the workaround-that-hides-the-bug this codebase refuses.
 
+      **Re-measured on 2026-08-21, still Bun 1.3.14, and now pinned by a test.** A child asked to
+      write 200MB against a reader that took one chunk and then stopped for three seconds *finished
+      writing anyway*, and this process grew by 554MB of RSS - the payload plus the runtime's copies
+      of it. At 50MB the growth is about 128MB. Both taken in a process of their own, because RSS
+      inside a shared test process is order-dependent: the same 50MB case measured inside the suite
+      grew 23MB, since the test before it had already allocated and the allocator reuses.
+
+      So `tests/unit/bun-stdout-backpressure.test.ts` asserts the one thing that is exact in any
+      process - the child finished with nobody reading - and it asserts the defect **as it stands**.
+      When Bun fixes this the test fails, loudly, on the next run, and whoever sees it learns two
+      things at once: the upstream bug is gone, and the structural-rather-than-actual caveat above
+      can come off. A test that fails when the world gets better is an odd thing to write; the
+      alternative is finding out years later, which is what happened to the three bugs written up at
+      the top of the roadmap.
+
 ## M5 - More than one process on one host
 
 Everything multi-process-unsafe today is config, not architecture: the cache driver is in-process
