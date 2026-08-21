@@ -43,6 +43,24 @@ import { withRedeliveryKey } from './redelivery'
 import { ownerVersionsFor } from './ownerWorkflows'
 import { isNotFalse, isTrue } from '../Support/sql'
 
+/**
+ * A database handle: the pooled one, or a transaction's.
+ *
+ * Every function that writes part of a run's graph takes one, and takes it as
+ * its first argument rather than reaching for the module's `db`. That is what
+ * makes the atomicity below checkable by reading: a write that used the pooled
+ * handle inside the transaction would land on a different connection, see none
+ * of the uncommitted rows, and fail its foreign key against a job that is not
+ * committed yet. Passing it explicitly, with no default, means the compiler
+ * asks the question at every call site rather than leaving it to whoever reads
+ * this next.
+ *
+ * Reads of already-committed rows - a version's jobs, a called workflow, an
+ * owner's handle - are safe on either handle. They still take this one, because
+ * "which of the two is this" is not a question worth asking per statement.
+ */
+type Executor = typeof db
+
 export interface DispatchResult {
   /** Runs created by this delivery, not runs that exist. */
   created: number[]
@@ -284,9 +302,8 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run = await db
-        .insertInto('workflow_runs')
-        .values(withRedeliveryKey({
+      const runId = await createRunWithGraph({
+        values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
           number: await nextNumber(input.repositoryId),
@@ -303,12 +320,11 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
           trusted: true,
           actor_id: input.actorId ?? null,
           concurrency_group: group,
-        }))
-        .returning(['id'])
-        .executeTakeFirst()
+        }),
+        versionId: Number(version.id),
+        context,
+      })
 
-      const runId = Number(run?.id)
-      await createJobs(runId, Number(version.id), context)
       await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
@@ -392,9 +408,8 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run = await db
-        .insertInto('workflow_runs')
-        .values(withRedeliveryKey({
+      const runId = await createRunWithGraph({
+        values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
           number: await nextNumber(input.repositoryId),
@@ -421,13 +436,11 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
           // The caller's own id for the request, so every run this one call
           // started is findable from their log rather than from a timestamp.
           request_id: input.requestId ?? null,
-        }))
-        .returning(['id'])
-        .executeTakeFirst()
+        }),
+        versionId: Number(version.id),
+        context,
+      })
 
-      const runId = Number(run?.id)
-
-      await createJobs(runId, Number(version.id), context)
       await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
@@ -536,9 +549,8 @@ export async function dispatchWorkflowRun(input: {
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run = await db
-        .insertInto('workflow_runs')
-        .values(withRedeliveryKey({
+      const runId = await createRunWithGraph({
+        values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: Number(finished.repository_id),
           number: await nextNumber(Number(finished.repository_id)),
@@ -565,13 +577,11 @@ export async function dispatchWorkflowRun(input: {
               event: String(finished.event ?? ''),
             },
           }),
-        }))
-        .returning(['id'])
-        .executeTakeFirst()
+        }),
+        versionId: Number(version.id),
+        context,
+      })
 
-      const runId = Number(run?.id)
-
-      await createJobs(runId, Number(version.id), context)
       await supersede(Number(finished.repository_id), runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: Number(finished.repository_id),
@@ -695,9 +705,8 @@ async function createPullRequestRun(
   }))
 
   try {
-    const run = await db
-      .insertInto('workflow_runs')
-      .values(withRedeliveryKey({
+    const runId = await createRunWithGraph({
+      values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
         number: await nextNumber(input.repositoryId),
@@ -732,12 +741,10 @@ async function createPullRequestRun(
         trusted,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      }))
-      .returning(['id'])
-      .executeTakeFirst()
-
-    const runId = Number(run?.id)
-    await createJobs(runId, Number(version.id), context)
+      }),
+      versionId: Number(version.id),
+      context,
+    })
 
     /*
      * A held run's jobs are `blocked` with the reason on them, not `queued`.
@@ -810,9 +817,8 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
   const group = resolveGroup(version.concurrency_group, context)
 
   try {
-    const run = await db
-      .insertInto('workflow_runs')
-      .values(withRedeliveryKey({
+    const runId = await createRunWithGraph({
+      values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
         number: await nextNumber(input.repositoryId),
@@ -831,12 +837,11 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
         trusted: true,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      }))
-      .returning(['id'])
-      .executeTakeFirst()
+      }),
+      versionId: Number(version.id),
+      context,
+    })
 
-    const runId = Number(run?.id)
-    await createJobs(runId, Number(version.id), context)
     await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,
@@ -1066,7 +1071,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
 }
 
 /** Postgres says 23505 for a unique violation; drivers wrap it differently. */
-function isDuplicate(error: unknown): boolean {
+export function isDuplicate(error: unknown): boolean {
   const text = error instanceof Error ? `${error.message}` : String(error)
   const code = String((error as { code?: unknown })?.code ?? '')
   const state = String((error as { sqlState?: unknown })?.sqlState ?? '')
@@ -1090,41 +1095,103 @@ function isDuplicate(error: unknown): boolean {
 }
 
 /**
- * The run's jobs, copied from the definition.
+ * Write a run and the graph under it, or write neither.
  *
- * Copied rather than referenced, because the run has to stay readable when the
- * definition changes - and because a job's state belongs to the run, not to the
- * workflow. A job with no `needs` is queued immediately; the rest wait.
+ * ## Why this is one function and not two statements
+ *
+ * The graph is built row by row - a job, its steps, the next job - and until
+ * this existed the run row was inserted first and committed on its own, so
+ * between the two there was a run on the table with half a pipeline under it.
+ * Everything that reads runs could see it. The claim query is the one that
+ * matters: it takes `queued` jobs from `queued` runs, and a run whose only
+ * inserted job so far is `lint` is exactly that. A runner could take it, finish
+ * it, and the settler - seeing every job of the run terminal - could conclude
+ * the run **green before the jobs it was gating had been written**. The rest of
+ * the graph then landed on a finished run.
+ *
+ * That window is not theoretical. It is where the acceptance suite's
+ * `produces the graph the file describes` was failing: it read the jobs the
+ * moment a run appeared and saw one of four, in ten milliseconds.
+ *
+ * So the insert and the graph go in one transaction. Nothing outside sees a
+ * run until every job and step under it is there, which is the only form of
+ * this rule that does not have to be repeated in each reader.
+ *
+ * ## What is deliberately outside it
+ *
+ * `supersede`, `holdForGroup` and the settler run after the commit, as they
+ * did before. They are about this run's relationship to *other* runs, they
+ * update rows this transaction has no business holding locks on, and a run
+ * that exists with its graph is a correct state to be in while they decide.
+ *
+ * The jobs are copied rather than referenced, as they always were: the run has
+ * to stay readable when the definition changes, and a job's state belongs to
+ * the run rather than to the workflow.
  */
-export async function createJobsForRun(
-  runId: number,
-  versionId: number,
-  context?: ConcurrencyContext,
-): Promise<void> {
-  await createJobs(runId, versionId, context)
+async function createRunWithGraph(input: {
+  /** The run row, already assembled by the caller that knows its event. */
+  values: Record<string, unknown>
+  versionId: number
+  context?: ConcurrencyContext
+}): Promise<number> {
+  return await db.transaction(async (handle) => {
+    /*
+     * The two handles do not share a type. The pooled one is generated against
+     * this instance's schema; a transaction's is the builder's own generic
+     * shape, which knows no tables - so typing the graph builders against it
+     * would give up every column name in this file to buy one honest-looking
+     * signature. They are the same builder over the same schema at runtime, so
+     * the cast is here, once, where the transaction is opened.
+     */
+    const tx = handle as unknown as Executor
 
-  /*
-   * Settled once, immediately, because a run may have work to do before any
-   * machine is involved.
-   *
-   * A barrier at the top of a graph is satisfied the moment the run exists, a
-   * gate is waiting for a person from the first second, and a trigger has a run
-   * to start. Waiting for the first claim to move the graph would leave a
-   * run whose every job is the control plane's own sitting at `queued` with
-   * nothing that could ever poll it.
-   */
+    const run: any = await tx
+      .insertInto('workflow_runs')
+      .values(input.values as any)
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const runId = Number(run?.id)
+
+    await createJobs(tx, runId, input.versionId, input.context)
+
+    return runId
+  })
+}
+
+/**
+ * A run, its graph, and the first settle - for the callers that start one
+ * outside the push path.
+ *
+ * The settle is what `createJobsForRun` did here before, and it stays outside
+ * the transaction: a run may have work to do before any machine is involved -
+ * a barrier at the top of a graph is satisfied the moment the run exists, a
+ * gate is waiting for a person from the first second - but that work reads the
+ * run as everybody else sees it, and it announces. Announcing from inside a
+ * transaction would tell the instance about a run that could still roll back.
+ */
+export async function startRun(input: {
+  values: Record<string, unknown>
+  versionId: number
+  context?: ConcurrencyContext
+}): Promise<number> {
+  const runId = await createRunWithGraph(input)
+
   const { settleRun } = await import('./settle')
 
   await settleRun(runId)
+
+  return runId
 }
 
 async function createJobs(
+  client: Executor,
   runId: number,
   versionId: number,
   context?: ConcurrencyContext,
   call: { prefix?: string, depth?: number, trail?: number[], rootNeeds?: string[] } = {},
 ): Promise<void> {
-  const definition = await db
+  const definition = await client
     .selectFrom('workflow_version_jobs')
     .select([
       'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
@@ -1151,7 +1218,7 @@ async function createJobs(
   // key is what keeps a dispatch - the run, its jobs and the version it came
   // from - on one shard, and a column written only sometimes cannot be routed
   // on at all.
-  const repositoryId = await repositoryOf(runId)
+  const repositoryId = await repositoryOf(client, runId)
 
   /*
    * Where this version was written, so the orchestrator job can be recognised.
@@ -1159,7 +1226,7 @@ async function createJobs(
    * Read once per version rather than per job, next to the repository id and
    * for the same reason: it is a property of the dispatch, not of a row.
    */
-  const sourcePath = await sourcePathOf(versionId)
+  const sourcePath = await sourcePathOf(client, versionId)
 
   /*
    * What the *whole called workflow* waits for.
@@ -1187,6 +1254,7 @@ async function createJobs(
      */
     if (job.uses) {
       await expandCall({
+        client,
         runId,
         repositoryId,
         job,
@@ -1307,10 +1375,10 @@ async function createJobs(
        * with the reason on the row: a plugin that will never be permitted is
        * not a job to queue and let a machine discover.
        */
-      const plugins = await pluginSettings({ runId, settings: job.settings })
+      const plugins = await pluginSettings({ client, runId, settings: job.settings })
 
       for (let copy = 0; copy < copies; copy++) {
-        const created = await db
+        const created = await client
           .insertInto('workflow_jobs')
           .values({
             workflow_run_id: runId,
@@ -1393,9 +1461,9 @@ async function createJobs(
           .returning(['id'])
           .executeTakeFirst()
 
-        await copySteps(Number(job.id), Number(created?.id), repositoryId)
+        await copySteps(client, Number(job.id), Number(created?.id), repositoryId)
 
-        await supersedeJobs(runId, Number(created?.id), group, isTrue(job.job_cancel_in_progress))
+        await supersedeJobs(client, runId, Number(created?.id), group, isTrue(job.job_cancel_in_progress))
       }
     }
   }
@@ -1419,12 +1487,24 @@ async function createJobs(
  *
  * One insert per job rather than one per step - a job of forty steps is one
  * round trip, and dispatch is a path that runs on every push.
+ *
+ * ## It used to swallow its own failures, and must not
+ *
+ * Both statements ended in a `.catch()` that returned nothing, so a job whose
+ * steps could not be copied became a job with no steps: it claims, runs
+ * nothing, and reports success. Inside the run's transaction that is not a
+ * choice this function gets to make anyway - Postgres aborts the whole
+ * transaction on the first failed statement, so swallowing here only decides
+ * whether the error that surfaces is this one or a later, meaningless "current
+ * transaction is aborted". Letting it out rolls the run back, which is the
+ * honest outcome: no run at all beats a run that does nothing and says it
+ * passed.
  */
-async function copySteps(versionJobId: number, jobId: number, repositoryId: number | null): Promise<void> {
+async function copySteps(client: Executor, versionJobId: number, jobId: number, repositoryId: number | null): Promise<void> {
   if (!Number.isInteger(jobId) || jobId < 1)
     return
 
-  const steps = await db
+  const steps = await client
     .selectFrom('workflow_version_steps')
     .select([
       'position', 'name', 'command', 'uses', 'inputs', 'env', 'shell',
@@ -1433,12 +1513,11 @@ async function copySteps(versionJobId: number, jobId: number, repositoryId: numb
     .where('workflow_version_job_id', '=', versionJobId)
     .orderBy('position')
     .execute()
-    .catch(() => [])
 
   if (steps.length === 0)
     return
 
-  await db
+  await client
     .insertInto('workflow_steps')
     .values(steps.map((step: any) => ({
       workflow_job_id: jobId,
@@ -1458,17 +1537,15 @@ async function copySteps(versionJobId: number, jobId: number, repositoryId: numb
       state: 'pending',
     })))
     .execute()
-    .catch(() => null)
 }
 
 /** The file a version came from, or null when the row has gone. */
-async function sourcePathOf(versionId: number): Promise<string | null> {
-  const row: any = await db
+async function sourcePathOf(client: Executor, versionId: number): Promise<string | null> {
+  const row: any = await client
     .selectFrom('workflow_versions')
     .select(['source_path'])
     .where('id', '=', versionId)
     .executeTakeFirst()
-    .catch(() => null)
 
   return row?.source_path ? String(row.source_path) : null
 }
@@ -1487,6 +1564,7 @@ function shardName(name: string, index: number, total: number): string {
  * that can ever explain it.
  */
 async function expandCall(input: {
+  client: Executor
   runId: number
   repositoryId: number
   job: any
@@ -1497,12 +1575,12 @@ async function expandCall(input: {
   ownNeeds?: string[]
   position?: number
 }): Promise<void> {
-  const { runId, repositoryId, job, context, depth, trail, prefix } = input
+  const { client, runId, repositoryId, job, context, depth, trail, prefix } = input
   const name = prefix ? `${prefix}/${job.job_id}` : String(job.job_id)
   const ownNeeds = input.ownNeeds ?? []
 
   const record = async (reason: string): Promise<void> => {
-    await db
+    await client
       .insertInto('workflow_jobs')
       .values({
         workflow_run_id: runId,
@@ -1548,7 +1626,7 @@ async function expandCall(input: {
     return
   }
 
-  await createJobs(runId, resolved.target.versionId, context, {
+  await createJobs(client, runId, resolved.target.versionId, context, {
     prefix: name,
     depth: depth + 1,
     trail: [...trail, resolved.target.versionId],
@@ -1569,13 +1647,13 @@ async function expandCall(input: {
    * outputs are the called workflow's declared outputs - resolved by the settler
    * when the barrier is released.
    */
-  const called = await db
+  const called = await client
     .selectFrom('workflow_version_jobs')
     .select(['job_id', 'needs'])
     .where('workflow_version_id', '=', resolved.target.versionId)
     .execute()
 
-  await db
+  await client
     .insertInto('workflow_jobs')
     .values({
       workflow_run_id: runId,
@@ -1624,8 +1702,8 @@ function parseWith(stored: unknown): Record<string, unknown> {
 }
 
 /** The repository a run belongs to, for resolving a call against it. */
-async function repositoryOf(runId: number): Promise<number> {
-  const run = await db
+async function repositoryOf(client: Executor, runId: number): Promise<number> {
+  const run = await client
     .selectFrom('workflow_runs')
     .select(['repository_id'])
     .where('id', '=', runId)
@@ -1647,6 +1725,7 @@ async function repositoryOf(runId: number): Promise<number> {
  * write the same group string never touch each other's jobs.
  */
 async function supersedeJobs(
+  client: Executor,
   runId: number,
   jobId: number,
   group: string | null,
@@ -1655,7 +1734,7 @@ async function supersedeJobs(
   if (!group || !cancelInProgress || !jobId)
     return
 
-  const run = await db
+  const run = await client
     .selectFrom('workflow_runs')
     .select(['repository_id'])
     .where('id', '=', runId)
@@ -1664,7 +1743,7 @@ async function supersedeJobs(
   if (!run)
     return
 
-  const siblings = await db
+  const siblings = await client
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.id as id'])
@@ -1677,7 +1756,7 @@ async function supersedeJobs(
     .execute()
 
   for (const sibling of siblings) {
-    await db
+    await client
       .updateTable('workflow_jobs')
       .set({ state: 'cancelling' })
       .where('id', '=', Number(sibling.id))
@@ -1806,6 +1885,7 @@ function labelFor(values: Record<string, unknown>): string {
  * a fact about the runner that claims it, which does not exist yet.
  */
 async function pluginSettings(input: {
+  client: Executor
   runId: number
   settings: unknown
 }): Promise<{ ok: true, settings: string | null } | { ok: false, reason: string }> {
@@ -1830,7 +1910,7 @@ async function pluginSettings(input: {
   if (entries.length === 0)
     return { ok: true, settings: raw }
 
-  const run = await db
+  const run = await input.client
     .selectFrom('workflow_runs')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
     .select([
@@ -1845,7 +1925,7 @@ async function pluginSettings(input: {
   if (!run)
     return { ok: false, reason: 'this run has no repository to resolve plugins against' }
 
-  const handle = await ownerHandle(String(run.owner_type), Number(run.owner_id))
+  const handle = await ownerHandle(input.client, String(run.owner_type), Number(run.owner_id))
   const located = handle ? repositoryPath(handle, String(run.name)) : { path: null as string | null }
 
   if (!located.path)
@@ -1870,15 +1950,14 @@ async function pluginSettings(input: {
 }
 
 /** A handle for an owner of either kind, which is what a repository path needs. */
-async function ownerHandle(ownerType: string, ownerId: number): Promise<string | null> {
+async function ownerHandle(client: Executor, ownerType: string, ownerId: number): Promise<string | null> {
   const table = ownerType === 'organization' ? 'organizations' : 'users'
 
-  const row = await db
+  const row = await client
     .selectFrom(table as any)
     .select(['handle'])
     .where('id', '=', ownerId)
     .executeTakeFirst()
-    .catch(() => null)
 
   return row?.handle ? String(row.handle) : null
 }

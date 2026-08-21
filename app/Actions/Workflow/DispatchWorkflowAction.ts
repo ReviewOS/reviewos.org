@@ -203,9 +203,8 @@ export default new Action({
 
     const number = await nextNumber(Number(repository.id))
 
-    const run = await db
-      .insertInto('workflow_runs')
-      .values({
+    const runId = await startRunFor({
+      values: {
         ...withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: Number(repository.id),
@@ -239,27 +238,11 @@ export default new Action({
          */
         ...(idempotency ? { redelivery_key: idempotency } : {}),
         request_id: correlation,
-      })
-      .returning(['id'])
-      .executeTakeFirst()
-      .catch(async (error) => {
-        /*
-         * The insert lost the race for the key, which is the race it is here to
-         * lose: two retries of one request arriving together. The winner's run
-         * is the answer both of them wanted.
-         */
-        if (!idempotency)
-          throw error
-
-        return await db
-          .selectFrom('workflow_runs')
-          .select(['id'])
-          .where('repository_id', '=', Number(repository.id))
-          .where('redelivery_key', '=', idempotency)
-          .executeTakeFirst()
-      })
-
-    await createJobsFor(Number(run?.id), Number(version.id))
+      },
+      versionId: Number(version.id),
+      repositoryId: Number(repository.id),
+      idempotency,
+    })
 
     /*
      * Recorded, because starting a run spends the instance's machines and can
@@ -268,7 +251,7 @@ export default new Action({
      * no other answer.
      */
     await auditEvent('workflow:run-dispatched', {
-      subject: { type: 'workflow_run', id: Number(run?.id ?? 0) },
+      subject: { type: 'workflow_run', id: runId },
       actorId: auth.context.user?.id ?? null,
       ...await auditFrom(request),
       repositoryId: Number(repository.id),
@@ -376,13 +359,59 @@ async function nextNumber(repositoryId: number): Promise<number> {
 }
 
 /**
- * The run's jobs, copied from the definition, matrix and all.
+ * The run and its jobs, copied from the definition, matrix and all.
  *
  * Shares `dispatchPush`'s helper rather than reimplementing the copy: a second
- * version of this would be a second place for the matrix fan-out to be wrong.
+ * version of this would be a second place for the matrix fan-out to be wrong,
+ * and - since that helper writes the run and its graph in one transaction - a
+ * second place for a half-written run to become visible.
+ *
+ * ## Losing the race for an idempotency key
+ *
+ * The insert can fail on the unique index, which is the failure it is there to
+ * have: two retries of one request arriving together, where the winner's run is
+ * the answer both of them wanted. The loser returns the winner's id and writes
+ * nothing.
+ *
+ * It used to return that id and then build a graph on it, which put a *second*
+ * copy of every job on somebody else's run - the retry of a dispatch quietly
+ * doubling the pipeline. Now that the graph is written in the same transaction
+ * as the run, the loser has nothing left to do: the winner's transaction either
+ * committed a complete run or rolled the whole thing back.
+ *
+ * Only a collision is read this way. The old shape caught *any* failure of the
+ * insert and went looking for a winner, which was survivable while the call
+ * wrote one row; this one covers the graph and the first settle as well, and
+ * treating a failure in either as "somebody else got there first" would hand
+ * back a run id and say nothing about what actually broke.
  */
-async function createJobsFor(runId: number, versionId: number): Promise<void> {
-  const { createJobsForRun } = await import('./dispatch')
+async function startRunFor(input: {
+  values: Record<string, unknown>
+  versionId: number
+  repositoryId: number
+  idempotency: string | null
+}): Promise<number> {
+  const { isDuplicate, startRun } = await import('./dispatch')
 
-  await createJobsForRun(runId, versionId)
+  try {
+    return await startRun({ values: input.values, versionId: input.versionId })
+  }
+  catch (error) {
+    if (!input.idempotency || !isDuplicate(error))
+      throw error
+
+    const winner: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', input.repositoryId)
+      .where('redelivery_key', '=', input.idempotency)
+      .executeTakeFirst()
+
+    // No winner means this was not the collision the key is for, and the caller
+    // deserves the original failure rather than a run id of zero.
+    if (!winner)
+      throw error
+
+    return Number(winner.id)
+  }
 }

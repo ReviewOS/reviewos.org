@@ -213,6 +213,125 @@ describe('a push that matches', () => {
   })
 })
 
+/*
+ * The window between the run row and the graph under it, which used to be
+ * open.
+ *
+ * `createRunWithGraph` writes both in one transaction, and the claim query -
+ * `queued` jobs of `queued` runs - is the reader that made that necessary: a
+ * run visible with one of its four jobs inserted is a run a machine can take
+ * work from, finish, and have the settler conclude green before the jobs it was
+ * gating existed. The acceptance suite met the same window from the other side
+ * and read `['lint']` where the file describes four jobs.
+ *
+ * So this watches for the run *while the dispatch is still running* and counts
+ * its jobs the instant it can see it. Every sighting must already be the whole
+ * graph. The observer is on the pooled handle and the writer is in a
+ * transaction, which is the pair that has to hold.
+ */
+describe('while a run is being written', () => {
+  test('it is not visible until the whole graph is', async () => {
+    if (!available)
+      return
+
+    const path = '.github/workflows/atomic.yml'
+
+    await store(CI, path)
+
+    const highest: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .orderBy('id', 'desc')
+      .executeTakeFirst()
+
+    const before = Number(highest?.id ?? 0)
+
+    // What each sighting of the new run had under it. A run seen with fewer
+    // jobs than the definition describes is the failure this test is for.
+    const sightings: number[] = []
+
+    let settled = false
+
+    const dispatching = push('refs/heads/main', undefined, '1'.repeat(40))
+      .finally(() => {
+        settled = true
+      })
+
+    /*
+     * No delay in the loop: the whole point is to look as often as possible
+     * during the write. It ends when the dispatch does, so a push that creates
+     * nothing cannot hang the suite.
+     */
+    while (!settled) {
+      const appeared: any = await db
+        .selectFrom('workflow_runs')
+        .select(['id'])
+        .where('repository_id', '=', created.repositoryId)
+        .where('id', '>', before)
+        .orderBy('id', 'desc')
+        .executeTakeFirst()
+
+      if (!appeared)
+        continue
+
+      sightings.push((await jobsOf(Number(appeared.id))).length)
+    }
+
+    const result = await dispatching
+
+    expect(result.created.length).toBe(2)
+
+    for (const jobs of sightings)
+      expect(jobs).toBeGreaterThanOrEqual(2)
+
+    // And the finished state, which holds whether or not the loop above ever
+    // caught the run mid-write.
+    const jobs = await jobsOf(result.created[0])
+
+    expect(jobs.map(job => String(job.job_id)).sort()).toEqual(['build', 'test'])
+  })
+
+  /*
+   * The steps, which are the part a mistake here would lose quietly.
+   *
+   * Every job's steps are copied inside the same transaction as the job row.
+   * A copy that ran on the pooled handle instead would be inserting against a
+   * `workflow_job_id` that is not committed yet - a foreign key failure, on a
+   * path that used to swallow its own errors - and the result would be a run
+   * whose jobs all look right and do nothing.
+   */
+  test('and every job it wrote has its steps', async () => {
+    if (!available)
+      return
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .orderBy('id', 'desc')
+      .executeTakeFirst()
+
+    const jobs = await db
+      .selectFrom('workflow_jobs')
+      .select(['id', 'job_id'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .execute()
+
+    expect(jobs.length).toBeGreaterThan(0)
+
+    for (const job of jobs) {
+      const steps = await db
+        .selectFrom('workflow_steps')
+        .select(['id'])
+        .where('workflow_job_id', '=', Number(job.id))
+        .execute()
+
+      expect([String(job.job_id), steps.length]).toEqual([String(job.job_id), 1])
+    }
+  })
+})
+
 describe('a push that does not match', () => {
   test('starts nothing, and says why', async () => {
     if (!available)

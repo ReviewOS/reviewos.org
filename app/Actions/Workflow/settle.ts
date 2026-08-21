@@ -20,7 +20,7 @@
 import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
-import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
+import { dispatchWorkflowRun, releaseGroup, startRun } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { alreadySent, waitPlan, waitSettingsOf } from './awaits'
 import type { ChecksState } from './environments'
@@ -800,9 +800,8 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     .limit(1)
     .executeTakeFirst()
 
-  const started = await db
-    .insertInto('workflow_runs')
-    .values(withRedeliveryKey({
+  const startedId = await startRun({
+    values: withRedeliveryKey({
       workflow_version_id: Number(version.id),
       repository_id: Number(run.repository_id),
       number: Number(previous?.number ?? 0) + 1,
@@ -831,13 +830,9 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
       dispatch_inputs: settings.inputs && Object.keys(settings.inputs as object).length > 0
         ? JSON.stringify(settings.inputs)
         : null,
-    }))
-    .returning(['id'])
-    .executeTakeFirst()
-
-  const startedId = Number(started?.id)
-
-  await createJobsForRun(startedId, Number(version.id))
+    }),
+    versionId: Number(version.id),
+  })
 
   /*
    * Async by default, which is Buildkite's default and the right one: a

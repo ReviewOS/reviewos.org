@@ -184,7 +184,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
   const sha = String(version.source_sha ?? '')
 
   const { resolveGroup } = await import('../Actions/Workflow/concurrency')
-  const { createJobsForRun } = await import('../Actions/Workflow/dispatch')
+  const { startRun } = await import('../Actions/Workflow/dispatch')
 
   const group = resolveGroup(version.concurrency_group, {
     workflow: String(workflow.name || workflow.path || ''),
@@ -194,9 +194,8 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
   })
 
   try {
-    const run = await db
-      .insertInto('workflow_runs')
-      .values(withRedeliveryKey({
+    await startRun({
+      values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: Number(repository.id),
         number: await nextNumber(Number(repository.id)),
@@ -211,11 +210,9 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
         actor_id: null,
         concurrency_group: group,
         started_at: null,
-      }))
-      .returning(['id'])
-      .executeTakeFirst()
-
-    await createJobsForRun(Number(run?.id), Number(version.id))
+      }),
+      versionId: Number(version.id),
+    })
 
     return true
   }
