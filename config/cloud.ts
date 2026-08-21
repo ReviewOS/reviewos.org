@@ -782,30 +782,32 @@ export const tsCloud: TsCloudConfig = {
       port: 3072,
 
       /*
-       * A ceiling the process is killed at, not only throttled at.
+       * A ceiling the process is killed at. Only killed at - there is no soft
+       * limit under it any more, and that is the whole point.
        *
-       * This page process grows under traffic - about 130KB retained per
-       * request on a quiet machine, and faster here, where a public instance
-       * with a hundred and fifteen repositories is walked by crawlers. It
-       * starts at 230MB and reaches two gigabytes in roughly an hour.
+       * The growth itself is fixed elsewhere: it was crawlers, not the
+       * renderer. GoogleOther and Applebot were walking `/tree/` across every
+       * branch and every tag of every mirrored repository, and `public/robots.txt`
+       * now says not to. What is left here is the backstop.
        *
-       * `MemoryHigh` alone is a soft limit: the kernel reclaims the cgroup
-       * rather than killing it, so the process stays "active (running)" and
-       * stops answering - twelve seconds and an empty reply, for hours, while
-       * `systemctl status` reports it healthy and `Restart=always` never
-       * fires because nothing ever exits. The site was down twice that way
-       * before anybody could see why.
+       * `MemoryHigh` made a poor backstop, twice, for the same reason each
+       * time. It is a throttle rather than a kill: the kernel reclaims the
+       * cgroup instead of ending it, so the process parks exactly at the limit
+       * with `available: 0B`, stays "active (running)", and answers nothing.
+       * `Restart=always` never fires, because nothing ever exits.
        *
-       * So: reclaim early at 1.5G, and kill at 2G. systemd restarts five
-       * seconds later and the site is back in the half minute it takes to
-       * compile the views. A blip on a timer beats a hang nobody notices.
+       * The first attempt at this comment assumed a high limit under a hard
+       * one would reclaim early and then hand over to the kill. It does not.
+       * Reclaim is good enough to hold the process just under `MemoryHigh`
+       * indefinitely, so `MemoryMax` is never reached and the kill never
+       * comes - the site hung at 1.5G with two gigabytes of headroom it was
+       * not allowed to use.
        *
-       * This is a floor under the symptom and not a fix for the growth. The
-       * suspect is the utility-CSS engine loaded on the first render - eight
-       * unbounded caches (`classCache`, `selectorCache`, `noMatchCache` and
-       * five more) in an app whose templates use one utility class in total.
+       * So: one limit, and it is the one that ends the process. systemd
+       * restarts five seconds later and the site is back in the half minute it
+       * takes to compile the views. A blip on a timer beats a hang nobody
+       * notices.
        */
-      memoryHigh: '1500M',
       memoryMax: '2G',
       // The published package ships `dist` and not `src`, so the entry is used
       // as built rather than rebuilt here. The template's build step assumes a
