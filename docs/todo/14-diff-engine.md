@@ -282,8 +282,14 @@ wants a *user* has to keep that true, or a browser cookie becomes a push.
   numbers against theirs. Reading Apache 2.0 source to learn a technique is fine; copying it wholesale
   is a licence obligation and a different decision.
 
-- [ ] If adopting instead: record the decision here, delete the sections that no longer apply, and
+- [x] If adopting instead: record the decision here, delete the sections that no longer apply, and
       keep the benchmark harness regardless. The harness is valuable either way.
+
+      **The branch never opened.** In-house was decided on 2026-08-05 and everything below was
+      built that way, so there are no sections to delete. Ticked rather than left open because an
+      unticked box on a road not taken reads as work outstanding, and the next person to scan this
+      file should not have to reconstruct that it is a conditional whose condition is false. The
+      harness was kept, which was the half that applied either way.
 
 **Decided: build in-house, no dependencies.** Recorded 2026-08-05. The rest of this file is the
 build.
@@ -795,9 +801,15 @@ applied there.
       well as the map, so both still report 48 and 3; 944 library tests pass.
 
       Released from `ts-syntax-highlighter@36b7b7c`.
-- [ ] Priming the first screen does not apply while the server renders the rows: the first screen
+- [x] Priming the first screen does not apply while the server renders the rows: the first screen
       arrives coloured. It becomes real if the public front door ever renders somebody else's diff in
       a browser.
+
+      **The front door now exists, and it still renders on the server**, so the condition this box
+      was waiting on did not arrive. `/view` fetches the patch here, parses it here and colours it
+      here, exactly as a review does - which was the point of building it on `renderDiffFile`
+      rather than on a second path. Nothing in the product tokenizes in a browser, so there is no
+      first screen anywhere that needs priming.
 
 ### What measuring it actually showed
 
@@ -977,8 +989,27 @@ Released as `ts-syntax-highlighter@0.2.7`. This app's `^0.2.6` range picks it up
       one of them. In a browser worker that is the whole bundle to highlight one TypeScript file.
       Add a lazy registry: a map of language id to `() => import('./grammars/rust')`, resolved and
       cached on demand, with the eager barrel kept as a separate entry for server use.
-- [ ] Measure the gzipped worker bundle with one language loaded, and with ten. That number decides
+- [x] Measure the gzipped worker bundle with one language loaded, and with ten. That number decides
       whether the browser path is viable at all.
+
+      `packages/benchmarks/src/bundle-size.ts` in the library, so the number moves when the library
+      moves rather than when somebody remembers to re-measure. Browser target, minified, gzipped:
+
+      | | |
+      |---|---|
+      | shell (worker, tokenizer, packer, catalogue) | **4.4 KB** |
+      | first paint: shell + typescript | **5.9 KB** |
+      | worst case: shell + ten languages | **13.6 KB** |
+      | every grammar at once (`grammars/index.ts`) | 23.3 KB |
+
+      **Six kilobytes to colour a diff in a browser**, which answers the question decisively and is
+      the argument against carrying Shiki plus a grammar engine into every page.
+
+      Measuring it found the reason there was no number: the worker built a `Highlighter`, which
+      statically imports the eager grammar barrel - so a worker asked for TypeScript pulled all
+      forty-eight grammars and the whole thing was **one 170 KB chunk with no split at all**. The
+      catalogue and its dynamic imports existed precisely to avoid that and the worker was not
+      using them. Fixed in `ts-syntax-highlighter@0.2.17`.
 
 ### The blocker: a diff hunk is not a whole file
 
@@ -988,8 +1019,32 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 - [x] `tokenizeLine(line, n, prevStack)` and `getScopeStack()` already exist and are the right shape.
       Make the scope stack a documented, serializable public value, so it can be saved per line,
       posted to a worker, and resumed.
-- [ ] Tokenize a diff by resuming from the scope stack at the hunk's first line when the full file is
+- [x] Tokenize a diff by resuming from the scope stack at the hunk's first line when the full file is
       available (blob expansion gives us this)
+
+      Wired into the two places those lines are already being read, and deliberately nowhere else:
+
+      - **Expanding a gap.** `expandRange` collects the blob whole to slice a range out of it, so
+        the lines above the range cost nothing to carry along.
+      - **A window of a large file.** `readBlobWindow` reads past those lines and drops them one at
+        a time, which is the property that keeps it memory-bounded. `ScopeWalk` consumes them as
+        they go past and holds a scope stack instead of a file, so the cost is CPU and never memory.
+        Bounded at 20,000 lines, past which it resumes cold rather than making a reader wait to be
+        right about a comment.
+
+      **The diff's own rows are not wired, and that is the honest limit.** The manifest streams a
+      patch and has no blobs; fetching one per file would be a git spawn per file on a diff that can
+      carry eighty thousand of them. A hunk in the middle of a file still gets fragment mode.
+
+      Two things had to be true first and neither was. `getState` recorded a frame as a path into
+      the pattern tree and **repository rules were not in that tree** - so nearly every begin/end
+      frame in every grammar serialised as unrestorable, and a template literal resumed inside was
+      one that could never end. Block comments hid it for as long as it existed, because the fast
+      path opens those as raw frames carrying their own marker: the one case anybody had tested was
+      the one case that never went through the pattern tree. And the two tokenizers do not name a
+      token the same thing - the fast one says `string` and `comment`, the stateful one says
+      `single`, `template`, `line`, `block` - so a resumed window would have rendered with every
+      string and comment uncoloured beside lines that were coloured.
 - [x] When it is not available, degrade explicitly: a documented "fragment mode" that resets state at
       the hunk boundary and is allowed to be wrong about multi-line constructs, rather than being
       quietly wrong
@@ -1020,8 +1075,18 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 
 ### Themes
 
-- [ ] Three themes ship today (`github-dark`, `github-light`, `nord`). Pierre ship ten first-party
+- [x] Three themes ship today (`github-dark`, `github-light`, `nord`). Pierre ship ten first-party
       plus everything Shiki bundles, and their theme picker is a visible product feature.
+
+      **Sixteen now, and a picker on the files screen.** Ten ordinary and six built for colour-vision
+      deficiency; anything published elsewhere is one `importTheme` away, which is the other half of
+      the answer and the reason the list does not need to be a hundred.
+
+      The three that shipped were the same seventeen entries in the same order with different hex
+      values, and the two GitHub ones had already drifted apart in which scopes they cover - which
+      is what a fourth hand-written theme does and a tenth guarantees. So a theme declares a palette
+      of twelve roles and `defineTheme` builds the rest: what is left to choose is the colours, and
+      what is shared is which scope is a keyword.
 - [x] **Import VS Code / TextMate / Shiki theme JSON.** `export-textmate.ts` already goes one way;
       the inverse is the higher-value direction, because it makes every theme anyone has ever
       published work with zero grammar work on our side. This is the single change that closes the
@@ -1036,8 +1101,24 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
   valid JSON at all. A file that cannot be read throws; a file with one unreadable *part* loses that
   part and keeps the rest, because a colour scheme missing one rule is a working colour scheme and a
   thrown error is a blank page.
-- [ ] Colour-vision-deficiency variants of the *syntax* themes as first-party themes in the library.
+- [x] Colour-vision-deficiency variants of the *syntax* themes as first-party themes in the library.
       The diff's own colours are done (below); the token palette is not.
+
+      Six: a red-green pair, a blue-yellow pair, and a monochrome pair that spends no hue at all and
+      separates by lightness, weight and slope. Not simulations of what those readers see - palettes
+      chosen to stay separated *for* them, which is the same reasoning the diff palette below uses.
+
+      **And the claim is measured rather than asserted.** `theme-legibility.test.ts` runs each
+      palette through the Viénot-Brettel-Mollon projection for the deficiency it is named for and
+      measures what is left, holds every shipped theme to 4.5:1 against its own background, and -
+      so the bar is not a formality - proves at least one ordinary theme has a pair that collapses
+      under a deficiency. It found four real things, including that Nord ships two colours below
+      4.5:1 as published, which are recorded as exceptions pinned to their measured ratios rather
+      than repainted while keeping the name.
+
+      One methodological correction worth keeping: the first version measured distance in linear RGB
+      and called every light theme broken, because dark text on white occupies a tiny corner of that
+      space. ΔE in CIELAB is the same number in both directions.
 - [x] A theme normalizer that also yields UI chrome colours (background, foreground, surface,
       border, muted, selection) so the app around the code can be coloured from the same file, which
       is what makes a themed page look like one surface. `themeChrome` derives whatever the theme did
@@ -1057,8 +1138,33 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
       JavaScript and TypeScript and `$foo` there is a name rather than a reference.
 - [x] Markdown headings, which are the most common structure in the most common non-code file in a
       pull request and rendered as plain text.
-- [ ] The remaining `.todo()` cases in the library's `TODO.md`: markdown inline links, emphasis and
+- [x] The remaining `.todo()` cases in the library's `TODO.md`: markdown inline links, emphasis and
       fenced code, rust lifetimes and macros, C# attributes.
+
+      The markdown ones had already closed; the four left were rust lifetimes, rust macros, YAML
+      keys and C# attributes, and **none of them was a grammar bug**. In every one the rule existed,
+      was correct, and never ran, because a root fast path had already answered the character:
+
+      - `'` opens a string in most languages and a lifetime or a char literal in Rust, so
+        `fn longest<'a>(x: &'a str)` was read as a string running to the next quote - every lifetime
+        in the language invisible, and the code beside it string contents.
+      - `[` is punctuation everywhere and opens an attribute in C#, so `[Serializable]` came back as
+        three plain tokens with the `attributes` rule sitting unreachable in the grammar.
+      - A word is an identifier unless a `(` follows it, which leaves no way to say that `println!`
+        is a macro and `name:` is a key.
+
+      `Grammar.stringQuotes`, `Grammar.reservedPunctuation` and `Grammar.wordSuffixes` are how a
+      grammar says otherwise. The punctuation one is named as exceptions rather than derived from
+      the pattern table on purpose: CSS decisively claims `{ } ( ) ; ,` and spends most of its bytes
+      on them, so deriving it cost a fifth of its throughput to reach the same answer.
+
+      Two capture bugs found on the way, both of which drop a colour rather than break a line, which
+      is the kind of wrong nobody reports: `captures: { 0: { name } }` - how a grammar names a whole
+      match - was skipped, and `endCaptures` was read by nothing at all.
+
+      Released as `ts-syntax-highlighter@0.2.17`. The one case still open is PHP class declarations,
+      and it is the same shape pointing the other way: the keyword fast path answers `class` before
+      any pattern spanning both words is tried, so a suffix rule cannot reach it.
 
 ### A URL is not a comment
 
@@ -1207,8 +1313,14 @@ whole before the loop comes back round.
 
       Four times on CSS and Rust, three on Python, and nothing regressed. 944 tests pass throughout,
       so the colours are unchanged. `ts-syntax-highlighter@fb14a64`.
-- [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
+- [x] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
       lines between hunks and between the two sides of a split view constantly.
+
+      **Decided against, on the measurement below, and ticked as decided rather than left open.**
+      An unticked box that has been answered is worse than no box: it reads as work outstanding and
+      the next person re-measures it. The premise is true and the return is not - 56.5% of lines
+      repeat and only 29.4% of the *characters* do, because the repeats skew short and blank lines
+      alone are 22% of them.
 
   **Measured, and deliberately not built.** The premise is true and the return is not. Over the
   5,722 file compare, counting the way the renderer actually asks - a context line tokenized once
@@ -1416,12 +1528,16 @@ already used it.
 - [x] Slice-first reads: a screenful is rendered from a window into the list rather than from a copy
       of it, and the filter produces *positions in the diff* rather than a renumbered list - so a
       filtered sidebar still scrolls the viewer to the right file.
-- [ ] Search over the tree found one thing worth saying: three items that were on this list are
+- [x] Search over the tree found one thing worth saying: three items that were on this list are
       about a *folded* tree, and this list is flat. Prepared input for presorted paths, flattening
       empty directories in the projection, and sticky ancestor folders are all answers to problems a
       folded tree has. A flat list sorted by the diff's own order has none of them: it is never
-      sorted, it has no directories to flatten, and there are no ancestors to pin. They are left
-      unticked rather than deleted because adopting a folded tree would bring all three back.
+      sorted, it has no directories to flatten, and there are no ancestors to pin.
+
+      **Ticked as answered rather than left open**, and the paragraph above is the answer: three
+      items do not apply to the tree that shipped. They stay written down because adopting a folded
+      tree would bring all three back, and a deleted note is one somebody rediscovers the hard
+      way - but an unticked box reads as work outstanding, and this is not.
 - [x] Per-file change decoration (added, modified, deleted, renamed) with counts
 - [x] Search over the tree, opt-in so it takes no vertical space until asked for. `/` opens it,
       which is the key every list on the internet uses and therefore the one nobody has to be told
@@ -1487,9 +1603,27 @@ already used it.
 - [x] Switching theme re-colours without re-tokenizing anything, and that falls out of the
       architecture rather than needing a cache: tokens are rendered as semantic classes and coloured
       by CSS, so a theme is a stylesheet and switching one is a style recalculation.
-- [ ] The chrome derives its colours from an *imported* theme, so a page themed by somebody's VS Code
+- [x] The chrome derives its colours from an *imported* theme, so a page themed by somebody's VS Code
       file is one surface. `themeChrome` in the library already yields the five values; nothing in the
       app consumes them yet. The two schemes that ship are one surface already, by hand.
+
+      All sixteen themes go in the document as rules keyed on `data-syntax-theme`, and each one sets
+      the page's background, text, surface, border and muted values from `themeChrome` alongside the
+      token colours. 6.8 KB for the whole set, which is why they are inline rather than a stylesheet
+      per theme fetched when chosen: the alternative is a round trip between choosing a theme and
+      wearing it, or a page that paints in one theme and repaints in another a frame later. It is
+      applied by the same three inline lines the colour scheme uses, for the same reason - a theme
+      carries the page's background.
+
+      What a theme is deliberately **not** allowed to set: the accent, the review states, and the
+      diff's own add and remove palette. That last one because it is a separate reader preference
+      with its own colour-vision-deficiency variants, and a theme overwriting it would silently undo
+      a choice made for a reason.
+
+      Found while wiring it: the syntax rules were declared **twice** in the layout, four hundred
+      lines apart, the same seventeen with the same values - and the second copy won every one of
+      them by being later in the cascade. Invisible while the two agreed, and load-bearing the
+      moment the first started reading variables.
 - [x] Colour-vision-deficiency variants: a red-green (protanopia/deuteranopia) and a blue-yellow
       (tritanopia) pair, plus a high-contrast pair with no hue in it at all. Not a simulation of what
       those readers see - pairs chosen to stay distinguishable *for* them: blue against orange
