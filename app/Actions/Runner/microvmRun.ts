@@ -29,6 +29,7 @@
 
 import { mkdir, rm } from 'node:fs/promises'
 import { checkoutCode } from './checkout'
+import { executionRecord, verifyPinned } from './vmImage'
 import type { ActionShip, GuestStep } from './microvmActions'
 import { expandSteps } from './microvmActions'
 import { deliverableSecrets } from './microvmSecrets'
@@ -44,6 +45,7 @@ import {
   guestImage,
   guestImageDigest,
   guestKernel,
+  guestKernelDigest,
   hostAddress,
   instanceAddresses,
   machineDiskMib,
@@ -233,6 +235,24 @@ export async function runJobInMachine(input: {
   if (!policy.ok)
     return { state: 'failed', reason: policy.reason, exitStatus: null }
 
+  /*
+   * The pin, checked against the bytes rather than believed.
+   *
+   * Before anything is built, because a mismatch means this runner is not the
+   * machine it was told it is - and a job that ran anyway would record a digest
+   * that did not execute it, which is worse than recording nothing because it is
+   * checkable and wrong.
+   */
+  const pinned = await verifyPinned({
+    imagePath: guestImage(),
+    imageDigest: guestImageDigest(),
+    kernelPath: guestKernel(),
+    kernelDigest: guestKernelDigest(),
+  })
+
+  if (!pinned.ok)
+    return { state: 'failed', reason: pinned.reason, exitStatus: null }
+
   const jobId = Number(input.job?.id ?? 0)
   const scratch = scratchDirectory()
 
@@ -288,6 +308,16 @@ export async function runJobInMachine(input: {
 
     sourcePath = prepared.checkedOut ? staging : undefined
   }
+
+  /*
+   * What executed this run, written into the run itself.
+   *
+   * The roadmap's second sentence - "a run records exactly what executed it" -
+   * and it is emitted before the first step so that a job which fails on step one
+   * still says what it failed on. The provenance travels with it, because a
+   * digest without one is a fact whose strength the reader has to guess.
+   */
+  await input.onOutput(machineRecord(pinned.provenance), 'stdout').catch(() => {})
 
   try {
     /*
@@ -449,4 +479,40 @@ async function runGitCommand(options: {
   const code = await child.exited
 
   return { ok: code === 0, exitCode: code }
+}
+
+/**
+ * The machine, as a block in the job's log.
+ *
+ * The log is where a run records things a person later asks about, and "which
+ * image was this built on" is exactly that question. Written as a group so it
+ * folds away, and with the provenance spelled out rather than implied: `measured`
+ * means this runner hashed the bytes it booted, and it is not the same claim as
+ * hardware having signed them.
+ */
+export function machineRecord(provenance: string): string {
+  const record = executionRecord(
+    {
+      name: guestImage().split('/').pop() ?? 'image',
+      digest: guestImageDigest(),
+      kernelDigest: guestKernelDigest(),
+      toolchains: {},
+      builtAt: '',
+    },
+    provenance as any,
+  )
+
+  const lines = [
+    '::group::Machine',
+    `image: ${record.imageDigest}`,
+    record.kernelDigest ? `kernel: ${record.kernelDigest}` : 'kernel: not pinned - the host supplies it, and this operator did not name it',
+    `provenance: ${record.provenance}`,
+    record.provenance === 'measured'
+      ? 'this runner hashed the bytes it booted and they matched the pin'
+      : 'nobody checked these against the bytes that booted',
+    '::endgroup::',
+    '',
+  ]
+
+  return lines.join('\n')
 }

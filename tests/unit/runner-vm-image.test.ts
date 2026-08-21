@@ -105,3 +105,156 @@ describe('what a workflow asked for', () => {
     ])
   })
 })
+
+describe('measuring what is actually there', () => {
+  async function withFile(bytes: string, run: (path: string) => Promise<void>) {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+
+    const root = mkdtempSync(join(tmpdir(), 'reviewos-measure-'))
+    const path = join(root, 'image.ext4')
+
+    writeFileSync(path, bytes)
+
+    try {
+      await run(path)
+    }
+    finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  test('a digest is computed from the bytes, not taken on trust', async () => {
+    const { measureFile, forgetMeasurements } = await import('../../app/Actions/Runner/vmImage')
+
+    forgetMeasurements()
+
+    await withFile('hello', async (path) => {
+      const found = await measureFile(path)
+      const expected = `sha256:${new Bun.CryptoHasher('sha256').update('hello').digest('hex')}`
+
+      expect(found).toBe(expected)
+    })
+  })
+
+  test('and a file that is not there measures to nothing rather than throwing', async () => {
+    const { measureFile } = await import('../../app/Actions/Runner/vmImage')
+
+    expect(await measureFile('/no/such/image.ext4')).toBeNull()
+  })
+
+  test('and a rebuilt file is measured again rather than remembered', async () => {
+    /*
+     * The memo exists because hashing a gigabyte per job is a minute per build,
+     * and its risk is staleness: an image rebuilt in place under the same path
+     * is one of the two failures this whole check exists to catch, so the key
+     * carries size and modification time rather than the path alone.
+     */
+    const { measureFile, forgetMeasurements } = await import('../../app/Actions/Runner/vmImage')
+    const { writeFileSync, utimesSync } = await import('node:fs')
+
+    forgetMeasurements()
+
+    await withFile('first', async (path) => {
+      const before = await measureFile(path)
+
+      writeFileSync(path, 'second-and-longer')
+      utimesSync(path, new Date(Date.now() + 5000), new Date(Date.now() + 5000))
+
+      expect(await measureFile(path)).not.toBe(before)
+    })
+  })
+})
+
+describe('the pin, checked against the bytes', () => {
+  async function pinned(imageBytes: string, claimed: string) {
+    const { verifyPinned, measureFile, forgetMeasurements } = await import('../../app/Actions/Runner/vmImage')
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+
+    forgetMeasurements()
+
+    const root = mkdtempSync(join(tmpdir(), 'reviewos-pin-'))
+    const image = join(root, 'base.ext4')
+    const kernel = join(root, 'vmlinux')
+
+    writeFileSync(image, imageBytes)
+    writeFileSync(kernel, 'kernel-bytes')
+
+    try {
+      const real = await measureFile(image)
+
+      return {
+        result: await verifyPinned({
+          imagePath: image,
+          imageDigest: claimed === 'REAL' ? String(real) : claimed,
+          kernelPath: kernel,
+          kernelDigest: '',
+        }),
+        real,
+      }
+    }
+    finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  test('passes, and says it measured rather than assumed', async () => {
+    const { result } = await pinned('the image', 'REAL')
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.provenance).toBe('measured')
+  })
+
+  test('and refuses an image that is not the one that was pinned', async () => {
+    /*
+     * The failure that actually happens, and nobody is lying when it does: an
+     * image rebuilt in place, a path pointing at last month's file, a digest
+     * copied from the wrong line of a build log. Before this the digest was a
+     * string in a configuration file that was never compared to anything, so a
+     * runner could boot one image and report another with nothing noticing.
+     */
+    const { result } = await pinned('the image', `sha256:${'b'.repeat(64)}`)
+
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.reason).toContain('not the')
+    expect(!result.ok && result.reason).toContain('did not execute it')
+  })
+
+  test('and refuses rather than warns, because a wrong record is worse than none', async () => {
+    // A warning would leave a run recording a digest that is checkable and wrong,
+    // which is worse than a run recording nothing at all.
+    const { result } = await pinned('the image', `sha256:${'c'.repeat(64)}`)
+
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('what a run says about the machine', () => {
+  test('names the provenance rather than implying it', async () => {
+    /*
+     * `measured` means this runner hashed the bytes it booted. It is not the same
+     * claim as hardware having signed them, and a log that let a reader confuse
+     * the two would be the weakest level being read as the strongest.
+     */
+    const { machineRecord } = await import('../../app/Actions/Runner/microvmRun')
+
+    const measured = machineRecord('measured')
+    const asserted = machineRecord('asserted')
+
+    expect(measured).toContain('provenance: measured')
+    expect(measured).toContain('hashed the bytes it booted')
+
+    expect(asserted).toContain('provenance: asserted')
+    expect(asserted).toContain('nobody checked')
+  })
+
+  test('and says so when the kernel was never pinned', async () => {
+    // An operator who pinned only the image pinned half of what ran.
+    const { machineRecord } = await import('../../app/Actions/Runner/microvmRun')
+
+    expect(machineRecord('measured')).toContain('kernel: not pinned')
+  })
+})

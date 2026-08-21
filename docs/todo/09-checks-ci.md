@@ -1700,15 +1700,28 @@ gate, in order.
       same purpose and a different answer is how two limits disagree.
 - [ ] Runner images and toolchains are pinned and attestable. A run records exactly what executed it.
 
-      **The pinning is done; the attestation is the half that cannot be.** `vmImage.ts` refuses
-      anything but a `sha256:` digest - a tag is a name somebody can move after the run recorded it -
-      and pins the guest kernel separately, because a microVM boots a kernel the *host* supplies and
-      an image digest says nothing about it.
+      **Pinned and recorded; `attested` is the half that needs hardware.**
 
-      What a run records is marked `provenance: 'asserted'`, deliberately. Recording a digest proves
-      what the runner *said* it booted; proving what it *did* needs a measurement it cannot forge,
-      which needs the hypervisor and the hardware. The field exists now so that adding `measured`
-      later does not silently upgrade the meaning of every row written before it.
+      `vmImage.ts` refuses anything but a `sha256:` digest - a tag is a name somebody can move after
+      the run recorded it - and pins the guest kernel separately, because a microVM boots a kernel
+      the *host* supplies and an image digest says nothing about it.
+
+      **The digest is now measured rather than believed.** It was weaker than it looked:
+      `REVIEWOS_GUEST_IMAGE_DIGEST` was a string the runner never compared to the file it booted, so a
+      runner could boot one image and report another and nothing would notice. It now hashes the
+      bytes and refuses to boot on a mismatch - verified both ways on real KVM. That catches an image
+      rebuilt in place, a stale path, a digest copied from the wrong line; it catches nothing a
+      dishonest runner does, and does not pretend to.
+
+      **"A run records exactly what executed it" is now true**, in the job's log, before the first
+      step, with the provenance spelled out beside the digests so a reader is not left guessing how
+      much the record is worth.
+
+      Open because `attested` cannot be reached in software: any measurement a runner reports could be
+      forged by a runner that wanted to, and the threat model treats a runner as compromised-by-design.
+      It needs a vTPM quote or an SEV-SNP or TDX report - and Firecracker's device model has no vTPM,
+      so it also needs a different VMM for that mode. The machine this was verified on has no TPM, no
+      measured boot and no SEV, so it could not have been tested even if it had been written.
 - [ ] Security review of the threat model, protocol, sandbox breakout surface, secret flow, cache
       poisoning, artifact handling, fork policy, and cancellation behavior before a public runner
       executes one command

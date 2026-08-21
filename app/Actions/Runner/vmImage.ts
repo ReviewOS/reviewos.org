@@ -11,18 +11,30 @@
  * tag is not a pin. `base:latest` is a name somebody can move afterwards, and an
  * image reference that can change under a run is not a record of anything.
  *
- * **Attestable** is not achievable here, and saying so is the point. Recording a
- * digest proves what this runner *said* it booted. Proving what it *did* boot
- * needs a measurement the runner cannot forge - a TPM quote, a signed launch
- * measurement - which needs the hypervisor and the hardware, and belongs to
- * phase B. `docs/ci-security-review.md` already says the honest version of this:
- * *"Nothing verifies what executed a run. `Runner` records a name and labels the
- * machine asserted."* This file narrows that gap and does not close it.
+ * **Attested** - proof the instance can check - is not achievable in software,
+ * and saying so is the point. Any measurement a runner reports could be forged by
+ * a runner that wanted to, and the threat model treats a runner as
+ * compromised-by-design. Closing that needs a root of trust the runner cannot
+ * lie through: a TPM quote, an SEV-SNP or TDX report. It is hardware, not code.
  *
- * So the record below is deliberately called what it is. It is an assertion by
- * the runner, stored so that a later question - "which image was this built on,
- * and is that the one we thought" - has an answer to check rather than nothing
- * to check.
+ * ## The middle level, which is achievable and was missing
+ *
+ * Between "the operator typed a digest" and "the hardware signed a measurement"
+ * there is a third thing: **the runner hashes the bytes it is about to boot and
+ * refuses if they are not the ones that were pinned.**
+ *
+ * That does not stop a runner lying. It stops the failure that actually happens,
+ * which is nobody lying at all: an image rebuilt in place, a path pointing at
+ * last month's file, a digest copied from the wrong line of a build log. Before
+ * this, a runner could boot one image and report another and nothing anywhere
+ * would notice - the digest was a string in a configuration file that was never
+ * compared to anything.
+ *
+ * So `provenance` has three values and each one means what it says. `asserted` is
+ * a digest nobody checked; `measured` is one this runner computed from the bytes
+ * it read; `attested` is reserved for hardware and is not produced by any code
+ * here. The field exists at three levels so that adding the third later does not
+ * silently change the meaning of rows written under the first two.
  */
 
 /** An image an operator has made available to their runners. */
@@ -46,15 +58,25 @@ export interface ExecutionRecord {
   kernelDigest: string
   toolchains: Readonly<Record<string, string>>
   /**
-   * How this was established.
+   * How this was established, and it is never more than the truth.
    *
-   * `asserted` is the only value this phase can produce, and it exists so that
-   * `measured` can be added later without every reader silently upgrading the
-   * meaning of the rows written before it. A column that changes meaning is
-   * worse than a column that admits it was always weak.
+   * A reader deciding whether to trust a build needs to know which of three
+   * things happened: nobody checked, this runner hashed the bytes, or hardware
+   * signed a measurement. Collapsing them into a boolean is how the weakest one
+   * gets read as the strongest.
    */
-  provenance: 'asserted' | 'measured'
+  provenance: Provenance
 }
+
+/**
+ * How well the instance knows what ran.
+ *
+ * Ordered, and the order is the point: a reader can ask "is this at least
+ * measured" without knowing every value that will ever exist.
+ */
+export type Provenance = 'asserted' | 'measured' | 'attested'
+
+export const PROVENANCE_ORDER: readonly Provenance[] = ['asserted', 'measured', 'attested']
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/
 
@@ -112,19 +134,110 @@ export function refusalForManifest(manifest: ImageManifest): string | null {
 /**
  * What the run records.
  *
- * Marked `asserted`, always, in this phase. The runner is telling the instance
- * what it booted and the instance has no way to check - which is exactly the
- * sentence `docs/ci-security-review.md` uses, and the reason this returns a
- * provenance rather than an unqualified fact.
+ * `asserted` unless a caller has measured, which is why the parameter has that
+ * default: a record whose provenance was optimistic by accident would be the one
+ * failure this whole distinction exists to prevent.
  */
-export function executionRecord(manifest: ImageManifest): ExecutionRecord {
+export function executionRecord(manifest: ImageManifest, provenance: Provenance = 'asserted'): ExecutionRecord {
   return {
     imageName: String(manifest?.name ?? '').slice(0, 200),
     imageDigest: String(manifest?.digest ?? '').toLowerCase(),
     kernelDigest: String(manifest?.kernelDigest ?? '').toLowerCase(),
     toolchains: { ...(manifest?.toolchains ?? {}) },
-    provenance: 'asserted',
+    provenance,
   }
+}
+
+/**
+ * The digest of a file this runner is about to boot.
+ *
+ * Streamed rather than read, for the reason `digestOfFile` in `snapshot.ts` is:
+ * an image is a gigabyte and this process is also supervising somebody's build.
+ *
+ * **Memoised on identity rather than path**, because the cost is the point of the
+ * memo and the risk is staleness. A path alone would keep answering about an
+ * image that has since been rebuilt underneath it - which is one of the two
+ * failures this whole function exists to catch - so the key carries size and
+ * modification time, and a rebuilt file measures again.
+ */
+const measured = new Map<string, string>()
+
+export async function measureFile(path: string): Promise<string | null> {
+  const file = Bun.file(path)
+
+  if (!(await file.exists()))
+    return null
+
+  const key = `${path}:${file.size}:${file.lastModified}`
+  const remembered = measured.get(key)
+
+  if (remembered)
+    return remembered
+
+  const hasher = new Bun.CryptoHasher('sha256')
+
+  for await (const chunk of file.stream())
+    hasher.update(chunk)
+
+  const digest = `sha256:${hasher.digest('hex')}`
+
+  measured.set(key, digest)
+
+  return digest
+}
+
+/** Forget what has been measured. For tests, and for a runner told to re-read. */
+export function forgetMeasurements(): void {
+  measured.clear()
+}
+
+/**
+ * Check the pinned digests against the bytes on disk.
+ *
+ * The refusal is the useful half. A machine boots perfectly well from an image
+ * nobody named and equally well from one named wrongly, so a mismatch that only
+ * produced a warning would produce a run recording a digest that was not what
+ * executed it - which is worse than recording nothing, because it is checkable
+ * and wrong.
+ */
+export async function verifyPinned(input: {
+  imagePath: string
+  imageDigest: string
+  kernelPath: string
+  kernelDigest: string
+}): Promise<{ ok: true, provenance: Provenance } | { ok: false, reason: string }> {
+  const image = await measureFile(input.imagePath)
+
+  if (!image)
+    return { ok: false, reason: `the guest image is not readable at \`${input.imagePath}\`` }
+
+  if (image !== String(input.imageDigest ?? '').trim().toLowerCase()) {
+    return {
+      ok: false,
+      reason: `the guest image at \`${input.imagePath}\` is \`${image}\`, not the \`${input.imageDigest}\` this runner was told to boot. An image was rebuilt or a digest was copied from the wrong place; either way a run would record something that did not execute it.`,
+    }
+  }
+
+  const kernel = await measureFile(input.kernelPath)
+
+  if (!kernel)
+    return { ok: false, reason: `the guest kernel is not readable at \`${input.kernelPath}\`` }
+
+  /*
+   * The kernel is checked separately and its absence from configuration is
+   * tolerated, which the image's is not. A microVM boots a kernel the *host*
+   * supplies, so an operator who pinned only the image has pinned half of what
+   * ran - worth saying, not worth refusing over, because the image digest is
+   * still the one that decides what the job could see.
+   */
+  if (input.kernelDigest && kernel !== String(input.kernelDigest).trim().toLowerCase()) {
+    return {
+      ok: false,
+      reason: `the guest kernel at \`${input.kernelPath}\` is \`${kernel}\`, not the \`${input.kernelDigest}\` this runner was told to boot.`,
+    }
+  }
+
+  return { ok: true, provenance: 'measured' }
 }
 
 /**

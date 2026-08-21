@@ -111,7 +111,12 @@ CPU seconds are not wall time.
   from that host, its Redis, its repository storage, its loopback interface, and any cloud metadata
   endpoint the machine has.
 - No immutable base image, no read-only checkout, no user separation between jobs.
-- Nothing verifies what executed a run. `Runner` records a name and labels the machine asserted.
+- Nothing verifies what executed a run *on the host path*. `Runner` records a name and labels the
+  machine asserted. In microVM mode this is narrowed but not closed: the runner now hashes the image
+  and kernel it boots and refuses on a mismatch, and the run records those digests with a
+  `provenance` of `measured` - which catches an image rebuilt underneath a runner, and catches
+  nothing a dishonest runner does. `attested` needs a root of trust the runner cannot lie through,
+  and Firecracker has no vTPM to offer one.
 
 **Since this was written**, the boundary that would change all of the above has been designed and
 its decision layer built: [the execution plane](./ci-execution-plane.md), a microVM per job on KVM.

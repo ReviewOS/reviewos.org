@@ -424,6 +424,44 @@ bun test tests/e2e/microvm-egress.test.ts
 It needs passwordless `sudo` for the fixture, the tap and the filter - the same three privileges the
 supervisor itself uses.
 
+## What executed a run
+
+`vmImage.ts`, and it has three levels rather than a boolean because the weakest
+one being read as the strongest is the failure worth designing against.
+
+**`asserted`** is a digest an operator typed and nobody compared to anything. That
+was the only level this had, and it was weaker than it looked: `REVIEWOS_GUEST_IMAGE_DIGEST`
+was a string in a configuration file the runner never checked against the file it
+booted, so a runner could boot one image and report another with nothing anywhere
+noticing.
+
+**`measured`** is what a runner computes from the bytes it is about to boot, and
+it now refuses to boot on a mismatch. That does not stop a runner lying. It stops
+the failure that actually happens, in which nobody is lying at all: an image
+rebuilt in place, a path pointing at last month's file, a digest copied from the
+wrong line of a build log. Verified both ways on real KVM - a correct pin boots
+and records `provenance: measured`, and a wrong one fails with a reason naming
+both digests.
+
+The record goes into the job's log as a `Machine` group, before the first step, so
+a job that fails on step one still says what it failed on. The kernel is named
+separately, and says so when it was never pinned: a microVM boots a kernel the
+*host* supplies, so an operator who pinned only the image has pinned half of what
+ran.
+
+**`attested`** is reserved and produced by nothing here. It is the level where the
+instance can check rather than believe, and it cannot be reached in software: any
+measurement a runner reports could be forged by a runner that wanted to, and the
+threat model treats a runner as compromised-by-design. Closing it needs a root of
+trust the runner cannot lie through - a vTPM quote, an SEV-SNP or TDX report.
+
+That is not only a hardware question but a **hypervisor** one. Firecracker's
+device model is deliberately minimal and has no vTPM at all, so this would mean a
+different VMM for that mode - Cloud Hypervisor with SEV-SNP, or QEMU with `swtpm` -
+on hardware that supports it. The machine this was built and verified on has no
+TPM, no measured boot and no SEV, so nothing here could have been tested even if
+it had been written.
+
 ## What is still not verified
 
 - ~~The source path has not booted.~~ **It has.** A machine booted with a real repository on its

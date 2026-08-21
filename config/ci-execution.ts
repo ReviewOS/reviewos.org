@@ -77,6 +77,18 @@ export function guestImageDigest(env: Record<string, string | undefined> = proce
   return String(env.REVIEWOS_GUEST_IMAGE_DIGEST ?? '').trim()
 }
 
+/**
+ * The kernel's digest, when the operator pinned it.
+ *
+ * Optional where the image's is required, and the asymmetry is deliberate: a
+ * microVM boots a kernel the *host* supplies, so an operator who pinned only the
+ * image has pinned half of what ran. Worth saying in the record rather than
+ * refusing over, because the image is still what decides what the job could see.
+ */
+export function guestKernelDigest(env: Record<string, string | undefined> = process.env): string {
+  return String(env.REVIEWOS_GUEST_KERNEL_DIGEST ?? '').trim()
+}
+
 export function scratchDirectory(env: Record<string, string | undefined> = process.env): string {
   return String(env.REVIEWOS_MICROVM_SCRATCH ?? '/var/lib/reviewos/microvm').trim()
 }

@@ -5,17 +5,55 @@
 // somebody's code as a process on the runner - which is the thing a microVM
 // exists to avoid.
 
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { executionMode, microvmRefusal } from '../../config/ci-execution'
 import { policyFrom, runJobInMachine, stepsFor, wallSecondsFor } from '../../app/Actions/Runner/microvmRun'
 
-/** A configured runner, as environment. */
-const CONFIGURED = {
+/**
+ * A configured runner, as environment.
+ *
+ * The image and kernel are real files with their real digests, because the run
+ * path measures them before it does anything else - a pin that was never checked
+ * against the bytes was the defect that check exists for, so a test that stubbed
+ * it out would be testing the version with the hole in it.
+ */
+const CONFIGURED: Record<string, string> = {
   REVIEWOS_EXECUTION: 'microvm',
-  REVIEWOS_GUEST_KERNEL: '/var/lib/reviewos/vmlinux',
-  REVIEWOS_GUEST_IMAGE: '/var/lib/reviewos/base.ext4',
-  REVIEWOS_GUEST_IMAGE_DIGEST: `sha256:${'a'.repeat(64)}`,
+  REVIEWOS_GUEST_KERNEL: '',
+  REVIEWOS_GUEST_IMAGE: '',
+  REVIEWOS_GUEST_IMAGE_DIGEST: '',
 }
+
+let pinRoot = ''
+
+beforeAll(async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { measureFile, forgetMeasurements } = await import('../../app/Actions/Runner/vmImage')
+
+  forgetMeasurements()
+
+  pinRoot = mkdtempSync(join(tmpdir(), 'reviewos-pinned-'))
+
+  const image = join(pinRoot, 'base.ext4')
+  const kernel = join(pinRoot, 'vmlinux')
+
+  writeFileSync(image, 'an image')
+  writeFileSync(kernel, 'a kernel')
+
+  CONFIGURED.REVIEWOS_GUEST_IMAGE = image
+  CONFIGURED.REVIEWOS_GUEST_KERNEL = kernel
+  CONFIGURED.REVIEWOS_GUEST_IMAGE_DIGEST = String(await measureFile(image))
+})
+
+afterAll(async () => {
+  if (pinRoot) {
+    const { rmSync } = await import('node:fs')
+
+    rmSync(pinRoot, { recursive: true, force: true })
+  }
+})
 
 function withEnv(values: Record<string, string | undefined>, run: () => void | Promise<void>) {
   const before = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]))
@@ -547,5 +585,33 @@ describe('the address a guest is given', () => {
     expect(guestAgent()).toContain('/work/net')
     expect(guestAgent()).toContain('ip link set eth0 up')
     expect(guestAgent()).toContain('ip route add default via')
+  })
+})
+
+describe('a runner whose image is not the one it was told to boot', () => {
+  test('fails the job rather than running it', async () => {
+    /*
+     * The check that was missing entirely: the pinned digest was a string in a
+     * configuration file that the runner never compared to the file it booted, so
+     * it could boot one image and report another with nothing noticing.
+     *
+     * A job that ran anyway would record a digest that did not execute it - worse
+     * than recording nothing, because it is checkable and wrong.
+     */
+    await withEnv(
+      { ...CONFIGURED, REVIEWOS_GUEST_IMAGE_DIGEST: `sha256:${'0'.repeat(64)}` },
+      async () => {
+        const outcome = await runJobInMachine({
+          job: { id: 3, steps: [{ run: 'true' }] },
+          onOutput: async () => {},
+          supervise: async () => {
+            throw new Error('the machine must not be built when the pin does not match')
+          },
+        })
+
+        expect(outcome.state).toBe('failed')
+        expect(outcome.reason).toContain('not the')
+      },
+    )
   })
 })
