@@ -16,10 +16,10 @@ import { providerNameFromAuthPath } from './socialPath'
  * which links the attacker's provider account to the victim's session. That is
  * login CSRF, and it is the reason `state` exists rather than being optional.
  *
- * So the state is minted here, put in a short-lived, `HttpOnly`, `SameSite=Lax`
- * cookie, and compared in the callback. `Lax` rather than `Strict` on purpose:
- * the callback is a cross-site top-level navigation from the provider, and
- * `Strict` would withhold the cookie on exactly the request that needs it.
+ * So the state is minted here, put in a short-lived `HttpOnly` cookie, and
+ * compared in the callback. Apple's callback is a cross-site POST, so its
+ * cookie uses `SameSite=None; Secure`; `Lax` would withhold it. Providers that
+ * return with a top-level GET keep `SameSite=Lax`.
  *
  * `next` rides along inside the same cookie rather than in the URL, because a
  * `next` a caller can set on the callback is an open redirect wearing a
@@ -57,6 +57,7 @@ export default new Action({
 
     const state = crypto.randomUUID().replace(/-/g, '')
     const next = safeRedirect(request.get?.('next'), '/reviews')
+    const secure = isSecureRequest(request)
 
     let url: string
     try {
@@ -80,7 +81,8 @@ export default new Action({
 
     const cookie = sessionCookie(STATE_COOKIE, `${state}:${next}`, {
       maxAgeSeconds: STATE_TTL_SECONDS,
-      secure: isSecureRequest(request),
+      secure,
+      sameSite: name === 'apple' && secure ? 'None' : 'Lax',
     })
 
     return new Response(null, {

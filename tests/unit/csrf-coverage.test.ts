@@ -33,9 +33,13 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 16,
-    because: 'the MCP endpoint, the mirror webhook, the nine runner routes, and the '
+    count: 17,
+    because: 'the Apple social callback, the MCP endpoint, the mirror webhook, the nine runner routes, and the '
       + 'three GitHub-compatible paths an action posts to. '
+      + 'Apple posts cross-site and cannot carry the double-submit token; its '
+      + 'one-time OAuth state is returned in the form and compared to the '
+      + 'HttpOnly state cookie before any code is exchanged, so a forged post '
+      + 'cannot spend a session or complete another browser\'s handshake. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
@@ -191,6 +195,6 @@ describe('what is not exempt', () => {
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(16)
+    expect(await skipCount('routes/api.ts')).toBe(17)
   })
 })

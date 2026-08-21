@@ -26,6 +26,17 @@ describe('the session cookie', () => {
     expect(cookie).not.toContain('SameSite=Strict')
   })
 
+  it('can cross a provider form POST only when explicitly requested', () => {
+    const callback = sessionCookie('oauth-state', 'state', {
+      maxAgeSeconds: 600,
+      secure: true,
+      sameSite: 'None',
+    })
+
+    expect(callback).toContain('SameSite=None')
+    expect(callback).toContain('Secure')
+  })
+
   it('is scoped to the whole site', () => {
     expect(cookie).toContain('Path=/')
   })

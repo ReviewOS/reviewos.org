@@ -49,7 +49,7 @@ export default new Action({
     const url = new URL(request.url)
     const name = providerNameFromAuthPath(url.pathname)
     const secure = isSecureRequest(request)
-    const forget = clearedCookie(STATE_COOKIE, secure)
+    const forget = clearedCookie(STATE_COOKIE, secure, name === 'apple' && secure ? 'None' : 'Lax')
 
     const fail = (message: string) => new Response(null, {
       status: 303,

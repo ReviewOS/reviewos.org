@@ -49,7 +49,10 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       Apple and the rest light up as their keys are set; see `app/Actions/Auth/social.ts`
 - [x] Social sign-in honors the API mount prefix through both halves of the flow. The redirect and
       callback actions read the provider after the `auth` segment instead of assuming a root mount,
-      and the callback accepts Apple's required `form_post` response as well as OAuth GET callbacks
+      and the callback accepts Apple's required `form_post` response as well as OAuth GET callbacks.
+      That POST is narrowly exempt from the site's double-submit CSRF middleware because its one-time
+      OAuth state is the protocol's own CSRF check; the state cookie uses `SameSite=None; Secure` for
+      Apple so the browser can return it on a cross-site POST, while ordinary session cookies stay Lax
 - [x] "Browse the source" points at this instance rather than at GitHub, along with the clone
       command, the nav, both footers, and the docs hero. A forge that sends its own readers to a
       competitor to read its own code has not made its case. The GitHub mirror stays linked and

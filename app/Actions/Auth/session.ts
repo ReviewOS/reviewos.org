@@ -22,6 +22,8 @@ export interface CookieOptions {
   maxAgeSeconds: number
   /** Whether the connection is https. Set from the request, not guessed. */
   secure: boolean
+  /** Cross-site policy. Session cookies stay Lax; OAuth form callbacks need None. */
+  sameSite?: 'Lax' | 'None' | 'Strict'
 }
 
 /**
@@ -46,7 +48,7 @@ export function sessionCookie(name: string, value: string, options: CookieOption
     `${name}=${encodeURIComponent(value)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${options.sameSite ?? 'Lax'}`,
     `Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`,
   ]
 
@@ -57,8 +59,8 @@ export function sessionCookie(name: string, value: string, options: CookieOption
 }
 
 /** The same cookie, expired. Clearing it needs the same flags to match. */
-export function clearedCookie(name: string, secure: boolean): string {
-  return sessionCookie(name, '', { maxAgeSeconds: 0, secure })
+export function clearedCookie(name: string, secure: boolean, sameSite: CookieOptions['sameSite'] = 'Lax'): string {
+  return sessionCookie(name, '', { maxAgeSeconds: 0, secure, sameSite })
 }
 
 /** Whether this request arrived over https, including behind a proxy. */
