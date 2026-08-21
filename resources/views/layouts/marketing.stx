@@ -33,7 +33,7 @@ catch {
 }
 
 /*
- * The half of the `<head>` that is derived rather than declared.
+ * The half of the the `head` element that is derived rather than declared.
  *
  * Title and description stay with the page - they are copy, and copy belongs
  * next to the page it describes. The canonical URL, the card, and the robots

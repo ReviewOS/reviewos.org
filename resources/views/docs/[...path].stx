@@ -27,7 +27,7 @@
  *
  * The page is emitted whole, with no layout of its own: bunpress writes
  * complete documents, and wrapping one in the product's shell would give it
- * two `<head>` elements and two navigations.
+ * two `head` elements and two navigations.
  */
 import { readDocsPage } from '../../functions/docs'
 

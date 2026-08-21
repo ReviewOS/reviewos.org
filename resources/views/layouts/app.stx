@@ -7,7 +7,7 @@
  * for one thing per screen so review state (green, red, amber) reads as
  * state rather than decoration.
  *
- * The `<head>` used to carry a title and nothing else - no description, no
+ * The the `head` element used to carry a title and nothing else - no description, no
  * canonical URL, no card, no robots policy. Every link to a repository, a
  * pull request or an issue posted anywhere therefore unfurled as a grey box
  * with a URL in it, which is most of the links this project's users ever

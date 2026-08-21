@@ -27,7 +27,7 @@ import { featured } from '../../app/Actions/Explore/featured'
 const highlights = await featured()
 
 /*
- * This page renders its own `<head>` rather than extending the marketing
+ * This page renders its own the `head` element rather than extending the marketing
  * layout, so the values it shares with every other page come from the same
  * module the layouts read. Restating them here is how the landing page ends up
  * describing a version of the site that no longer exists.
