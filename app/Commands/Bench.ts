@@ -1,6 +1,6 @@
 import type { CLI } from '@stacksjs/types'
 import process from 'node:process'
-import { CORPUS, CORPUS_REMOTE, changedLines, corpusEntry } from '../Actions/Bench/corpus'
+import { CORPUS, changedLines, cloneCommands, corpusEntry } from '../Actions/Bench/corpus'
 import { runGit } from '../Actions/Git/git'
 
 /**
@@ -39,7 +39,10 @@ export default function (cli: CLI) {
 
       if (!present.ok) {
         console.error(`No repository at ${path}.`)
-        console.error(`Clone one: git clone --bare ${CORPUS_REMOTE} ${path}`)
+        console.error('Clone one, from either source:')
+
+        for (const command of cloneCommands(path))
+          console.error(`  ${command}`)
         process.exit(1)
       }
 

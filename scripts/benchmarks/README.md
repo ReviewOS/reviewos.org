@@ -42,6 +42,11 @@ What it reports, and why each is there:
   so mounting is a function of how far somebody scrolled rather than of how large the diff is. A
   `recycled` count near `mounts` is that claim holding.
 - `heapMb.grew`. Memory after a long scroll should settle near where it started.
+- `firstScreen.rowRequestsBeforeScrolling`. The design says the server renders the first files' rows
+  while it is already parsing the diff for the manifest and sends them on the same stream, so a
+  reader's first screen costs no second request. Zero is that working; anything else means the first
+  screen was fetched, which looks exactly like the server being slow rather than like the client
+  asking twice.
 
 ## Chrome traces
 
@@ -66,6 +71,34 @@ Headless and headed traces are not comparable to each other: compositing differs
 uncapped rather than at the display's refresh rate. Pick one and stay with it.
 
 ## Comparing two commits
+
+`ab.ts` does the whole thing: two worktrees at two shas, both built in production mode, both served
+on their own port, then `compare.ts` between them, then both worktrees removed.
+
+```bash
+bun scripts/benchmarks/ab.ts --base HEAD~1 --head HEAD \
+  --path /owner/repo/pull/1/files --runs 3
+```
+
+`--dry-run` stands both sides up, says where they are, and takes them down again without building
+or tracing. That is how the parts that fail *silently* - the worktree, the symlinked
+`node_modules`, the removal - get exercised in three seconds rather than in twenty minutes.
+
+Three choices in it are load-bearing:
+
+- **Worktrees, not clones.** A worktree shares the object database, so a side stands up in a second
+  and there is no chance of the two being built from different histories.
+- **`node_modules` is symlinked, not installed twice.** Two installs is two chances for the
+  dependency trees to differ, and a difference there is measured as a difference in *this*
+  repository, which is the one thing an A/B of this repository must not do.
+- **The server is waited for by asking it**, not by sleeping. A fixed wait is too short on a cold
+  machine - where the first trace then measures a server still starting - and wasted time on a warm
+  one.
+
+Both worktrees are removed by the exact paths the script created and by nothing else. `--keep`
+leaves them, for when a run found something worth poking at.
+
+The manual form still works, and is what `ab.ts` ends up calling:
 
 ```bash
 git worktree add /tmp/bench-base <base-sha>
@@ -93,5 +126,7 @@ milliseconds of ordinary drift is six percent of it, and the first version of th
 identical URLs "slower" on exactly that. Run it against itself after changing the thresholds; if it
 finds a difference, the thresholds are wrong.
 
-It does not build or serve anything. Two dev servers, two databases and two builds is a lot of
-machinery to get subtly wrong, and a misconfigured server produces confident numbers.
+`compare.ts` itself still does not build or serve anything, and that separation is deliberate: it
+takes two URLs and alternates between them, which is the part that cannot be done by hand.
+`ab.ts` is the machinery around it, kept separate so that a run against two servers somebody
+started themselves remains one command rather than a special case.

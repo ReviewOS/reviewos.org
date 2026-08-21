@@ -1656,6 +1656,36 @@ export { DEFAULT_HEIGHT_METRICS }
  * Returns null when the page has no host, so a shared client script can run on
  * pages that do not show a diff without a guard at every call site.
  */
+/**
+ * Markup the server already rendered for a file, if it is still the right shape.
+ *
+ * The first screen is not fetched. The server parses the diff once to build the
+ * manifest and renders the first files' rows while it is there, and those
+ * arrive on the same stream as the file records - so by the time the viewer
+ * lays out file three, file three's rows are usually already in hand. Using
+ * them verbatim is the point: the rows above the fold are then *the same
+ * markup* as the rows below it, rather than a second rendering that has to be
+ * kept in step with the first.
+ *
+ * Tagged with the layout each was rendered in, because rows arrive as markup
+ * rather than as data. A file cached unified is of no use in split and has to
+ * be asked for again - per file, since a reader may switch back before the
+ * whole list has been refetched.
+ *
+ * Split out of `renderFile` so the property can be asserted without a DOM:
+ * "what the server sent is what is shown" is the claim, and it was three lines
+ * inside a callback that needs a browser to reach.
+ */
+export function serverMarkup(
+  cache: ReadonlyMap<number, { html: string, layout: 'unified' | 'split' }>,
+  index: number,
+  layout: 'unified' | 'split',
+): string | null {
+  const cached = cache.get(index)
+
+  return cached != null && cached.layout === layout ? cached.html : null
+}
+
 export function mountDiffFiles(): DiffViewer | null {
   const root = document.querySelector<HTMLElement>('[data-diff-stream]')
   const manifestUrl = root?.dataset.manifestUrl
@@ -1949,9 +1979,13 @@ export function mountDiffFiles(): DiffViewer | null {
         return
       }
 
-      const cached = markup.get(file.index)
-      if (cached != null && cached.layout === layout) {
-        host.innerHTML = cached.html
+      const cached = serverMarkup(markup, file.index, layout)
+      if (cached != null) {
+        // Used exactly as it arrived. This is the first screen's whole story:
+        // the server rendered these rows while it was already parsing the diff
+        // to build the manifest, and using them verbatim is what keeps the
+        // markup above the fold identical to the markup below it.
+        host.innerHTML = cached
         return
       }
 

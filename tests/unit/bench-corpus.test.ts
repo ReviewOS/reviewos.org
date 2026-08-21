@@ -5,7 +5,7 @@
 // verified against git by `buddy bench --verify`, which needs one.
 
 import { describe, expect, test } from 'bun:test'
-import { CORPUS, changedLines, corpusEntry } from '../../app/Actions/Bench/corpus'
+import { CORPUS, CORPUS_REMOTE, CORPUS_SOURCES, changedLines, cloneCommands, corpusEntry } from '../../app/Actions/Bench/corpus'
 
 describe('the corpus', () => {
   test('pins commits rather than tags', () => {
@@ -39,5 +39,41 @@ describe('the corpus', () => {
     expect(new Set(CORPUS.map(entry => entry.name)).size).toBe(CORPUS.length)
     expect(corpusEntry('kernel')?.files).toBe(80610)
     expect(corpusEntry('nothing-like-this')).toBeUndefined()
+  })
+})
+
+describe('where the corpus comes from', () => {
+  /**
+   * A fixed corpus is only fixed if somebody can get it.
+   *
+   * The manifest named GitHub alone, so every machine that wanted to reproduce
+   * a number this project publishes cloned six and a half gigabytes from
+   * somebody else's servers to do it. Serving the input to our own benchmark is
+   * our job, and this instance already mirrors the repository.
+   */
+  test('this instance is tried first', () => {
+    expect(CORPUS_SOURCES[0]!.url).toContain('reviewos.org')
+    expect(CORPUS_REMOTE).toBe(CORPUS_SOURCES[0]!.url)
+  })
+
+  test('and upstream stays, so the shas can be checked against it', () => {
+    // A corpus only one host can serve stops existing when that host does - and
+    // nobody should have to take our word for what is in a sha.
+    expect(CORPUS_SOURCES.some(source => source.url.includes('github.com/torvalds/linux'))).toBe(true)
+  })
+
+  test('every source says why it is in the list', () => {
+    for (const source of CORPUS_SOURCES) {
+      expect(source.url.startsWith('https://')).toBe(true)
+      expect(source.why.length).toBeGreaterThan(30)
+    }
+  })
+
+  test('the clone commands are bare, because nothing here reads a working tree', () => {
+    const commands = cloneCommands('storage/repos/reviewos/linux.git')
+
+    expect(commands.length).toBe(CORPUS_SOURCES.length)
+    expect(commands.every(command => command.includes('--bare'))).toBe(true)
+    expect(commands.every(command => command.includes('storage/repos/reviewos/linux.git'))).toBe(true)
   })
 })

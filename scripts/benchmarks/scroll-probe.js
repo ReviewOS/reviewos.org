@@ -231,6 +231,37 @@
         // reads as a failure instead of as a table somebody has to interpret.
         recycling: marked === 0 ? 'nothing was mounted to mark' : marksReused > 0 ? 'working' : 'NOT OBSERVED',
       },
+      /*
+       * Whether the first screen was fetched, or whether it arrived with the
+       * manifest.
+       *
+       * The design says the server renders the first files' rows while it is
+       * already parsing the diff to build the manifest, and sends them on the
+       * same stream - so a reader's first screen costs no second request. That
+       * is a claim about network traffic, which the browser records for us:
+       * every `diff/rows` request is a file the viewer had to ask for, and one
+       * that lands before the reader has scrolled anywhere is a first screen
+       * that was not hydrated.
+       *
+       * Read from resource timing rather than by instrumenting the viewer,
+       * because what matters is what actually went over the wire.
+       */
+      firstScreen: (() => {
+        const requests = performance.getEntriesByType('resource')
+          .filter(entry => entry.name.includes('/diff/rows'))
+
+        const beforeScroll = requests.filter(entry => entry.startTime < started)
+
+        return {
+          rowRequests: requests.length,
+          // The number the claim is about: rows asked for before the reader
+          // moved. Zero is the design working.
+          rowRequestsBeforeScrolling: beforeScroll.length,
+          hydration: beforeScroll.length === 0
+            ? 'the first screen came with the manifest'
+            : 'THE FIRST SCREEN WAS FETCHED',
+        }
+      })(),
       heapCollectedBeforeReading: collected,
       heapMb: heapBefore == null || heapScrolled == null || heapAfter == null
         ? null

@@ -1750,8 +1750,29 @@ Without this, every claim in this file is a feeling. Pierre wrote a runbook for 
 (`packages/diffs/benchmarks/CSS_PERFORMANCE_BENCHMARK.md`); ours should be equivalent and live in the
 repository.
 
-- [ ] Two git worktrees at two shas, both built in production mode, both served, so a change is
+- [x] Two git worktrees at two shas, both built in production mode, both served, so a change is
       measured against its own baseline rather than against a memory
+
+      `scripts/benchmarks/ab.ts`. `compare.ts` already alternated traces between two running URLs
+      and said plainly that it did not build or serve anything - two servers, two databases and two
+      builds is a lot of machinery to get subtly wrong. That reasoning is right, and it left the
+      expensive half as a paragraph in a README, which is the half people get wrong: an unbuilt
+      side, a stale `node_modules`, a server that had not finished starting when the first trace
+      ran.
+
+      Three choices in it are load-bearing. **Worktrees rather than clones**, so a side stands up in
+      a second and the two cannot be built from different histories. **`node_modules` symlinked
+      rather than installed twice**, because two installs is two chances for the dependency trees to
+      differ - and a difference there is measured as a difference in this repository, which is the
+      one thing an A/B of this repository must not do. **The server is waited for by asking it**,
+      not by sleeping: a fixed wait is too short on a cold machine, where the first trace then
+      measures a server still starting.
+
+      `--dry-run` stands both sides up and takes them down without building, which is how the parts
+      that fail silently get exercised in three seconds rather than in twenty minutes. Writing that
+      found a real one: `Promise.race([child.exited, Bun.sleep(tenMinutes)])` resolves when the
+      child does and then holds the process open for the rest of the ten minutes, and it looked
+      exactly like `git worktree add` hanging.
 - [x] A deterministic scroll driver: a fixed `scrollTop` sequence over a fixed duration, applied to
       the real scroll element, asserting the position after each step and returning a checksum. Never
       dispatch synthetic `scroll` events; they do not move browser scroll state.
@@ -1769,9 +1790,22 @@ repository.
       in exactly one way: the spans carry no classes. Pinned by a test that the row count, the keys
       and the text are identical between the modes, since a stub that dropped or merged a line would
       have the two modes measuring different pages.
-- [ ] A fixed corpus of test diffs committed or hosted: a 15 file pull request, a 5k line diff, a 30k
+- [x] A fixed corpus of test diffs committed or hosted: a 15 file pull request, a 5k line diff, a 30k
       line diff, and the Linux `v6.0...v7.0` compare. Host the large ones ourselves rather than
       hammering GitHub, which is what Pierre does for their demo links.
+
+      The four sizes have been in `app/Actions/Bench/corpus.ts` as a manifest of pinned shas - 19
+      files, 6.3k lines, 41k lines, and the kernel - written as a manifest rather than as committed
+      bytes so anybody with a clone rebuilds the identical diff and nobody commits six gigabytes.
+
+      **What was missing was the hosting**, which is the half the box actually asked for: the
+      manifest named GitHub, so every machine that wanted to reproduce a number this project
+      publishes cloned six and a half gigabytes from somebody else's servers to do it. It now names
+      this instance's own `reviewos/linux` mirror first, which is the same objects over the same
+      smart HTTP this product serves to everybody else - so cloning the corpus is itself a
+      demonstration of the thing being benchmarked. Upstream stays as the fallback, because a corpus
+      only one host can serve stops existing when that host does, and because nobody should have to
+      take our word for what is in a sha.
 - [x] Results recorded per change with the sha, route, viewport, mode, and run count, so "this got
       slower" is answerable
 - [x] A memory profile alongside the scroll trace: heap after load, after a full scroll, and after a
@@ -1785,8 +1819,27 @@ repository.
 
 Beyond the per-section tests above, the shapes that catch virtualizer bugs specifically:
 
-- [ ] Partial hydration: server HTML for the first screen, hydrated into the viewer without a reflow
+- [x] Partial hydration: server HTML for the first screen, hydrated into the viewer without a reflow
       or a re-render of what is already correct
+
+      **The mechanism is not the one this box imagined, and it is a better fit for what this viewer
+      does.** Markup in the document waiting to be adopted would not work here: the virtualizer
+      positions hosts absolutely from a geometry model built out of the manifest, so it does not
+      know where anything goes until the manifest arrives. What happens instead is that the server
+      renders the first files' rows *while it is already parsing the diff to build the manifest* and
+      sends them on the same stream - so by the time the viewer lays out file three, file three's
+      rows are usually already in hand, and it uses them verbatim.
+
+      Which gives both halves of the box for one mechanism: the first screen costs no second request
+      (nothing to re-render, because nothing was rendered twice), and the rows above the fold are
+      *the same markup* as the rows below it rather than a second rendering to keep in step.
+
+      Pinned in two places, because it is two claims. `tests/unit/diff-hydration.test.ts` asserts
+      that what the server sent is what is shown, verbatim, and that it is refused in a layout it
+      was not rendered for. The reflow half is the browser probe's, for the same reason element
+      pooling is - it is a claim about real elements in a real layout - and it now reports
+      `firstScreen.rowRequestsBeforeScrolling`, where zero is the design working and anything else
+      is a first screen that was fetched.
 - [x] Element pooling actually reuses nodes, asserted by identity rather than by count. In the
       browser probe rather than as a unit test, because the claim is about real elements surviving a
       real scroll and there is no DOM in the unit suite. Hosts are marked before the scroll and

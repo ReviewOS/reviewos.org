@@ -36,8 +36,52 @@ export interface CorpusEntry {
   deletions: number
 }
 
-/** The repository these shas belong to, said once. */
-export const CORPUS_REMOTE = 'https://github.com/torvalds/linux.git'
+/**
+ * Where the corpus is cloned from, in the order to try.
+ *
+ * **This instance first**, which is the half that was missing: the manifest
+ * named GitHub, so every machine that wanted to run a benchmark cloned six and
+ * a half gigabytes from somebody else's servers to reproduce a number this
+ * project publishes. Pierre host their own demo repositories for the same
+ * reason and it is the obvious courtesy - the corpus is a fixed input to *our*
+ * benchmark, so serving it is our job.
+ *
+ * `reviewos/linux` is the mirror this instance already keeps (phase 13), so
+ * there is nothing to set up: it is the same objects, reachable over the same
+ * smart HTTP this product serves to everybody else, and cloning it is a
+ * demonstration of the thing being benchmarked.
+ *
+ * GitHub stays as the fallback, because a fixed corpus that only one host can
+ * serve is a corpus that stops existing when that host is down - and because
+ * anybody reading this should be able to check the shas against upstream
+ * without taking our word for what is in them.
+ */
+export const CORPUS_SOURCES: readonly { name: string, url: string, why: string }[] = [
+  {
+    name: 'this instance',
+    url: 'https://reviewos.org/reviewos/linux.git',
+    why: 'The mirror this project serves, so a benchmark does not clone six gigabytes from somebody else.',
+  },
+  {
+    name: 'upstream',
+    url: 'https://github.com/torvalds/linux.git',
+    why: 'The same objects, so the shas can be checked against upstream rather than taken on trust.',
+  },
+]
+
+/** The first source to try. Kept as a name because the commands print it. */
+export const CORPUS_REMOTE = CORPUS_SOURCES[0]!.url
+
+/**
+ * The clone commands, in order, for a command that has to tell somebody how to
+ * get the corpus.
+ *
+ * `--bare`, because nothing here reads a working tree and checking one out of
+ * the kernel is a gigabyte of files nobody looks at.
+ */
+export function cloneCommands(path: string): string[] {
+  return CORPUS_SOURCES.map(source => `git clone --bare ${source.url} ${path}   # ${source.name}`)
+}
 
 /**
  * Four sizes, each standing for a case the engine has to be good at.
