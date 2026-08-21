@@ -4,6 +4,22 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Issues that link up · ReviewOS'
 const pageDescription = 'One number sequence shared with pull requests, closing keywords, and references that resolve where they should.'
 const related = FEATURES.filter(feature => feature.slug !== 'issues').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Issues and pull requests share one sequence',
+  'References ignore code blocks and URLs',
+  'Closing keywords cannot fire from a code sample',
+  'A default label set with every repository',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'issues').slice(0, 3
       <p class="page-lede">An issue tracker earns its place by how well it links to everything else, not by how many fields it has.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>One number sequence</h2>
         <p>Issues and pull requests share a counter, so a number means one thing in a repository. `#12` resolves whether it is an issue or a pull request, and it resolves in commit messages, in other issues, and in review comments.</p>
@@ -40,36 +56,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'issues').slice(0, 3
         <p>Every repository starts with a usable label vocabulary rather than an empty list, and label colours pick readable text automatically. Locking a conversation holds against everyone who is not maintaining the repository.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Issues and pull requests share one sequence</li>
-              <li class="muted">References ignore code blocks and URLs</li>
-              <li class="muted">Closing keywords cannot fire from a code sample</li>
-              <li class="muted">A default label set with every repository</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">A tracker that stays out of the way</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The parsing rules are tested against the ways text lies.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="A tracker that stays out of the way"
+      line="The parsing rules are tested against the ways text lies."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

@@ -4,6 +4,22 @@ import { COMPARISONS } from '../../functions/marketing'
 const pageTitle = 'ReviewOS and Forgejo · ReviewOS'
 const pageDescription = 'Two self-hosted, open source forges with different centres of gravity.'
 const related = COMPARISONS.filter(item => item.slug !== 'forgejo').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Forgejo is broader and more proven',
+  'ReviewOS is deeper on review',
+  'Go binary against Bun and Postgres',
+  'Both open source and self-hosted',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'See the features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = COMPARISONS.filter(item => item.slug !== 'forgejo').slice(0, 3)
       <p class="page-lede">Forgejo, and Gitea before it, proved that a small self-hosted forge is a good idea. This is the closest comparison on this site, and the most useful one.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>What Forgejo has that this does not, yet</h2>
         <p>Forgejo is mature, widely deployed, and broad. Being honest about the gap is more useful than pretending it is not there.</p>
@@ -46,35 +62,19 @@ const related = COMPARISONS.filter(item => item.slug !== 'forgejo').slice(0, 3)
         <p>If you want a proven, broad, self-hosted forge today, use Forgejo. If review is the specific thing failing you, and especially if agents are writing most of your diffs, this is worth an afternoon.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">The short version</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Forgejo is broader and more proven</li>
-              <li class="muted">ReviewOS is deeper on review</li>
-              <li class="muted">Go binary against Bun and Postgres</li>
-              <li class="muted">Both open source and self-hosted</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/compare/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="The short version"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Also read"
+        relatedPrefix="/compare"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Run it beside your Forgejo instance</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Mirror one busy repository into it and review a week of work in both.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">See the features</a>
-    </section>
+    <PageCta
+      heading="Run it beside your Forgejo instance"
+      line="Mirror one busy repository into it and review a week of work in both."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection

@@ -1,0 +1,52 @@
+<script server>
+/**
+ * The rail beside a marketing page: a short summary, and where to read next.
+ *
+ * It was written out by hand on twenty pages - the same `<aside>`, the same
+ * two panels, the same six inline `style` attributes each time - so a change
+ * to any of it was twenty edits and a `git grep`, and the pages had already
+ * drifted: one carried `gap: 14px` where its neighbour carried `gap: 12px`.
+ *
+ * **Laid out in utility classes rather than a style block.** That is the point
+ * of having Crosswind in the pipeline: a component's layout is spacing and
+ * direction, not a design decision that deserves a name, and inventing
+ * `.rail-list` for `flex flex-col gap-[9px]` is a name for nothing. The values
+ * are the ones the pages already used, arbitrary where the scale would have
+ * rounded them - this is a move, not a redesign.
+ *
+ * `muted` stays a class: it is the palette's word for "quieter than the body",
+ * and that *is* a design decision with a name.
+ *
+ * Arrays arrive as JSON, for the reason written in `StackNav.stx`: an array
+ * does not survive an stx attribute as itself.
+ */
+const summaryLines = typeof summaryJson === 'string' ? JSON.parse(summaryJson || '[]') : (summaryJson ?? [])
+const relatedItems = typeof relatedJson === 'string' ? JSON.parse(relatedJson || '[]') : (relatedJson ?? [])
+const summaryHeading = String(summaryLabel ?? 'In short')
+const relatedHeading = String(relatedLabel ?? 'Related')
+const prefix = String(relatedPrefix ?? '/features')
+</script>
+
+<aside class="sticky top-[92px] flex flex-col gap-[14px]">
+  @if (summaryLines.length > 0)
+    <section class="panel p-[18px]">
+      <p class="text-[12px] uppercase tracking-[0.07em] font-semibold muted">{{ summaryHeading }}</p>
+      <ul class="mt-[11px] flex flex-col gap-[9px] text-sm">
+        @foreach (summaryLines as line)
+          <li class="muted">{{ line }}</li>
+        @endforeach
+      </ul>
+    </section>
+  @endif
+
+  @if (relatedItems.length > 0)
+    <section class="panel p-[18px]">
+      <p class="text-[12px] uppercase tracking-[0.07em] font-semibold muted">{{ relatedHeading }}</p>
+      <div class="mt-[10px] flex flex-col gap-[8px]">
+        @foreach (relatedItems as item)
+          <a href="{{ prefix }}/{{ item.slug }}" class="no-underline text-sm font-medium">{{ item.name }}</a>
+        @endforeach
+      </div>
+    </section>
+  @endif
+</aside>

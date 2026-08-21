@@ -4,6 +4,22 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Stacked pull requests · ReviewOS'
 const pageDescription = 'Dependent changes that merge in order, each diffing against its parent, retargeting themselves when the bottom lands.'
 const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-requests').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Each change diffs against its parent',
+  'Children retarget when the parent merges',
+  'Out-of-order merges are refused',
+  'Detected from branch topology',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-reques
       <p class="page-lede">Large work arrives as a sequence: the refactor, the change it enables, the tests. One pull request makes it unreviewable. Three unrelated ones make it incoherent.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>Each one shows only its own work</h2>
         <p>A stacked pull request diffs against its parent rather than the base branch. A reviewer opening the third change in a stack sees the third change, not the two below it repeated.</p>
@@ -39,36 +55,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-reques
         <p>Opening a pull request against another open pull request's branch is what makes it stacked. There is no naming scheme to learn and no metadata file to maintain.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Each change diffs against its parent</li>
-              <li class="muted">Children retarget when the parent merges</li>
-              <li class="muted">Out-of-order merges are refused</li>
-              <li class="muted">Detected from branch topology</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Ship large work in reviewable pieces</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Stacks are a first-class object here, not a client-side workaround.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="Ship large work in reviewable pieces"
+      line="Stacks are a first-class object here, not a client-side workaround."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

@@ -3,6 +3,11 @@ import { USE_CASES } from '../../functions/marketing'
 
 const pageTitle = 'Use cases · ReviewOS'
 const pageDescription = 'Who ReviewOS is built for, and the specific problem it solves for each of them.'
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+]
 </script>
 
 @layout('marketing')
@@ -27,12 +32,11 @@ const pageDescription = 'Who ReviewOS is built for, and the specific problem it 
       @endforeach
     </div>
 
-    <section class="panel" style="margin-top: 44px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">See whether it fits your team</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Open source, self-hosted, and quick enough to try on a real repository this afternoon.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-    </section>
+    <PageCta
+      heading="See whether it fits your team"
+      line="Open source, self-hosted, and quick enough to try on a real repository this afternoon."
+      gap="44"
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection

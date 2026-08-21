@@ -3,6 +3,11 @@ import { COMPARISONS } from '../../functions/marketing'
 
 const pageTitle = 'Comparisons · ReviewOS'
 const pageDescription = 'How ReviewOS compares to GitHub, GitLab, and Forgejo, written to be fair rather than flattering.'
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+]
 </script>
 
 @layout('marketing')
@@ -27,12 +32,11 @@ const pageDescription = 'How ReviewOS compares to GitHub, GitLab, and Forgejo, w
       @endforeach
     </div>
 
-    <section class="panel" style="margin-top: 44px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Still deciding?</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Mirror one busy repository and review a week of real work in it. That answers more than any table.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-    </section>
+    <PageCta
+      heading="Still deciding?"
+      line="Mirror one busy repository and review a week of real work in it. That answers more than any table."
+      gap="44"
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection

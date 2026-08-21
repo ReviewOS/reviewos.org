@@ -4,6 +4,22 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Checks from your own CI · ReviewOS'
 const pageDescription = 'A status API your existing pipeline reports into, with required checks enforced at merge.'
 const related = FEATURES.filter(feature => feature.slug !== 'checks').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Reports attach to commits, not pull requests',
+  'Retries replace earlier failures',
+  'Skipped and neutral do not block',
+  'Never-reported is distinguished from pending',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'checks').slice(0, 3
       <p class="page-lede">ReviewOS does not run your tests. It accepts reports from whatever does, and enforces them where it counts.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>A check is reported against a commit</h2>
         <p>Not against a pull request. The same report then serves every pull request whose head is that commit, and it stays meaningful when a branch moves.</p>
@@ -40,36 +56,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'checks').slice(0, 3
         <p>When a branch is force pushed, checks that ran against the old head describe code nobody is merging. Leaving them green is how an unverified commit slips past a required check.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Reports attach to commits, not pull requests</li>
-              <li class="muted">Retries replace earlier failures</li>
-              <li class="muted">Skipped and neutral do not block</li>
-              <li class="muted">Never-reported is distinguished from pending</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Keep your pipeline, gain the gate</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">A status API is deliberately the first step. Running untrusted code is a security project of its own.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="Keep your pipeline, gain the gate"
+      line="A status API is deliberately the first step. Running untrusted code is a security project of its own."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

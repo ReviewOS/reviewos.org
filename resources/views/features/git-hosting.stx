@@ -4,6 +4,22 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Plain git hosting · ReviewOS'
 const pageDescription = 'Ordinary bare repositories on your disk, served over the git smart HTTP protocol by the git binary itself.'
 const related = FEATURES.filter(feature => feature.slug !== 'git-hosting').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Bare repositories under a predictable path',
+  'Served by the system git binary',
+  'Packfiles streamed, not buffered',
+  'Token authentication, never passwords',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'git-hosting').slice
       <p class="page-lede">Nothing about your history is locked inside this application. Stop the server and your repositories are still repositories.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>The git binary does the git work</h2>
         <p>Repositories live at a predictable path and are driven by spawned git plumbing commands. There is no reimplementation of git in TypeScript and no library standing between your objects and the tool that understands them.</p>
@@ -40,36 +56,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'git-hosting').slice
         <p>Because the storage layout is ordinary, so is the backup story. Copy the directory, dump the database, done.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Bare repositories under a predictable path</li>
-              <li class="muted">Served by the system git binary</li>
-              <li class="muted">Packfiles streamed, not buffered</li>
-              <li class="muted">Token authentication, never passwords</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Keep your history portable</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">An open format on your own disk, with no export step to plan for.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="Keep your history portable"
+      line="An open format on your own disk, with no export step to plan for."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

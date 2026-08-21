@@ -4,6 +4,23 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Agentic review · ReviewOS'
 const pageDescription = 'Coding agents as first-class authors and reviewers, with the review trail that makes their output safe to merge.'
 const related = FEATURES.filter(feature => feature.slug !== 'agentic-review').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Agents authenticate as themselves, with scoped tokens',
+  'Threads survive rebases and force pushes',
+  'Approvals are bound to a specific commit',
+  'Stacks keep dependent work reviewable',
+  'Every merge blocker is reported at once',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +36,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'agentic-review').sl
       <p class="page-lede">An agent can open twenty pull requests before lunch. The bottleneck moves to review, and review is the part of a forge nobody rebuilt. This one was built for it.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>Agents are authors, and they are reviewers</h2>
         <p>An agent needs the same things a person does: a personal access token scoped to what it may touch, an identity on the pull request so the history says who wrote what, and a review state it can submit. It gets them. There is no separate second-class path where machine output arrives as a patch file and somebody pastes it in.</p>
@@ -51,37 +68,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'agentic-review').sl
         <p>ReviewOS does not run the agents and does not host a model. It is the forge they push to and the place their work is reviewed. Bring whichever agent you already use.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Agents authenticate as themselves, with scoped tokens</li>
-              <li class="muted">Threads survive rebases and force pushes</li>
-              <li class="muted">Approvals are bound to a specific commit</li>
-              <li class="muted">Stacks keep dependent work reviewable</li>
-              <li class="muted">Every merge blocker is reported at once</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Give your agents somewhere to be reviewed</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Self-hosted, so the code your agents touch never leaves your infrastructure.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="Give your agents somewhere to be reviewed"
+      line="Self-hosted, so the code your agents touch never leaves your infrastructure."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

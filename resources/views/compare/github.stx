@@ -4,6 +4,22 @@ import { COMPARISONS } from '../../functions/marketing'
 const pageTitle = 'ReviewOS and GitHub · ReviewOS'
 const pageDescription = 'An honest comparison: what you give up by leaving the default, and what you gain.'
 const related = COMPARISONS.filter(item => item.slug !== 'github').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'GitHub wins on network and breadth',
+  'ReviewOS wins on review mechanics',
+  'Self-hosting is one process here',
+  'Not a close call if you need Actions',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'See the features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = COMPARISONS.filter(item => item.slug !== 'github').slice(0, 3)
       <p class="page-lede">GitHub is the default for good reasons. This page is about the specific reasons somebody would choose otherwise, and the specific reasons they should not.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>Where GitHub is genuinely better</h2>
         <p>Saying otherwise would waste your time. GitHub has the network: your contributors already have accounts, your dependencies are already there, and the integrations you use were built for it first.</p>
@@ -49,35 +65,19 @@ const related = COMPARISONS.filter(item => item.slug !== 'github').slice(0, 3)
         <p>Teams where agents write most of the code and review became the bottleneck. Teams that need the code on their own infrastructure. Teams doing long stacks of dependent work who have already built tooling to survive it.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">The short version</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">GitHub wins on network and breadth</li>
-              <li class="muted">ReviewOS wins on review mechanics</li>
-              <li class="muted">Self-hosting is one process here</li>
-              <li class="muted">Not a close call if you need Actions</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/compare/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="The short version"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Also read"
+        relatedPrefix="/compare"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Try it beside what you already use</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Mirroring a repository costs nothing and tells you more than any comparison page.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">See the features</a>
-    </section>
+    <PageCta
+      heading="Try it beside what you already use"
+      line="Mirroring a repository costs nothing and tells you more than any comparison page."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection

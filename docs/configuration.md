@@ -366,7 +366,13 @@ broken account. `buddy instance:check` warns about it when `APP_ENV`=production.
 
 ### `MAIL_HOST`
 
-Default: `mailpit`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+Default: `127.0.0.1`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+
+The local mail catcher: `./buddy mail:dev` runs the mail server with delivery
+switched off, so every notification this instance sends is accepted, stored
+and readable at http://localhost:8025, and none of it leaves the machine. It
+is the same binary a deployed instance runs, so a digest that renders locally
+has been through the code that will handle it for real.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 

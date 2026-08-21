@@ -4,6 +4,23 @@ import { USE_CASES } from '../../functions/marketing'
 const pageTitle = 'For teams shipping agent-written code · ReviewOS'
 const pageDescription = 'When most diffs are machine-authored, review stops being a formality and becomes the only remaining control.'
 const related = USE_CASES.filter(item => item.slug !== 'ai-assisted-teams').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Threads survive constant force pushes',
+  'Approvals bound to a commit',
+  'Stacks keep large work reviewable',
+  'All blockers reported at once',
+  'Self-hosted, so code stays put',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'See the features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +36,7 @@ const related = USE_CASES.filter(item => item.slug !== 'ai-assisted-teams').slic
       <p class="page-lede">Your agents are productive. The question is no longer whether the code gets written, it is whether anybody can tell what landed and why.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>What changes when volume goes up</h2>
         <p>A team reviewing eight pull requests a week reads all of them. The same team facing eighty skims, and skimming is indistinguishable from approving. The interface has to do more of the work: show only the change being reviewed, keep the conversation attached to the code, and refuse the merge when a gate is genuinely unmet.</p>
@@ -48,36 +65,19 @@ const related = USE_CASES.filter(item => item.slug !== 'ai-assisted-teams').slic
         <p>The code your agents read and write never leaves your infrastructure. For a lot of teams that is the difference between using agents on the main codebase and not.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Why it fits</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Threads survive constant force pushes</li>
-              <li class="muted">Approvals bound to a commit</li>
-              <li class="muted">Stacks keep large work reviewable</li>
-              <li class="muted">All blockers reported at once</li>
-              <li class="muted">Self-hosted, so code stays put</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/for/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="Why it fits"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Also read"
+        relatedPrefix="/for"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Put a real review gate in front of your agents</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Everything here is open source, self-hosted, and built around the review rather than around the repository.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">See the features</a>
-    </section>
+    <PageCta
+      heading="Put a real review gate in front of your agents"
+      line="Everything here is open source, self-hosted, and built around the review rather than around the repository."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection

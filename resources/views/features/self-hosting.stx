@@ -4,6 +4,22 @@ import { FEATURES } from '../../functions/marketing'
 const pageTitle = 'Self-hosting without a cluster · ReviewOS'
 const pageDescription = 'One Postgres and one process. Scale the parts that need it, later.'
 const related = FEATURES.filter(feature => feature.slug !== 'self-hosting').slice(0, 3)
+
+// The rail's summary, beside the page rather than inside its markup: an
+// array does not survive an stx attribute as itself, so it is passed as JSON
+// - the same reason `StackNav` takes one.
+const summary = [
+  'Bun, Postgres, and git',
+  'Environment provisioned automatically',
+  'Backups are a copy and a dump',
+  'Queue and search are optional drivers',
+]
+
+// What to do next, and the layout that shows it - see `PageCta.stx`.
+const actions = [
+  {'href': '/docs/install', 'label': 'Self-host ReviewOS', 'primary': true},
+  {'href': '/features', 'label': 'All features', 'primary': false},
+]
 </script>
 
 @layout('marketing')
@@ -19,7 +35,7 @@ const related = FEATURES.filter(feature => feature.slug !== 'self-hosting').slic
       <p class="page-lede">A forge you can run on a machine you already have, without operating a queue cluster before the first repository exists.</p>
     </header>
 
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+    <div class="grid grid-cols-[minmax(0,1fr)_280px] gap-[44px] items-start">
       <div class="prose">
         <h2>What it needs to run</h2>
         <p>Bun, Postgres, and the git binary. The local environment is provisioned by pantry, which installs the toolchain, starts the database, and creates it from your environment file.</p>
@@ -39,36 +55,20 @@ const related = FEATURES.filter(feature => feature.slug !== 'self-hosting').slic
         <p>Queues, caches, and search are drivers rather than requirements. Turn them on when there is a reason to, not because the install guide said so.</p>
       </div>
 
-      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
-          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-              <li class="muted">Bun, Postgres, and git</li>
-              <li class="muted">Environment provisioned automatically</li>
-              <li class="muted">Backups are a copy and a dump</li>
-              <li class="muted">Queue and search are optional drivers</li>
-          </ul>
-        </section>
-
-        <section class="panel" style="padding: 18px;">
-          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
-          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-            @foreach (related as item)
-              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
-            @endforeach
-          </div>
-        </section>
-      </aside>
+      <PageRail
+        summaryLabel="In short"
+        summaryJson="{{ JSON.stringify(summary) }}"
+        relatedLabel="Related"
+        relatedPrefix="/features"
+        relatedJson="{{ JSON.stringify(related) }}"
+      />
     </div>
 
-    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 260px;">
-        <h2 style="font-size: 21px;">Run it this afternoon</h2>
-        <p class="muted" style="margin-top: 8px; max-width: 54ch;">MIT licensed, open source, and yours to operate.</p>
-      </div>
-      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
-      <a class="btn" href="/features">All features</a>
-    </section>
+    <PageCta
+      heading="Run it this afternoon"
+      line="MIT licensed, open source, and yours to operate."
+      actionsJson="{{ JSON.stringify(actions) }}"
+    />
   </div>
 @endsection
 

@@ -1,0 +1,28 @@
+<script server>
+/**
+ * The band at the foot of a marketing page: one line about what to do next,
+ * and the two ways to do it.
+ *
+ * Twenty pages carried this as five inline `style` attributes each. The links
+ * arrive as JSON for the reason in `PageRail.stx`, and the layout is utility
+ * classes for the same reason: `flex items-center gap-[20px] flex-wrap` is
+ * spacing and direction, not a design decision that wants a name.
+ *
+ * `panel`, `btn` and `muted` stay classes. Those *are* names - a panel is the
+ * product's surface, a button is its affordance, muted is its quiet colour -
+ * and a page that spelled them out in utilities would be re-deciding them.
+ */
+const actionList = typeof actionsJson === 'string' ? JSON.parse(actionsJson || '[]') : (actionsJson ?? [])
+const spacing = String(gap ?? '56')
+</script>
+
+<section class="panel mt-[{{ spacing }}px] p-[30px] flex items-center gap-[20px] flex-wrap">
+  <div class="flex-1 min-w-[260px]">
+    <h2 class="text-[21px]">{{ heading }}</h2>
+    <p class="muted mt-[8px] max-w-[54ch]">{{ line }}</p>
+  </div>
+
+  @foreach (actionList as action)
+    <a class="btn {{ action.primary ? 'btn-primary' : '' }}" href="{{ action.href }}">{{ action.label }}</a>
+  @endforeach
+</section>
