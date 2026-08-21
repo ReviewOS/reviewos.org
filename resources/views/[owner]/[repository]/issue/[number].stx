@@ -80,6 +80,15 @@ const issue: any = repoRow && Number.isFinite(number)
 if (!issue)
   setStatus(404)
 
+/*
+ * Where somebody who followed a stale link was going anyway. Built here rather
+ * than in the attribute: an expression with a `${}` in it does not survive one.
+ */
+const notFoundLinks = JSON.stringify([
+  { href: `/${ownerHandle}/${repositoryName}/issues`, label: 'All issues' },
+  { href: `/${ownerHandle}/${repositoryName}`, label: `${ownerHandle}/${repositoryName}` },
+])
+
 /**
  * The author's name to show.
  *
@@ -321,10 +330,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
       <PageEmpty
         title="No such issue"
         detail="{{ ownerHandle }}/{{ repositoryName }} has no issue numbered {{ params.number }}."
-        linksJson="{{ JSON.stringify([
-          { href: `/${ownerHandle}/${repositoryName}/issues`, label: 'All issues' },
-          { href: `/${ownerHandle}/${repositoryName}`, label: `${ownerHandle}/${repositoryName}` },
-        ]) }}"
+        linksJson="{{ notFoundLinks }}"
       />
     @else
       <header class="issue-head">

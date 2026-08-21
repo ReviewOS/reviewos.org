@@ -88,6 +88,11 @@ const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
 
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
 const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
@@ -99,6 +104,22 @@ const pullRequest = repoRow
       .where('number', '=', number)
       .executeTakeFirst()
   : undefined
+
+// A missing pull request is a missing page - the same rule the issue page
+// already follows, and the one page in the product that was not following it.
+// Rendering "no such pull request" under a 200 tells a crawler every number in
+// the sequence exists, and this instance is walked by them.
+if (!pullRequest)
+  setStatus(404)
+
+/*
+ * Where somebody who followed a stale link was going anyway. Built here rather
+ * than in the attribute: an expression with a `${}` in it does not survive one.
+ */
+const notFoundLinks = JSON.stringify([
+  { href: `/${owner}/${repositoryName}/pulls`, label: 'All pull requests' },
+  { href: `/${owner}/${repositoryName}`, label: `${owner}/${repositoryName}` },
+])
 
 /**
  * The author's name to show.
@@ -760,9 +781,13 @@ const statePill = pullRequest
 @section('content')
   <div class="page">
     @if (!pullRequest)
+      {{-- With somewhere to go. A reader who lands here has followed a stale
+          link or a number somebody mistyped, and a panel that only says no is
+          a page they have to leave with the back button. --}}
       <PageEmpty
         title="No such pull request"
         detail="{{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}."
+        linksJson="{{ notFoundLinks }}"
       />
     @else
       {{--

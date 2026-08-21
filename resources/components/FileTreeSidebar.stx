@@ -1,6 +1,8 @@
 <script server>
 /* The files, as JSON across the attribute - the StackNav lesson. */
-const fileList = typeof filesJson === 'string' ? JSON.parse(filesJson || '[]') : (filesJson ?? [])
+const fileList = typeof filesJson === 'undefined'
+  ? []
+  : typeof filesJson === 'string' ? JSON.parse(filesJson || '[]') : (filesJson ?? [])
 
 // Built here, not in the template: a helper the template scope does not
 // carry throws, and the throw swallows its block into an HTML comment.

@@ -4,7 +4,9 @@
  * may-review flag as '1' or '', because an attribute is a string and "false"
  * is a truthy one.
  */
-const reviewList = typeof reviewsJson === 'string' ? JSON.parse(reviewsJson || '[]') : (reviewsJson ?? [])
+const reviewList = typeof reviewsJson === 'undefined'
+  ? []
+  : typeof reviewsJson === 'string' ? JSON.parse(reviewsJson || '[]') : (reviewsJson ?? [])
 const canReview = String(mayReview ?? '') === '1'
 </script>
 

@@ -5,8 +5,12 @@
  * once, here. Flags arrive as '1' or '', because an attribute is a string and
  * "false" is a truthy one.
  */
-const blockerList = typeof blockersJson === 'string' ? JSON.parse(blockersJson || '[]') : (blockersJson ?? [])
-const conflictList = typeof conflictsJson === 'string' ? JSON.parse(conflictsJson || '[]') : (conflictsJson ?? [])
+const blockerList = typeof blockersJson === 'undefined'
+  ? []
+  : typeof blockersJson === 'string' ? JSON.parse(blockersJson || '[]') : (blockersJson ?? [])
+const conflictList = typeof conflictsJson === 'undefined'
+  ? []
+  : typeof conflictsJson === 'string' ? JSON.parse(conflictsJson || '[]') : (conflictsJson ?? [])
 const armedStrategy = String(autoStrategy ?? '')
 const armedByHandle = String(autoArmedBy ?? '')
 const canMerge = String(mayMerge ?? '') === '1'

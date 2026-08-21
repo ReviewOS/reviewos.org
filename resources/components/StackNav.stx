@@ -5,8 +5,12 @@
  * template can loop over. So the list arrives as JSON and is parsed here,
  * once, rather than every use site inventing its own encoding.
  */
-const stack = typeof stackJson === 'string' ? JSON.parse(stackJson || '[]') : (stackJson ?? [])
-const blocker = typeof blockerJson === 'string' ? JSON.parse(blockerJson || 'null') : (blockerJson ?? null)
+const stack = typeof stackJson === 'undefined'
+  ? []
+  : typeof stackJson === 'string' ? JSON.parse(stackJson || '[]') : (stackJson ?? [])
+const blocker = typeof blockerJson === 'undefined'
+  ? null
+  : typeof blockerJson === 'string' ? JSON.parse(blockerJson || 'null') : (blockerJson ?? null)
 
 // An attribute arrives as a string, so the id has to be coerced before it is
 // compared with the numbers parsed out of the JSON above. Left as-is, every

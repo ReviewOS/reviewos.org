@@ -12,7 +12,9 @@
  * product's surface, a button is its affordance, muted is its quiet colour -
  * and a page that spelled them out in utilities would be re-deciding them.
  */
-const actionList = typeof actionsJson === 'string' ? JSON.parse(actionsJson || '[]') : (actionsJson ?? [])
+const actionList = typeof actionsJson === 'undefined'
+  ? []
+  : typeof actionsJson === 'string' ? JSON.parse(actionsJson || '[]') : (actionsJson ?? [])
 const spacing = String(gap ?? '56')
 </script>
 

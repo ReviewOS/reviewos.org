@@ -20,8 +20,12 @@
  * Arrays arrive as JSON, for the reason written in `StackNav.stx`: an array
  * does not survive an stx attribute as itself.
  */
-const summaryLines = typeof summaryJson === 'string' ? JSON.parse(summaryJson || '[]') : (summaryJson ?? [])
-const relatedItems = typeof relatedJson === 'string' ? JSON.parse(relatedJson || '[]') : (relatedJson ?? [])
+const summaryLines = typeof summaryJson === 'undefined'
+  ? []
+  : typeof summaryJson === 'string' ? JSON.parse(summaryJson || '[]') : (summaryJson ?? [])
+const relatedItems = typeof relatedJson === 'undefined'
+  ? []
+  : typeof relatedJson === 'string' ? JSON.parse(relatedJson || '[]') : (relatedJson ?? [])
 const summaryHeading = String(summaryLabel ?? 'In short')
 const relatedHeading = String(relatedLabel ?? 'Related')
 const prefix = String(relatedPrefix ?? '/features')

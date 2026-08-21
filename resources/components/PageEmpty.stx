@@ -24,7 +24,9 @@
  * circle and silently dropped every prop this takes - a component that looks
  * like it worked and shows none of what it was given.
  */
-const links = typeof linksJson === 'string' ? JSON.parse(linksJson || '[]') : (linksJson ?? [])
+const links = typeof linksJson === 'undefined'
+  ? []
+  : typeof linksJson === 'string' ? JSON.parse(linksJson || '[]') : (linksJson ?? [])
 const detailText = String(detail ?? '')
 </script>
 
