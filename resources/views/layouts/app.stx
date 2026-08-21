@@ -1257,6 +1257,88 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .pr-number { font-size: 20px; font-weight: 400; }
       .pr-meta { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 14px; }
 
+      /*
+        The rest of the review vocabulary, for the same reason the header above
+        it moved: it was written in the pull request page's own style block and
+        used from four other screens.
+
+        `.pr-title` was the one somebody noticed, because a heading at the wrong
+        size is obvious. These were not. `.run-dot` is a nine pixel circle, and
+        without its rule it is a `<span>` with no size and no colour - so the
+        checks and tests screens drew a status indicator that was, on those
+        pages, invisible. `.checks-rollup` lost its flex row, `.side-panel` its
+        padding, and `.side-heading` its case and weight.
+
+        Components are the other half: MergeBox, ReviewPanel, FileTreeSidebar,
+        PullRequestHeader and SuggestedReviewers all styled themselves out of
+        the page they happened to be used on, which held only while that stayed
+        the one page they were used on. A component's style block is emitted
+        once per instance, so the layout is the right home for a vocabulary
+        five of them share.
+      */
+      .pr-head { padding-bottom: 14px; }
+      .pr-where { margin-bottom: 6px; font-size: 13px; }
+      .pr-where a { text-decoration: none; }
+      .pr-where a:hover { text-decoration: underline; }
+      .pr-counts { margin-top: 7px; font-size: 13px; display: flex; gap: 8px; }
+
+      .side-heading {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .merge-box, .side-panel { padding: 15px 17px; }
+      .side-empty, .side-note { margin-top: 8px; font-size: 13.5px; }
+
+      .merge-state { margin-top: 9px; font-size: 14.5px; font-weight: 500; }
+      .merge-state.ok { color: var(--ok); }
+      .merge-state.bad { color: var(--bad); }
+
+      .blockers { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+      .conflict-heading { margin-top: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      .conflict-list { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; word-break: break-all; }
+
+      .blocker {
+        display: flex;
+        gap: 8px;
+        align-items: start;
+        font-size: 13.5px;
+        color: var(--muted);
+      }
+
+      .blocker span { color: var(--bad); flex: none; margin-top: 3px; }
+
+      .merge-button { width: 100%; justify-content: center; margin-top: 9px; }
+
+      .review-list, .check-list { margin-top: 9px; display: flex; flex-direction: column; gap: 7px; }
+      .review-item { display: flex; align-items: center; gap: 8px; }
+      .review-stale { font-size: 12.5px; }
+      /* On its own line: it explains the count above it, and inline it reads as
+         part of the sentence rather than as the reason for it. */
+      .review-uncounted { display: block; margin-top: 3px; font-size: 12.5px; }
+
+      /* The checks tab. The dot vocabulary is the run screen's, deliberately: a
+         reader who has learned what a colour means on one CI screen should not
+         have to learn it again on the other. */
+      .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
+      .run-good { background: var(--ok); }
+      .run-bad { background: var(--bad); }
+      .run-warn { background: var(--warn); }
+
+      .checks-rollup { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 14px; font-weight: 600; }
+      .checks-badge {
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        color: var(--muted);
+      }
+      .checks-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 0 17px; }
+      .checks-note { font-size: 12.5px; margin-top: 12px; }
+
       .repo-page-caption { margin: 14px 0 0; font-size: 13px; }
 
       /* An empty repository: the commands, because there is nothing else to
