@@ -17,7 +17,9 @@
  * reading past what came before it, which is a pipe read and no allocation.
  */
 
+import type { ResumeState } from './resume'
 import { isSafeRevision, runGit, spawnGitLimited } from '../Git/git'
+import { ScopeWalk } from './resume'
 
 /**
  * How many lines a window holds.
@@ -42,6 +44,21 @@ export const MAX_WINDOWED_BYTES = 64 * 1024 * 1024
 export interface BlobWindow {
   /** The lines asked for, in order, without their newlines. */
   lines: string[]
+  /**
+   * Where the tokenizer stood at the window's first line, when it could be
+   * worked out.
+   *
+   * A window starting at line 20,000 tokenized from a cold state gets every
+   * multi-line construct wrong - a window inside a licence header renders as
+   * code - and the lines that would fix it are the ones this reader walks past
+   * and drops. Walking them is not free, but it is free of *memory*, which is
+   * the property this whole file exists for: the scope stack is a few frames
+   * whatever the size of the prelude.
+   *
+   * Null when there was nothing to resume from: the first window, no language,
+   * or a prelude past `MAX_PRELUDE_LINES`.
+   */
+  resume: ResumeState
   /** The 1-based number of the first line in `lines`. */
   from: number
   /** How many lines the file has in total. */
@@ -119,9 +136,9 @@ export async function readBlobWindow(
   repositoryPath: string,
   ref: string,
   path: string,
-  request: { from?: number, count?: number } = {},
+  request: { from?: number, count?: number, language?: string | null } = {},
 ): Promise<BlobWindow> {
-  const empty = { lines: [], from: 1, total: 0, size: 0, tooLarge: false, binary: false }
+  const empty = { lines: [], from: 1, total: 0, size: 0, tooLarge: false, binary: false, resume: null }
 
   if (!isSafeRevision(ref) || !path || path.startsWith('-'))
     return { ...empty, error: 'Invalid ref' }
@@ -164,9 +181,24 @@ export async function readBlobWindow(
   let seen = 0
   let binary = false
 
+  /*
+   * The scope stack at the window's first line, built out of the lines this
+   * reader is throwing away anyway.
+   *
+   * Only fed while `seen` is below the window, so it costs nothing once the
+   * window has been reached, and nothing at all for the first window or for a
+   * caller that named no language. It is deliberately not fed the *ring*: a
+   * request that lands past the end of the file is answered with the last
+   * window, and the prelude for that window went past long before anybody knew
+   * which window it was. That case resumes cold, which is what it did before.
+   */
+  const walk = new ScopeWalk(wanted.from > 1 ? (request.language ?? null) : null)
+
   const take = (line: string): void => {
     seen += 1
-    if (seen >= wanted.from && kept.length < wanted.count)
+    if (seen < wanted.from)
+      walk.push(line)
+    else if (kept.length < wanted.count)
       kept.push(line)
 
     ring[(seen - 1) % wanted.count] = line
@@ -227,7 +259,7 @@ export async function readBlobWindow(
     for (let index = 0; index < size; index++)
       kept.push(ring[(first + index) % wanted.count]!)
 
-    return { lines: kept, from: first + 1, total: seen, size: byteSize, tooLarge: false, binary: false, error: null }
+    return { lines: kept, from: first + 1, total: seen, size: byteSize, tooLarge: false, binary: false, resume: null, error: null }
   }
 
   const window = blobWindowFor(seen, wanted.from, wanted.count)
@@ -239,6 +271,7 @@ export async function readBlobWindow(
     size: byteSize,
     tooLarge: false,
     binary: false,
+    resume: walk.finish(),
     error: null,
   }
 }

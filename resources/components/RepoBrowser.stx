@@ -12,7 +12,7 @@
  */
 import { aboutFor, filesIn, mirrorFor, repositoryForView, repositoryHeaderActions, standingFor, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
-import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
+import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, highlightResumed, tokenClass, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 /**
  * The status this page wants, asked for where the binding actually exists.
@@ -119,8 +119,27 @@ const wantsMarkdown = isFile && isMarkdown(requestedPath)
  * line number, and that is a legitimate way to call it.
  */
 const windowFrom = Number(typeof fromLine === 'undefined' ? '1' : String(fromLine || '1'))
+
+/*
+ * What the repository says this file is, before what its name suggests.
+ *
+ * `.gitattributes` at this ref, through `linguist-language` - the attribute
+ * every repository that has ever cared already carries. It is the only source
+ * that knows rather than infers: a `.h` that is C++, a house extension, a
+ * generated directory that should read as plain text.
+ *
+ * Resolved *before* the file is read rather than after, because the reader
+ * needs it while it streams: a window starting at line 20,000 is highlighted by
+ * resuming from the lines above it, and those lines go past and are dropped
+ * during the read. Working the language out afterwards is working it out too
+ * late.
+ */
+const languageRules = (isFile && !wantsMarkdown) ? await languageRulesFor(diskPath, ref, readBlob) : []
+const declared = (isFile && !wantsMarkdown) ? declaredLanguage(languageRules, requestedPath) : null
+const language = (isFile && !wantsMarkdown) ? (declared ?? languageFor(requestedPath)) : null
+
 const source = (isFile && !wantsMarkdown)
-  ? await readBlobWindow(diskPath, ref, requestedPath, { from: Number.isFinite(windowFrom) ? windowFrom : 1 })
+  ? await readBlobWindow(diskPath, ref, requestedPath, { from: Number.isFinite(windowFrom) ? windowFrom : 1, language })
   : null
 
 const blob = wantsMarkdown ? await readBlob(diskPath, ref, requestedPath) : null
@@ -140,18 +159,16 @@ const readme = readmeEntry
 const sourceLines = (source && !source.error && !source.binary && !source.tooLarge) ? source.lines : []
 
 /*
- * What the repository says this file is, before what its name suggests.
- *
- * `.gitattributes` at this ref, through `linguist-language` - the attribute
- * every repository that has ever cared already carries. It is the only source
- * that knows rather than infers: a `.h` that is C++, a house extension, a
- * generated directory that should read as plain text.
+ * Resumed from the lines above the window when there were any, so a permalink
+ * into the middle of a large file does not render the inside of a block comment
+ * as though it were code. Null from `highlightResumed` means it could not - no
+ * grammar, or a first window with nothing above it - and that is the ordinary
+ * path this was before.
  */
-const languageRules = sourceLines.length > 0 ? await languageRulesFor(diskPath, ref, readBlob) : []
-const declared = sourceLines.length > 0 ? declaredLanguage(languageRules, requestedPath) : null
-
-const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, requestedPath, { language: declared }) : []
-const language = sourceLines.length > 0 ? (declared ?? languageFor(requestedPath)) : null
+const highlighted = sourceLines.length === 0
+  ? []
+  : (highlightResumed(sourceLines, language, source?.resume ?? null, tokenClass)
+      ?? await highlightLines(sourceLines, requestedPath, { language: declared }))
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
 

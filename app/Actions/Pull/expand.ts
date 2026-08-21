@@ -31,6 +31,17 @@ export interface ExpandedLines {
   /** 1-based line number of the first entry in `lines`. */
   from: number
   lines: string[]
+  /**
+   * The lines above the window, which the reader is not being shown.
+   *
+   * Carried because they are already read: the blob is collected whole to slice
+   * a range out of it, so these are in hand and cost nothing to pass along. A
+   * fragment tokenized from a cold state gets multi-line strings and comments
+   * wrong - an expansion inside a licence header renders as code - and these
+   * are what a resume needs. Empty when the window starts at line one, which is
+   * the case with nothing to resume from.
+   */
+  prelude: string[]
   error: string | null
 }
 
@@ -52,23 +63,23 @@ export async function expandRange(
   const to = Math.floor(request.to)
 
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from)
-    return { ok: false, from, lines: [], error: 'That is not a range' }
+    return { ok: false, from, lines: [], prelude: [], error: 'That is not a range' }
 
   const blob = await readBlob(repositoryPath, request.ref, request.path)
   if (!blob.ok || blob.text === null) {
     // A binary or oversized file has no lines to show, and neither does one
     // that is genuinely absent at this commit. All three read the same to a
     // reader asking for context: there is none to give.
-    return { ok: false, from, lines: [], error: blob.error ?? 'No context available' }
+    return { ok: false, from, lines: [], prelude: [], error: blob.error ?? 'No context available' }
   }
 
   const all = splitLines(blob.text)
   const last = Math.min(to, from + MAX_EXPAND_LINES - 1, all.length)
 
   if (from > all.length)
-    return { ok: false, from, lines: [], error: 'That range is past the end of the file' }
+    return { ok: false, from, lines: [], prelude: [], error: 'That range is past the end of the file' }
 
-  return { ok: true, from, lines: all.slice(from - 1, last), error: null }
+  return { ok: true, from, lines: all.slice(from - 1, last), prelude: all.slice(0, from - 1), error: null }
 }
 
 /**

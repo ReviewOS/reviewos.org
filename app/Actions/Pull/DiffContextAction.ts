@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
-import { highlightLines } from '../Browse/highlight'
+import { highlightLines, tokenClass } from '../Browse/highlight'
+import { highlightResumed, resumeLanguage, scopeStateAfter } from '../Browse/resume'
 import { diskPathFor } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
 import { contextLinesFrom, expandRange, MAX_EXPAND_LINES } from './expand'
@@ -85,10 +86,28 @@ export default new Action({
     if (!expanded.ok)
       return response.json({ error: expanded.error ?? 'No context available' }, 404)
 
-    // Highlighted against the whole file's language, the same way the diff's
-    // own lines are, so an expanded line does not stand out by being plainer
-    // than the ones around it.
-    const tokens = await highlightLines(expanded.lines, path)
+    /*
+     * Highlighted against the whole file's language, the same way the diff's
+     * own lines are, so an expanded line does not stand out by being plainer
+     * than the ones around it.
+     *
+     * And resumed from the lines above it, which `expandRange` has in hand
+     * because it read the blob whole to slice this range out. An expansion that
+     * lands inside a licence header or a template literal is the case this is
+     * for: tokenized cold it renders as code, confidently and wrongly, and the
+     * reader has no way to tell that from the highlighter simply not knowing
+     * the language. `highlightResumed` answers null for everything it cannot
+     * do - no grammar, a line count that changed - and null means the ordinary
+     * path, which is what this line was before.
+     */
+    const language = resumeLanguage(path, expanded.prelude[0] ?? expanded.lines[0] ?? '')
+    const resumed = highlightResumed(
+      expanded.lines,
+      language,
+      scopeStateAfter(expanded.prelude, language),
+      tokenClass,
+    )
+    const tokens = resumed ?? await highlightLines(expanded.lines, path)
     const lines = contextLinesFrom(expanded.lines, expanded.from, Number.isFinite(offset) ? offset : 0)
 
     const map: Record<string, Array<{ type: string, content: string }>> = {}

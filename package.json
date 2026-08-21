@@ -91,7 +91,7 @@
     "ts-git-lfs": "^0.1.3",
     "ts-images": "^0.2.12",
     "ts-pantry": "^0.11.38",
-    "ts-syntax-highlighter": "^0.2.14"
+    "ts-syntax-highlighter": "^0.2.17"
   },
   "workspaces": [
     "storage/framework",

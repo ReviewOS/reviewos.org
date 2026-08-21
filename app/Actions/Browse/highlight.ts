@@ -250,23 +250,58 @@ function highlighter(): ReturnType<typeof createHighlighter> {
   return highlighterPromise
 }
 
-function normalize(type: string): TokenClass {
-  const known: TokenClass[] = [
-    'keyword',
-    'string',
-    'comment',
-    'numeric',
-    'function',
-    'operator',
-    'punctuation',
-    'type',
-    'variable',
-    'tag',
-    'attribute',
-  ]
+const KNOWN_CLASSES: TokenClass[] = [
+  'keyword',
+  'string',
+  'comment',
+  'numeric',
+  'function',
+  'operator',
+  'punctuation',
+  'type',
+  'variable',
+  'tag',
+  'attribute',
+]
 
-  return (known as string[]).includes(type) ? type as TokenClass : 'text'
+/**
+ * The two tokenizers do not name a token the same thing.
+ *
+ * `FastTokenizer` classifies by byte and calls a quoted run `string` and a `//`
+ * run `comment`. The stateful `Tokenizer` names the *rule* that matched, so the
+ * same text arrives as `single`, `double`, `template`, `line` or `block`, and
+ * whitespace arrives as `text` rather than `whitespace`.
+ *
+ * That only started to matter when resuming was added, and it mattered
+ * silently: an unknown type falls through to `text`, so a file highlighted with
+ * the stateful tokenizer would have rendered with every string and every
+ * comment uncoloured, on a page where the lines above and below it were
+ * coloured by the fast one. The mapping is what makes a resumed window look
+ * like the rest of the file.
+ */
+const CLASS_ALIASES: Record<string, TokenClass> = {
+  single: 'string',
+  double: 'string',
+  template: 'string',
+  line: 'comment',
+  block: 'comment',
+  whitespace: 'text',
 }
+
+function normalize(type: string): TokenClass {
+  if ((KNOWN_CLASSES as string[]).includes(type))
+    return type as TokenClass
+
+  return CLASS_ALIASES[type] ?? 'text'
+}
+
+/**
+ * The same mapping, for a caller tokenizing somewhere else.
+ *
+ * `resume.ts` runs the stateful tokenizer directly, and a second copy of this
+ * table there is how the two would come to disagree about what `template` is.
+ */
+export const tokenClass = normalize
 
 /**
  * Highlight lines of code, one token list per line.

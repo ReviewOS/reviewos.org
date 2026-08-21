@@ -111,7 +111,8 @@ export function shortSha(sha: string): string {
 import type { TreeEntry as TreeEntryImpl } from '../../app/Actions/Browse/parse'
 import { branchNames as branchNamesImpl, commitCount as commitCountImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareDiffText as compareDiffTextImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { parseCompareRefs as parseCompareRefsImpl } from '../../app/Actions/Browse/compare'
-import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
+import { highlightLines as highlightLinesImpl, languageFor as languageForImpl, tokenClass as tokenClassImpl } from '../../app/Actions/Browse/highlight'
+import { highlightResumed as highlightResumedImpl } from '../../app/Actions/Browse/resume'
 import { declaredLanguage as declaredLanguageImpl, languageRulesFor as languageRulesForImpl } from '../../app/Actions/Browse/attributes'
 import { BLOB_WINDOW_LINES as BLOB_WINDOW_LINES_IMPL, readBlobWindow as readBlobWindowImpl } from '../../app/Actions/Browse/blobWindow'
 import { renderBlobRows as renderBlobRowsImpl } from '../../app/Actions/Browse/blobRows'
@@ -146,6 +147,17 @@ export const BLOB_WINDOW_LINES = BLOB_WINDOW_LINES_IMPL
 /** The rows of a file, from the one renderer the endpoint uses too. */
 export const renderBlobRows = renderBlobRowsImpl
 export const languageFor = languageForImpl
+/**
+ * Highlight a window as though the lines above it were there.
+ *
+ * `readBlobWindow` walks those lines and drops them; the scope stack it kept is
+ * what turns a permalink into the middle of a licence header from code-coloured
+ * nonsense into a comment. Null when it could not, which every caller answers
+ * by highlighting the ordinary way.
+ */
+export const highlightResumed = highlightResumedImpl
+/** The one place a tokenizer's own name for a token becomes a CSS class. */
+export const tokenClass = tokenClassImpl
 export const languageRulesFor = languageRulesForImpl
 export const declaredLanguage = declaredLanguageImpl
 export const MAX_BLOB_BYTES = MAX_BLOB_BYTES_IMPL

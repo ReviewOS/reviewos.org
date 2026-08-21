@@ -3,7 +3,8 @@ import { schema } from '@stacksjs/validation'
 import { browsePath, browseContext } from './context'
 import { BLOB_WINDOW_LINES, blobWindowFor, readBlobWindow } from './blobWindow'
 import { renderBlobRows } from './blobRows'
-import { highlightLines } from './highlight'
+import { highlightLines, tokenClass } from './highlight'
+import { highlightResumed, resumeLanguage } from './resume'
 import { coerced } from '../inputs'
 
 /**
@@ -60,9 +61,17 @@ export default new Action({
     const from = Number(request.get('from') ?? 1)
     const count = Number(request.get('count') ?? BLOB_WINDOW_LINES)
 
+    /*
+     * The language is named on the way in rather than worked out on the way
+     * out, because the reader needs it *while* it streams: the lines above the
+     * window are what a resume needs and they are dropped as they go past.
+     */
+    const language = resumeLanguage(path)
+
     const window = await readBlobWindow(diskPath, ref, path, {
       from: Number.isFinite(from) ? from : 1,
       count: Number.isFinite(count) ? count : BLOB_WINDOW_LINES,
+      language,
     })
 
     if (window.error)
@@ -77,7 +86,14 @@ export default new Action({
     if (window.tooLarge)
       return response.json({ tooLarge: true, total: 0, rows: '' })
 
-    const highlighted = await highlightLines(window.lines, path)
+    /*
+     * Resumed when the reader could say where the window began, which is the
+     * whole point of a window past the first: line 20,000 of a file may be
+     * inside a block comment opened at line 4, and a cold tokenizer renders it
+     * as code with no sign that it is guessing.
+     */
+    const highlighted = highlightResumed(window.lines, language, window.resume, tokenClass)
+      ?? await highlightLines(window.lines, path)
     const range = blobWindowFor(window.total, window.from, window.lines.length)
 
     return response.json({
