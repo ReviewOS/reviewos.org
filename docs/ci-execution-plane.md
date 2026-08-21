@@ -278,6 +278,47 @@ submodules and LFS have to mean the same thing in both modes or the two drift wi
 importing the host executor pulled its entire world into a path whose whole point is that none of it
 applies.
 
+## Secrets
+
+`microvmSecrets.ts`. On the host path a job's secrets live in a process environment and nowhere else;
+crossing a machine boundary is what makes this a question, because every obvious route writes them
+down.
+
+**The payload disk was refused** for a reason this codebase demonstrated rather than theorised: it is
+a file on the runner's real filesystem whose deletion is best-effort, and a run whose `mkfs` failed
+left a gigabyte of one behind. Putting secrets there turns a memory-only credential into an at-rest
+one, on exactly the object already observed surviving a bad afternoon. **The kernel command line is
+worse** - world-readable at `/proc/cmdline`, and written into a JSON file on the host on the way
+there. **A tmpfs-backed second disk** is better than both and still leaves a block device the guest
+can re-read for the machine's whole life.
+
+So they cross on the console, in the other direction, once, before the first step - in RAM on both
+sides and on no filesystem on either. Verified: the value reaches the step's environment, and is
+absent from the payload disk and from `/proc/cmdline`.
+
+**The guest asks and the host answers**, because bytes written to a serial console before the guest
+opens the device are dropped. A probe sent `HELLO-FROM-HOST-STDIN` at boot and the guest received
+`LLO-FROM-HOST-STDIN`; a whole frame sent that early is lost, and a reader waiting for its newline
+waits for ever.
+
+**Masking is the host's job and it is stronger here than on the host path**, because the console is
+the only channel out - every byte of a job's output passes through one redaction. Verified with a
+step that printed its secret, and with one that printed it across two writes.
+
+### Three defects, each of which failed silently
+
+1. **The declared length excluded its own trailing newline.** `read` returns false at end of input
+   even when it read a partial line, so the guest's loop skipped the last record - which, for one
+   secret, is all of them. The header arrived, the bytes arrived, and nothing was exported.
+2. **The agent wrote its parsed values to `/tmp/.env.$$` from inside a pipeline subshell** and read
+   that path back from the main shell, where `$$` is not reliably the same number.
+3. **The masker redacted only the portion it was releasing.** A value that *starts* in the released
+   part and finishes in the held tail is not a match yet, so its head went out in the clear and the
+   retained half never matched either - the secret was emitted, in two pieces, having passed through
+   a masker. The unit test missed it because a short stream never reaches the release path at all:
+   everything sits in the buffer until `flush()`, which redacts it. The fix is to redact the whole
+   buffer before releasing any of it, and the test now feeds enough output to force releases.
+
 ## What is still not verified
 
 - ~~The source path has not booted.~~ **It has.** A machine booted with a real repository on its
@@ -285,10 +326,7 @@ applies.
   contents, ran a checked-in script whose executable bit had survived the copy, and found `.git`
   present. The clone token was **not** on the payload disk and **not** in `.git` - which is the claim
   this design rests on, checked rather than asserted.
-- **Secrets are not designed into this.** On the host path a job's secrets reach a step through its
-  environment. What that becomes in another machine is open, and the payload disk is the obvious
-  answer and probably the wrong one: it is a disk the guest reads whenever it likes, which is a poor
-  home for a deploy key.
+- ~~Secrets are not designed into this.~~ **They are.** See below.
 - **No image build pipeline.** What an image must contain - an agent at `/sbin/reviewos-agent`, a
   `/work` mount point - is written here and enforced nowhere.
 - **Ceilings were accepted, not exercised.** No test confirms a guest which forks endlessly dies

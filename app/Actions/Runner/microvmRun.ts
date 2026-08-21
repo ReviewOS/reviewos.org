@@ -29,6 +29,7 @@
 
 import { mkdir, rm } from 'node:fs/promises'
 import { checkoutCode } from './checkout'
+import { deliverableSecrets } from './microvmSecrets'
 import { machineSpec } from './microvm'
 import type { EgressPolicy, EgressRule } from './networkPolicy'
 import { buildEgressPolicy } from './networkPolicy'
@@ -237,6 +238,12 @@ export async function runJobInMachine(input: {
       steps: steps.steps,
       host,
       sourcePath,
+      /*
+       * What the instance already decided this job may have. `deliverableSecrets`
+       * re-checks the one rule whose failure is unrecoverable - an untrusted run
+       * receives nothing - as a second lock on the door that matters.
+       */
+      secrets: deliverableSecrets(input.job),
       onOutput: async text => input.onOutput(text, 'stdout'),
     })
 

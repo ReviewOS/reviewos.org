@@ -42,6 +42,7 @@ import { firecrackerConfig } from './microvm'
 import { nftRuleset } from './networkPolicy'
 import type { StepReport } from './microvmProtocol'
 import { bootNonce, readConsole } from './microvmProtocol'
+import { Masker, secretsFrame } from './microvmSecrets'
 
 export interface JobStep {
   /** The shell command this step runs, exactly as the workflow wrote it. */
@@ -95,8 +96,16 @@ export async function superviseJob(input: {
   host: SupervisorHost
   /** A checkout on the host to hand the guest as its working directory. */
   sourcePath?: string
-  /** Live output, as the console produces it. */
+  /** Live output, as the console produces it. Already masked. */
   onOutput?: (text: string) => Promise<void>
+  /**
+   * What the job's steps get in their environment.
+   *
+   * Written to the guest's console once, before the first step, and never to any
+   * disk on either side. `microvmSecrets.ts` explains why every other route was
+   * refused.
+   */
+  secrets?: Record<string, string>
   /** Injectable for tests; defaults to the real clock. */
   now?: () => number
 }): Promise<SupervisedOutcome> {
@@ -172,6 +181,8 @@ export async function superviseJob(input: {
       configPath,
       wallSeconds: input.spec.wallSeconds,
       onOutput: input.onOutput,
+      secrets: input.secrets ?? {},
+      nonce,
     })
 
     const reading = readConsole(booted.console, nonce)
@@ -214,12 +225,43 @@ async function boot(input: {
   configPath: string
   wallSeconds: number
   onOutput?: (text: string) => Promise<void>
+  secrets: Record<string, string>
+  nonce: string
 }): Promise<{ console: string, reason?: string }> {
+  /*
+   * The console is a wire in both directions. Firecracker gives the guest's
+   * serial input its own stdin, which is how the secrets get in - written once,
+   * before anything runs, and never to a file on either side.
+   */
   const child = Bun.spawn([input.host.firecracker, '--no-api', '--config-file', input.configPath], {
     stdout: 'pipe',
     stderr: 'pipe',
-    stdin: 'ignore',
+    stdin: 'pipe',
   })
+
+  /*
+   * **Written when the guest asks, never before.**
+   *
+   * Bytes sent to the serial console before the guest has opened the device are
+   * dropped - silently and partially. A probe sent `HELLO-FROM-HOST-STDIN` at
+   * spawn and the guest received `LLO-FROM-HOST-STDIN`; a whole frame sent that
+   * early is lost, and the agent waits for a newline that never arrives.
+   *
+   * So the agent announces that it is listening and this answers. Watching the
+   * stream for that marker is why the write lives inside the read loop below
+   * rather than here.
+   */
+  const wants = `\x01RVOS ${input.nonce} WANT-SECRETS`
+
+  let answered = false
+
+  /*
+   * Masked as a *stream*, not per chunk. `redactSecrets` says outright that a
+   * value split across two writes survives it, and console chunks are whatever
+   * size the pipe produced - so a secret unlucky enough to straddle a boundary
+   * would reach the log in two halves, each individually unrecognisable.
+   */
+  const masker = new Masker(input.secrets)
 
   let text = ''
   let timedOut = false
@@ -237,10 +279,34 @@ async function boot(input: {
 
       text += piece
 
+      /*
+       * The handshake. Answered once, and from inside the loop because this is
+       * the only place that learns the guest is listening.
+       */
+      if (!answered && text.includes(wants)) {
+        answered = true
+
+        try {
+          child.stdin.write(secretsFrame(input.nonce, input.secrets))
+          await child.stdin.flush?.()
+        }
+        catch {
+          // A console that cannot be written to leaves the steps without their
+          // secrets, and they will fail for a reason the log carries.
+        }
+      }
+
       // Streamed as it arrives, so a run screen shows a build happening rather
       // than a blank panel and then everything at once.
       if (input.onOutput)
-        await input.onOutput(piece).catch(() => {})
+        await input.onOutput(masker.push(piece)).catch(() => {})
+    }
+
+    if (input.onOutput) {
+      const rest = masker.flush()
+
+      if (rest)
+        await input.onOutput(rest).catch(() => {})
     }
 
     await child.exited

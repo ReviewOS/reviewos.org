@@ -229,6 +229,13 @@ mount /dev/vdb /work 2>/dev/null
 # number of newlines in the output and the frames slide out of alignment.
 stty -onlcr < /dev/console 2>/dev/null || stty -onlcr 2>/dev/null || true
 
+# And the echo off, before anything is read.
+#
+# A serial console echoes what is written to it straight back out - which on this
+# wire means into the job's log. The secrets arrive on that wire, so leaving the
+# echo on would print every one of them to the thing they must never reach.
+stty -echo < /dev/console 2>/dev/null || stty -echo 2>/dev/null || true
+
 NONCE=$(cat /work/nonce 2>/dev/null || echo missing)
 
 # Read once, then remove. After this line there is nowhere for a step to learn
@@ -236,6 +243,66 @@ NONCE=$(cat /work/nonce 2>/dev/null || echo missing)
 rm -f /work/nonce
 
 say() { printf '\\001RVOS %s %s\\n' "$NONCE" "$*"; }
+
+# The secrets, read once from the console before any step runs.
+#
+# Into the environment and nowhere else: not onto the payload disk, not into a
+# file under /tmp. The value exists in this process's memory and in the
+# environment of the steps it spawns, which is exactly where it lives on a host
+# runner - and on no filesystem on either side of the boundary.
+read_secrets() {
+  # Ask first, then read.
+  #
+  # The host cannot simply write at boot: bytes sent to the serial console
+  # before the guest has opened the device are dropped on the floor, silently
+  # and partially - a probe sent HELLO-FROM-HOST-STDIN and the guest received
+  # LLO-FROM-HOST-STDIN. A frame written that early is lost entirely, and a
+  # reader waiting for its newline waits for ever.
+  #
+  # So the guest announces that it is listening and the host answers. The
+  # ordering is the fix; the timeout below is what keeps a host that never
+  # answers from being a machine that never ends.
+  say "WANT-SECRETS"
+
+  IFS= read -r -t 30 header || return 0
+
+  case "$header" in
+    *"RVOS $NONCE SECRETS "*) ;;
+    *) return 0 ;;
+  esac
+
+  size=\${header##* }
+  [ "$size" -gt 0 ] 2>/dev/null || return 0
+
+  # Exactly the declared bytes, for the reason everything on this wire is length
+  # framed: a secret may contain anything, including whatever a terminator would
+  # have been.
+  # A fixed name, not $$.
+  #
+  # The left side of this pipeline runs in a subshell, and $$ is not reliably the
+  # same number there as it is here - so the file being written was not always
+  # the file being read, and the secrets simply did not arrive. Nothing errored;
+  # the loop below read an absent file and exported nothing.
+  # The trailing test keeps a final record without a newline: read returns
+  # false at end of input even when it read something, and a host declaring a
+  # length that excluded its own newline was exactly how one secret became no
+  # secrets, silently.
+  head -c "$size" | while IFS=' ' read -r name encoded || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    printf '%s=%s\\n' "$name" "$(printf '%s' "$encoded" | base64 -d 2>/dev/null)"
+  done > /tmp/.rvos-secrets
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    export "$line"
+  done < /tmp/.rvos-secrets
+
+  # /tmp is a tmpfs - RAM, not the image - and this removes it anyway, so a step
+  # cannot read the set out of a file even in memory.
+  rm -f /tmp/.rvos-secrets
+}
+
+read_secrets
 
 emit() {
   # Declare the length, then the bytes. The host reads exactly that many and
