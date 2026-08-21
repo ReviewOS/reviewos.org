@@ -428,14 +428,48 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         html { scroll-behavior: auto; }
         * { animation: none !important; transition: none !important; }
       }
-    </style>
+    
+  /* Off-screen until focused, rather than hidden: `display: none` takes it
+    out of the tab order, which is the one thing it exists to be in. */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    padding: 10px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .skip-link:focus {
+    left: 12px;
+    top: 12px;
+  }
+
+  /* `tabindex="-1"` makes <main> focusable so the jump actually moves the
+    caret; without it the link scrolls and the next Tab returns to the nav. */
+  main:focus { outline: none; }
+</style>
     @yield('head')
   </head>
 
   <body>
+    {{-- The first thing in the tab order, and invisible until it is reached.
+
+        Every screen here opens with the site nav, and a repository screen
+        follows it with a header and six tabs - so somebody reading with a
+        keyboard passed about twenty controls before the first line of what
+        they came for, on every page, every time. --}}
+    <a class="skip-link" href="#content">Skip to content</a>
+
     <SiteNav />
 
-    <main>
+    <main id="content" tabindex="-1">
       @yield('content')
     </main>
 

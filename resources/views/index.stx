@@ -875,13 +875,39 @@ const nots = [
         .highlights { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .footer-inner { grid-template-columns: 1.6fr repeat(4, 1fr); gap: 32px; }
       }
-    </style>
+    
+    /* Off-screen until focused, rather than hidden: `display: none` takes it
+      out of the tab order, which is the one thing it exists to be in. */
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 100;
+      padding: 10px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--r-control);
+      background: var(--surface);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .skip-link:focus { left: 12px; top: 12px; }
+
+    main:focus { outline: none; }
+</style>
   </head>
 
   <body>
+    {{-- The first thing in the tab order, for the reason written in
+        `resources/views/layouts/app.stx`. This page carries its own document
+        rather than a layout, so it needs its own copy. --}}
+    <a class="skip-link" href="#content">Skip to content</a>
+
     <SiteNav />
 
-    <main>
+    <main id="content" tabindex="-1">
       <section class="hero shell">
         <h1 class="hero-title settle">
           The forge that takes <em>review</em> seriously
