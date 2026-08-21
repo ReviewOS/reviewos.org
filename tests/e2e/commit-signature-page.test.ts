@@ -263,3 +263,26 @@ describe('a signed commit', () => {
     }
   }, 60_000)
 })
+
+/*
+ * A revision nobody has, on a repository somebody does.
+ *
+ * The page already answered 404 for a missing repository and had the argument
+ * for it written above the guard - "a page that renders 'no such repository'
+ * under a 200 tells a crawler, a cache and an uptime check that the page is
+ * fine". A forty-character hex string is a larger space than a repository
+ * name, and it was the half that had not been applied.
+ */
+describe('a commit nobody has', () => {
+  test('is a 404 rather than an empty page under a 200', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/${created.handle}/${created.name}/commit/${'0'.repeat(40)}`,
+      { headers: { Accept: 'text/html' } },
+    )
+
+    expect(answer.status).toBe(404)
+  }, 30_000)
+})

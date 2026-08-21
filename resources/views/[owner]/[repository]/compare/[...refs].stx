@@ -22,6 +22,11 @@ const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
 
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
 const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
@@ -32,6 +37,22 @@ const onDisk = repositoryPath(owner, repositoryName)
 const comparison = repoRow && request && onDisk.ok && onDisk.path
   ? await compareRefs(onDisk.path, request.base, request.head)
   : null
+
+/*
+ * What is missing, said in the status line as well as in the panel.
+ *
+ * A repository nobody has, and a pair of refs that cannot be resolved, are
+ * both missing pages. `a...b` takes two arbitrary strings, so answering 200 to
+ * every pair offers a crawler the square of the refs in the repository and
+ * calls all of it content.
+ *
+ * Naming no refs at all is different and stays a 200: that is the page asking
+ * a question, not failing to answer one.
+ */
+if (!repoRow)
+  setStatus(404)
+else if (request && (!comparison || !comparison.ok))
+  setStatus(404)
 
 /*
  * The diff itself, rendered with the review screen's own renderer, so a

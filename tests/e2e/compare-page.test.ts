@@ -222,4 +222,40 @@ describe('the compare page', () => {
 
     expect(html).toContain('cannot be compared')
   }, 30_000)
+
+  /*
+   * And the sentence arrives under a status that agrees with it. `a...b` takes
+   * two arbitrary strings, so a 200 on every pair offers a crawler the square
+   * of the refs in the repository and calls all of it content.
+   */
+  test('and answers 404 rather than 200 while saying so', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/${created.handle}/${created.name}/compare/main...nowhere`,
+      { headers: { Accept: 'text/html' } },
+    )
+
+    expect(answer.status).toBe(404)
+  }, 30_000)
+
+  /*
+   * A half-written range is the page asking a question rather than failing to
+   * answer one, so it keeps its 200 and its guidance. Only a range that names
+   * two refs and cannot resolve them is a missing page.
+   */
+  test('but a half-written range is still a 200 with guidance', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/${created.handle}/${created.name}/compare/main...`,
+      { headers: { Accept: 'text/html' } },
+    )
+    const html = await answer.text()
+
+    expect(answer.status).toBe(200)
+    expect(html).toContain('Nothing to compare')
+  }, 30_000)
 })

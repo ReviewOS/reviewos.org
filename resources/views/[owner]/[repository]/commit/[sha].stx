@@ -55,6 +55,13 @@ if (!repoRow)
 
 const commit = repoRow ? await commitDetail(String(repoAccess?.diskPath ?? ''), revision) : null
 
+// And the same for the commit itself, which had the argument above written
+// over it and only half applied: a repository that exists and a revision that
+// does not still answered 200, and a forty-character hex string is a space a
+// crawler can walk forever.
+if (repoRow && !commit)
+  setStatus(404)
+
 const base = `/${ownerHandle}/${repositoryName}`
 const files = commit?.files ?? []
 
