@@ -242,6 +242,24 @@ NONCE=$(cat /work/nonce 2>/dev/null || echo missing)
 # with the steps rather than over the console with the credentials.
 MAXOUT=$(cat /work/maxout 2>/dev/null || echo 1048576)
 
+# The guest's own address, which the host chose.
+#
+# Without this the machine has a network device and no address, so every
+# destination is unreachable - and a test asking "can the guest reach the
+# metadata endpoint" answers no for the wrong reason. That is worse than a
+# failure: it is a green egress test on a machine with no egress, which would
+# have been read as the policy working.
+#
+# The values are the host's because the tap is: a guest that chose its own
+# address would be a guest choosing which rules apply to it, since every rule is
+# anchored to the address the host expects it to have.
+if [ -f /work/net ]; then
+  read -r RVOS_ADDR RVOS_GW < /work/net
+  ip addr add "$RVOS_ADDR" dev eth0 2>/dev/null
+  ip link set eth0 up 2>/dev/null
+  ip route add default via "$RVOS_GW" 2>/dev/null
+fi
+
 # Read once, then remove. After this line there is nowhere for a step to learn
 # the token from: not the disk, not this script's arguments, not /proc/cmdline.
 rm -f /work/nonce

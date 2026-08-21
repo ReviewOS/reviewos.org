@@ -368,6 +368,8 @@ describe('how the source reaches the guest', () => {
       64,
       [{ run: 'echo hi' }],
       'n'.repeat(32),
+      '172.20.0.2',
+      '172.20.0.1',
       sourcePath,
     )
 
@@ -508,5 +510,42 @@ describe('a payload disk that could not be made', () => {
 
     expect(ran.some(argv => String(argv[2] ?? '').includes('ip tuntap add'))).toBe(false)
     expect(ran.some(argv => argv[0] === 'nft' && argv[1] === '-f')).toBe(false)
+  })
+})
+
+describe('the address a guest is given', () => {
+  test('is told to it, because every filter rule is anchored to it', async () => {
+    /*
+     * A guest that chose its own address would be a guest choosing which rules
+     * apply to it: the ruleset says `ip saddr <guest>`, and a machine calling
+     * itself something else matches none of it.
+     */
+    const { makeOverlay } = await import('../../app/Actions/Runner/microvmSupervisor')
+
+    let script = ''
+
+    await makeOverlay(
+      {
+        firecracker: '/x', scratch: '/s', hostAddress: '172.20.0.1', guestAddress: '172.20.0.2',
+        privileged: async (argv) => { script = String(argv[2] ?? ''); return { ok: true, output: '' } },
+      },
+      '/s/job-1.ext4', 64, [{ run: 'echo hi' }], 'n'.repeat(32), '172.20.0.2', '172.20.0.1',
+    )
+
+    expect(script).toContain(`'172.20.0.2/30' '172.20.0.1' > "$M/net"`)
+  })
+
+  test('and the guest brings its interface up from it', async () => {
+    /*
+     * The defect this exists to stop coming back. The machine had a tap, a MAC
+     * and a filter, and no address - so every destination was unreachable and
+     * the first egress suite passed on a machine with no egress, which reads
+     * exactly like the policy working.
+     */
+    const { guestAgent } = await import('../../app/Actions/Runner/microvmProtocol')
+
+    expect(guestAgent()).toContain('/work/net')
+    expect(guestAgent()).toContain('ip link set eth0 up')
+    expect(guestAgent()).toContain('ip route add default via')
   })
 })

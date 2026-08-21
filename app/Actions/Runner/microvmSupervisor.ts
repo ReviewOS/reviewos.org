@@ -160,7 +160,7 @@ export async function superviseJob(input: {
      */
     undo.push({ what: 'overlay', undo: async () => { await input.host.privileged(['rm', '-f', overlay]) } })
 
-    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.sourcePath, input.ship ?? [])
+    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.host.guestAddress, input.host.hostAddress, input.sourcePath, input.ship ?? [])
 
     if (!made.ok)
       return { ok: false, steps: [], reason: made.output.slice(0, 400), noise: '' }
@@ -357,6 +357,9 @@ export async function makeOverlay(
   sizeMib: number,
   steps: readonly JobStep[],
   nonce: string,
+  /** What the guest should call itself, and where its default route points. */
+  guestAddress: string,
+  hostAddress: string,
   /** A checkout on the host, copied in as the guest's working directory. */
   sourcePath?: string,
   /** Action directories the host fetched, copied in beside it. */
@@ -366,6 +369,14 @@ export async function makeOverlay(
     `mkdir -p "$M/steps" "$M/workspace"`,
     `printf '%s' ${shellQuote(nonce)} > "$M/nonce"`,
     `printf '%s' ${shellQuote(String(maxOutputBytes()))} > "$M/maxout"`,
+    /*
+     * The address the guest is expected to have, and the way out.
+     *
+     * Told rather than negotiated: every filter rule is anchored to this
+     * address, so a guest that chose its own would be choosing which rules apply
+     * to it. A `/30` because the link has exactly two things on it.
+     */
+    `printf '%s %s' ${shellQuote(`${guestAddress}/30`)} ${shellQuote(hostAddress)} > "$M/net"`,
   ]
 
   /*

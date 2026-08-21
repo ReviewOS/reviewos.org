@@ -240,17 +240,22 @@ The threat model lists eight adversarial tests as the sign-off. Their status tod
 | Gate test | Status |
 |---|---|
 | A fork cannot read a secret, or replace the base branch's workflow | **Met.** `ci-security.test.ts`, both halves. |
-| A job cannot reach the database, Redis, repository storage, or loopback | **Not met.** No network policy exists. |
-| A job cannot reach the cloud metadata endpoint | **Not met.** Same. |
+| A job cannot reach the database, Redis, repository storage, or loopback | **Met.** `microvm-egress.test.ts` boots a guest and fails to reach the runner host on two ports, refused by the ruleset's `input` chain. |
+| A job cannot reach the cloud metadata endpoint | **Met.** Same suite: a booted guest cannot reach a fixture standing at `169.254.169.254` while an allowlisted registry answers in the same run. |
 | A lower-trust branch cannot write a cache a protected branch restores | **Met.** `cache-poisoning.test.ts` writes an entry into a fork's real scope and fails to restore it as the default branch, another branch, a second pull request from the same fork, and through the `restore-keys` prefix fallback. |
 | An archive with `../` or a symlink does not write outside its destination | **Met.** `archiveSafety.ts` inspects the index and refuses the archive whole before extracting; `runner-archive-safety.test.ts` builds both attacks as real tarballs, including a `../` entry crafted with this repository's own tar writer because the system tar will not create one. |
 | A ten-gigabyte log is truncated by policy, not by disk exhaustion | **Met.** Ceiling on the way in, now configurable. |
 | A replayed job token, and a step result from a cancelled run, are refused | **Met.** `runner-api.test.ts`, `runner-claim.test.ts`. |
 | A runner that dies mid-job leaves a recoverable run | **Met.** `runner-reclaim.test.ts`, and step results now land on the heartbeat rather than only at the conclusion. |
 
-Six met, two not. **Both that are not met are the execution plane** - a network policy is the only
-thing that answers either, and there is no execution plane to put one in. That is the ordering the
-threat model set: the control plane's boxes were the ones this work could close.
+**Eight met.** The last two were the execution plane's, and there is now an execution plane to put a
+policy in: `docs/ci-execution-plane.md`.
+
+They are worth reading with their control in mind. A guest that cannot reach the metadata endpoint
+because it has no network at all satisfies the assertion and proves nothing - so the same run
+allowlists a registry and requires it to answer. That control is not decoration: it caught the agent
+never configuring the guest's network, which had made a green egress test on a machine with no
+egress.
 
 The two that moved were closed after this document first scored them. The cache gate had the rules
 and no adversarial test, which is a distinction worth keeping - a pure test of `canRestore` passes

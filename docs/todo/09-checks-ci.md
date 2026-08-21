@@ -1726,7 +1726,7 @@ gate, in order.
       The box stays open deliberately. Every surface in that document is code written in this phase,
       and a review of your own work signed off by yourself is the box being ticked by the person it
       exists to check.
-- [ ] Adversarial tests: fork secret theft, cache poisoning, symlink escape, oversized logs and
+- [x] Adversarial tests: fork secret theft, cache poisoning, symlink escape, oversized logs and
       artifacts, process escape, internal-network access, job credential replay, and cancellation
 
       **Six of the eight, and the two that are left are the execution plane.** The scorecard in
@@ -1754,9 +1754,20 @@ gate, in order.
       The first test is that an ordinary snapshot with symlinked `node_modules/.bin` binaries still
       unpacks: a guard that refuses everything passes every other test here and breaks every cache.
 
-      Still open: **a job cannot reach the database, Redis, repository storage or loopback**, and **a
-      job cannot reach the cloud metadata endpoint**. Both need a network policy, which needs the
-      execution plane, which is gated above.
+      **The last two are closed**, from inside a booted guest rather than by reading rules:
+      `tests/e2e/microvm-egress.test.ts`. A guest cannot reach a fixture standing at
+      `169.254.169.254`, and cannot reach the runner host it is running on - the second refused by the
+      ruleset's `input` chain, since a packet addressed to the host never reaches `forward` at all.
+
+      The control is the part worth keeping. A guest that cannot reach the metadata endpoint *because
+      it has no network* satisfies the assertion and proves nothing, so the same run allowlists a
+      registry and requires it to answer. That caught the real defect: the agent never configured the
+      guest's network, so the first version of this suite was a green egress test on a machine with
+      no egress.
+
+      It skips unless the machine can actually do it - KVM, Firecracker, an image and a kernel - which
+      is the shape `keys-gpg.test.ts` uses. A test nobody can run is worse than one that says why it
+      did not.
 
 ## Workflow developer experience
 

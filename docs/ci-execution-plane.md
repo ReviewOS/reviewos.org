@@ -393,6 +393,37 @@ A second thing worth knowing: `diskMib` has a floor of 1024, so a smaller reques
 The payload disk carries the repository as well as whatever the job writes, and a 64 MiB overlay is a
 machine that cannot check out.
 
+## The egress gates, from inside a guest
+
+`tests/e2e/microvm-egress.test.ts`. The threat model's last two adversarial gates were claims about
+packets, and until there was a machine to send them from there was nothing to attack. They are now
+attacked: a booted guest cannot reach a fixture standing at `169.254.169.254`, and cannot reach the
+runner host it is running on.
+
+**The control is the whole reason the suite means anything.** A guest that cannot reach the metadata
+endpoint *because it has no network at all* satisfies the assertion and proves nothing, so the same
+run allowlists a registry and requires it to answer.
+
+That control earned its place immediately: **the agent never configured the guest's network.** The
+machine had a tap device, a MAC and a filter, and no address - so the first version of this suite was
+a green egress test on a machine with no egress, which would have been read as the policy working.
+The host now tells the guest what to call itself, because every filter rule is anchored to that
+address: a guest choosing its own would be choosing which rules apply to it.
+
+The suite skips unless the machine can do it - KVM, Firecracker, an image, a kernel - and says which
+piece is missing. Run it on a host that has them:
+
+```sh
+REVIEWOS_EXECUTION=microvm \
+REVIEWOS_GUEST_KERNEL=/path/vmlinux \
+REVIEWOS_GUEST_IMAGE=/path/base.ext4 \
+REVIEWOS_GUEST_IMAGE_DIGEST=sha256:... \
+bun test tests/e2e/microvm-egress.test.ts
+```
+
+It needs passwordless `sudo` for the fixture, the tap and the filter - the same three privileges the
+supervisor itself uses.
+
 ## What is still not verified
 
 - ~~The source path has not booted.~~ **It has.** A machine booted with a real repository on its
