@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { isSecureRequest, safeRedirect, sessionCookie } from './session'
 import { providerFor } from './social'
+import { providerNameFromAuthPath } from './socialPath'
 
 /**
  * Start a social sign-in: send the visitor to the provider.
@@ -48,9 +49,7 @@ export default new Action({
   },
 
   async handle(request: RequestInstance) {
-    // Read off the path rather than the parameter bag: these routes are
-    // mounted at the root, the same way the git and attachment routes are.
-    const name = new URL(request.url).pathname.split('/').filter(Boolean)[1] ?? ''
+    const name = providerNameFromAuthPath(new URL(request.url).pathname)
     const provider = providerFor(name)
 
     if (!provider)

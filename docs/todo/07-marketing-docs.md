@@ -47,6 +47,9 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 - [x] Social sign-in on both auth pages, drawn from the framework's `configuredSocialProviders()`
       so a provider whose keys are missing never renders as a button that fails. GitHub, Google,
       Apple and the rest light up as their keys are set; see `app/Actions/Auth/social.ts`
+- [x] Social sign-in honors the API mount prefix through both halves of the flow. The redirect and
+      callback actions read the provider after the `auth` segment instead of assuming a root mount,
+      and the callback accepts Apple's required `form_post` response as well as OAuth GET callbacks
 - [x] "Browse the source" points at this instance rather than at GitHub, along with the clone
       command, the nav, both footers, and the docs hero. A forge that sends its own readers to a
       competitor to read its own code has not made its case. The GitHub mirror stays linked and

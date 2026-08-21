@@ -5,6 +5,7 @@ import { Buffer } from 'node:buffer'
 import { clearedCookie, isSecureRequest, sessionCookie, sessionCookieName } from './session'
 import { STATE_COOKIE } from './SocialRedirectAction'
 import { providerFor, provisionFromSocial } from './social'
+import { providerNameFromAuthPath } from './socialPath'
 
 /**
  * Finish a social sign-in: the provider sent the browser back with a code.
@@ -46,7 +47,7 @@ export default new Action({
 
   async handle(request: RequestInstance) {
     const url = new URL(request.url)
-    const name = url.pathname.split('/').filter(Boolean)[1] ?? ''
+    const name = providerNameFromAuthPath(url.pathname)
     const secure = isSecureRequest(request)
     const forget = clearedCookie(STATE_COOKIE, secure)
 
@@ -65,15 +66,15 @@ export default new Action({
       return response.json({ error: 'Not found' }, 404)
 
     // Cancelled at the provider. Nothing went wrong, so nothing is reported.
-    if (url.searchParams.get('error')) {
+    if (request.get?.('error')) {
       return new Response(null, {
         status: 303,
         headers: { 'Location': '/login', 'Set-Cookie': forget, 'Cache-Control': 'no-store' },
       })
     }
 
-    const code = url.searchParams.get('code') ?? ''
-    const state = url.searchParams.get('state') ?? ''
+    const code = String(request.get?.('code') ?? '')
+    const state = String(request.get?.('state') ?? '')
 
     if (!code || !state)
       return fail('That sign-in did not complete. Please try again.')

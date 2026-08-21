@@ -233,6 +233,8 @@ route.post('/auth/logout', 'Actions/Auth/LogoutAction')
  * unlimited callback is a way to spend our rate limit at GitHub from anywhere.
  */
 route.get('/auth/{provider}/callback', 'Actions/Auth/SocialCallbackAction').middleware('throttle:20,5m')
+// Apple returns the callback as form_post when name or email scopes are used.
+route.post('/auth/{provider}/callback', 'Actions/Auth/SocialCallbackAction').middleware('throttle:20,5m')
 route.get('/auth/{provider}', 'Actions/Auth/SocialRedirectAction').middleware('throttle:20,5m')
 
 /*

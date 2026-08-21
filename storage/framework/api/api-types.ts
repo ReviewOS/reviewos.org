@@ -920,7 +920,20 @@ export interface paths {
     }
   }
     put?: never
-    post?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "provider": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "code"?: string; "state"?: string; "error"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     delete?: never
     options?: never
     head?: never

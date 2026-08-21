@@ -380,6 +380,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/auth/{provider}/callback
+   */
+  postAuthProviderCallback(input: { "provider": string; body?: { "code"?: string; "state"?: string; "error"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/{provider}/callback", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/authors
    */
   getAuthors(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
