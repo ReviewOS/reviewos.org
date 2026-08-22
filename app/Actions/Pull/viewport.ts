@@ -310,6 +310,25 @@ export function positionsByKey(keys: readonly number[]): Map<number, number> {
 }
 
 /**
+ * Extend a position map with keys appended to the end of the list.
+ *
+ * Rebuilding the whole map to add a batch is work proportional to the *list*
+ * rather than to the batch, and a manifest arrives as one batch per twenty-five
+ * files - so on a diff of eighty thousand that is the same rebuild done three
+ * thousand times, and about 125 million map insertions to discover twenty-five
+ * new positions. It is quadratic, and it was measured at 53% of everything the
+ * main thread did while a very large diff was loading.
+ *
+ * Appending moves nothing that is already there, which is the property that
+ * makes this sound. A reconcile that reorders, filters or removes has no such
+ * property and still rebuilds - see `positionsByKey`.
+ */
+export function appendPositions(positions: Map<number, number>, keys: readonly number[], from: number): void {
+  for (let position = from; position < keys.length; position++)
+    positions.set(keys[position]!, position)
+}
+
+/**
  * The anchor, following its item rather than its index.
  *
  * The offset inside the item is kept as it was: the reader is a certain

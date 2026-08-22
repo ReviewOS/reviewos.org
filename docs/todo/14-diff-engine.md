@@ -94,18 +94,46 @@ Numbers, so the work can be checked rather than argued about:
       file, index 13,002, on screen and alone in the viewport**, and half way down lands
       proportionally at file 7,224.
 
-      **What is left, and it is now the only thing left: the main thread stops answering at around
-      twenty seconds.** On a visible page - which matters, because a hidden tab suspends
-      `requestAnimationFrame` and throttles timers, and measuring one produces numbers that say
-      nothing - the page reached 27,408 files at t=21s with 72 frames rendered and 26MB of heap, and
-      then stopped responding to the debugger entirely for minutes. Not slow: unresponsive. It is
-      why the end-to-end scroll above was verified on the million-line diff rather than on this one,
-      and why this box is still open.
+      **A quadratic in the ingest, found and fixed.** Every batch of twenty-five files rebuilt the
+      whole position map, so a diff of eighty thousand files rebuilt an eighty thousand entry map
+      three thousand times - about 125 million map insertions to discover twenty-five new positions
+      each time. A CPU profile of the loading page put `positionsByKey` at 53% of everything the
+      main thread did, and the page decelerated as it went, which is what quadratic looks like from
+      outside. Appending moves nothing already in the list, so the map is extended instead.
 
-      **The server is not the problem, and now there is a number for that.** Asked for the same
-      manifest with `curl`, this instance streamed the whole thing - 79,194 records, 25MB, 78,985
-      files - in **35.5 seconds**, and finished. The browser was still ingesting a third of it when
-      it stopped answering. Whatever this is, it is on the client side of the wire.
+      Measured on eighty thousand synthetic files, which is the kernel diff's size, with the viewer
+      driven directly and nothing else in the way:
+
+      | files | before | after |
+      |---|---|---|
+      | 10,000 | 281ms | 200ms |
+      | 20,000 | 656ms | 444ms |
+      | 40,000 | 1,897ms | 922ms |
+      | 80,000 | **6,266ms** | **1,900ms** |
+
+      Superlinear before, linear after, and it keeps widening. In the same harness the viewer takes
+      120,000 files in 2.8 seconds, and scrolls eighty thousand end to end - reaching file 79,999,
+      the last - in 31MB of heap.
+
+      **And the "unresponsive at twenty seconds" reading in the note below was mine, not the
+      product's.** Headless Chrome on this machine loses its renderer after about thirty seconds
+      whatever the page is doing: `about:blank`, with no script and no network, dies at 31s, and a
+      headed window dies at 16s. Every browser measurement here is bounded by that, and the earlier
+      reading was the bound rather than the page. It is the same class of mistake as the hidden-tab
+      one recorded further down, found the same way - by measuring the control instead of assuming
+      it.
+
+      **So what keeps this box open is now an inability to observe rather than a known defect.** The
+      server takes 35.5 seconds to produce this manifest, which is longer than a renderer survives
+      here, so the run cannot be watched to its end on this machine. What can be said: the viewer
+      ingests the diff's worth of files in under two seconds and scrolls all of them; the container
+      asks for a height the browser honours; and the quadratic that really was there is gone.
+
+      **The server's own number, which is not subject to any of the above.** Asked for the same
+      manifest with `curl` - no browser, no renderer, no thirty second limit - this instance
+      streamed the whole thing, 79,194 records and 25MB across 78,985 files, in **35.5 seconds**,
+      and finished. That is the floor on how long this diff takes to open, and it is git computing
+      an eighty thousand file diff rather than anything this codebase does after it.
 
       **The one part of the box that is satisfied is memory.** 26MB of heap at 27,408 files, and it
       did not climb: 24MB at 20,000, 29MB at 39,000. Nothing here exhausts a laptop. What it does

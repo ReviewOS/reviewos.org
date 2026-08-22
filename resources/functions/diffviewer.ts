@@ -21,6 +21,7 @@ import type { ScrollAnchor, ViewportFile } from '../../app/Actions/Pull/viewport
 import type { RowCounts } from '../../app/Actions/Pull/metrics'
 import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
 import {
+  appendPositions,
   captureAnchor,
   DEFAULT_OVERSCAN,
   identityScrollSpace,
@@ -816,6 +817,14 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   const { scroller, content, renderFile, releaseFile, onVisibleChange, afterRender, onMeasure } = options
 
   const entries: DiffFileEntry[] = []
+  /**
+   * The diff's numbers, in list order, kept beside the entries.
+   *
+   * `appendPositions` wants the keys and `entries` holds objects, and mapping
+   * one to the other per batch would put back exactly the pass over the whole
+   * list that appending incrementally exists to avoid.
+   */
+  const entryKeys: number[] = []
   const geometry: ViewportFile[] = []
   const hosts = new Map<number, HTMLElement>()
   const pool: HTMLElement[] = []
@@ -854,7 +863,36 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   }
 
   function reindex(): void {
-    positions = positionsByKey(entries.map(entry => entry.index))
+    entryKeys.length = 0
+
+    for (const entry of entries)
+      entryKeys.push(entry.index)
+
+    positions = positionsByKey(entryKeys)
+  }
+
+  /**
+   * The same map, extended rather than rebuilt.
+   *
+   * Appending a batch does not move anything already in the list, so rebuilding
+   * the whole map to add twenty-five entries is work proportional to the diff
+   * rather than to the batch - and a manifest arrives as one batch per
+   * twenty-five files, so that is the same work done three thousand times over
+   * on a diff of eighty thousand.
+   *
+   * It is quadratic, and it is the reason a very large diff decelerates and
+   * then stops: measured on Linux `v6.0...v7.0`, `positionsByKey` was 53% of
+   * everything the main thread did, and by twenty-seven thousand files each
+   * arriving batch was rebuilding a twenty-seven thousand entry map. The
+   * arithmetic for the whole diff is about 125 million map insertions to
+   * discover twenty-five new positions each time.
+   *
+   * `setFiles` still rebuilds, and has to: a reconcile can reorder, filter or
+   * remove, and then every position after the first change is different. That
+   * one is rare and bounded; this one is on the hot path of every large diff.
+   */
+  function indexAppended(from: number): void {
+    appendPositions(positions, entryKeys, from)
   }
 
   let layout = options.layout ?? 'unified'
@@ -1122,12 +1160,15 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       if (files.length === 0)
         return
 
+      const from = entries.length
+
       for (const file of files) {
         entries.push(file)
+        entryKeys.push(file.index)
         geometry.push({ rows: file.rows, collapsed: file.collapsed })
       }
 
-      reindex()
+      indexAppended(from)
       schedule()
     },
 
@@ -1171,7 +1212,14 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         hosts.set(index, host)
 
       entries.length = 0
-      entries.push(...files)
+      /*
+       * Appended rather than spread. `push(...files)` passes every file as an
+       * argument, and an argument list has a ceiling in the tens of thousands -
+       * so on a diff of eighty thousand files this is not slow, it is a
+       * `RangeError` and a blank screen. The loop has no ceiling.
+       */
+      for (const file of files)
+        entries.push(file)
 
       geometry.length = 0
       for (let index = 0; index < after.length; index++) {

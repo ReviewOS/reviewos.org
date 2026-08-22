@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_HEIGHT_METRICS, layoutList } from '../../app/Actions/Pull/metrics'
 import {
+  appendPositions,
   captureAnchor,
   type ListItem,
   measuredLayout,
@@ -967,5 +968,89 @@ describe('planning a frame in a compressed diff', () => {
     const arrived = planFrame(many, new Set(), { ...viewport, scrollTop: target! }, { ceiling })
 
     expect(arrived.plan.next.has(many.length - 1)).toBe(true)
+  })
+})
+
+/**
+ * Extending the position map instead of rebuilding it.
+ *
+ * A manifest arrives as one batch per twenty-five files, and rebuilding the
+ * whole map for each batch is work proportional to the diff rather than to the
+ * batch - about 125 million map insertions over a diff of eighty thousand
+ * files, to discover twenty-five new positions each time. It was measured at
+ * 53% of everything the main thread did while a very large diff was loading,
+ * and the page decelerated as it went, which is what quadratic looks like from
+ * the outside.
+ *
+ * The property that makes appending sound is that it moves nothing already in
+ * the list. What is worth testing is that the shortcut and the rebuild never
+ * disagree: a position map that has drifted is a viewer that scrolls to the
+ * wrong file, mounts rows under the wrong header, and posts a comment on a line
+ * in a file nobody was looking at.
+ */
+describe('appendPositions', () => {
+  /** The same list, indexed both ways. */
+  function bothWays(batches: number[][]): { appended: Map<number, number>, rebuilt: Map<number, number> } {
+    const keys: number[] = []
+    const appended = new Map<number, number>()
+
+    for (const batch of batches) {
+      const from = keys.length
+      keys.push(...batch)
+      appendPositions(appended, keys, from)
+    }
+
+    return { appended, rebuilt: positionsByKey(keys) }
+  }
+
+  test('agrees with a rebuild, batch after batch', () => {
+    const { appended, rebuilt } = bothWays([[10, 11, 12], [13, 14], [15]])
+
+    expect([...appended.entries()].sort()).toEqual([...rebuilt.entries()].sort())
+  })
+
+  test('agrees when the diff numbers are not contiguous', () => {
+    // Which they are not: a filtered list, or a diff whose files were numbered
+    // by the manifest and then narrowed.
+    const { appended, rebuilt } = bothWays([[4, 9], [100, 7], [0]])
+
+    expect([...appended.entries()].sort()).toEqual([...rebuilt.entries()].sort())
+  })
+
+  test('an empty batch changes nothing', () => {
+    const positions = new Map([[7, 0]])
+
+    appendPositions(positions, [7], 1)
+
+    expect([...positions.entries()]).toEqual([[7, 0]])
+  })
+
+  test('appending one at a time is the same as appending all at once', () => {
+    const oneByOne = bothWays([[1], [2], [3], [4], [5]])
+    const allAtOnce = bothWays([[1, 2, 3, 4, 5]])
+
+    expect([...oneByOne.appended.entries()].sort()).toEqual([...allAtOnce.appended.entries()].sort())
+  })
+
+  test('touches only what was appended, which is the whole point', () => {
+    // Asserted by counting the writes rather than by timing: a rebuild would
+    // write every position again, and on the batch that takes a diff from
+    // 79,975 files to 80,000 that is the difference between 25 writes and
+    // 80,000.
+    const keys = Array.from({ length: 1000 }, (_, index) => index)
+    const positions = positionsByKey(keys.slice(0, 975))
+
+    let writes = 0
+    const counted = new Map<number, number>(positions)
+    const original = counted.set.bind(counted)
+    counted.set = (key: number, value: number) => {
+      writes++
+      return original(key, value)
+    }
+
+    appendPositions(counted, keys, 975)
+
+    expect(writes).toBe(25)
+    expect(counted.get(999)).toBe(999)
   })
 })
