@@ -27,6 +27,31 @@ if (!Bun.env.STRIPE_SECRET_KEY)
 if (!Bun.env.PUBLIC_DIFF_ENABLED)
   Bun.env.PUBLIC_DIFF_ENABLED = 'true'
 
+/**
+ * Mail goes nowhere, immediately, and always fails.
+ *
+ * Not a preference - three tests in `tests/e2e/digest.test.ts` assert the
+ * *failure* path, because a sweep that marks rows sent when the send failed
+ * loses every notification in the batch. They used to get that failure from the
+ * environment: there is no mail server in a checkout, so every send failed.
+ *
+ * Which was fragile in both directions. `.env` points `MAIL_HOST` at `mailpit`,
+ * a hostname that resolves inside a compose file and nowhere else, so each send
+ * spent a DNS timeout failing and five tests blew bun's five-second limit. And
+ * on a machine that *did* have a mail server, or with the mailer left at its
+ * `log` default, sends would start succeeding and the same three tests would
+ * fail for the opposite reason.
+ *
+ * So it is forced here, overriding `.env` rather than deferring to it: loopback
+ * on a port nothing can be listening on. `ECONNREFUSED` arrives immediately, it
+ * needs no network and no name resolution, and it says the same thing on every
+ * machine. To watch mail in a real client, run the thing rather than the suite.
+ */
+Bun.env.MAIL_MAILER = 'smtp'
+Bun.env.MAIL_DRIVER = 'smtp'
+Bun.env.MAIL_HOST = '127.0.0.1'
+Bun.env.MAIL_PORT = '1'
+
 // A run-local hook secret, when the checkout has not configured one. An empty
 // secret deliberately disables the post-receive endpoint (a default secret is
 // a published secret), which on a fresh `.env` makes git-http's push-pipeline

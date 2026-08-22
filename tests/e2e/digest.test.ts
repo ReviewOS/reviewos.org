@@ -11,18 +11,38 @@
 // A sweep that ignores a recipient's window mails them at 03:00 and defeats the
 // setting it exists to serve.
 //
-// Three of the cases below assert the *failure* path and get it from the
-// environment: there is no mail server in a checkout, so every send fails. That
-// is deliberate and it is also fragile - point `MAIL_MAILER` at the log driver
-// and they fail, because sends start succeeding. Making it deterministic means
-// forcing the failure explicitly rather than relying on there being no SMTP
-// host, and that is a rewrite of these three rather than a setting.
+// Three of the cases below assert the *failure* path, and they no longer get it
+// from the environment. They used to: there is no mail server in a checkout, so
+// every send failed - which was fragile in both directions. `.env` pointed
+// `MAIL_HOST` at a hostname that resolves inside a compose file and nowhere
+// else, so each send spent a DNS timeout failing; and with the mailer left at
+// its `log` default, sends would start succeeding and these three would fail
+// for the opposite reason. `tests/setup.ts` now points the transport at
+// loopback on a port nothing can be listening on, so the failure is forced,
+// immediate and the same on every machine.
 //
 // Like the rest of tests/e2e it needs a database, and skips itself loudly when
 // there is not one.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dbTimestamp } from '../../app/Actions/Support/sql'
+
+/**
+ * What one sweep is allowed to take.
+ *
+ * Not bun's five-second default, because a sweep is not a unit of this test's
+ * own work: `SendDigestJob` reads *every* pending email row on the instance,
+ * asks each distinct recipient whether their window is open, and attempts one
+ * send per thread. In a checkout that has been running this suite for a while
+ * that is several hundred rows belonging to other suites, and the three this
+ * file inserted are a rounding error in it.
+ *
+ * So the cost is a property of the database, not of the assertions - and a test
+ * that fails on how much other work has been done in the same checkout is one
+ * people learn to ignore. What keeps that number bounded rather than growing
+ * for ever is `GIVE_UP_AFTER_MS` in the job itself.
+ */
+const SWEEP_TIMEOUT = 60_000
 
 const created = { openId: 0, shutId: 0 }
 
@@ -150,7 +170,7 @@ describe('the sweep', () => {
     const result = await run()
 
     expect(result.ok).toBe(true)
-  })
+  }, SWEEP_TIMEOUT)
 
   test('leaves a recipient whose window is shut held rather than mailing them', async () => {
     if (!available)
@@ -163,7 +183,7 @@ describe('the sweep', () => {
     await run()
 
     expect(await statusesFor(created.shutId)).toEqual(['pending'])
-  })
+  }, SWEEP_TIMEOUT)
 
   test('a failed send leaves the rows pending rather than marking them sent', async () => {
     if (!available)
@@ -180,7 +200,7 @@ describe('the sweep', () => {
 
     expect(result.sent).toBe(0)
     expect(await statusesFor(created.openId)).toEqual(['pending', 'pending'])
-  })
+  }, SWEEP_TIMEOUT)
 
   test('groups by thread, so one failure is one batch and not two', async () => {
     if (!available)
@@ -201,7 +221,7 @@ describe('the sweep', () => {
     // both stay pending - which is what "held rather than dropped" means.
     expect(await threadsFor(created.openId)).toBe(2)
     expect(await statusesFor(created.openId)).toEqual(['pending', 'pending', 'pending'])
-  })
+  }, SWEEP_TIMEOUT)
 
   test('a gap longer than the window closes a batch', async () => {
     if (!available)
@@ -222,5 +242,5 @@ describe('the sweep', () => {
     // enormous message at the end, and nothing is lost either way.
     expect(await threadsFor(created.openId)).toBe(1)
     expect(await statusesFor(created.openId)).toEqual(['pending', 'pending'])
-  })
+  }, SWEEP_TIMEOUT)
 })
