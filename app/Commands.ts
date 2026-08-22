@@ -51,6 +51,15 @@ export default {
    * ts-images and no browser anywhere in the pipeline.
    */
 
+  // The diff engine against the fixed corpus. Registered because a benchmark
+  // nobody can run is a benchmark nobody runs: the file has been here since the
+  // corpus was pinned and `buddy bench` answered "command not found".
+  'bench': 'Bench',
+
+  // The iOS Simulator: whether one can run here, and opening a URL in Mobile
+  // Safari on it. The file declares `simulator:doctor` and `simulator:open`.
+  'simulator': 'Simulator',
+
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'export:repository': 'ExportRepository',
