@@ -1,5 +1,5 @@
 import { db } from '@stacksjs/database'
-import { DATABASE_WALL_CLOCK, dbTimestamp } from '../Actions/Support/sql'
+import { dbTimestamp } from '../Actions/Support/sql'
 /**
  * Reading the audit log.
  *
@@ -99,19 +99,15 @@ export async function searchAudit(query: AuditQuery): Promise<{ rows: AuditRow[]
     builder = builder.where('action', '=', query.action)
 
   /*
-   * The bounds, moved into the frame the column is stored in.
-   *
-   * See `databaseOffset`: `created_at` holds the *database's* wall clock, so a
-   * caller's genuine ISO instant has to be moved into that frame before it can
-   * be compared. Zero on a UTC deployment.
+   * The bounds, in the frame the column is stored in - which is UTC, and is
+   * known rather than measured. See `stamp` below for why that sentence used to
+   * be three paragraphs and a probe.
    */
-  const offsetMs = query.since || query.until ? await databaseOffset() : 0
-
   if (query.since)
-    builder = builder.where('created_at', '>=', shift(query.since, offsetMs))
+    builder = builder.where('created_at', '>=', stamp(query.since))
 
   if (query.until)
-    builder = builder.where('created_at', '<=', shift(query.until, offsetMs))
+    builder = builder.where('created_at', '<=', stamp(query.until))
 
   if (query.before)
     builder = builder.where('id', '<', query.before)
@@ -198,61 +194,33 @@ export async function mayReadAudit(
 }
 
 /**
- * An ISO instant, moved into the frame `created_at` is actually stored in.
+ * An ISO instant, as the literal `created_at` is compared against.
  *
- * **`created_at` is the database's wall clock**, filled by `CURRENT_TIMESTAMP`
- * into a `timestamp` without a zone. A caller passes a genuine ISO instant. On
- * a UTC deployment - which the compose file produces - those agree and this
- * does nothing; on a database running in a local timezone they differ by the
- * offset, and the comparison silently returns *nothing*.
+ * **The frame is UTC, and it is known rather than measured.** Every
+ * `created_at` in this schema is written in UTC by construction: the column
+ * defaults are `now() AT TIME ZONE 'utc'` on Postgres and `UTC_TIMESTAMP` on
+ * MySQL, and anything this application writes itself goes through
+ * `dbTimestamp`, which is `toISOString`. The database's own session timezone
+ * never enters into it.
+ *
+ * This used to probe for an offset instead, by reading `LOCALTIMESTAMP` and
+ * comparing it with this process's clock - and that measures the **session
+ * timezone**, which is a different thing from the frame the column is stored
+ * in and is unrelated to it. Against a Postgres running in `America/Los_Angeles`
+ * it computed minus seven hours and moved every bound seven hours into the
+ * past, so a search for the last hour returned nothing.
  *
  * Nothing is the worst possible answer here. An empty audit search reads as "it
  * did not happen", which is exactly the conclusion this table exists to stop
- * somebody reaching by accident.
+ * somebody reaching by accident - and the probe's own comment said so, while
+ * being the thing that caused it.
  *
- * The offset is the **database's**, not this process's, and the two are the
- * same only by convention - the test suite runs in UTC against a Postgres in
- * Pacific, which is precisely the case a naive `getTimezoneOffset()` gets
- * wrong. So it is measured rather than assumed: `LOCALTIMESTAMP` is the same
- * clock the column default reads, and the driver hands it back labelled UTC,
- * so the difference from a real instant is the offset.
- *
- * The alternative - rewriting how every table in this application stores a
- * timestamp - is a change with no business being bundled into an audit search.
+ * The literal both engines take, not an ISO string. `created_at` is a real
+ * `datetime`, and MySQL compares it against `2026-08-19T05:39:46.000Z` by
+ * failing to read the string as a date - which is not an error, just a
+ * predicate that matches nothing.
  */
-let databaseOffsetMs: number | null = null
-
-async function databaseOffset(): Promise<number> {
-  if (databaseOffsetMs !== null)
-    return databaseOffsetMs
-
-  try {
-    const before = Date.now()
-    /*
-     * The one spelling, shared with the health check: both read the database's
-     * naive wall clock, and two spellings of one measurement is how they end up
-     * measuring two different things on two engines.
-     */
-    const rows: any = await db.unsafe(DATABASE_WALL_CLOCK).execute()
-    const wall = Date.parse(String(rows?.[0]?.wall ?? ''))
-
-    databaseOffsetMs = Number.isFinite(wall)
-      // Rounded to the quarter hour: what is being measured is a timezone, and
-      // the remainder is the round trip. Quarter hours rather than hours
-      // because several real zones are offset by 30 or 45 minutes.
-      ? Math.round((wall - before) / 900_000) * 900_000
-      : 0
-  }
-  catch {
-    // A database that will not answer this will not answer the search either.
-    // Zero is correct for the UTC case rather than a guess.
-    databaseOffsetMs = 0
-  }
-
-  return databaseOffsetMs
-}
-
-function shift(iso: string, offsetMs: number): string {
+function stamp(iso: string): string {
   const parsed = Date.parse(iso)
 
   // Not a date is passed through rather than turned into 1970: the database
@@ -260,21 +228,7 @@ function shift(iso: string, offsetMs: number): string {
   if (!Number.isFinite(parsed))
     return iso
 
-  /*
-   * The literal both engines take, not an ISO string.
-   *
-   * `created_at` is a real `datetime`, and MySQL compares it against
-   * `2026-08-19T05:39:46.000Z` by failing to read the string as a date - which
-   * is not an error, just a predicate that matches nothing. A search that
-   * quietly returns no events reads as "it did not happen", which is the worst
-   * answer an audit log can give.
-   */
-  return dbTimestamp(new Date(parsed + offsetMs))
-}
-
-/** For tests, and for a process that outlives a timezone change. */
-export function resetDatabaseOffset(): void {
-  databaseOffsetMs = null
+  return dbTimestamp(new Date(parsed))
 }
 
 /** One row, with `detail` parsed back into something a reader can use. */

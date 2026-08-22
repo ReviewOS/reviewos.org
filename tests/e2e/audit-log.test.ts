@@ -343,10 +343,12 @@ describe('searching', () => {
     /*
      * What a person means by "between Tuesday and Thursday" includes Thursday.
      *
-     * This test is also the one that caught the timezone trap: `created_at`
-     * holds the *database's* wall clock, this suite runs in UTC, and the two
-     * Postgres here differ by seven hours - so an unconverted bound returned
-     * nothing, which reads as "it did not happen".
+     * This test is also the one that caught the timezone trap, twice, in
+     * opposite directions. `created_at` is stored in UTC - every default in
+     * this schema pins it there - but the *session* timezone of the Postgres
+     * this runs against is `America/Los_Angeles`, and the search used to probe
+     * that clock and shift its bounds by the difference. Seven hours into the
+     * past, so this returned nothing, which reads as "it did not happen".
      */
     const future = new Date(Date.now() + 60_000).toISOString()
     const past = new Date(Date.now() - 3_600_000).toISOString()
@@ -362,8 +364,56 @@ describe('searching', () => {
 
     expect((inside.body?.events ?? []).length).toBe(3)
     expect((before.body?.events ?? []).length).toBe(0)
-    // Two requests plus the one-off `LOCALTIMESTAMP` probe, which is more work
-    // than Bun's five-second default was chosen for.
+  }, 30_000)
+
+  test('and finds a row the database timestamped itself', async () => {
+    if (!available)
+      return
+
+    /*
+     * The half the case above cannot see.
+     *
+     * Those three rows were written by `recordAudit` in the same process that
+     * builds the bounds, so a search would find them under any convention the
+     * two happened to share. This one is about the *column default*: the row
+     * below gets its `created_at` from the database, and the bounds still have
+     * to contain it.
+     *
+     * That is the property that actually broke - the search agreed with itself
+     * and disagreed with the table - and asserting it needs a row this process
+     * did not stamp.
+     */
+    const db = (globalThis as any).db
+    const inserted: any = await db
+      .insertInto('audit_events')
+      .values({
+        action: 'default.stamped',
+        subject_type: 'repository',
+        subject_id: created.repositoryId,
+        actor_id: created.ownerId,
+        organization_id: created.organizationId,
+        detail: JSON.stringify({ note: 'timestamped by the database' }),
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    // Removed here rather than in `afterAll`, because the cases in this file
+    // count what is in the organization and a fourth event would fail them.
+    try {
+      expect(Number(inserted?.id)).toBeGreaterThan(0)
+
+      const answer = await read(
+        `?organization_id=${created.organizationId}&action=default.stamped`
+        + `&since=${new Date(Date.now() - 3_600_000).toISOString()}`
+        + `&until=${new Date(Date.now() + 60_000).toISOString()}`,
+        created.ownerToken,
+      )
+
+      expect((answer.body?.events ?? []).length).toBe(1)
+    }
+    finally {
+      await db.deleteFrom('audit_events').where('id', '=', Number(inserted?.id)).execute()
+    }
   }, 30_000)
 
   test('newest first, because the question is what just happened', async () => {
