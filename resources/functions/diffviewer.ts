@@ -23,6 +23,7 @@ import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
 import {
   captureAnchor,
   DEFAULT_OVERSCAN,
+  identityScrollSpace,
   type ListItem,
   measuredLayout,
   planFrame,
@@ -30,6 +31,7 @@ import {
   reconcileList,
   type ScrollAlignment,
   scrollBehaviourFor,
+  type ScrollSpace,
   scrollTargetFor,
   snapToDevicePixel,
 } from '../../app/Actions/Pull/viewport'
@@ -713,6 +715,16 @@ export interface DiffViewer {
    */
   positionOf: (index: number) => number | null
   /**
+   * Where in the diff the top of the viewport is.
+   *
+   * The same number as `scroller.scrollTop` for every diff a browser can
+   * scroll whole, and not the same number past that - see `ScrollSpace`. A
+   * caller comparing a position from `positionOf` against where the reader is
+   * has to use this one, or it is comparing two different spaces and will be
+   * wrong by the compression ratio.
+   */
+  contentTop: () => number
+  /**
    * What the viewer has been doing.
    *
    * For the benchmark harness, which cannot see any of this from outside: a
@@ -820,6 +832,22 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
    */
   let positions = new Map<number, number>()
 
+  /**
+   * The map between the reader's scrollbar and the diff, as of the last frame.
+   *
+   * The identity for every diff a browser can scroll whole, which is all of
+   * them but the very largest. Held rather than recomputed at each call site,
+   * so the places that read a scroll position and the places that write one
+   * cannot come to disagree about which space they are in - which would be a
+   * viewer that jumps somewhere else when a reader clicks a file.
+   */
+  let space: ScrollSpace = identityScrollSpace()
+
+  /** Where in the diff the reader is, from where the scrollbar is. */
+  function contentTopNow(): number {
+    return space.toContent(scroller.scrollTop)
+  }
+
   /** The position of a file, by the number the diff calls it. */
   function slotOf(index: number): number | undefined {
     return positions.get(index)
@@ -901,15 +929,32 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     for (const index of result.plan.mount)
       mount(index)
 
-    content.style.height = `${result.layout.total}px`
+    space = result.space
 
-    for (const [index, host] of hosts)
-      host.style.top = `${result.layout.offsets[index]!}px`
+    /*
+     * The container is given a height the browser will actually honour, and the
+     * files are placed relative to where the reader is rather than at their
+     * absolute offsets.
+     *
+     * On every diff anybody reviews these are the same thing: `space` is the
+     * identity, `contentTop` equals `scrollTop`, and each file lands at its own
+     * offset exactly as it always did. They come apart only past the point
+     * where a browser stops being able to scroll a box - see `ScrollSpace` -
+     * and there this is what keeps the far end of the diff reachable at all,
+     * rather than positioned inside a container that is no longer tall enough
+     * to hold it.
+     */
+    const scrollNow = result.scrollTop ?? scroller.scrollTop
+
+    content.style.height = `${result.space.scrollHeight}px`
 
     if (result.scrollTop != null) {
       writtenScrollTop = result.scrollTop
       scroller.scrollTop = result.scrollTop
     }
+
+    for (const [index, host] of hosts)
+      host.style.top = `${result.layout.offsets[index]! - result.contentTop + scrollNow}px`
 
     // Measured after mounting, in one pass, so the reads do not interleave with
     // the writes above. A height that differs from the estimate takes effect on
@@ -926,7 +971,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     }
 
     if (remeasured) {
-      anchor = captureAnchor(result.layout, scroller.scrollTop)
+      // In the diff's space, which is what an anchor is: a file and how far
+      // into it the viewport starts.
+      anchor = captureAnchor(result.layout, result.contentTop)
       schedule()
     }
 
@@ -1022,10 +1069,18 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     : new ResizeObserver(() => {
         // The viewport changed shape, so every measured height is suspect: a
         // line that wrapped at one width may not at another.
-        anchor = captureAnchor(
-          planFrame(geometry, new Set(hosts.keys()), { scrollTop: scroller.scrollTop, height: scroller.clientHeight }, { layout, overscan }).layout,
-          scroller.scrollTop,
+        const frame = planFrame(
+          geometry,
+          new Set(hosts.keys()),
+          { scrollTop: scroller.scrollTop, height: scroller.clientHeight },
+          { layout, overscan },
         )
+
+        // From the frame's own `contentTop` rather than from `scrollTop`: a
+        // viewport that changed height changed the map too, so the position the
+        // scrollbar reports means something slightly different than it did a
+        // moment ago.
+        anchor = captureAnchor(frame.layout, frame.contentTop)
         for (const file of geometry)
           file.measured = undefined
         schedule()
@@ -1053,13 +1108,13 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   }
 
   function anchorNow(): void {
-    const { layout: current } = planFrame(
+    const frame = planFrame(
       geometry,
       new Set(hosts.keys()),
       { scrollTop: scroller.scrollTop, height: scroller.clientHeight },
       { layout, overscan },
     )
-    anchor = captureAnchor(current, scroller.scrollTop)
+    anchor = captureAnchor(frame.layout, frame.contentTop)
   }
 
   return {
@@ -1182,7 +1237,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       // mounted file in one pass, and anchors the correction so nothing the
       // reader is looking at moves.
       file.measured = undefined
-      anchor = captureAnchor(measuredLayout(geometry, { layout }), scroller.scrollTop)
+      anchor = captureAnchor(measuredLayout(geometry, { layout }), contentTopNow())
       schedule()
     },
 
@@ -1281,14 +1336,18 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       if (slot == null)
         return
 
-      const { layout: current } = planFrame(
+      const frame = planFrame(
         geometry,
         new Set(hosts.keys()),
         { scrollTop: scroller.scrollTop, height: scroller.clientHeight },
         { layout, overscan },
       )
 
-      const top = scrollTargetFor(current, scroller.clientHeight, { ...target, index: slot })
+      // The frame's map, so the answer comes back in the space the two writes
+      // below put it into. Without it, "scroll to the last file" of a diff too
+      // tall for the browser asks for a position several times past the end of
+      // the scrollbar, and the browser lands wherever it can.
+      const top = scrollTargetFor(frame.layout, scroller.clientHeight, { ...target, index: slot }, frame.space)
       if (top == null)
         return
 
@@ -1323,6 +1382,10 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       const slot = slotOf(index)
 
       return slot == null ? null : measuredLayout(geometry, { layout }).offsets[slot] ?? null
+    },
+
+    contentTop() {
+      return contentTopNow()
     },
 
     stats() {
@@ -2054,7 +2117,16 @@ export function mountDiffFiles(): DiffViewer | null {
       return
 
     const visible = visibleRows({
-      scrollTop: view.scrollTop,
+      /*
+       * Where the reader is *in the diff*, not where the scrollbar is.
+       *
+       * `positionOf` answers in the diff's own pixels, so the comparison has to
+       * be made there. The viewport height is left alone deliberately: only
+       * positions are remapped, never sizes - a file is rendered at its real
+       * height whatever the scrollbar is doing, so the band on screen really is
+       * `clientHeight` pixels of diff.
+       */
+      scrollTop: viewer.contentTop(),
       viewportHeight: view.clientHeight,
       // The rows start under the header.
       fileTop: position + DEFAULT_HEIGHT_METRICS.headerHeight,

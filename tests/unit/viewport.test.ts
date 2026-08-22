@@ -15,7 +15,10 @@ import {
   positionsByKey,
   reconcileList,
   restoreAnchor,
+  MAX_SCROLL_DEVICE_PIXELS,
   scrollBehaviourFor,
+  scrollCeiling,
+  scrollSpace,
   scrollTargetFor,
   snapToDevicePixel,
   type ViewportFile,
@@ -779,5 +782,190 @@ describe('narrowing the diff to what changed, and putting it back', () => {
     expect(plan.rerender).toEqual([])
     expect(plan.release).toEqual([])
     expect(plan.keep.length).toBe(3)
+  })
+})
+
+/**
+ * A diff taller than a browser will scroll.
+ *
+ * Found on Linux `v6.0...v7.0`, and it is not a slow path: at 27,408 of its
+ * 78,985 files the viewer asked for a content element 40,300,800px tall and
+ * Chrome gave it 33,554,428px - 2^25 minus four, the most a layout box may be.
+ * Everything past that had no scroll position mapping to it, so roughly two
+ * thirds of the diff could not be reached by scrolling at all. The reader got
+ * to the end of the scrollbar and was looking at empty space.
+ *
+ * Every browser has a cap and they differ - Safari's is 2^24 and Firefox's is
+ * around 17.8 million - so the ceiling is counted in device pixels, where the
+ * caps live, and a retina display halves what a CSS pixel buys.
+ *
+ * The answer is to give the container a height it can actually have and relate
+ * the two spaces by a ratio. What that costs is scroll *resolution*: a wheel
+ * notch travels further on a diff seven times taller than its scrollbar. What
+ * it buys is the far end of the diff existing.
+ */
+describe('a diff taller than the browser will scroll', () => {
+  const ceiling = 1000
+  const viewportHeight = 100
+
+  test('an ordinary diff is untouched, which is the case that matters most', () => {
+    const space = scrollSpace(600, viewportHeight, ceiling)
+
+    expect(space.compressed).toBe(false)
+    expect(space.scrollHeight).toBe(600)
+    expect(space.ratio).toBe(1)
+    // Not "close to": the same number. Every diff anybody reviews goes through
+    // this path, and a rounding error here would be a viewer that drifts.
+    expect(space.toContent(123.5)).toBe(123.5)
+    expect(space.toScroll(123.5)).toBe(123.5)
+  })
+
+  test('a diff at the ceiling exactly is still untouched', () => {
+    expect(scrollSpace(ceiling, viewportHeight, ceiling).compressed).toBe(false)
+  })
+
+  test('past it, the container is given a height the browser will honour', () => {
+    const space = scrollSpace(10_000, viewportHeight, ceiling)
+
+    expect(space.compressed).toBe(true)
+    expect(space.scrollHeight).toBe(ceiling)
+  })
+
+  test('the two ends line up, which is the whole point', () => {
+    const space = scrollSpace(10_000, viewportHeight, ceiling)
+
+    // The top of the scrollbar is the top of the diff.
+    expect(space.toContent(0)).toBe(0)
+    // And the bottom of the scrollbar is the bottom of the diff - the last
+    // screenful, not two thirds of the way in.
+    expect(space.toContent(ceiling - viewportHeight)).toBe(10_000 - viewportHeight)
+  })
+
+  test('and the map is reversible, so scrolling to a file lands on it', () => {
+    const space = scrollSpace(10_000, viewportHeight, ceiling)
+
+    for (const contentTop of [0, 1, 4321, 9000, 9900]) {
+      // Within a pixel: the map is a ratio, and the caller snaps to the device
+      // pixel grid afterwards anyway.
+      expect(Math.abs(space.toContent(space.toScroll(contentTop)) - contentTop)).toBeLessThan(1)
+    }
+  })
+
+  test('scroll positions past either end are clamped rather than extrapolated', () => {
+    const space = scrollSpace(10_000, viewportHeight, ceiling)
+
+    expect(space.toContent(-500)).toBe(0)
+    expect(space.toContent(999_999)).toBe(10_000 - viewportHeight)
+    expect(space.toScroll(-500)).toBe(0)
+    expect(space.toScroll(999_999)).toBe(ceiling - viewportHeight)
+  })
+
+  test('the ratio says how much resolution was traded, and it degrades in proportion', () => {
+    // Barely over: barely compressed. This is the honest shape of the trade -
+    // nothing falls off a cliff at the ceiling.
+    const barely = scrollSpace(1100, viewportHeight, ceiling)
+    const badly = scrollSpace(10_000, viewportHeight, ceiling)
+
+    expect(barely.ratio).toBeCloseTo(1000 / 900, 3)
+    expect(badly.ratio).toBeCloseTo(9900 / 900, 3)
+    expect(barely.ratio).toBeLessThan(badly.ratio)
+  })
+
+  test('a viewport taller than the ceiling does not divide by zero', () => {
+    // Not a viewport anybody has, and the failure would be every position
+    // becoming NaN, which renders as a blank page rather than as an error.
+    const space = scrollSpace(10_000, 2000, ceiling)
+
+    expect(Number.isFinite(space.toContent(10))).toBe(true)
+    expect(Number.isFinite(space.toScroll(10))).toBe(true)
+  })
+
+  test('the ceiling is in device pixels, so a retina display gets half as many', () => {
+    expect(scrollCeiling(1)).toBe(MAX_SCROLL_DEVICE_PIXELS)
+    expect(scrollCeiling(2)).toBe(MAX_SCROLL_DEVICE_PIXELS / 2)
+    // A ratio below one is not a display, and dividing by it would raise the
+    // ceiling above what the browser allows.
+    expect(scrollCeiling(0)).toBe(MAX_SCROLL_DEVICE_PIXELS)
+  })
+
+  test('it is under the lowest cap any browser has', () => {
+    // Safari's is 2^24. Being under the smallest is what makes one number
+    // correct everywhere rather than correct on the machine it was measured on.
+    expect(MAX_SCROLL_DEVICE_PIXELS).toBeLessThan(2 ** 24)
+  })
+})
+
+describe('planning a frame in a compressed diff', () => {
+  /** Enough files that the list is far taller than the ceiling below. */
+  const many: ViewportFile[] = Array.from({ length: 4000 }, () => ({ rows: rows(40), collapsed: false }))
+  const viewport = { scrollTop: 0, height: 800 }
+  const ceiling = 20_000
+
+  test('mounts the last files when the reader is at the end of the scrollbar', () => {
+    const total = measuredLayout(many).total
+
+    expect(total).toBeGreaterThan(ceiling)
+
+    const atEnd = planFrame(many, new Set(), { ...viewport, scrollTop: ceiling - viewport.height }, { ceiling })
+
+    // The failure this replaces: the plan was computed from a scroll position
+    // that meant something else, so the end of the scrollbar planned the
+    // *first* screen and the reader saw nothing.
+    expect(atEnd.plan.next.size).toBeGreaterThan(0)
+    expect(Math.max(...atEnd.plan.next)).toBe(many.length - 1)
+  })
+
+  test('mounts the first files at the top, as it always did', () => {
+    const atTop = planFrame(many, new Set(), viewport, { ceiling })
+
+    expect(atTop.plan.next.has(0)).toBe(true)
+    expect(atTop.contentTop).toBe(0)
+  })
+
+  test('reports the map and the position it planned with', () => {
+    const middle = planFrame(many, new Set(), { ...viewport, scrollTop: (ceiling - viewport.height) / 2 }, { ceiling })
+
+    expect(middle.space.compressed).toBe(true)
+    // Returned rather than left for the caller to recompute: the caller would
+    // have to recompute it from the *corrected* scroll position, and would be
+    // one frame's drift wrong every time it used the uncorrected one.
+    expect(middle.contentTop).toBeCloseTo((middle.layout.total - viewport.height) / 2, 0)
+  })
+
+  test('an uncompressed diff plans exactly as before', () => {
+    const few: ViewportFile[] = Array.from({ length: 5 }, () => ({ rows: rows(10), collapsed: false }))
+    const frame = planFrame(few, new Set(), { scrollTop: 40, height: 800 })
+
+    expect(frame.space.compressed).toBe(false)
+    expect(frame.contentTop).toBe(40)
+  })
+
+  test('an anchor is restored in the space the caller writes into', () => {
+    const layout = measuredLayout(many)
+    // The reader is looking at file 3,000, forty pixels in.
+    const anchor = { index: 3000, offset: 40 }
+    const frame = planFrame(many, new Set(), viewport, { ceiling, anchor })
+
+    expect(frame.scrollTop).not.toBeUndefined()
+    // Written to the scrollbar, so it has to be inside the scrollbar's range.
+    expect(frame.scrollTop!).toBeLessThanOrEqual(ceiling - viewport.height)
+    // And it has to put the reader back where they were, in the diff.
+    expect(Math.abs(frame.contentTop - (layout.offsets[3000]! + 40))).toBeLessThan(ceiling)
+    expect(frame.plan.next.has(3000)).toBe(true)
+  })
+
+  test('scrolling to a file answers in the scrollbar\'s range, not the diff\'s', () => {
+    const frame = planFrame(many, new Set(), viewport, { ceiling })
+    const target = scrollTargetFor(frame.layout, viewport.height, { index: many.length - 1 }, frame.space)
+
+    expect(target).not.toBeNull()
+    expect(target!).toBeLessThanOrEqual(ceiling - viewport.height)
+
+    // And it really does reach the last file: planning from that position
+    // mounts it. Without the map this asked for a position several times past
+    // the end of the scrollbar and the browser landed wherever it could.
+    const arrived = planFrame(many, new Set(), { ...viewport, scrollTop: target! }, { ceiling })
+
+    expect(arrived.plan.next.has(many.length - 1)).toBe(true)
   })
 })

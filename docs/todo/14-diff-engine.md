@@ -61,26 +61,46 @@ Numbers, so the work can be checked rather than argued about:
       this box - kept below, because being wrong three times in the same place is the useful part of
       the record - were all about a third thing that turned out not to be the problem.
 
-      **The scroll range hits the browser's ceiling, and the tail of the diff is unreachable.** The
-      viewer sets the content element's height to the diff's true height and lets the browser
+      **The scroll range hit the browser's ceiling, and the tail of the diff was unreachable. Fixed.**
+      The viewer set the content element's height to the diff's true height and let the browser
       scroll it. At 27,408 files it asked for **40,300,800px** and Chrome gave it **33,554,428px**,
       which is 2^25 - 4 and the most a layout box may be. The full diff is 78,985 files, so the
-      final height would be somewhere around 110 million pixels and roughly **two thirds of the
-      diff would sit past the end of the scrollbar** - reachable by no scroll, because there is no
-      scroll position that maps to it. Measured at a device pixel ratio of 1; at 2 the ceiling is
-      halved again, so a retina laptop loses more.
+      final height would have been somewhere around 110 million pixels and roughly **two thirds of
+      the diff would have sat past the end of the scrollbar** - reachable by no scroll, because no
+      scroll position mapped to it. Measured at a device pixel ratio of 1; at 2 the ceiling halves
+      again, so a retina laptop lost more.
 
-      This is not a slow path or a missing optimisation. It is a hard limit in every browser
-      (Firefox's is around 17.8M, Safari's is 2^24), and the fix is scroll-space compression: map a
-      bounded scroll range onto an unbounded content range, the way an editor does for a very large
-      file. That is a real change to the geometry model rather than a tuning pass, which is why this
-      box stays open with the work named rather than ticked with a caveat.
+      This was never a slow path. It is a hard limit in every browser - Safari's is 2^24 and
+      Firefox's around 17.8M - so `ScrollSpace` in `viewport.ts` now gives the container a height it
+      can actually have and relates the two spaces by a ratio: the scrollbar addresses the whole
+      diff, and the mounted files are positioned relative to where the reader is rather than at
+      their absolute offsets. Below the ceiling it is the identity and nothing changes, which is
+      every diff anybody reviews.
 
-      **And the main thread stops answering at around twenty seconds.** On a visible page - which
-      matters, because a hidden tab suspends `requestAnimationFrame` and throttles timers, and
-      measuring one produces numbers that say nothing - the page reached 27,408 files at t=21s with
-      72 frames rendered and 26MB of heap, and then stopped responding to the debugger entirely for
-      minutes. Not slow: unresponsive.
+      **What that costs is scroll resolution, and it is worth saying so.** With 110 million pixels
+      of diff mapped onto 16 million of scrollbar, one pixel of scrolling moves the diff about
+      seven, so a wheel notch travels seven times as far. It degrades in proportion - a diff ten
+      percent over the ceiling scrolls ten percent coarser - and it is the only honest option: a
+      coarse scrollbar over the whole diff beats a fine one over the first third.
+
+      The ceiling is counted in **device** pixels (16,000,000, under the lowest of the three caps)
+      because that is the space the caps live in, so a retina display gets half as many CSS pixels
+      and compresses sooner.
+
+      Verified both ways. On the kernel diff the container asks for exactly 16,000,000px and is
+      given exactly 16,000,000px, and stays there as more files arrive rather than climbing to 40
+      million and being silently truncated. On Linux `v6.0...v6.1` - 13,003 files, the largest diff
+      this page stays responsive on - scrolling to the settled end of the scrollbar puts **the last
+      file, index 13,002, on screen and alone in the viewport**, and half way down lands
+      proportionally at file 7,224.
+
+      **What is left, and it is now the only thing left: the main thread stops answering at around
+      twenty seconds.** On a visible page - which matters, because a hidden tab suspends
+      `requestAnimationFrame` and throttles timers, and measuring one produces numbers that say
+      nothing - the page reached 27,408 files at t=21s with 72 frames rendered and 26MB of heap, and
+      then stopped responding to the debugger entirely for minutes. Not slow: unresponsive. It is
+      why the end-to-end scroll above was verified on the million-line diff rather than on this one,
+      and why this box is still open.
 
       **The server is not the problem, and now there is a number for that.** Asked for the same
       manifest with `curl`, this instance streamed the whole thing - 79,194 records, 25MB, 78,985

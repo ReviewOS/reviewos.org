@@ -335,6 +335,14 @@ function movedAnchor(
 }
 
 export interface ViewportOptions {
+  /**
+   * The tallest the scroll container may be, in CSS pixels.
+   *
+   * Defaults to `scrollCeiling(devicePixelRatio)`, which is the real limit.
+   * Overridden by tests, which would otherwise have to build a hundred-million
+   * pixel diff to reach the interesting case.
+   */
+  ceiling?: number
   layout?: 'unified' | 'split'
   metrics?: HeightMetrics
   /** Pixels rendered above and below the viewport. */
@@ -387,11 +395,139 @@ export function measuredLayout(files: readonly ViewportFile[], options: Viewport
   return { offsets, heights, total: files.length === 0 ? 0 : top - metrics.gap }
 }
 
+/**
+ * The tallest a scroll container may usefully be, in **device** pixels.
+ *
+ * Every browser caps the height of a layout box, and the caps differ: Chrome
+ * measured 33,554,428 (2^25 - 4) on this machine at a device pixel ratio of 1,
+ * Safari's is 2^24, and Firefox's is around 17.8 million. Past the cap the
+ * element is simply shorter than it was told to be, silently, and everything
+ * positioned beyond it becomes unreachable - there is no scroll position that
+ * maps to it.
+ *
+ * Sixteen million is under the lowest of the three with room to spare. It is
+ * counted in device pixels rather than CSS pixels because that is the space the
+ * caps live in: the same diff on a retina laptop has twice as many device
+ * pixels to spend, so `scrollCeiling` divides by the ratio.
+ *
+ * Being conservative costs nothing. The compression below is proportional, so a
+ * diff that is barely over the ceiling is barely compressed.
+ */
+export const MAX_SCROLL_DEVICE_PIXELS = 16_000_000
+
+/** The ceiling in CSS pixels, which is what a stylesheet and `scrollTop` speak. */
+export function scrollCeiling(devicePixelRatio: number): number {
+  return MAX_SCROLL_DEVICE_PIXELS / Math.max(1, devicePixelRatio)
+}
+
+/**
+ * The map between where the reader has scrolled and where that is in the diff.
+ *
+ * For every diff anybody will ever review, these are the same number and this
+ * is the identity: the content element is as tall as the diff, and `scrollTop`
+ * *is* the offset into it.
+ *
+ * They come apart at the far end of the scale. Linux `v6.0...v7.0` is 78,985
+ * files and lays out to something like 110 million pixels, and no browser will
+ * scroll a box that tall - so the container is given a height it can actually
+ * have and the two spaces are related by a ratio. The rendered files are then
+ * positioned relative to where the reader is rather than at their absolute
+ * offsets, which is what keeps them inside a box that is no longer tall enough
+ * to hold them at their true positions.
+ *
+ * ## What compression costs, said plainly
+ *
+ * Scroll resolution. With 110 million pixels of diff mapped onto 16 million of
+ * scrollbar, one pixel of scrolling moves the diff about seven - so a wheel
+ * notch travels seven times as far as it would on a small diff, and the
+ * scrollbar cannot address every pixel of the content. That is a real
+ * degradation and it is worth being clear that it is one.
+ *
+ * It is also the only honest option available. The alternative is what happened
+ * before: the container asks for 110 million pixels, gets 33 million, and two
+ * thirds of the diff cannot be reached at all. A coarse scrollbar over the
+ * whole diff beats a fine scrollbar over the first third of it.
+ *
+ * And it degrades in proportion: a diff ten percent over the ceiling scrolls
+ * ten percent coarser. Nothing changes for anything under it.
+ */
+export interface ScrollSpace {
+  /** The height to give the scroll container. */
+  scrollHeight: number
+  /** True when the diff is taller than the browser will scroll. */
+  compressed: boolean
+  /** Content pixels per scroll pixel. 1 when nothing is compressed. */
+  ratio: number
+  /** Where in the diff a scroll position is. */
+  toContent: (scrollTop: number) => number
+  /** Where to scroll to put a point in the diff at the top of the viewport. */
+  toScroll: (contentTop: number) => number
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return value < low ? low : value > high ? high : value
+}
+
+/**
+ * The identity map, for a caller that has not planned a frame yet.
+ *
+ * A viewer holds a `ScrollSpace` from its first line of code and only learns
+ * the real one when it has a layout and a viewport height. Starting from this
+ * rather than from null means the read-a-position and write-a-position paths
+ * never have to ask whether there is a map yet.
+ */
+export function identityScrollSpace(): ScrollSpace {
+  return directSpace(0)
+}
+
+/** The identity map, which is what every ordinary diff gets. */
+function directSpace(total: number): ScrollSpace {
+  return {
+    scrollHeight: total,
+    compressed: false,
+    ratio: 1,
+    toContent: scrollTop => scrollTop,
+    toScroll: contentTop => contentTop,
+  }
+}
+
+export function scrollSpace(total: number, viewportHeight: number, ceiling: number): ScrollSpace {
+  if (!(ceiling > 0) || total <= ceiling)
+    return directSpace(total)
+
+  const scrollable = ceiling - viewportHeight
+  const scrollableContent = total - viewportHeight
+
+  // A viewport taller than the ceiling is not a viewport anybody has, and
+  // dividing by the resulting zero would be worse than not compressing.
+  if (scrollable <= 0 || scrollableContent <= 0)
+    return directSpace(Math.min(total, ceiling))
+
+  return {
+    scrollHeight: ceiling,
+    compressed: true,
+    ratio: scrollableContent / scrollable,
+    toContent: scrollTop => clamp(scrollTop, 0, scrollable) / scrollable * scrollableContent,
+    toScroll: contentTop => clamp(contentTop, 0, scrollableContent) / scrollableContent * scrollable,
+  }
+}
+
 export interface FrameResult {
   layout: ListLayout
   plan: MountPlan
   /** Set when the reader's position had to be corrected. */
   scrollTop?: number
+  /** The map this frame was planned with. See `ScrollSpace`. */
+  space: ScrollSpace
+  /**
+   * Where in the diff the top of the viewport sits, for the frame this result
+   * describes.
+   *
+   * Returned rather than left for the caller to recompute, because the caller
+   * would have to recompute it from the *corrected* scroll position and would
+   * be one frame's worth of drift wrong whenever it used the uncorrected one.
+   */
+  contentTop: number
 }
 
 /**
@@ -409,12 +545,15 @@ export function planFrame(
 ): FrameResult {
   const { overscan = DEFAULT_OVERSCAN, anchor, devicePixelRatio = 1 } = options
   const layout = measuredLayout(files, options)
+  const space = scrollSpace(layout.total, viewport.height, options.ceiling ?? scrollCeiling(devicePixelRatio))
 
   let scrollTop = viewport.scrollTop
   let corrected: number | undefined
 
   if (anchor != null) {
-    const restored = snapToDevicePixel(restoreAnchor(layout, anchor), devicePixelRatio)
+    // `restoreAnchor` answers in the diff's own space; the reader's scrollbar
+    // is in the browser's. On every ordinary diff these are the same number.
+    const restored = snapToDevicePixel(space.toScroll(restoreAnchor(layout, anchor)), devicePixelRatio)
     // Only reported when it actually moves, so the caller is not writing
     // scrollTop on every frame and fighting the reader's own scrolling.
     if (Math.abs(restored - scrollTop) > 0.5) {
@@ -423,9 +562,10 @@ export function planFrame(
     }
   }
 
-  const { start, end } = visibleRange(layout, scrollTop, viewport.height, overscan)
+  const contentTop = space.toContent(scrollTop)
+  const { start, end } = visibleRange(layout, contentTop, viewport.height, overscan)
 
-  return { layout, plan: planMounts(mounted, start, end), scrollTop: corrected }
+  return { layout, plan: planMounts(mounted, start, end), scrollTop: corrected, space, contentTop }
 }
 
 /**
@@ -466,11 +606,16 @@ export interface ScrollTarget {
  * what stops a scroll to the last file of a diff from asking for a position
  * past the end and having the browser quietly land somewhere else - which is
  * the shape of every "it scrolled nearly to the right place" bug.
+ *
+ * Give it the frame's `ScrollSpace` and the answer comes back in the space the
+ * caller is about to write into. Without one it answers in the diff's own
+ * pixels, which is the same thing for every diff a browser can scroll whole.
  */
 export function scrollTargetFor(
   layout: ListLayout,
   viewportHeight: number,
   target: ScrollTarget,
+  space?: ScrollSpace,
 ): number | null {
   const top = layout.offsets[target.index]
   const height = layout.heights[target.index]
@@ -491,8 +636,21 @@ export function scrollTargetFor(
     position = at + size - viewportHeight
 
   const furthest = Math.max(0, layout.total - viewportHeight)
+  const clamped = Math.max(0, Math.min(position, furthest))
 
-  return Math.max(0, Math.min(position, furthest))
+  /*
+   * Answered in the reader's space, not the diff's.
+   *
+   * Everything above works in the diff's own pixels, which is where a file's
+   * offset and a line's position within it live. What the caller does with the
+   * answer is write it to `scrollTop`, and on a diff too tall for the browser
+   * to scroll those are not the same number. Without the map, "scroll to the
+   * last file" of the kernel diff asks for a position three times past the end
+   * of the scrollbar and the browser quietly lands somewhere else - which is
+   * the shape of every "it scrolled nearly to the right place" bug, at a size
+   * where "nearly" is fifty thousand files.
+   */
+  return space ? space.toScroll(clamped) : clamped
 }
 
 /**
