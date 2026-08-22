@@ -6,9 +6,16 @@
 #      loader, preloader, user routes — reads plaintext from process.env.
 #   2. main preloader wires auto-imports + framework plugins; safe to run
 #      after the env layer because it can now read decrypted secrets too.
+#   3. UTC, before anything reads a timestamp. Every column in this schema
+#      stores a UTC wall clock with no offset in it, so the frame the process
+#      builds a `Date` in *is* the frame those values are read in - and a
+#      process in any other zone reads every one of them wrong by that offset.
+#      See `app/Ops/utc.ts`; it is listed here rather than in a boot script so
+#      that `bun test`, `./buddy`, `bun run` and the server all get it.
 preload = [
   "@stacksjs/env/plugin.js",
   "./storage/framework/defaults/resources/plugins/preloader.ts",
+  "./app/Ops/utc.ts",
 ]
 
 [test]
