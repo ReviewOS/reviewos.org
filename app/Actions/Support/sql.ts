@@ -236,16 +236,21 @@ export function textCast(expression: string, dialect = currentDialect()): string
     : `CAST(${expression} AS text)`
 }
 
-/**
- * The database's own wall clock, in the spelling each engine has.
+/*
+ * `DATABASE_WALL_CLOCK` was here: `SELECT LOCALTIMESTAMP AS wall`, read by the
+ * audit search and the health check to work out how far the database's clock
+ * sat from this process's.
  *
- * `LOCALTIMESTAMP` is standard and both engines have it, which is the point:
- * this used to be `CURRENT_TIMESTAMP::timestamp` in one place and
- * `LOCALTIMESTAMP` in another, measuring the same thing two ways, one of them
- * Postgres-only.
+ * Both were asking the wrong question. `LOCALTIMESTAMP` measures the database's
+ * *session timezone*, which is not the frame a timestamp column is stored in
+ * and does not imply anything about it - every default in this schema is pinned
+ * to UTC, and everything this application writes goes through `dbTimestamp`
+ * above. The audit search shifted its bounds by that non-difference and
+ * returned nothing; the health check reported seven hours of skew on a database
+ * that was behaving perfectly.
  *
- * What is being measured is the *naive* clock - no offset - because that is
- * what a defaulted timestamp column stores, and the whole point of reading it
- * is to compare it against what this process would have written.
+ * What each of them needed instead is in the file that needed it: the search
+ * compares against UTC because that is where the column is, and the health
+ * check reads the column *defaults*, which is the thing that can actually be
+ * wrong.
  */
-export const DATABASE_WALL_CLOCK = 'SELECT LOCALTIMESTAMP AS wall'

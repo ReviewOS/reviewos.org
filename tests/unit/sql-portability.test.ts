@@ -10,7 +10,7 @@
 // nothing and raises nothing.
 
 import { describe, expect, test } from 'bun:test'
-import { DATABASE_WALL_CLOCK, portable, speaksMysql } from '../../app/Actions/Support/sql'
+import { portable, speaksMysql } from '../../app/Actions/Support/sql'
 
 /** Every file that could hold SQL: the application, the routes, the views. */
 async function sources(): Promise<Array<{ path: string, text: string }>> {
@@ -176,11 +176,18 @@ describe('portable', () => {
   })
 })
 
-describe('the database clock', () => {
-  test('is read the same way in both places, in a spelling both engines have', () => {
-    expect(DATABASE_WALL_CLOCK).toContain('LOCALTIMESTAMP')
-    expect(DATABASE_WALL_CLOCK).not.toContain('::')
-    // Unchanged by the rewrite: there is nothing dialect-specific left in it.
-    expect(portable(DATABASE_WALL_CLOCK, 'mysql')).toBe(DATABASE_WALL_CLOCK)
-  })
-})
+/*
+ * `DATABASE_WALL_CLOCK` was asserted here: one spelling of `LOCALTIMESTAMP`,
+ * shared by the audit search and the health check.
+ *
+ * Both were asking the wrong question. `LOCALTIMESTAMP` measures the database's
+ * *session timezone*, which is not the frame a timestamp column is stored in -
+ * every default in this schema is pinned to UTC, and everything the application
+ * writes goes through `dbTimestamp`. The audit search shifted its bounds by
+ * that non-difference and returned nothing; the health check reported seven
+ * hours of skew on a database that was behaving perfectly.
+ *
+ * What replaced it is asserted where it belongs: `tests/e2e/audit-log.test.ts`
+ * has a row the database stamps itself, and `tests/e2e/utc.test.ts` runs the
+ * round trip from a process in another zone.
+ */

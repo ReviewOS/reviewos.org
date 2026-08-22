@@ -12,7 +12,7 @@
  */
 
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { DATABASE_WALL_CLOCK } from '../Actions/Support/sql'
+import { speaksMysql } from '../Actions/Support/sql'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { draining } from './shutdown'
@@ -114,68 +114,77 @@ async function database(): Promise<Check> {
 }
 
 /**
- * Does a timestamp the database writes come back as the moment it happened?
+ * Does a timestamp the database fills in land in the same frame as the rest?
  *
- * It does not, on any host whose Postgres session is not in UTC, and the
- * failure is silent in the worst way: every "3 minutes ago" in the product is
- * wrong by the offset, and wrong times look like times.
+ * Every timestamp column in this schema is `timestamp` **without** time zone
+ * holding a UTC wall clock, and two things put values there: the application,
+ * through `dbTimestamp`, which is `toISOString`; and the column's own default,
+ * which is pinned - `now() AT TIME ZONE 'utc'` on Postgres, `UTC_TIMESTAMP` on
+ * MySQL. A column that defaults to a bare `CURRENT_TIMESTAMP` instead gets the
+ * *session's* local clock, and the offset is silently dropped on the way into a
+ * zoneless column. Its rows then sit hours away from every other row in the
+ * database, and wrong times look like times.
  *
- * The mechanism, because a check that only says "skewed" sends somebody to read
- * this file. `created_at` is `timestamp` **without** time zone and defaults to
- * `CURRENT_TIMESTAMP`, which returns the session's *local* wall clock. Storing
- * it into a column with no zone drops the offset, so what lands is `08:59` from
- * a machine seven hours behind UTC. The driver reads a zoneless timestamp back
- * as UTC, and the row is now seven hours in the past.
+ * That is exactly how eleven columns came to be wrong here. The framework's own
+ * auth and RBAC tables are created with `CREATE TABLE IF NOT EXISTS`, so when
+ * their DDL was pinned to UTC every new install got it and this database, which
+ * already had the tables, kept the bare default - `password_resets`,
+ * `two_factor_challenges`, `webauthn_challenges` and the rest. An expiry window
+ * hours out is not a display bug.
  *
- * Nothing the application writes is affected: those are ISO UTC strings and
- * round-trip exactly. It is only the columns the database fills in.
+ * The framework repairs that on migrate now (`ensureUtcTimestampDefaults`), and
+ * this stays anyway: it is the check that would have caught it, and the next
+ * table created outside the generator will not be covered by anything else.
  *
- * Measured rather than read from `SHOW timezone`, because the setting is not
- * the bug - the column type is - and a check that reads the setting would pass
- * on a UTC database whose columns are still the wrong type, and fail on a
- * correctly-typed database that happens to sit in Berlin.
+ * **The default is what is checked, not the session clock.** This used to
+ * compare `LOCALTIMESTAMP` against this process's clock, which measures the
+ * database's session timezone - a different thing, and since the defaults were
+ * pinned, one that no longer implies anything is wrong. It would report seven
+ * hours of skew on a correctly-behaving database that happens to sit in
+ * Pacific, and a check that is permanently degraded for no reason is a check
+ * people learn to ignore.
+ *
+ * Reading `information_schema` rather than writing a row, because the question
+ * is about what the schema will do rather than about what it did once.
  */
 async function databaseClock(): Promise<Check> {
   return await timed('database clock', async () => {
-
     /*
-     * `LOCALTIMESTAMP` is exactly what a defaulted column stores: the naive
-     * clock, no offset, the same way the column type has none. Comparing it
-     * against this process's clock measures the bug directly, without writing
-     * anything and without depending on how old any row happens to be.
-     *
-     * It was `CURRENT_TIMESTAMP::timestamp`, which says the same thing in
-     * Postgres and is a syntax error in MySQL - and the audit's own rule is
-     * that the statement running today should be the one that survives the
-     * engine changing. `LOCALTIMESTAMP` is standard and both engines have it,
-     * which also makes this the same spelling `Ops/audit.ts` uses for the same
-     * measurement.
+     * Both engines' spellings of "the session's clock", and neither engine's
+     * spelling of the pinned one - which mentions UTC and is what everything
+     * correct here reads as.
      */
-    const rows = await db.unsafe(DATABASE_WALL_CLOCK).execute()
-    const row = Array.isArray(rows) ? rows[0] : rows
-    const stored = (row as Record<string, unknown> | undefined)?.wall
-    if (!stored)
+    const rows = await db.unsafe(
+      `SELECT table_name, column_name FROM information_schema.columns `
+      + `WHERE table_schema = ${speaksMysql() ? 'DATABASE()' : 'current_schema()'} `
+      + `AND data_type LIKE 'timestamp%' `
+      + `AND column_default IS NOT NULL `
+      + `AND LOWER(column_default) NOT LIKE '%utc%' `
+      + `AND LOWER(column_default) LIKE '%current_timestamp%'`,
+    ).execute()
+
+    const drifting = Array.isArray(rows) ? rows : []
+
+    if (drifting.length === 0)
       return
 
-    const skewMinutes = Math.abs(Date.now() - new Date(String(stored)).getTime()) / 60_000
+    const named = drifting
+      .slice(0, 3)
+      .map((row: any) => `${row.table_name}.${row.column_name}`)
+      .join(', ')
 
-    // Fifteen minutes of slack covers a clock that is merely wrong; every real
-    // timezone offset is at least half an hour.
-    if (skewMinutes > 15) {
-      const hours = (skewMinutes / 60).toFixed(1)
-
-      /*
-       * Degraded, not failed, and the distinction is this file's own rule:
-       * only a failed check takes an instance out of rotation. Every timestamp
-       * being wrong by an offset is bad, and it is not a reason to stop serving
-       * a forge that is otherwise working - refusing traffic over it would turn
-       * a display bug into an outage.
-       */
-      return {
-        status: 'degraded' as const,
-        detail: `timestamps the database writes are ${hours} hours out: run Postgres with `
-          + 'timezone=UTC, or every "x ago" in the interface is wrong by that much',
-      }
+    /*
+     * Degraded, not failed, and the distinction is this file's own rule: only a
+     * failed check takes an instance out of rotation. Rows landing in the wrong
+     * frame is bad, and it is not a reason to stop serving a forge that is
+     * otherwise working - refusing traffic over it would turn a data bug into
+     * an outage.
+     */
+    return {
+      status: 'degraded' as const,
+      detail: `${drifting.length} timestamp ${drifting.length === 1 ? 'column defaults' : 'columns default'} `
+        + `to the database's local clock rather than UTC (${named}${drifting.length > 3 ? ', …' : ''}): `
+        + 'rows those defaults fill will sit hours away from every other row',
     }
   })
 }
