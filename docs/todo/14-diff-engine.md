@@ -322,7 +322,7 @@ Numbers, so the work can be checked rather than argued about:
       here and not on `v6.0...v7.0` for one reason, and it is the reason box one is still open - a
       million lines lays out to 16.0M pixels, which is under the browser's ceiling. Eighteen million
       lines is not.
-- [ ] Mobile Safari renders the bun and node pull requests DiffsHub uses as demos without blanking
+- [x] Mobile Safari renders the bun and node pull requests DiffsHub uses as demos without blanking
 
       **The demos are `oven-sh/bun#30412` and `nodejs/node#59805`**, read off DiffsHub's own landing
       page rather than guessed at. Both open on this instance at `/view/…`, which is what the box
@@ -346,15 +346,55 @@ Numbers, so the work can be checked rather than argued about:
       | `nodejs/node#59805` | 24.9MB in one document | 0.38MB page, 3,420 files streamed |
       | `oven-sh/bun#30412` | 55.5MB in one document | 0.38MB page |
 
-      **What is left is a simulator that can reach the network.** Xcode 27 beta and the iOS 27
-      runtime are installed and a phone boots, but nothing in it loads: `example.com` stalls with the
-      progress bar part-drawn, and so does a static file on the host, after a clean shutdown and
-      reboot. That is the simulator's networking on this machine rather than anything here, and it
-      is the only thing between this box and an answer.
+      **Both demos then rendered on a phone.** Xcode 27 beta, the iOS 27 runtime and an iPhone 17
+      Pro, pointed at this instance over the LAN rather than at `localhost` - a simulator's
+      `127.0.0.1` is the host's, but only for a server bound to it, so the app is served on
+      `0.0.0.0` and the phone is given the machine's address. `nodejs/node#59805` draws its header,
+      its file list and its rows; `oven-sh/bun#30412` draws 2,188 files, `+1009257 -4024`. Neither
+      tab reloaded, which is the whole of what this box asks.
 
-      `buddy simulator:doctor` and `buddy simulator:open <url> --screenshot <path>` are what remain
-      of the afternoon: the run is two commands rather than a page of `xcrun`, so whoever has a
-      working simulator can finish this in a minute.
+      The simulator's earlier refusal to load anything was its first boot, not its networking: a
+      shutdown and a fresh `bootstatus` wait fixed it, and both are now what
+      `buddy simulator:doctor` does.
+
+      **And pointing a phone at the bun demo found the last real defect.** Its patch is 43.3MB, and
+      the page asks for a manifest and its first rows at the same moment - so two requests each
+      started their own download of the same 43MB, raced, and the loser timed out into
+      *"The operation timed out."* on the reader's screen. Three fixes, all in the front door rather
+      than the engine: in-flight sharing in the patch cache, so concurrent readers of one target
+      await a single fetch; a 300s ceiling on that fetch rather than 30s, because 43MB from GitHub is
+      not a 30-second job; and `readBounded` returning `'network'` on an abort rather than throwing
+      it, which had been escaping as an unhandled `TimeoutError` and a 500. The bun manifest now
+      answers in **1.7s** warm - 9.35MB of it.
+
+      **And a second defect, which only a phone could have shown.** The streamed viewer's layout -
+      the grid, and the fixed-height scroller it virtualizes against - lived in the review screen's
+      own `<style>` block. The public viewer at `/view` mounted the same markup and shipped none of
+      those rules, so `.diff-scroller` was a plain block: no height, no `overflow`. The virtualizer
+      measured a viewport of nothing, mounted nothing, and the page rendered a file list above an
+      empty white space where the diff should be. It answered 200, it carried every byte of its
+      manifest, and it showed the reader nothing - the same shape of silent failure as the three
+      recorded further down this file.
+
+      Nobody saw it on a desktop because at 1440px the unstyled list is long enough to look
+      deliberate.
+
+      Fixed as `resources/components/DiffViewerStyles.stx`, included by both pages, so mounting this
+      viewer somewhere new cannot mean forgetting the CSS that makes it work. And the height it sets
+      is no longer a constant: `calc(100dvh - var(--diff-viewport-offset))`, where the offset is
+      measured off the element at mount and on every resize. A hard-coded offset is correct on the
+      page it was measured on and wrong everywhere else, and wrong here means a scroller taller than
+      the window, a second scrollbar on the document, and a reader dragging the whole page while the
+      viewer - which listens to the inner one - shows an empty space. `dvh` rather than `vh` for the
+      same reason on a phone specifically: `100vh` in Mobile Safari is the height with the toolbars
+      hidden.
+
+      `buddy simulator:doctor` and `buddy simulator:open <url> --fresh --screenshot <path>` are what
+      this took, rather than a page of `xcrun`: booting, waiting, opening a URL and capturing the
+      screen are two commands now, so the next person to check a phone spends a minute on it.
+      `--fresh` quits Safari first, and it is not a convenience - `openurl` on a URL Safari already
+      has open restores the page from its back-forward cache, so checking the fix above photographed
+      the bug it had just fixed and reported it as still there.
 - [x] No regression for the small case: a fifteen-file pull request is still readable with JavaScript
       disabled. The conversation page renders every row, every syntax token and every review thread
       server-side, and its reply and resolve controls are plain forms - checked by fetching the page
