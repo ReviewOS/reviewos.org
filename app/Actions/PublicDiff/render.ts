@@ -16,7 +16,7 @@ import type { FailureReason } from './fetch'
 import { parseDiff } from '../Pull/diff'
 import { highlightDiffFile, renderDiffFile } from '../Pull/rows'
 import { fetchPatch } from './fetch'
-import { cachedPatch, cacheKey, storePatch } from './patchCache'
+import { cachedPatch, cacheKey, shareFetch, storePatch } from './patchCache'
 
 export interface RenderedDiff {
   ok: boolean
@@ -74,7 +74,15 @@ export async function patchFor(
   if (held !== null)
     return { ok: true, patch: held, via: 'held' }
 
-  const fetched = await fetchPatch(target, options)
+  /*
+   * Joined rather than started again when one is already running.
+   *
+   * The viewer asks for a manifest and then for rows, and the rows arrive
+   * before the manifest has finished - so without this, one reader opening a
+   * 43MB diff starts three downloads of it, each slowing the others past the
+   * timeout that was meant to catch a stalled upstream.
+   */
+  const fetched = await shareFetch(key, () => fetchPatch(target, options))
 
   if (!fetched.ok || fetched.patch === null) {
     return {

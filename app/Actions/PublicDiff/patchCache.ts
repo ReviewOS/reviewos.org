@@ -118,9 +118,50 @@ export function storePatch(key: string, patch: string, now: number = Date.now())
   evict(now)
 }
 
+/**
+ * Fetches already under way, so two askers share one trip.
+ *
+ * The cache above answers the *second* reader of a patch. This answers the
+ * second reader who arrives while the first is still waiting - which is the
+ * common case rather than the rare one: the page mounts the viewer, the viewer
+ * asks for a manifest, and the row requests follow before the manifest has
+ * finished. On `oven-sh/bun#30412` that is three concurrent downloads of the
+ * same 43MB patch, each slowing the others, and it is why the first attempt at
+ * this timed out at two minutes on a patch that takes seventy seconds alone.
+ */
+const inFlight = new Map<string, Promise<unknown>>()
+
+/**
+ * Run `fetcher` for this key, or join the one already running.
+ *
+ * The entry is removed when it settles rather than cached here - what to keep
+ * is `storePatch`'s decision, and a failed fetch must not become a result the
+ * next reader joins.
+ */
+export function shareFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const running = inFlight.get(key)
+
+  if (running)
+    return running as Promise<T>
+
+  const started = fetcher().finally(() => {
+    inFlight.delete(key)
+  })
+
+  inFlight.set(key, started)
+
+  return started
+}
+
+/** How many fetches are in flight, for a test that needs to see the sharing. */
+export function inFlightCount(): number {
+  return inFlight.size
+}
+
 /** For tests, and for an operator who wants the memory back. */
 export function clearPatchCache(): void {
   entries.clear()
+  inFlight.clear()
   held = 0
 }
 

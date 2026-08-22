@@ -123,8 +123,20 @@ export function resetOutboundWindow(): void {
  */
 export const MAX_PATCH_BYTES = 64 * 1024 * 1024
 
-/** How long one upstream request may take before it is abandoned. */
-export const FETCH_TIMEOUT_MS = 20_000
+/**
+ * How long one upstream request may take before it is abandoned.
+ *
+ * Five minutes, and the number comes from the diffs this is meant to open rather
+ * than from what feels patient. `oven-sh/bun#30412` - one of DiffsHub's own two
+ * demo links - is a 43.3MB patch that GitHub takes about seventy seconds to
+ * hand over. At twenty seconds it timed out, and what a reader saw was a page
+ * that had rendered perfectly and said "the operation timed out": the viewer
+ * refusing the exact diff it was built to open.
+ *
+ * The bound that matters for memory is `MAX_PATCH_BYTES`, which is enforced as
+ * the body streams. This one only stops a request that has stalled.
+ */
+export const FETCH_TIMEOUT_MS = 300_000
 
 /** How many redirects are followed before this gives up. */
 export const MAX_REDIRECTS = 5
@@ -221,36 +233,54 @@ function allowed(url: string): boolean {
  * arrives, which on a hostile or simply enormous upstream is however much the
  * process has. This stops at the ceiling and says so.
  */
-async function readBounded(response: Response, limit: number): Promise<string | null> {
+async function readBounded(response: Response, limit: number): Promise<string | 'too-large' | 'network'> {
   const declared = Number(response.headers.get('content-length') ?? '')
 
   if (Number.isFinite(declared) && declared > limit)
-    return null
+    return 'too-large'
 
   const reader = response.body?.getReader()
 
   if (!reader)
-    return null
+    return 'network'
 
   const chunks: Uint8Array[] = []
   let total = 0
 
-  for (;;) {
-    const { done, value } = await reader.read()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
 
-    if (done)
-      break
+      if (done)
+        break
 
-    if (value) {
-      total += value.byteLength
+      if (value) {
+        total += value.byteLength
 
-      if (total > limit) {
-        await reader.cancel().catch(() => {})
-        return null
+        if (total > limit) {
+          await reader.cancel().catch(() => {})
+          return 'too-large'
+        }
+
+        chunks.push(value)
       }
-
-      chunks.push(value)
     }
+  }
+  catch {
+    /*
+     * A body that stops arriving, or a request whose timeout fires while it is
+     * still arriving.
+     *
+     * This used to throw, and the throw escaped `fetchPatch` entirely - past
+     * every carefully classified failure below - and came out of the action as
+     * an unhandled `TimeoutError`. A reader saw a 500 where the whole point of
+     * this file is to say which of four things went wrong. The abort is caught
+     * where the request is made; this is the other half of the same request,
+     * and it needed catching too.
+     */
+    await reader.cancel().catch(() => {})
+
+    return 'network'
   }
 
   return new TextDecoder().decode(await new Blob(chunks as BlobPart[]).arrayBuffer())
@@ -452,8 +482,13 @@ export async function fetchPatch(target: DiffTarget, options: FetchOptions = {})
     if (answer.ok) {
       const patch = await readBounded(answer, MAX_PATCH_BYTES)
 
-      if (patch === null)
+      if (patch === 'too-large')
         return failure('too-large')
+
+      if (patch === 'network') {
+        last = failure('network')
+        continue
+      }
 
       /*
        * A 200 that is not a patch is a redirect that landed somewhere else -

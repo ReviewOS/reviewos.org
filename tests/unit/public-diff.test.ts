@@ -27,7 +27,7 @@ import type { DiffTarget } from '../../app/Actions/PublicDiff/parse'
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { ALLOWED_HOSTS, apiPatchUrl, classify, fetchPatch, hostAllowed, looksLikePatch, resetOutboundWindow, takeOutboundSlot, webPatchUrl } from '../../app/Actions/PublicDiff/fetch'
 import { MOUNT, parseDiffPath, parseDiffUrl } from '../../app/Actions/PublicDiff/parse'
-import { CACHE_TTL_MS, cachedPatch, cacheKey, clearPatchCache, patchCacheStats, storePatch } from '../../app/Actions/PublicDiff/patchCache'
+import { CACHE_TTL_MS, cachedPatch, cacheKey, clearPatchCache, inFlightCount, patchCacheStats, shareFetch, storePatch } from '../../app/Actions/PublicDiff/patchCache'
 import { renderTargetDiff } from '../../app/Actions/PublicDiff/render'
 import { onlyFiles } from '../../app/Actions/PublicDiff/ViewRowsAction'
 import { patchAsSource, SOURCE_CHUNK_BYTES } from '../../app/Actions/PublicDiff/source'
@@ -485,6 +485,94 @@ describe('holding a patch between the requests that need it', () => {
   })
 })
 
+describe('one download, however many readers ask for it at once', () => {
+  /**
+   * The cache above answers the *second* reader. This is about the second
+   * reader who arrives while the first is still waiting, which is not the rare
+   * case - it is what one reader opening one page does. The viewer asks for a
+   * manifest and for its first rows in the same breath, so a 43MB patch was
+   * downloaded three times concurrently, each copy slowing the others until one
+   * of them passed the timeout and the reader was told the operation timed out
+   * on a diff that was fetching perfectly well.
+   */
+  beforeEach(() => {
+    clearPatchCache()
+  })
+
+  test('two askers, one fetch', async () => {
+    let calls = 0
+    let release: (value: string) => void = () => {}
+    const held = new Promise<string>((resolve) => {
+      release = resolve
+    })
+
+    const fetcher = (): Promise<string> => {
+      calls += 1
+
+      return held
+    }
+
+    const first = shareFetch('k', fetcher)
+    const second = shareFetch('k', fetcher)
+
+    expect(calls).toBe(1)
+    expect(inFlightCount()).toBe(1)
+
+    release('PATCH')
+
+    expect(await first).toBe('PATCH')
+    expect(await second).toBe('PATCH')
+    expect(calls).toBe(1)
+  })
+
+  test('two keys are two fetches, because they are two diffs', async () => {
+    let calls = 0
+    const fetcher = async (): Promise<number> => {
+      calls += 1
+
+      return calls
+    }
+
+    await Promise.all([shareFetch('a', fetcher), shareFetch('b', fetcher)])
+
+    expect(calls).toBe(2)
+  })
+
+  test('the sharing ends when the fetch does', async () => {
+    // What to keep is the cache's decision, not this one's. If a settled fetch
+    // stayed here it would be a second cache with no expiry, handing out a
+    // patch from an hour ago.
+    let calls = 0
+    const fetcher = async (): Promise<string> => {
+      calls += 1
+
+      return 'PATCH'
+    }
+
+    await shareFetch('k', fetcher)
+
+    expect(inFlightCount()).toBe(0)
+
+    await shareFetch('k', fetcher)
+
+    expect(calls).toBe(2)
+  })
+
+  test('a failed fetch is not a result the next reader joins', async () => {
+    let calls = 0
+    const failing = async (): Promise<string> => {
+      calls += 1
+
+      throw new Error('network')
+    }
+
+    await expect(shareFetch('k', failing)).rejects.toThrow('network')
+    expect(inFlightCount()).toBe(0)
+
+    await expect(shareFetch('k', failing)).rejects.toThrow('network')
+    expect(calls).toBe(2)
+  })
+})
 describe('streaming somebody else\'s diff instead of rendering it whole', () => {
   /**
    * The front door used to render every file it could - up to three hundred -
