@@ -28,6 +28,8 @@
  * a reader is looking.
  */
 
+import { setDiffRequestHeaders } from './diffviewer'
+
 const STORAGE_KEY = 'reviewos:view-token'
 
 /**
@@ -55,18 +57,38 @@ function storedToken(): string {
   }
 }
 
-/** The proxy URL for whatever diff this page is showing. */
-function patchUrl(): string | null {
+/** The target this page is showing, as the query every view endpoint takes. */
+function targetQuery(): string | null {
   const parts = window.location.pathname.replace(/^\/+/, '').split('/')
 
-  // `view/owner/repository/kind/ref…` - the range in a compare can carry
-  // slashes, so everything after the kind is the ref.
+  // `view/owner/repository/kind/ref…` - a compare range can carry slashes, so
+  // everything after the kind is the ref. Which is also why the endpoints take
+  // it in the query: a path parameter does not match across a slash.
   if (parts.length < 5 || parts[0] !== 'view')
     return null
 
   const [, owner, repository, kind, ...rest] = parts
 
-  return `/api/view/${encodeURIComponent(owner!)}/${encodeURIComponent(repository!)}/${encodeURIComponent(kind!)}/${encodeURIComponent(rest.join('/'))}`
+  return `owner=${encodeURIComponent(owner!)}&repo=${encodeURIComponent(repository!)}`
+    + `&kind=${encodeURIComponent(kind!)}&ref=${encodeURIComponent(rest.join('/'))}`
+}
+
+/**
+ * The saved token, as a header the streamed viewer will carry.
+ *
+ * A large diff is not rendered into the page - it is streamed, by the same
+ * viewer the review screen uses - and those requests need the reader's token
+ * just as the rendered path does. Set before mounting, so the very first
+ * manifest request carries it.
+ *
+ * Still a header and still never a query parameter, for the reason the rest of
+ * this file exists: proxies log query strings.
+ */
+export function applyStoredToken(): void {
+  const token = storedToken()
+
+  if (token)
+    setDiffRequestHeaders({ authorization: `Bearer ${token}` })
 }
 
 export function mountPublicDiff(): void {
@@ -93,12 +115,14 @@ export function mountPublicDiff(): void {
   }
 
   const reload = async (token: string): Promise<void> => {
-    const url = patchUrl()
+    const query = targetQuery()
 
-    if (!url) {
+    if (!query) {
       say('This page is not a diff.')
       return
     }
+
+    const url = `/api/view/patch?${query}`
 
     say('Fetching…')
 
@@ -161,6 +185,20 @@ export function mountPublicDiff(): void {
     }
     catch {
       // Not being remembered is not a reason to refuse the fetch.
+    }
+
+    /*
+     * A streamed diff reloads the page rather than being patched in place.
+     *
+     * The viewer is already mounted against a manifest fetched without the
+     * token, and re-mounting it means unwinding a scroll position, a file list
+     * and every measured height. A reload is one line and lands the reader
+     * exactly where a fresh visit with a saved token would.
+     */
+    if (document.querySelector('[data-diff-stream]')) {
+      say('Reloading with your token…')
+      window.location.reload()
+      return
     }
 
     void reload(token)

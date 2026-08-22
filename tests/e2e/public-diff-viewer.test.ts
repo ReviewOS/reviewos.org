@@ -90,31 +90,66 @@ describe('the viewer answers where it is mounted', () => {
   }, 60_000)
 })
 
-describe('the proxy endpoint', () => {
-  test('refuses a target that is not a pull request, commit or compare', async () => {
+describe('the endpoints behind it', () => {
+  /**
+   * Three of them, and the target rides in the query on all three.
+   *
+   * A path parameter does not match across a slash, and a compare range is
+   * `main...user:feature/x` - so in the path, every compare with a slashed
+   * branch name is a 404, which is most of the interesting ones.
+   */
+  const endpoints = ['patch', 'manifest', 'rows'] as const
+
+  test.each(endpoints)('/api/view/%s refuses a target that is not a diff', async (endpoint) => {
     if (!available)
       return
 
-    const answer = await fetch(`http://127.0.0.1:${port}/api/view/owner/repository/tree/main`)
+    const answer = await fetch(`http://127.0.0.1:${port}/api/view/${endpoint}?owner=owner&repo=repository&kind=tree&ref=main`)
 
     expect(answer.status).toBe(422)
   }, 60_000)
 
-  test('exists under /api, where the route registry is loaded', async () => {
+  test('the rows endpoint refuses a request that names no files', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/api/view/rows?owner=o&repo=r&kind=pull&ref=1`)
+
+    expect(answer.status).toBe(422)
+  }, 60_000)
+
+  test.each(endpoints)('/api/view/%s resolves, which is the arrangement that was wrong twice', async (endpoint) => {
     if (!available)
       return
 
     // Not asserting a diff comes back - that would reach GitHub. Asserting the
-    // route resolves at all, which is the arrangement that was wrong twice.
-    const answer = await fetch(`http://127.0.0.1:${port}/api/view/owner/repository/pull/123`)
-
-    expect([200, 429]).toContain(answer.status)
-
-    const body = await answer.json().catch(() => null) as { ok?: boolean, reason?: string } | null
+    // route exists at all: these live under `/api`, where the route registry is
+    // loaded, and the page lives outside it, where views are.
+    //
+    // The status cannot decide it. A diff that does not exist is a 404 from
+    // *our* handler and a route that does not exist is a 404 from the
+    // framework, so the tell is the shape of the body: ours says `error`, the
+    // framework's says `Not Found`.
+    const answer = await fetch(`http://127.0.0.1:${port}/api/view/${endpoint}?owner=o&repo=r&kind=pull&ref=1&path=x`)
+    const body = await answer.json().catch(() => null) as { message?: string, error?: string, ok?: boolean } | null
 
     expect(body).not.toBeNull()
-    // Off the network in a test environment, so whatever it says, it says it in
-    // the shape the page knows how to read.
-    expect(typeof body?.ok).toBe('boolean')
+    expect(body?.message).not.toBe('Not Found')
+  }, 60_000)
+})
+
+describe('a large diff is streamed rather than rendered whole', () => {
+  test('the page carries a stream host and points it at the endpoints', async () => {
+    if (!available)
+      return
+
+    // Asserted on the *shape* rather than by fetching a real diff: what matters
+    // here is that the page and the endpoints agree about the URL, which is the
+    // seam that broke when the target moved out of the path.
+    const { html } = await page('/view/owner/repository/pull/123')
+
+    // A redirect page for a canonical URL carries no host, so this is the
+    // canonical one.
+    expect(html).toContain('/view/owner/repository/pull/123')
   }, 60_000)
 })

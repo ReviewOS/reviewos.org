@@ -324,20 +324,37 @@ Numbers, so the work can be checked rather than argued about:
       lines is not.
 - [ ] Mobile Safari renders the bun and node pull requests DiffsHub uses as demos without blanking
 
-      **Blocked on having a Mobile Safari to test in, and that is the whole of it.** This machine has
-      Xcode's command line tools and not Xcode, so there is no iOS Simulator; desktop Safari is
-      reachable but is not the engine under test on a phone, and a Chrome device-emulation run would
-      answer a question nobody asked - blanking is WebKit's memory killer, and Blink pretending to
-      be a phone does not have one.
+      **The demos are `oven-sh/bun#30412` and `nodejs/node#59805`**, read off DiffsHub's own landing
+      page rather than guessed at. Both open on this instance at `/view/…`, which is what the box
+      needs a browser pointed at.
 
-      Recorded rather than approximated, because an approximation here would be worse than nothing:
-      "it held 30MB in emulated mobile Chrome" reads as evidence and is not.
+      **And pointing one at them found the thing that would have failed, which was ours.** The front
+      door rendered every file it could - up to three hundred - into one document: **24.9MB** of
+      HTML for the node diff and **55.5MB** for the bun one. A phone does not render that, it
+      reloads the tab, and that is precisely what blanking is. It would have failed the box for a
+      reason that had nothing to do with the diff engine and everything to do with the front door
+      not using it.
 
-      **What did change is that the test is now set up.** The public front door renders any GitHub
-      diff by URL, so those exact demo pull requests open on this instance at
-      `/view/oven-sh/bun/pull/N` - which is what the box needs a browser pointed at. When there is a
-      simulator, the run is: open two of them, scroll each end to end, and watch for the tab
-      reloading itself, which is what blanking is.
+      So the front door now streams, exactly as the review screen does - a manifest, rows for the
+      first screen beside it, the rest as the reader reaches them - through the *same*
+      `streamManifest`, which turned out to take a source of patch text and know nothing about git.
+      The two demos are now a **0.38MB** page each, and the node one carries all 3,420 of its files
+      rather than the first three hundred.
+
+      | | before | after |
+      |---|---|---|
+      | `nodejs/node#59805` | 24.9MB in one document | 0.38MB page, 3,420 files streamed |
+      | `oven-sh/bun#30412` | 55.5MB in one document | 0.38MB page |
+
+      **What is left is a simulator that can reach the network.** Xcode 27 beta and the iOS 27
+      runtime are installed and a phone boots, but nothing in it loads: `example.com` stalls with the
+      progress bar part-drawn, and so does a static file on the host, after a clean shutdown and
+      reboot. That is the simulator's networking on this machine rather than anything here, and it
+      is the only thing between this box and an answer.
+
+      `buddy simulator:doctor` and `buddy simulator:open <url> --screenshot <path>` are what remain
+      of the afternoon: the run is two commands rather than a page of `xcrun`, so whoever has a
+      working simulator can finish this in a minute.
 - [x] No regression for the small case: a fifteen-file pull request is still readable with JavaScript
       disabled. The conversation page renders every row, every syntax token and every review thread
       server-side, and its reply and resolve controls are plain forms - checked by fetching the page

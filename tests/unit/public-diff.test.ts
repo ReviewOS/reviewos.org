@@ -24,10 +24,13 @@
  */
 
 import type { DiffTarget } from '../../app/Actions/PublicDiff/parse'
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { ALLOWED_HOSTS, apiPatchUrl, classify, fetchPatch, hostAllowed, looksLikePatch, resetOutboundWindow, takeOutboundSlot, webPatchUrl } from '../../app/Actions/PublicDiff/fetch'
 import { MOUNT, parseDiffPath, parseDiffUrl } from '../../app/Actions/PublicDiff/parse'
+import { CACHE_TTL_MS, cachedPatch, cacheKey, clearPatchCache, patchCacheStats, storePatch } from '../../app/Actions/PublicDiff/patchCache'
 import { renderTargetDiff } from '../../app/Actions/PublicDiff/render'
+import { onlyFiles } from '../../app/Actions/PublicDiff/ViewRowsAction'
+import { patchAsSource, SOURCE_CHUNK_BYTES } from '../../app/Actions/PublicDiff/source'
 
 const PATCH = `diff --git a/x.ts b/x.ts
 index 1111111..2222222 100644
@@ -321,6 +324,16 @@ describe('the three doors, tried in order', () => {
 })
 
 describe('rendered with this instance\'s own renderer', () => {
+  /*
+   * A patch fetched once is held briefly so the manifest and the row requests
+   * that follow it share one trip to GitHub. That is right in the product and
+   * wrong in a suite: without this, a test asserting a 404 gets the patch a
+   * test above it cached under the same target.
+   */
+  beforeEach(() => {
+    clearPatchCache()
+  })
+
   test('a patch becomes the same rows a review here would show', async () => {
     const { impl } = fakeFetch([{ status: 200, body: PATCH }])
     const rendered = await renderTargetDiff(target('/o/r/pull/1'), { fetchImpl: impl, unmetered: true })
@@ -399,5 +412,179 @@ describe('the ceiling on this instance\'s outbound traffic', () => {
     expect(seen.length).toBe(0)
 
     resetOutboundWindow()
+  })
+})
+
+describe('holding a patch between the requests that need it', () => {
+  /**
+   * The streamed viewer asks for a manifest and then asks for rows, several
+   * times, as the reader scrolls. Each is a separate request to this server and
+   * each needs the same patch - forty-three megabytes from GitHub, for one of
+   * the diffs this viewer was written to open. Fetching it per request would be
+   * slow for the reader, rude to GitHub, and would spend the outbound limit
+   * several times over on one diff.
+   */
+  beforeEach(() => {
+    clearPatchCache()
+  })
+
+  const pull = parseDiffPath('/o/r/pull/1')!
+
+  test('answers the second asker from the first fetch', () => {
+    const key = cacheKey(pull, null)
+
+    storePatch(key, PATCH)
+
+    expect(cachedPatch(key)).toBe(PATCH)
+    expect(patchCacheStats().entries).toBe(1)
+  })
+
+  test('a reader with a token never serves a reader without one', () => {
+    // The whole point: one of these is somebody's private repository.
+    storePatch(cacheKey(pull, 'ghp_someone'), 'PRIVATE')
+
+    expect(cachedPatch(cacheKey(pull, null))).toBeNull()
+    expect(cachedPatch(cacheKey(pull, 'ghp_someone_else'))).toBeNull()
+    expect(cachedPatch(cacheKey(pull, 'ghp_someone'))).toBe('PRIVATE')
+  })
+
+  test('and the key carries no token in it', () => {
+    // Reduced to a fingerprint: enough to keep two readers apart, not enough to
+    // be a credential if the key ever reaches a log.
+    expect(cacheKey(pull, 'ghp_averyrecognisabletoken')).not.toContain('averyrecognisable')
+  })
+
+  test('two targets are two entries', () => {
+    storePatch(cacheKey(pull, null), PATCH)
+    storePatch(cacheKey(parseDiffPath('/o/r/pull/2')!, null), PATCH)
+
+    expect(patchCacheStats().entries).toBe(2)
+  })
+
+  test('stops answering once it is old enough that somebody may have pushed', () => {
+    const key = cacheKey(pull, null)
+    const now = 1_000_000
+
+    storePatch(key, PATCH, now)
+
+    expect(cachedPatch(key, now + CACHE_TTL_MS - 1)).toBe(PATCH)
+    expect(cachedPatch(key, now + CACHE_TTL_MS + 1)).toBeNull()
+    // And the bytes went with it, rather than being held until something else
+    // happened to evict them.
+    expect(patchCacheStats().bytes).toBe(0)
+  })
+
+  test('a patch bigger than the whole budget is not held at all', () => {
+    // Holding it would evict everything else and then itself. The request it
+    // came from still worked; there is simply nothing to keep.
+    const enormous = 'x'.repeat(200 * 1024 * 1024)
+
+    storePatch(cacheKey(pull, null), enormous)
+
+    expect(patchCacheStats().entries).toBe(0)
+  })
+})
+
+describe('streaming somebody else\'s diff instead of rendering it whole', () => {
+  /**
+   * The front door used to render every file it could - up to three hundred -
+   * into one document. On the two diffs this viewer was written against that is
+   * 24.9MB of HTML for `nodejs/node#59805` and **55.5MB** for
+   * `oven-sh/bun#30412`, in a single page. A phone does not render that; it
+   * reloads the tab, which is the exact failure DiffsHub's own landing page
+   * warns about and the one this product exists to beat.
+   *
+   * So a large diff gets what the review screen has: a manifest, rows for the
+   * first screen beside it, and the rest fetched as the reader reaches them.
+   */
+  test('a patch becomes a source the manifest generator can read', async () => {
+    const source = patchAsSource(PATCH)
+    const chunks: string[] = []
+
+    for await (const chunk of source.chunks)
+      chunks.push(chunk)
+
+    // Byte for byte: the manifest parses this, and a source that reshaped the
+    // patch would be a second parser with its own opinions.
+    expect(chunks.join('')).toBe(PATCH)
+    expect(await source.done).toEqual({ ok: true, code: 0, stderr: '' })
+  })
+
+  test('a patch larger than one chunk arrives in several', async () => {
+    // The splitter and the parser are written for a stream, and handing them
+    // one enormous string makes the first file wait for the last byte.
+    const big = PATCH + 'x'.repeat(SOURCE_CHUNK_BYTES * 2)
+    const chunks: string[] = []
+
+    for await (const chunk of patchAsSource(big).chunks)
+      chunks.push(chunk)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.join('')).toBe(big)
+  })
+})
+
+describe('picking named files out of a patch', () => {
+  const three = [
+    'diff --git a/one.ts b/one.ts',
+    'index 111..222 100644',
+    '--- a/one.ts',
+    '+++ b/one.ts',
+    '@@ -1 +1 @@',
+    '-a',
+    '+b',
+    'diff --git a/two.ts b/two.ts',
+    'index 333..444 100644',
+    '--- a/two.ts',
+    '+++ b/two.ts',
+    '@@ -1 +1 @@',
+    '-c',
+    '+d',
+    'diff --git a/three.ts b/three.ts',
+    'index 555..666 100644',
+    '--- a/three.ts',
+    '+++ b/three.ts',
+    '@@ -1 +1 @@',
+    '-e',
+    '+f',
+    '',
+  ].join('\n')
+
+  test('keeps the ones asked for, in order, and nothing else', () => {
+    const kept = onlyFiles(three, new Set(['one.ts', 'three.ts']))
+
+    expect(kept.match(/diff --git/g)?.length).toBe(2)
+    expect(kept).toContain('a/one.ts')
+    expect(kept).toContain('a/three.ts')
+    expect(kept).not.toContain('a/two.ts')
+  })
+
+  test('a file nobody asked for contributes nothing', () => {
+    expect(onlyFiles(three, new Set(['nothing.ts']))).toBe('')
+  })
+
+  test('asking for all of them gives all of them back', () => {
+    const kept = onlyFiles(three, new Set(['one.ts', 'two.ts', 'three.ts']))
+
+    expect(kept.match(/diff --git/g)?.length).toBe(3)
+  })
+
+  test('the name it matches is the one the manifest reports', () => {
+    // A rename has two names and the viewer knows the new one, which is the
+    // `b/` side. Matching on `a/` would miss every renamed file.
+    const renamed = [
+      'diff --git a/old.ts b/new.ts',
+      'similarity index 100%',
+      'rename from old.ts',
+      'rename to new.ts',
+      '',
+    ].join('\n')
+
+    expect(onlyFiles(renamed, new Set(['new.ts']))).toContain('rename to new.ts')
+    expect(onlyFiles(renamed, new Set(['old.ts']))).toBe('')
+  })
+
+  test('an empty patch is an empty answer rather than a throw', () => {
+    expect(onlyFiles('', new Set(['one.ts']))).toBe('')
   })
 })

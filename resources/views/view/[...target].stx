@@ -25,8 +25,7 @@
  * which stays in their browser and is sent as a header on one proxy request.
  * See `app/Actions/PublicDiff/ViewPatchAction.ts`.
  */
-import { escapeHtml } from '../../../app/Actions/Pull/shell'
-import { FAILURE_TITLES, MOUNT, parseDiffPath, publicDiffEnabled, renderTargetDiff } from '../../functions/publicdiff'
+import { FAILURE_TITLES, MOUNT, parseDiffPath, patchFor, publicDiffEnabled, renderTargetDiff, SSR_VIEW_PATCH_BYTES } from '../../functions/publicdiff'
 
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
@@ -53,13 +52,40 @@ else if (!target)
  * of somebody else's patch first - the reader is going to ask again in a
  * moment, and the rate limit this endpoint has is counted in outbound requests.
  */
-const rendered = target && !shouldRedirect
-  ? await renderTargetDiff(target)
-  : null
+const patch = target && !shouldRedirect ? await patchFor(target) : null
 
-const failureTitle = rendered && !rendered.ok && rendered.reason
-  ? (FAILURE_TITLES[rendered.reason] ?? 'That diff could not be fetched')
+/*
+ * Two ways to show a diff, and the patch's size decides which.
+ *
+ * **Small: render it whole, here.** Every file, readable with no script
+ * running, which is nearly every diff anybody pastes into this box.
+ *
+ * **Large: hand it to the streamed viewer.** Rendering whole is what makes a
+ * phone reload the tab - `oven-sh/bun#30412`, one of the two diffs DiffsHub
+ * demonstrates with, is 55MB of HTML that way. The same manifest-then-rows
+ * arrangement the review screen uses, against the same viewer, so there is one
+ * implementation of the hard part rather than two.
+ */
+const streaming = Boolean(patch?.ok && patch.patch.length > SSR_VIEW_PATCH_BYTES)
+
+const rendered = patch?.ok && !streaming ? await renderTargetDiff(target) : null
+
+const failed = patch != null && !patch.ok ? patch : null
+
+const failureTitle = failed?.reason
+  ? (FAILURE_TITLES[failed.reason] ?? 'That diff could not be fetched')
   : ''
+
+/*
+ * Where the viewer fetches from. The target rides in the query rather than the
+ * path because a compare range is `main...user:feature/x`, and a path parameter
+ * does not match across a slash.
+ */
+const viewQuery = target
+  ? `owner=${encodeURIComponent(target.owner)}&repo=${encodeURIComponent(target.repository)}&kind=${encodeURIComponent(target.kind)}&ref=${encodeURIComponent(target.ref)}`
+  : ''
+const manifestUrl = `/api/view/manifest?${viewQuery}`
+const rowsUrl = `/api/view/rows?${viewQuery}`
 
 const subject = target
   ? (target.kind === 'pull'
@@ -73,7 +99,6 @@ const upstream = target
 
 const diffHtml = rendered?.ok ? rendered.html : ''
 const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file' : 'files'}` : ''
-const escapedCanonical = escapeHtml(canonical)
 </script>
 
 @layout('app')
@@ -119,10 +144,44 @@ const escapedCanonical = escapeHtml(canonical)
       @if (counts)
         <span>{{ counts }}</span>
       @endif
+      <span data-diff-status></span>
     </p>
   </header>
 
-  @if (rendered && rendered.ok)
+  @if (failed)
+    <section class="panel page-empty" data-view-failure>
+      <h1>{{ failureTitle }}</h1>
+      <p>{{ failed.message }}</p>
+    </section>
+  @elseif (streaming)
+    {{--
+      A diff too large to put in one document. The same host the review screen
+      renders, filled by the same viewer from the same kind of manifest - so a
+      forty megabyte patch arrives a screen at a time and the reader's phone
+      renders a screen at a time.
+    --}}
+    <div
+      class="diff-stream"
+      data-diff-stream
+      data-layout="unified"
+      data-manifest-url="{{ manifestUrl }}"
+      data-rows-url="{{ rowsUrl }}"
+    >
+      <aside class="diff-files" data-diff-file-list aria-label="Files changed"></aside>
+
+      <div class="diff-scroller" data-diff-scroller>
+        <div data-diff-content></div>
+      </div>
+    </div>
+
+    <noscript>
+      <p class="page-note">
+        This diff is large enough that it is streamed a screen at a time, which
+        needs JavaScript. <a href="{{ upstream }}" rel="noreferrer noopener">Read it on GitHub</a>
+        instead, or open a smaller diff here.
+      </p>
+    </noscript>
+  @elseif (rendered && rendered.ok)
     @if (rendered.message)
       <p class="page-note">{{ rendered.message }}</p>
     @endif
@@ -131,8 +190,8 @@ const escapedCanonical = escapeHtml(canonical)
     </div>
   @else
     <section class="panel page-empty" data-view-failure>
-      <h1>{{ failureTitle }}</h1>
-      <p>{{ rendered ? rendered.message : '' }}</p>
+      <h1>That diff could not be shown</h1>
+      <p>Something went wrong reading it. Trying again usually works.</p>
     </section>
   @endif
 
@@ -176,7 +235,13 @@ const escapedCanonical = escapeHtml(canonical)
   bundle is silently empty.
 --}}
 <script client>
-import { mountPublicDiff } from '@/resources/functions/publicdiffclient'
+import { mountDiffFiles } from '@/resources/functions/diffviewer'
+import { applyStoredToken, mountPublicDiff } from '@/resources/functions/publicdiffclient'
 
+// Before mounting, so the very first manifest request carries the reader's
+// token if they have saved one. `mountDiffFiles` answers null on a page with no
+// streamed host, which is every small diff.
+applyStoredToken()
+mountDiffFiles()
 mountPublicDiff()
 </script>

@@ -106,8 +106,22 @@ export function resetOutboundWindow(): void {
   outbound.spent = 0
 }
 
-/** The most patch bytes read into memory for one request. */
-export const MAX_PATCH_BYTES = 32 * 1024 * 1024
+/**
+ * The most patch bytes read into memory for one request.
+ *
+ * Sixty-four megabytes, and the number is set by the diffs this is meant to
+ * open rather than by a round figure. DiffsHub's own demo links are the bar
+ * this viewer was written against, and one of them - `oven-sh/bun#30412` - is a
+ * **43.3MB** patch. A ceiling that refuses the thing being demonstrated is a
+ * ceiling in the wrong place.
+ *
+ * What it protects is this server's memory for one request, and it is not what
+ * protects the reader: `MAX_RENDERED_FILES` is, by rendering the first three
+ * hundred files and saying so. Those are different bounds on different
+ * machines, and conflating them is how the browser-side limit came to be
+ * enforced by a server-side one.
+ */
+export const MAX_PATCH_BYTES = 64 * 1024 * 1024
 
 /** How long one upstream request may take before it is abandoned. */
 export const FETCH_TIMEOUT_MS = 20_000

@@ -506,6 +506,31 @@ export function firstBatchSize(viewportHeight: number, rowHeight: number): numbe
   return Math.max(FIRST_BATCH_MIN, Math.min(FIRST_BATCH_MAX, Math.ceil(viewportHeight / rowHeight)))
 }
 
+/**
+ * Headers this viewer's own requests carry, beyond `Accept`.
+ *
+ * One case, and it is the public front door: a reader opening somebody else's
+ * private diff supplies a GitHub token, and the manifest and row requests have
+ * to carry it as an `Authorization` header. Not in the URL - every proxy
+ * between the browser and this server logs query strings, and a personal access
+ * token in a log file outlives the request by months.
+ *
+ * A module variable rather than an option threaded through four call sites,
+ * because it is set once before mounting and never varies per request. It is
+ * deliberately not put in the DOM: the token lives in this browser's storage
+ * and in the header, and nowhere a page scrape would find it.
+ */
+let requestHeaders: Record<string, string> = {}
+
+export function setDiffRequestHeaders(headers: Record<string, string>): void {
+  requestHeaders = { ...headers }
+}
+
+/** `Accept`, plus whatever this viewer has been told to carry. */
+function accepting(type: string): Record<string, string> {
+  return { ...requestHeaders, Accept: type }
+}
+
 /** One frame, so a mount or a measurement has happened before reading it back. */
 function nextFrame(): Promise<void> {
   return new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -1659,7 +1684,7 @@ export async function streamDiffManifest(
   signal?: AbortSignal,
   options: ManifestStreamOptions = {},
 ): Promise<void> {
-  const response = await fetch(url, { signal, headers: { Accept: 'application/x-ndjson' } })
+  const response = await fetch(url, { signal, headers: accepting('application/x-ndjson') })
 
   if (!response.ok) {
     handlers.onError?.(await describeFailure(response))
@@ -2224,7 +2249,7 @@ export function mountDiffFiles(): DiffViewer | null {
       if (opened != null)
         query.set('open', opened)
 
-      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      const response = await fetch(`${rowsUrl}&${query}`, { headers: accepting('application/x-ndjson') })
       if (!response.ok)
         throw new Error(await response.text())
 
@@ -2264,7 +2289,7 @@ export function mountDiffFiles(): DiffViewer | null {
       if (opened != null)
         query.set('open', opened)
 
-      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      const response = await fetch(`${rowsUrl}&${query}`, { headers: accepting('application/x-ndjson') })
       if (!response.ok)
         throw new Error(await response.text())
 
@@ -2346,7 +2371,7 @@ export function mountDiffFiles(): DiffViewer | null {
     try {
       const requested = layout
       const response = await fetch(`${rowsUrl}&layout=${requested}&${query}`, {
-        headers: { Accept: 'application/x-ndjson' },
+        headers: accepting('application/x-ndjson'),
       })
       if (!response.ok)
         throw new Error(await response.text())

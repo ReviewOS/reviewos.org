@@ -6610,10 +6610,24 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /api/view/{owner}/{repo}/{kind}/{ref}
+   * GET /api/view/manifest
    */
-  getViewOwnerRepoKindRef(input: { "owner": string; "repo": string; "kind": string; "ref": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/view/{owner}/{repo}/{kind}/{ref}", input ?? {}, [], false, options)
+  getViewManifest(input?: { "owner"?: string; "repo"?: string; "kind"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/view/manifest", input ?? {}, ["owner", "repo", "kind", "ref"], false, options)
+  },
+
+  /**
+   * GET /api/view/patch
+   */
+  getViewPatch(input?: { "owner"?: string; "repo"?: string; "kind"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/view/patch", input ?? {}, ["owner", "repo", "kind", "ref"], false, options)
+  },
+
+  /**
+   * GET /api/view/rows
+   */
+  getViewRows(input?: { "owner"?: string; "repo"?: string; "kind"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/view/rows", input ?? {}, ["owner", "repo", "kind", "ref"], false, options)
   },
 
   /**

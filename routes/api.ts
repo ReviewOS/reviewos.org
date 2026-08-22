@@ -568,8 +568,30 @@ route.get('/repos/blame', 'Actions/Browse/BlameAction')
  * this instance and writes nothing anywhere. Its only credential is a token the
  * *reader* types in for their own repositories, which no cross-site request can
  * forge because no browser attaches it.
+ *
+ * The target rides in the query rather than the path, and that is not a style
+ * choice: a compare range is `main...user:feature/x`, and a path parameter does
+ * not match across a slash. Put it in the path and every compare with a slashed
+ * branch name is a 404 - which is most of the interesting ones.
  */
-route.get('/view/{owner}/{repo}/{kind}/{ref}', 'Actions/PublicDiff/ViewPatchAction').middleware('throttle:30,5m')
+route.get('/view/patch', 'Actions/PublicDiff/ViewPatchAction').middleware('throttle:30,5m')
+
+/*
+ * The same diff, streamed, which is what a large one needs.
+ *
+ * Rendering every file into one document is what makes a phone reload the tab -
+ * `oven-sh/bun#30412` is 55MB of HTML that way - so the front door gets the
+ * review screen's arrangement: a manifest first, rows for the first screen
+ * beside it, the rest fetched as the reader reaches them.
+ *
+ * Throttled more generously than the patch endpoint above, because these are
+ * the *same* outbound fetch: the patch is held between them, so a reader
+ * scrolling a large diff makes many of these requests and one trip to GitHub.
+ * The ceiling that matters for outbound traffic is in `fetch.ts` and counts
+ * fetches rather than requests.
+ */
+route.get('/view/manifest', 'Actions/PublicDiff/ViewManifestAction').middleware('throttle:60,5m')
+route.get('/view/rows', 'Actions/PublicDiff/ViewRowsAction').middleware('throttle:600,5m')
 /*
  * Code search, in one repository, at a ref.
  *
