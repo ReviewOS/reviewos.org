@@ -223,6 +223,7 @@ export default function (cli: CLI) {
     .option('--device <name>', 'Which device, by name. Defaults to the newest iPhone.', { default: '' })
     .option('--screenshot <path>', 'Save a picture of the result here', { default: '' })
     .option('--settle <seconds>', 'How long to let the page load before the screenshot', { default: 8 })
+    .option('--fresh', 'Quit Mobile Safari first, so this is not the last page again', { default: false })
     .action(async (url: string, options: any) => {
       // Refused rather than passed to `simctl openurl`. `openurl` hands whatever
       // it is given to the system, and the system knows a great many schemes -
@@ -271,6 +272,20 @@ export default function (cli: CLI) {
         }
 
         await run(['xcrun', 'simctl', 'bootstatus', chosen.udid], 180_000)
+      }
+
+      /*
+       * Quit Safari first, when asked.
+       *
+       * `openurl` on a URL Safari already has open restores the page from its
+       * back-forward cache - same scroll position, same DOM, none of the CSS or
+       * script that changed since. Checking a fix that way photographs the bug
+       * it was meant to fix and reports it as still there, which cost an
+       * afternoon once already.
+       */
+      if (options.fresh) {
+        await run(['xcrun', 'simctl', 'terminate', chosen.udid, 'com.apple.mobilesafari'], 30_000)
+        await Bun.sleep(1200)
       }
 
       const opened = await run(['xcrun', 'simctl', 'openurl', chosen.udid, url], 60_000)
