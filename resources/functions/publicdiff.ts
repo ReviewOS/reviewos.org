@@ -28,24 +28,6 @@ export const renderTargetDiff = renderTargetDiffImpl
  */
 export const patchFor = patchForImpl
 
-/**
- * How large a patch may be and still be rendered whole, on the server.
- *
- * Under it, the page is a page: every file rendered, readable with no script
- * running, exactly as a fifteen-file pull request is on the review screen. That
- * is nearly every diff anybody pastes.
- *
- * Over it, rendering whole is what makes a phone reload the tab - DiffsHub's
- * own demo `oven-sh/bun#30412` comes to 55MB of HTML that way, and their
- * landing page warns about precisely this - so the page hands over to the
- * streamed viewer instead.
- *
- * Half a megabyte of *patch*, not of markup, because that is the number
- * available before any work has been done. Rendered markup runs several times
- * the patch that produced it.
- */
-export const SSR_VIEW_PATCH_BYTES = 512 * 1024
-
 /** Where the viewer lives, so the page and the parser agree on one prefix. */
 export const MOUNT = MOUNT_IMPL
 

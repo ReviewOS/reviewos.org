@@ -25,7 +25,7 @@
  * which stays in their browser and is sent as a header on one proxy request.
  * See `app/Actions/PublicDiff/ViewPatchAction.ts`.
  */
-import { FAILURE_TITLES, MOUNT, parseDiffPath, patchFor, publicDiffEnabled, renderTargetDiff, SSR_VIEW_PATCH_BYTES } from '../../functions/publicdiff'
+import { FAILURE_TITLES, MOUNT, parseDiffPath, publicDiffEnabled, renderTargetDiff } from '../../functions/publicdiff'
 
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
@@ -52,29 +52,50 @@ else if (!target)
  * of somebody else's patch first - the reader is going to ask again in a
  * moment, and the rate limit this endpoint has is counted in outbound requests.
  */
-const patch = target && !shouldRedirect ? await patchFor(target) : null
-
 /*
- * Two ways to show a diff, and the patch's size decides which.
+ * The page fetches nothing, and that is the whole point of it.
  *
- * **Small: render it whole, here.** Every file, readable with no script
- * running, which is nearly every diff anybody pastes into this box.
+ * It used to fetch the patch here to decide how to show the diff, and on a
+ * large one that is fourteen seconds of a blank tab before the first byte - the
+ * document request itself held open while this server talked to GitHub. Found
+ * on an actual phone, where it reads exactly like the failure this viewer
+ * exists to avoid.
  *
- * **Large: hand it to the streamed viewer.** Rendering whole is what makes a
- * phone reload the tab - `oven-sh/bun#30412`, one of the two diffs DiffsHub
- * demonstrates with, is 55MB of HTML that way. The same manifest-then-rows
- * arrangement the review screen uses, against the same viewer, so there is one
- * implementation of the hard part rather than two.
+ * So the page renders immediately, always, as the host the streamed viewer
+ * fills. The fetching happens on the manifest request, where a reader is
+ * already being told something is loading, and where the same inline row budget
+ * the review screen uses means a small diff arrives complete on the first
+ * response anyway.
+ *
+ * `?render=whole` is the door for a reader with no JavaScript. It does the
+ * fetching and renders every file server-side, which is the old behaviour - and
+ * it is allowed to be slow, because asking for it is asking for the whole thing
+ * at once.
  */
-const streaming = Boolean(patch?.ok && patch.patch.length > SSR_VIEW_PATCH_BYTES)
+/*
+ * `useRoute().query`, not a bare `query`.
+ *
+ * A server script has `params` and `db` bound and no `query` - naming one
+ * throws, stx catches the throw, falls back to static extraction, and renders
+ * the page with *every* variable undefined. No error, no stack trace, just a
+ * page showing its empty branch. Three ticked boxes in this roadmap turned out
+ * to be untrue for exactly that reason.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
+const whole = String(search.render ?? '') === 'whole'
 
-const rendered = patch?.ok && !streaming ? await renderTargetDiff(target) : null
+const rendered = target && !shouldRedirect && whole ? await renderTargetDiff(target) : null
 
-const failed = patch != null && !patch.ok ? patch : null
+const failed = rendered != null && !rendered.ok ? rendered : null
+
+const streaming = Boolean(target) && !shouldRedirect && !whole
 
 const failureTitle = failed?.reason
   ? (FAILURE_TITLES[failed.reason] ?? 'That diff could not be fetched')
   : ''
+
+/** Where a reader with no JavaScript is sent, and what the noscript links to. */
+const wholeUrl = target ? `${canonical}?render=whole` : ''
 
 /*
  * Where the viewer fetches from. The target rides in the query rather than the
@@ -176,9 +197,10 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
 
     <noscript>
       <p class="page-note">
-        This diff is large enough that it is streamed a screen at a time, which
-        needs JavaScript. <a href="{{ upstream }}" rel="noreferrer noopener">Read it on GitHub</a>
-        instead, or open a smaller diff here.
+        This diff is streamed a screen at a time, which needs JavaScript.
+        <a href="{{ wholeUrl }}">Render the whole thing on the server</a> instead -
+        it is slower, and on a very large diff it is a great deal of markup for
+        one page.
       </p>
     </noscript>
   @elseif (rendered && rendered.ok)
