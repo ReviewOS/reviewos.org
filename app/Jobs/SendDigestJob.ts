@@ -26,6 +26,40 @@ import { dbTimestamp } from '../Actions/Support/sql'
  * collapsing across subjects loses the thing the reader needed to know. That
  * grouping is `batchNotifications`, tested as a pure function.
  */
+/**
+ * How long a digest keeps being retried before it is given up on.
+ *
+ * A held row that fails to send stays `pending`, which is the promise this job
+ * exists to keep: a failed digest that marked its rows sent would lose every
+ * notification in it. But *forever* is a different thing, and forever is what
+ * it was.
+ *
+ * The sweep reads the oldest rows first and stops at two thousand. So an
+ * address that can never be delivered to - a mailbox that no longer exists, a
+ * domain that stopped resolving - accumulates rows that are retried on every
+ * single sweep, get slower every day, and once there are two thousand of them
+ * take the whole limit and no new notification is ever sent again. Head-of-line
+ * blocking, by mail nobody can receive, on a queue whose entire job is not
+ * losing anything.
+ *
+ * Three days, because it has to be longer than any interruption a working mail
+ * server can plausibly have and shorter than the point where a "here is what
+ * happened" summary is worth reading.
+ */
+const GIVE_UP_AFTER_MS = 3 * 24 * 60 * 60 * 1000
+
+/**
+ * What a row's `error` says once a send has been tried and failed.
+ *
+ * `SendNotificationJob` writes `held for the digest`, which means *not tried
+ * yet*. Overwriting it on the first failure is what makes the difference
+ * legible, and the difference matters: giving up needs evidence of a previous
+ * attempt, not merely an old row. Somebody on do-not-disturb for a fortnight
+ * has rows older than the cutoff that have never been tried once, and retiring
+ * those on their first failure would punish them for going on holiday.
+ */
+const TRIED_AND_FAILED = 'the digest could not be sent'
+
 export default new Job({
   name: 'SendDigestJob',
   description: 'Send held notifications, grouped by thread',
@@ -42,7 +76,7 @@ export default new Job({
 
     const pending = await db
       .selectFrom('notification_deliveries')
-      .select(['id', 'user_id', 'channel', 'recipient', 'subject', 'body', 'created_at'])
+      .select(['id', 'user_id', 'channel', 'recipient', 'subject', 'body', 'created_at', 'error'])
       .where('status', '=', 'pending')
       // Email only. Push is not wired up, and a digest push would be an
       // interruption about a list, which is the opposite of what the channel is
@@ -104,6 +138,7 @@ export default new Job({
 
     let sent = 0
     let failed = 0
+    let abandoned = 0
 
     for (const batch of batches) {
       const rows = ready.filter(row =>
@@ -123,10 +158,46 @@ export default new Job({
       const ok = await deliver(address, batch.subjectKey, rows.map(row => String(row.subject ?? '')))
 
       if (!ok) {
-        // Left pending on purpose. A failed digest that marked its rows sent
-        // would lose every notification in it, and the whole point of holding
-        // rather than dropping is that nothing is lost.
         failed += 1
+
+        const ids = rows.map(row => Number(row.id))
+        const tried = rows.every(row => String(row.error ?? '') === TRIED_AND_FAILED)
+        const oldest = Math.min(...rows.map(row => Date.parse(String(row.created_at ?? '')) || now))
+
+        /*
+         * Tried before, and old enough that it is not going to work.
+         *
+         * Marked `failed` rather than left pending, because pending means "the
+         * next sweep will try this" and the next sweep will fail too - forever,
+         * for every sweep, ahead of everything newer. The row and its reason
+         * stay in the table; what stops is the retrying.
+         */
+        if (tried && now - oldest > GIVE_UP_AFTER_MS) {
+          await db
+            .updateTable('notification_deliveries')
+            .set({ status: 'failed', error: `${TRIED_AND_FAILED}, and it is too old to keep trying`, updated_at: dbTimestamp() })
+            .where('id', 'in', ids)
+            .execute()
+
+          abandoned += rows.length
+          continue
+        }
+
+        /*
+         * Otherwise left pending on purpose, with the attempt recorded. A
+         * failed digest that marked its rows sent would lose every notification
+         * in it, and the whole point of holding rather than dropping is that
+         * nothing is lost. The `error` is what makes the *next* sweep able to
+         * tell a row that has been failing from one that has never been tried.
+         */
+        if (!tried) {
+          await db
+            .updateTable('notification_deliveries')
+            .set({ error: TRIED_AND_FAILED, updated_at: dbTimestamp() })
+            .where('id', 'in', ids)
+            .execute()
+        }
+
         continue
       }
 
@@ -139,7 +210,7 @@ export default new Job({
       sent += 1
     }
 
-    return { ok: true, sent, failed, held: pending.length - ready.length }
+    return { ok: true, sent, failed, abandoned, held: pending.length - ready.length }
   },
 })
 
