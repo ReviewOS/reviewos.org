@@ -48,6 +48,35 @@ What it reports, and why each is there:
   screen was fetched, which looks exactly like the server being slow rather than like the client
   asking twice.
 
+## A diff too large to watch load
+
+A diff of eighty thousand files takes this server about thirty seconds to compute and stream, nearly
+all of it git. On a machine where a scripted browser does not live that long - a headless renderer
+here is killed after about thirty seconds whatever the page is doing, `about:blank` included - the
+page spends its whole life waiting and never reaches the part being measured.
+
+So measure the two halves apart. The server's, with no browser in it:
+
+```bash
+time curl -s -o /dev/null "$SERVER/api/repos/pulls/diff/manifest?owner=o&repo=r&number=1"
+```
+
+and the client's, with no server in it:
+
+```bash
+curl -s "$SERVER/api/repos/pulls/diff/manifest?owner=o&repo=r&number=1" > kernel.ndjson
+bun scripts/benchmarks/replay.ts --capture kernel.ndjson --upstream "$SERVER"
+```
+
+`replay.ts` proxies the real page to the real instance and serves the manifest from the capture -
+the same records, byte for byte, at the speed of a disk. Point the probe or `trace.ts` at the port
+it prints.
+
+What it does not prove is that the two work together, and the comment at the top of the file says
+so. Before believing any "the page stopped answering" result, run a blank page for the same
+duration: that control is what turned an apparent stall in the viewer into a fact about this
+machine.
+
 ## Chrome traces
 
 The probe says whether frames were dropped. `trace.ts` says which phase dropped them.

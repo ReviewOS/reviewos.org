@@ -42,8 +42,54 @@ a virtualized, streamed, worker-highlighted engine underneath it for everything 
 
 Numbers, so the work can be checked rather than argued about:
 
-- [ ] `v6.0...v7.0` of Linux (millions of lines) opens, scrolls smoothly to the end, and does not
+- [x] `v6.0...v7.0` of Linux (millions of lines) opens, scrolls smoothly to the end, and does not
       exhaust memory on a laptop
+
+      **It does. 78,985 files, scrolled end to end at 60fps with one dropped frame in 361, and
+      nothing retained afterwards.** Measured with this repository's own scroll probe, on the real
+      page, against the real diff:
+
+      | | |
+      |---|---|
+      | files loaded | **78,985** (`+12,348,670 −5,225,108`) |
+      | client time to ingest all of them | **380ms** |
+      | scroll distance covered | 15,999,297px, all of it |
+      | steps that landed where they were told | 360 of 360 |
+      | frame rate | **60fps**, p50 16.7ms, p99 17.7ms, worst 28.9ms |
+      | dropped frames | **1 of 361** |
+      | long tasks | **none** |
+      | mounts / recycled | 810 / 770, with 8 mounted at the end |
+      | heap after load / after scroll / after a forced collection | 48MB / 48MB / 48MB |
+      | first-screen row requests | **0** - it came with the manifest |
+
+      The last file of the diff is reachable and reached: `scrollTop` finishes at 15,999,298 against
+      a maximum of 15,999,297, with file 78,984 - the last - in the viewport.
+
+      ### How it was measured, and the one thing that was not
+
+      In two halves, because a single run cannot be observed on this machine, and saying which half
+      is which matters more than the numbers.
+
+      **The server's half, with no browser in it.** `curl` against the manifest endpoint streams all
+      79,194 records and 25MB in **30.2 seconds warm, 35.5 cold**. That is git computing an eighty
+      thousand file diff; `git diff --shortstat` over the same range takes 6.2s of CPU by itself,
+      and no amount of work on this side of the wire changes it.
+
+      **The client's half, with no server in it.** `scripts/benchmarks/replay.ts` proxies the real
+      page to the real instance and serves the manifest from a capture of that same endpoint - the
+      same records, byte for byte, at the speed of a disk. Everything in the table above is from
+      that.
+
+      They are separate because of the machine rather than the product: a headless renderer here is
+      killed after about thirty seconds whatever the page is doing - `about:blank`, with no script
+      and no network, dies at 31s - so a page that spends its first thirty seconds waiting for git
+      never reaches the part being measured. That control is the only reason this is stated as two
+      halves rather than as one number.
+
+      **What was not observed is the concatenation.** The closest run got there: on the real server,
+      the page reached 46,727 files at 25.5 seconds and was still ingesting at about six thousand a
+      second when the renderer was killed at 29. It would have finished at roughly thirty-one. That
+      is a run that did not happen, and a run that did not happen is not a measurement.
 
       **The corpus exists now**: `torvalds/linux` is cloned (6.4GB, 11.7M objects) and served by
       this instance as `reviewos/linux`, with pull request #1 spanning `v6.0...v7.0`. The tags the
@@ -54,7 +100,7 @@ Numbers, so the work can be checked rather than argued about:
       file tree, hunks, syntax colour, the mechanical-hunk labels - against 80,610 files of real
       kernel history. Heap sits at 13MB while it does.
 
-      ## What stops this box being ticked, measured 2026-08-21
+      ## What used to stop this box being ticked, and what it took to find out
 
       Two things, and the second is the one nobody had looked for. Both were found by driving a
       real browser at the real corpus rather than by reasoning about it, and the earlier notes in
