@@ -10,6 +10,23 @@
 if (!Bun.env.STRIPE_SECRET_KEY)
   Bun.env.STRIPE_SECRET_KEY = 'sk_test_fake_key_for_testing'
 
+/**
+ * The public diff viewer, on for the suite.
+ *
+ * `config/publicdiff.ts` reads this once, when it is first imported - and every
+ * test file shares one process, so *whichever file imports it first* decides
+ * for all of them. Setting it in one file's `beforeAll` therefore worked when
+ * that file ran alone and did nothing at all when a unit test had already
+ * pulled the config in: the viewer's endpoints answered 404 and its own
+ * end-to-end suite failed, on code that was correct.
+ *
+ * Here instead, because this file runs before any of them. Nothing asserts the
+ * off behaviour through a server; that it is off by default is a property of
+ * `config/publicdiff.ts`, which is read there rather than exercised here.
+ */
+if (!Bun.env.PUBLIC_DIFF_ENABLED)
+  Bun.env.PUBLIC_DIFF_ENABLED = 'true'
+
 // A run-local hook secret, when the checkout has not configured one. An empty
 // secret deliberately disables the post-receive endpoint (a default secret is
 // a published secret), which on a fresh `.env` makes git-http's push-pipeline

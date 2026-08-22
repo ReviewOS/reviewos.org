@@ -209,6 +209,19 @@ describe('the files screen carries the syntax themes', () => {
     // so a reader who has chosen nothing sees what they always saw.
     expect(html).toContain('var(--t-keyword, #8250df)')
 
+    /*
+     * And the viewer's own layout, which is the same kind of claim.
+     *
+     * These rules moved into `DiffViewerStyles` because the public viewer at
+     * `/view` mounted the same markup and shipped none of them - and a scroller
+     * with no height means a virtualizer that measures nothing and mounts
+     * nothing, so the page renders a file list above an empty space. Asserted
+     * on both pages now, because "the CSS is on the other one" is exactly the
+     * failure.
+     */
+    expect(html).toContain('.diff-scroller {')
+    expect(html).toContain('--diff-viewport-offset')
+
     // The picker, offering the built-in palette and the library's themes.
     expect(html).toContain('data-diff-pref="syntaxTheme"')
     expect(html).toContain('<option value="default">')

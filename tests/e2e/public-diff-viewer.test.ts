@@ -29,8 +29,12 @@ async function page(path: string): Promise<{ status: number, html: string }> {
 
 beforeAll(async () => {
   try {
-    // Read by `config/publicdiff.ts` at import time, so it is set before the
-    // routes and views are loaded rather than after.
+    /*
+     * Belt and braces. The value that counts is set in `tests/setup.ts`,
+     * because `config/publicdiff.ts` reads it the first time *any* file imports
+     * it - and by the time this hook runs, a unit test may already have. This
+     * line is what remains correct if this file is ever run on its own.
+     */
     process.env.PUBLIC_DIFF_ENABLED = 'true'
 
     const { injectGlobalAutoImports } = await import('@stacksjs/server')
@@ -149,7 +153,83 @@ describe('a large diff is streamed rather than rendered whole', () => {
     const { html } = await page('/view/owner/repository/pull/123')
 
     // A redirect page for a canonical URL carries no host, so this is the
-    // canonical one.
+    // canonical one. The host itself, by an attribute the bundle does not name.
     expect(html).toContain('/view/owner/repository/pull/123')
+    expect(html).toContain('class="diff-stream"')
+  }, 60_000)
+
+  test('and names the two endpoints it will call, with the target in the query', async () => {
+    if (!available)
+      return
+
+    const { html } = await page('/view/owner/repository/pull/123')
+
+    // The target rides in the query because a compare range is
+    // `main...user:feature/x` and a path parameter cannot match across a slash.
+    expect(html).toContain('data-manifest-url="/api/view/manifest?owner=owner&amp;repo=repository&amp;kind=pull&amp;ref=123"')
+    expect(html).toContain('data-rows-url="/api/view/rows?owner=owner&amp;repo=repository&amp;kind=pull&amp;ref=123"')
+  }, 60_000)
+
+  test('the page itself fetches nothing upstream', async () => {
+    if (!available)
+      return
+
+    /*
+     * `owner/repository#123` does not exist, and the page says nothing about
+     * that - because it never asked. It used to: the document request was held
+     * open while this server talked to GitHub, which on a large diff is
+     * fourteen seconds of blank tab before the first byte, and on a phone reads
+     * exactly like the failure this viewer exists to avoid.
+     *
+     * A failure title on this page would mean the fetch came back. There isn't
+     * one, so it didn't happen.
+     */
+    const { status, html } = await page('/view/owner/repository/pull/123')
+
+    expect(status).toBe(200)
+    expect(html).toContain('class="diff-stream"')
+    /*
+     * Asserted on the failure panel's *heading*, not on `data-view-failure` and
+     * not on the word "fetched". This page inlines its client bundle, and that
+     * bundle names both of those - so either would be found on a page that is
+     * working perfectly. The heading exists only in the template's failure
+     * branch.
+     */
+    expect(html).not.toContain('That diff could not be shown')
+  }, 60_000)
+
+  test('and ships the layout the viewer needs to measure anything', async () => {
+    if (!available)
+      return
+
+    /*
+     * The defect a phone found. The grid and the fixed-height scroller lived in
+     * the review screen's own style block; this page mounted the same markup
+     * and carried none of it, so `.diff-scroller` was a plain block with no
+     * height and no overflow. The virtualizer measured a viewport of nothing,
+     * mounted nothing, and the page showed a file list above an empty space -
+     * answering 200, carrying its whole manifest, and showing the reader no
+     * diff at all.
+     */
+    const { html } = await page('/view/owner/repository/pull/123')
+
+    expect(html).toContain('.diff-scroller {')
+    expect(html).toContain('--diff-viewport-offset')
+    // Sized from the visible height, not `100vh` - which in Mobile Safari is
+    // the height with the toolbars hidden.
+    expect(html).toContain('100dvh')
+  }, 60_000)
+
+  test('and offers a reader with no script the server-rendered whole', async () => {
+    if (!available)
+      return
+
+    // The old noscript sent them to GitHub, which is a viewer admitting it
+    // cannot show them the thing. `?render=whole` is slow and complete, and it
+    // is the same page.
+    const { html } = await page('/view/owner/repository/pull/123')
+
+    expect(html).toContain('<noscript>')
+    expect(html).toContain('render=whole')
   }, 60_000)
 })
