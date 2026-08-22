@@ -386,6 +386,8 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
       </noscript>
     @endif
   </div>
+
+<DiffViewerStyles />
 @endsection
 
 {{--
@@ -492,52 +494,7 @@ mountDiffFiles()
 
   .files-head { padding-bottom: 12px; }
 
-  /* The viewport the list virtualizes against. Sized by the page, never by its
-    contents: a region that grew with what is inside it would put every file in
-    the document and there would be nothing left to virtualize. */
-  /* The list beside the diff rather than above it, so a reader can see where
-    they are in the change while reading part of it. */
-  .diff-stream {
-    display: grid;
-    min-height: 0;
-    flex: 1;
-    grid-template-columns: 260px minmax(0, 1fr);
-    gap: 14px;
-  }
-
-  @media (max-width: 900px) {
-    /* Not enough width for both. The diff is the point, so the list goes. */
-    .diff-stream { grid-template-columns: minmax(0, 1fr); }
-    .diff-files { display: none; }
-  }
-
-  .diff-files {
-    height: calc(100vh - 210px);
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: var(--r-panel);
-    background: var(--surface);
-    contain: strict;
-  }
-
-  .diff-scroller {
-    height: calc(100vh - 210px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    /* Layout, paint and style all stop at this boundary, so a file mounting
-      cannot invalidate the page around it. */
-    contain: strict;
-    /* The browser's own scroll anchoring fights ours. */
-    overflow-anchor: none;
-  }
-
-  /* No padding of its own. The space between files is the layout's `gap`, and
-    a host that padded itself would have that space counted twice: once in the
-    height the viewer measures, and once when it adds the gap. */
-  .diff-file-host { padding-bottom: 0; }
-
-  .is-pending .diff-head { opacity: 0.6; }
-
-  [data-diff-status][data-tone='error'] { color: var(--bad); }
-  [data-diff-status][data-tone='warn'] { color: var(--warn, var(--bad)); }
+  /* The list beside the diff rather than above it, and the viewport both
+    virtualize against, are in `DiffViewerStyles` - two pages mount this viewer
+    and only one of them used to carry the rules. */
 </style>

@@ -1,0 +1,83 @@
+{{--
+  The streamed viewer's layout, in one place because two pages mount it.
+
+  The review screen had these rules and the public viewer at `/view` had none,
+  which is not a cosmetic difference: without them `.diff-scroller` is a plain
+  block with no height and no `overflow`, so the virtualizer measures a viewport
+  of nothing, mounts nothing, and the page shows a file list above an empty
+  space where the diff should be. It looks exactly like a diff that failed to
+  load, on the page whose entire job is opening diffs that are too large for
+  anywhere else - and it only showed up on a phone, because the desktop layout
+  happened to give the list enough room to look deliberate.
+
+  So: one component, included by both, rather than a block of CSS somebody has
+  to remember to copy the next time this viewer is mounted somewhere.
+--}}
+<style>
+  /*
+   * The viewport the list and the rows virtualize against. Sized by the page,
+   * never by its contents: a region that grew with what is inside it would put
+   * every file in the document and there would be nothing left to virtualize.
+   *
+   * `--diff-viewport-offset` is the page chrome above it. Each page sets its
+   * own on `.diff-stream`; this is the review screen's, as the default.
+   */
+  .diff-stream {
+    --diff-viewport-offset: 210px;
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  @media (max-width: 900px) {
+    /* Not enough width for both. The diff is the point, so the list goes. */
+    .diff-stream { grid-template-columns: minmax(0, 1fr); }
+    .diff-files { display: none; }
+  }
+
+  .diff-files {
+    height: calc(100vh - var(--diff-viewport-offset));
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    contain: strict;
+  }
+
+  .diff-scroller {
+    height: calc(100vh - var(--diff-viewport-offset));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Layout, paint and style all stop at this boundary, so a file mounting
+      cannot invalidate the page around it. */
+    contain: strict;
+    /* The browser's own scroll anchoring fights ours. */
+    overflow-anchor: none;
+  }
+
+  /*
+   * `dvh` where it exists, which is the mobile half of the same measurement.
+   *
+   * Mobile Safari's `100vh` is the height with the toolbars hidden, so a
+   * scroller sized in `vh` is taller than the screen while they are showing and
+   * the page gets a second scrollbar - the outer one moving the whole document
+   * while the inner one is what the viewer listens to. `dvh` is the height that
+   * is actually visible, and it changes as the toolbars do.
+   */
+  @supports (height: 100dvh) {
+    .diff-files,
+    .diff-scroller { height: calc(100dvh - var(--diff-viewport-offset)); }
+  }
+
+  /* No padding of its own. The space between files is the layout's `gap`, and
+    a host that padded itself would have that space counted twice: once in the
+    height the viewer measures, and once when it adds the gap. */
+  .diff-file-host { padding-bottom: 0; }
+
+  .is-pending .diff-head { opacity: 0.6; }
+
+  [data-diff-status][data-tone='error'] { color: var(--bad); }
+  [data-diff-status][data-tone='warn'] { color: var(--warn, var(--bad)); }
+</style>

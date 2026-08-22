@@ -101,6 +101,14 @@ const FILE_ROW_HEIGHT = 26
 const FILE_LIST_OVERSCAN = 200
 
 /**
+ * Room left below the viewer, so its last line is not against the window edge.
+ *
+ * Added to the measured distance from the top of the document, which is the
+ * other half of the same sum - see `sizeViewport`.
+ */
+const VIEWPORT_BOTTOM_GAP = 18
+
+/**
  * The list of files beside the diff.
  *
  * Windowed like the diff itself, and for the same reason: a forty thousand file
@@ -1127,9 +1135,50 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     schedule()
   }
 
+  /**
+   * How tall the viewport is, measured rather than assumed.
+   *
+   * The scroller's height is `calc(100dvh - var(--diff-viewport-offset))`, and
+   * that offset is whatever page chrome happens to sit above it - a nav, a page
+   * gutter, a header panel naming the pull request. Written as a constant it is
+   * right on the page it was measured on and wrong everywhere else, and "wrong"
+   * here is not a few pixels off: a scroller taller than the window gives the
+   * document its own scrollbar, so the reader drags the whole page while the
+   * viewer, which listens to the inner one, mounts nothing and shows an empty
+   * space where the diff is.
+   *
+   * So it is read off the element. `rect.top + scrollY` is the distance from
+   * the top of the document, which does not change as the reader scrolls, and
+   * the trailing gap is the page's own bottom padding.
+   */
+  const stream = scroller.closest<HTMLElement>('[data-diff-stream]')
+  let writtenOffset = ''
+
+  function sizeViewport(): void {
+    if (!stream)
+      return
+
+    const top = stream.getBoundingClientRect().top + (typeof window === 'undefined' ? 0 : window.scrollY)
+    const next = `${Math.max(0, Math.round(top)) + VIEWPORT_BOTTOM_GAP}px`
+
+    // Only when it changed: writing it is a style change, and a style change is
+    // a resize, and this runs from the resize observer.
+    if (next === writtenOffset)
+      return
+
+    writtenOffset = next
+    stream.style.setProperty('--diff-viewport-offset', next)
+  }
+
+  const onWindowResize = (): void => {
+    sizeViewport()
+  }
+
   const resizeObserver = typeof ResizeObserver === 'undefined'
     ? null
     : new ResizeObserver(() => {
+        sizeViewport()
+
         // The viewport changed shape, so every measured height is suspect: a
         // line that wrapped at one width may not at another.
         const frame = planFrame(
@@ -1151,6 +1200,10 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 
   scroller.addEventListener('scroll', onScroll, { passive: true })
   resizeObserver?.observe(scroller)
+  sizeViewport()
+
+  if (typeof window !== 'undefined')
+    window.addEventListener('resize', onWindowResize, { passive: true })
 
   /** Take an anchor now, so a change that moves things can put the reader back. */
   /**
@@ -1473,6 +1526,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 
       scroller.removeEventListener('scroll', onScroll)
       resizeObserver?.disconnect()
+
+      if (typeof window !== 'undefined')
+        window.removeEventListener('resize', onWindowResize)
 
       for (const index of [...hosts.keys()])
         release(index)

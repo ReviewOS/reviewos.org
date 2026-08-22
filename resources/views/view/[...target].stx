@@ -195,6 +195,14 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
       </div>
     </div>
 
+    {{--
+      The viewer's layout, shared with the review screen. Without it the
+      scroller has no height, the virtualizer measures a viewport of nothing and
+      the page renders a file list above an empty space - which is what a phone
+      showed here before this line existed.
+    --}}
+    <DiffViewerStyles />
+
     <noscript>
       <p class="page-note">
         This diff is streamed a screen at a time, which needs JavaScript.
