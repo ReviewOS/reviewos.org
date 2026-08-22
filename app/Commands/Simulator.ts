@@ -3,6 +3,12 @@ import process from 'node:process'
 
 // The iOS Simulator, as commands rather than as a paragraph in a chat log.
 //
+// **This now lives upstream too**, as `simulator.ts` in the buddy CLI, because
+// nothing in it is about this application. The copy here is what this instance
+// runs until it upgrades to a framework release that carries it; when it does,
+// delete this file rather than editing it, and fix the upstream one - two
+// copies of a command is two commands that will disagree.
+//
 // Everything here was first done by hand, once, to answer one question: does
 // Mobile Safari render the diffs this product is measured against without
 // blanking. That is not a one-off question - it is the phase 14 box that stayed
