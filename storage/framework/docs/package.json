@@ -13,7 +13,7 @@
     "@stacksjs/config": "workspace:*",
     "@stacksjs/env": "workspace:*",
     "@stacksjs/path": "workspace:*",
-    "@stacksjs/server": "workspace:*",
+    "@stacksjs/server": "workspace:*0.74.24",
     "@stacksjs/storage": "workspace:*"
   }
 }

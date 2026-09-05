@@ -68,18 +68,18 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
-    "@stacksjs/actions": "^0.72.50",
-    "@stacksjs/api": "^0.72.50",
-    "@stacksjs/buddy": "^0.72.50",
+    "@stacksjs/actions": "^0.74.24",
+    "@stacksjs/api": "^0.74.24",
+    "@stacksjs/buddy": "^0.74.24",
     "@stacksjs/bunpress": "^0.2.8",
     "@stacksjs/database": "^0.72.50",
-    "@stacksjs/docs": "^0.72.50",
+    "@stacksjs/docs": "^0.74.24",
     "@stacksjs/env": "^0.72.50",
-    "@stacksjs/events": "^0.72.50",
-    "@stacksjs/faker": "^0.72.50",
-    "@stacksjs/orm": "^0.72.50",
+    "@stacksjs/events": "^0.74.24",
+    "@stacksjs/faker": "^0.74.24",
+    "@stacksjs/orm": "^0.74.24",
     "@stacksjs/queue": "^0.72.50",
-    "@stacksjs/search-engine": "^0.72.50",
+    "@stacksjs/search-engine": "^0.74.24",
     "@stacksjs/router": "^0.72.50",
     "@stacksjs/server": "^0.72.50",
     "@stacksjs/stx": "^0.2.199",
@@ -108,7 +108,7 @@
     "commit-msg": "bun x gitlint --edit \"$1\""
   },
   "devDependencies": {
-    "@stacksjs/image": "^0.72.50",
+    "@stacksjs/image": "^0.74.24",
     "better-dx": "^0.2.22"
   },
   "overrides": {
