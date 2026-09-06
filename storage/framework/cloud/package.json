@@ -49,8 +49,8 @@
     "@stacksjs/dns": "workspace:*",
     "@stacksjs/logging": "workspace:*",
     "@stacksjs/path": "workspace:*",
-    "@stacksjs/queue": "workspace:*",
-    "@stacksjs/router": "workspace:*",
+    "@stacksjs/queue": "workspace:*0.74.27",
+    "@stacksjs/router": "workspace:*0.74.27",
     "@stacksjs/storage": "workspace:*",
     "@stacksjs/utils": "workspace:*",
     "@stacksjs/validation": "workspace:*"
@@ -58,6 +58,6 @@
   "devDependencies": {
     "@stacksjs/cli": "workspace:*",
     "better-dx": "^0.2.17",
-    "@stacksjs/env": "workspace:*"
+    "@stacksjs/env": "workspace:*0.74.27"
   }
 }
