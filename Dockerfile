@@ -9,7 +9,7 @@
 # it, and pinning a minor here is what stops a rebuild in six months picking up
 # a Bun that changed something underneath.
 
-FROM oven/bun:1.3 AS build
+FROM oven/bun:1.4.2 AS build
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY . .
 RUN bun run --bun ./buddy generate:openapi || true
 
 
-FROM oven/bun:1.3 AS runtime
+FROM oven/bun:1.4.2 AS runtime
 
 # `git` is not optional. Every repository operation shells out to it - that is
 # the design, written down in AGENTS.md - so an image without it starts fine and
