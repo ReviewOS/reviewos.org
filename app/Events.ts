@@ -4,12 +4,16 @@ import { AUDIT_EVENTS } from './Audit/events'
 /**
  * Every audited event, pointed at the one listener that writes the log.
  *
- * `Object.fromEntries` loses the key literals, so the type is asserted back:
- * the keys are `AuditEventName`, which is exactly what `AUDIT_EVENTS` holds.
+ * `Object.fromEntries` loses both literals, so the type is asserted back: the
+ * keys are `AuditEventName`, which is exactly what `AUDIT_EVENTS` holds, and
+ * the value is the one listener name. The listener half has to be literal too
+ * now that `ListenerName` is the set of listeners on disk rather than `string`,
+ * which is the point of it: a misspelled listener used to type-check and then
+ * handle nothing.
  */
 const RECORDED_IN_THE_AUDIT_LOG = Object.fromEntries(
-  AUDIT_EVENTS.map(name => [name, ['RecordAudit']]),
-) as Record<(typeof AUDIT_EVENTS)[number], string[]>
+  AUDIT_EVENTS.map(name => [name, ['RecordAudit'] as const]),
+) as Record<(typeof AUDIT_EVENTS)[number], readonly ['RecordAudit']>
 
 /**
  * **Events Configuration**

@@ -22,7 +22,7 @@
 
 import { db } from '@stacksjs/database'
 import { decrypt } from '@stacksjs/security'
-import { generateKey, signingKey } from './oidc'
+import { generateKey } from './oidc'
 
 /** What a signature covers, in the order it is written down. */
 export interface SignedWork {

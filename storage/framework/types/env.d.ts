@@ -14,6 +14,11 @@ export {}
 declare module 'bun' {
   namespace env {
     const API_PREFIX: string
+    const APPLE_CLIENT_ID: string
+    const APPLE_KEY_ID: string
+    const APPLE_PRIVATE_KEY: string
+    const APPLE_REDIRECT_URL: string
+    const APPLE_TEAM_ID: string
     const APP_COMING_SOON: boolean
     const APP_COMING_SOON_SECRET: string
     const APP_DOMAIN: string
@@ -105,6 +110,8 @@ declare module 'bun' {
     const MAIL_USERNAME: string
     const MEILISEARCH_HOST: string
     const MEILISEARCH_KEY: string
+    const PAGES_CUSTOM_DOMAINS: string
+    const PAGES_DOMAIN: string
     const PHONE_FORWARD_NUMBER: string
     const PHONE_NOTIFY_EMAIL: string
     const PORT: number
@@ -117,6 +124,8 @@ declare module 'bun' {
     const PORT_INSPECT: string
     const PORT_LIBRARY: string
     const PORT_SYSTEM_TRAY: string
+    const PUBLIC_DIFF_ENABLED: string
+    const PUBLIC_DIFF_RATE: string
     const PUSHER_APP_CLUSTER: string
     const PUSHER_APP_ID: string
     const PUSHER_APP_KEY: string
@@ -156,6 +165,11 @@ declare module 'bun' {
 // here, each one gets the type its value implies.
 declare module '@stacksjs/env' {
   interface StacksEnv {
+    APPLE_CLIENT_ID: string | undefined
+    APPLE_KEY_ID: string | undefined
+    APPLE_PRIVATE_KEY: string | undefined
+    APPLE_REDIRECT_URL: string | undefined
+    APPLE_TEAM_ID: string | undefined
     AWS_BUCKET: string | undefined
     AWS_ENDPOINT: string | undefined
     AWS_PROFILE: string | undefined
@@ -168,6 +182,10 @@ declare module '@stacksjs/env' {
     GIT_HOOK_SECRET: string | undefined
     GIT_HOOK_URL: string | undefined
     HCLOUD_TOKEN: string | undefined
+    PAGES_CUSTOM_DOMAINS: string | undefined
+    PAGES_DOMAIN: string | undefined
+    PUBLIC_DIFF_ENABLED: string | undefined
+    PUBLIC_DIFF_RATE: string | undefined
     QUEUE_CONCURRENCY: number | undefined
     QUEUE_FAILED_DRIVER: string | undefined
     QUEUE_LOG_LEVEL: string | undefined

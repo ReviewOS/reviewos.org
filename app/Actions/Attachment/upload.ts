@@ -7,8 +7,6 @@
  * enforced on two of the three paths is a size limit that is not enforced.
  */
 
-import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import type { AttachmentKind } from './storage'
 import {
   attachmentBlobKey, attachmentUrl,

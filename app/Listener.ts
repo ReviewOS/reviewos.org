@@ -64,7 +64,7 @@ async function resolveAction(listener: string): Promise<{ handle: (event: any) =
   return pending
 }
 
-async function processListeners(type: string, listeners: string[], event: any) {
+async function processListeners(type: string, listeners: readonly string[], event: any) {
   for (const listener of listeners) {
     try {
       if (typeof listener === 'function') {

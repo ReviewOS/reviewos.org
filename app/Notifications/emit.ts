@@ -22,6 +22,29 @@ import type { EventSubject, NotificationEvent } from './definitions'
 import { dispatch } from '@stacksjs/events'
 import { subscribe } from './recipients'
 
+/**
+ * The events only programs hear.
+ *
+ * `string` until the event map stopped carrying an index signature, which is
+ * the change that made a dispatch to an undeclared name a compile error rather
+ * than a message that reached nobody. Listed here because these names are not
+ * `NotificationEvent`: nobody is subscribed to them and no inbox entry is
+ * written, they go to the webhook listener and stop there.
+ */
+export type ProgramEvent =
+  | 'artifact:expired'
+  | 'check:reported'
+  | 'deployment:status'
+  | 'job:transitioned'
+  | 'pr:ready_for_review'
+  | 'pr:synchronized'
+  | 'run:action_required'
+  | 'run:transitioned'
+  | 'status:reported'
+  | 'test:flaky'
+  | 'test:monitor'
+  | 'test:recorded'
+
 export interface EmitOptions extends EventSubject {
   /** People to reach whatever they are subscribed to. A requested reviewer. */
   addressed?: number[]
@@ -86,7 +109,7 @@ export async function notify(event: NotificationEvent, options: EmitOptions): Pr
  * Never throws, for the same reason `notify` does not: by the time this runs
  * the push has landed, and a webhook must not be able to fail it.
  */
-export async function notifyProgramsOnly(event: string, subject: EventSubject): Promise<void> {
+export async function notifyProgramsOnly(event: ProgramEvent, subject: EventSubject): Promise<void> {
   try {
     dispatch(event, { ...subject, event })
   }

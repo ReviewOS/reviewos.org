@@ -16,7 +16,7 @@ export default {
     'activeUrl': 'The {{ field }} field must be a valid URL',
     'alpha': 'The {{ field }} field must contain only letters',
     'alphaNumeric': 'The {{ field }} field must contain only letters and numbers',
-    'min': 'The {{ field }} field must have at least {{ min }} characters',
+    'minLength': 'The {{ field }} field must have at least {{ min }} characters',
     'maxLength': 'The {{ field }} field must not be greater than {{ max }} characters',
     'fixedLength': 'The {{ field }} field must be {{ size }} characters long',
     'confirmed': 'The {{ field }} field and {{ otherField }} field must be the same',
@@ -43,6 +43,7 @@ export default {
 
     // number
     'number': 'The {{ field }} field must be a number',
+    'min': 'The {{ field }} field must not be less than {{ min }}',
     'max': 'The {{ field }} field must not be greater than {{ max }}',
     'range': 'The {{ field }} field must be between {{ min }} and {{ max }}',
     'positive': 'The {{ field }} field must be positive',

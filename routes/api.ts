@@ -1,4 +1,4 @@
-import { response, route } from '@stacksjs/router'
+import { route } from '@stacksjs/router'
 
 /**
  * The JSON API.

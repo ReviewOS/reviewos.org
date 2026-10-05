@@ -1,5 +1,4 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
 import { apiError } from '../../Api/errors'
 import { isTerminal, view } from '../../Api/operations'
 import { currentActor } from '../Identity/lookup'

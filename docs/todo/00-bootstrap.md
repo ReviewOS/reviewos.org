@@ -128,6 +128,91 @@ Each one is committed and pushed in the repository named.
       `0.0.26`. Measured on the landing page: **252,661 bytes to 61,184 on the wire**, with
       `/api/health` untouched and the diff manifest still arriving a file at a time.
 
+- [x] **The framework upgrade, 0.72.50 to 0.75.65**, with stx, bun-query-builder, ts-cloud,
+      bun-router, ts-images, pickier, ts-pantry and better-dx moved with it. Not optional and not
+      separable: stacks 0.75 requires `bun-query-builder ^0.3.5`, `@stacksjs/ts-cloud ^0.16.25` and
+      `@stacksjs/bun-router ^0.1.21`, and all three were pinned to older majors in `overrides`, so a
+      partial bump resolves to a set that cannot work. The `buddy-bot/update-stacks` branch is
+      exactly that partial bump and should not be merged as it stands.
+
+      **The 408 type errors a fresh checkout reported were stale generated declarations, not the
+      version gap.** `node_modules` held 0.70.352 while the lockfile said 0.72.50, and
+      `storage/framework/types` was generated in the 0.70 era. An install plus
+      `buddy generate:types` took it to 2, and both of those were real: `config/pages.ts` and
+      `config/publicdiff.ts` each compared a `string | undefined` env var against a boolean, so one
+      clause of each was dead. Behaviour was already correct, which is why nothing reported it.
+
+      What the upgrade itself then broke was 24 errors in four groups, and three of the four were
+      the framework telling the truth about this code. The event map lost its index signature, so
+      every event this instance fires has to be declared on `AppEvents`: that is
+      `app/domain-events.d.ts`, and writing it caught three payloads whose declared shape was wrong
+      (`written` is a per-kind record and not a count, a push's `owner` can be null, and its
+      `closedIssues` is the issue numbers rather than how many). `config/errors.ts` had the
+      string-length message keyed `min` where the validator calls it `minLength`, and no numeric
+      `min` at all. `config/services.ts` still configured an FCM `serverKey`, which Google
+      deprecated and the framework has dropped.
+
+      Two things regenerating surfaced that had been latent for longer. `app/Commands/demo-content.ts`
+      exported constants from the directory where every file is expected to default-export a command,
+      which aborted part of `generate:types`; it is `app/Cli/demo-content.ts` now, beside the other
+      command helpers. And `parseRestrictions` was re-exported from both `resources/functions/repo.ts`
+      and `resources/functions/review.ts`, which is a duplicate export and therefore a barrel that
+      does not compile at all. The 0.70-era barrel never listed either one, so the collision test
+      passed by never seeing them. `repo.ts` owns the name now, because branch protection is a
+      repository concern, and the one view that read it from `review.ts` reads it from `repo.ts`.
+
+      `ts-images` 0.2.25 also stopped writing `"purpose": "any maskable"` into `site.webmanifest`
+      and writes `"any"`. Worth a look rather than a shrug: `maskable` promises Android a safe zone
+      this mark does not have, so dropping it is probably the correct claim, but it does change what
+      an installed icon looks like.
+
+      Left standing: 13 type errors and 7 lint errors, every one of them upstream and listed below.
+      Unit tests are 4,980 passing and 3 failing, and none of the three is this upgrade: two want a
+      `repair_settings` table a local database is simply behind on, and the third is the Bun
+      backpressure defect [phase 16](./16-hardening-scale.md) pins on purpose.
+
+- [ ] **stx** - **`0.2.372` cannot be installed by anybody.** It depends on `@stacksjs/desktop` at
+      exactly `0.2.372`, and that package was never published past `0.2.371`, so resolution fails
+      outright. The whole stx family pins its siblings exactly, so the four of them are held at
+      `0.2.371` without a caret: `^0.2.371` floats straight back into the broken release. Needs the
+      missing `desktop` publish upstream, and then the pins become ranges again.
+
+- [ ] **stacks** - **the env type generator ignores `config/env.ts`, and `StacksEnv` is closed now.**
+      Those two changes are only a problem together. `StacksEnv` used to carry a `[key: string]`
+      catch-all, so an undeclared variable read as `any` and nobody noticed that the generator was
+      not reading the schema. It is `interface StacksEnv extends FrameworkEnv {}` as of 0.75, and
+      the generator still emits only what it finds in the `.env` files: `PAGES_CUSTOM_DOMAINS` comes
+      out `string` where `config/env.ts` declares `schema.boolean()`, and `PAGES_MAX_AGE`, declared
+      the same way, does not come out at all. So the documented mechanism types nothing, and the
+      seven reads below are type errors with no supported way to fix them here. The skill
+      (`stacks-env`) explicitly forbids writing a `declare module '@stacksjs/env'` block, because a
+      second augmentation lets a key be typed without being validated, which is the failure
+      `config/env.ts` exists to prevent. So this waits for the generator rather than getting worked
+      around: `AUTH_IDLE_TIMEOUT`, `CACHE_DRIVER`, `REDIS_USERNAME`, `REDIS_TLS`, `GITHUB_TOKEN`
+      twice, and `PAGES_MAX_AGE`.
+
+- [ ] **stacks** - **`ActionPath` only knows `app/Actions/**`, and the resolver knows more than
+      that.** `route.post('/mcp', 'Mcp/McpAction')` runs, and `tests/e2e/github-compat.test.ts`
+      covers the sibling case, but neither name is in the generated actions registry, because this
+      application keeps `app/Mcp/` and `app/Api/` beside `app/Actions/` rather than under it. Four
+      errors in `routes/api.ts`, all of them a type describing less than the runtime does.
+
+- [ ] **stacks** - **the shipped `storage/framework/defaults` do not typecheck against the shipped
+      packages.** `PruneModelsJob.ts` imports `'../../orm/src/utils/prunable'`, which is not there,
+      and `PruneQueryLogsJob.ts` calls `QueryController.pruneQueryLogs`, which the class does not
+      have. Two errors in files this repository only reads. Seven of the remaining lint errors are
+      the same shape: unused imports in `storage/framework/defaults`, `storage/framework/server` and
+      a generated `auto-imports.d.ts`, all surfaced by pickier 0.1.67 enforcing
+      `no-unused-imports`, and all in files it would be wrong to edit here.
+
+- [ ] **stacks** - `buddy upgrade` rewrites `workspace:*` to a pinned range in the workspace
+      packages under `storage/framework`. Those are workspace members, and a version range stops
+      them resolving locally, so the one command that delivers the scaffolded declarations also
+      does that. The declarations this app was missing (`model-events`, `registries`, `gates`,
+      `models`, `request-context`, `authenticated-user`) were copied from
+      `@stacksjs/defaults/project/storage/framework/types` instead, which is the same source the
+      upgrade's own types step uses.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were

@@ -1,3 +1,4 @@
+import type { EmailTemplateReference } from '@stacksjs/email'
 import { Job } from '@stacksjs/queue'
 import { batchNotifications } from '../Actions/Notification/recipients'
 import { deliveryFor } from '../Actions/Notification/settings'
@@ -221,7 +222,7 @@ export default new Job({
  * digest: the text part is complete on its own, so a failure here means a
  * plainer email rather than a batch left pending forever.
  */
-async function render(name: string, variables: Record<string, any>): Promise<string> {
+async function render(name: EmailTemplateReference, variables: Record<string, any>): Promise<string> {
   try {
     const { template } = await import('@stacksjs/email')
     const { html } = await template(name, { variables: variables as any })

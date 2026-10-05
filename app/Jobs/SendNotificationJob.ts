@@ -1,3 +1,4 @@
+import type { EmailTemplateReference } from '@stacksjs/email'
 import type { Channel } from '../Actions/Notification/delivery'
 import { Job } from '@stacksjs/queue'
 import { deliveryFor } from '../Actions/Notification/settings'
@@ -266,7 +267,7 @@ async function send(
  * notification: the text part is complete on its own, so a failure here means a
  * plainer email rather than no email, and that trade is not close.
  */
-async function render(name: string, variables: Record<string, any>): Promise<string> {
+async function render(name: EmailTemplateReference, variables: Record<string, any>): Promise<string> {
   try {
     const { template } = await import('@stacksjs/email')
     const { html } = await template(name, { variables: variables as any })

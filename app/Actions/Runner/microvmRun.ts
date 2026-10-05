@@ -37,7 +37,7 @@ import { machineSpec } from './microvm'
 import type { EgressPolicy, EgressRule } from './networkPolicy'
 import { buildEgressPolicy } from './networkPolicy'
 import { superviseJob } from './microvmSupervisor'
-import type { JobStep, SupervisorHost } from './microvmSupervisor'
+import type { SupervisorHost } from './microvmSupervisor'
 import {
   egressRules,
   firecrackerPath,
