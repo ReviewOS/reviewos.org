@@ -24,7 +24,7 @@ import {
   SERVICE_README,
   SERVICE_TYPES,
   TIMEOUT_BODY,
-} from './demo-content'
+} from '../Cli/demo-content'
 import { initBare } from '../Actions/Git/git'
 import { repositoryPath } from '../Actions/Git/storage'
 import { branchSha, createCommit } from '../Actions/Git/write'

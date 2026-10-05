@@ -148,7 +148,6 @@ import { checksPanel as checksPanelImpl } from '../../app/Actions/Checks/panel'
 import { annotationsByLine as annotationsByLineImpl, annotationsForLine as annotationsForLineImpl, renderAnnotations as renderAnnotationsImpl } from '../../app/Actions/Pull/annotations'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
 import { isBehindBase as isBehindBaseImpl } from '../../app/Actions/Pull/mergeability'
-import { parseRestrictions as parseRestrictionsImpl } from '../../app/Actions/Repo/branchRules'
 import { pushActorFor as pushActorForImpl } from '../../app/Actions/Git/access'
 
 export const parseDiff = parseDiffImpl
@@ -184,7 +183,6 @@ export const isMergeStrategy = isMergeStrategyImpl
  * the endpoint is the disagreement that costs the most trust.
  */
 export const isBehindBase = isBehindBaseImpl
-export const parseRestrictions = parseRestrictionsImpl
 export const pushActorFor = pushActorForImpl
 export const requirementsSatisfied = requirementsSatisfiedImpl
 

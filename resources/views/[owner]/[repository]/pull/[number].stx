@@ -10,10 +10,10 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { repositoryForView, repositoryPath } from '../../../../functions/repo'
+import { parseRestrictions, repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, isBehindBase, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, parseRestrictions, previewsFor, pullRequestDiff, pushActorFor, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations, SSR_DIFF_BYTE_LIMIT } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, isBehindBase, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, previewsFor, pullRequestDiff, pushActorFor, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations, SSR_DIFF_BYTE_LIMIT } from '../../../../functions/review'
 import { testSummaryForPull } from '../../../../functions/tests'
 // The stack helpers from the module that owns them. They used to be
 // re-exported by `review.ts` so this line could be one import; two modules
