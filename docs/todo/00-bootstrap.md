@@ -234,11 +234,10 @@ Each one is committed and pushed in the repository named.
       `atproto_identities`, `managed_tests`, `check_annotations` and `commit_statuses` among others,
       which is phases 9, 10, 13, 15, 16 and 18. None of those features can ever have run here.
 
-- [ ] **stacks** - **the seeder resolves every `belongsTo` except one whose parent carries
-      `useAuth`, and writes `null` instead.** Measured on a freshly seeded database, and the
-      contrast inside a single row is the whole bug: `INSERT INTO "stars"("repository_id","user_id")`
-      fails with `null value in column "user_id"`, having resolved `repository_id` in the same
-      statement.
+- [x] **stacks** - **the seeder never resolves a `belongsTo` to `User`, `Team` or `Customer`, and
+      writes `null` instead.** Filed as stacksjs/stacks#2861. The contrast inside a single row is the
+      whole bug: `INSERT INTO "stars"("repository_id","user_id")` fails with `null value in column
+      "user_id"`, having resolved `repository_id` in the same statement.
 
       Where the user key is `NOT NULL` the insert fails and the table stays empty. Fourteen of them
       do: `stars`, `watches`, `repo_collaborators`, `org_members`, `team_members`,
@@ -254,17 +253,27 @@ Each one is committed and pushed in the repository named.
       product whose entire thesis is the review contains no review with a reviewer and no comment
       with an author, and nothing reports it.
 
-      Not an ordering problem: re-running `buddy seed` with twelve users already present changes
-      nothing. The models are written the same way the working ones are, `factory: () => null` on the
-      column and the relation declared in `belongsTo`, which is what `Repository` does and
-      `Repository` resolves. The only difference found so far is that `User` carries
-      `useAuth: { usePasskey: true }` and the framework creates and fills auth-backed tables on a
-      separate path from the model batch, so its ids are plausibly never in the pool the seeder
-      resolves against. Worth confirming in the seeder source before it is filed.
+      **It is a hardcoded name list, not a trait.** `relationColumns` in `@stacksjs/database`
+      skips any parent for which `isAccountModel(parent)` holds unless `options.allowProtected` is
+      set, and `ACCOUNT_MODELS` is `['User', 'Team', 'Customer']`. Nothing to do with `useAuth`,
+      which was the first guess here and was wrong: `team_members` populates under the flag too, and
+      `Team` carries no auth trait at all. The function only ever *reads* `existingRows`, so the
+      list is not protecting `users` from being written to.
 
-      One smaller thing fell out of the same run: `repo_topics` fails on
-      `repo_topics_repo_topic_index`, so the seeder generates duplicate rows for a declared unique
-      index rather than respecting it.
+      The flag is the other half of the problem. `--allow-protected` is documented as "Seed
+      auth/oauth models even on a non-fresh DB (will invalidate live tokens)", and skipping the
+      *seeding of* those models is worth keeping. Resolving a foreign key against existing rows
+      writes nothing and invalidates nothing, so one flag gates two unrelated things and the
+      harmless half is only reachable by opting into the harmful one.
+
+      `./buddy seed --fresh --allow-protected` is the workaround and this database now runs it: 90
+      of 98 models, and authorship is populated everywhere it was null.
+
+      Two smaller defects in the same path, both in #2861. `uniqueColumns` reads only per-attribute
+      `unique: true`, so a model-level composite unique index is invisible and `chooseRelations`
+      emits duplicate pairs: `watches`, `repo_collaborators`, `repo_topics`, `stars` and
+      `review_drafts` all die on their own declared index. And a polymorphic parent cannot be
+      resolved at all, so `reactions` and `timeline_entries` fail on a null `subject_id`.
 
 ## Known gaps, deferred deliberately
 
