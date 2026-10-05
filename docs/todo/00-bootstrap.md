@@ -213,6 +213,59 @@ Each one is committed and pushed in the repository named.
       `@stacksjs/defaults/project/storage/framework/types` instead, which is the same source the
       upgrade's own types step uses.
 
+- [x] **stacks** - **`buddy migrate --diff` says the models match a database that `buddy migrate`
+      says is missing tables.** Filed as stacksjs/stacks#2860. Found on this machine, where the
+      ledger had fallen behind after the corpus was rebuilt upstream: 82 rows against 304 migration
+      files, 82 tables, and **49 of this application's 111 models had no table at all**, every one
+      of them with a `create-<table>-table` migration sitting on disk. `--diff` answered "No pending
+      schema changes - your models match the database."
+
+      The one-step reproduction is smaller than that. Drop `repair_settings`, which
+      `app/Models/RepairSetting.ts` declares, and `--diff` still reports a match, while plain
+      `buddy migrate` prints "The live schema does not match the models. Missing tables:
+      repair_settings" and then exits `SUCCESS` with "already up to date" without creating it. So the
+      dry run contradicts the real run, the real run names the drift and does not repair it, and both
+      exit zero. An operator who reads the last line is told the database is fine, and CI only reads
+      the exit code.
+
+      `migrate:fresh` is the only repair, and it worked: 304 ledger rows, 134 tables, no model
+      without a table. The 49 were not peripheral, they were `deployments`, `environments`,
+      `merge_queue_entries`, `runner_pools`, `git_refs`, `git_wal_entries`, `pages_sites`,
+      `atproto_identities`, `managed_tests`, `check_annotations` and `commit_statuses` among others,
+      which is phases 9, 10, 13, 15, 16 and 18. None of those features can ever have run here.
+
+- [ ] **stacks** - **the seeder resolves every `belongsTo` except one whose parent carries
+      `useAuth`, and writes `null` instead.** Measured on a freshly seeded database, and the
+      contrast inside a single row is the whole bug: `INSERT INTO "stars"("repository_id","user_id")`
+      fails with `null value in column "user_id"`, having resolved `repository_id` in the same
+      statement.
+
+      Where the user key is `NOT NULL` the insert fails and the table stays empty. Fourteen of them
+      do: `stars`, `watches`, `repo_collaborators`, `org_members`, `team_members`,
+      `issue_assignees`, `reactions`, `ssh_keys`, `gpg_keys`, `access_tokens`,
+      `notification_subscriptions`, `notification_mutes`, `notification_schedules` and
+      `review_checkpoints`, plus `access_token_repositories` and `release_assets` downstream of
+      those.
+
+      **Where it is nullable the insert succeeds, which is the half that does real damage.** The
+      seeded corpus has 30 issues, 20 pull requests, 60 issue comments, 50 review comments and 25
+      reviews, and `author_id` or `reviewer_id` is null on every single one of them, against zero
+      nulls in `repository_id` or `commentable_id` on the same rows. So a demo database for a
+      product whose entire thesis is the review contains no review with a reviewer and no comment
+      with an author, and nothing reports it.
+
+      Not an ordering problem: re-running `buddy seed` with twelve users already present changes
+      nothing. The models are written the same way the working ones are, `factory: () => null` on the
+      column and the relation declared in `belongsTo`, which is what `Repository` does and
+      `Repository` resolves. The only difference found so far is that `User` carries
+      `useAuth: { usePasskey: true }` and the framework creates and fills auth-backed tables on a
+      separate path from the model batch, so its ids are plausibly never in the pool the seeder
+      resolves against. Worth confirming in the seeder source before it is filed.
+
+      One smaller thing fell out of the same run: `repo_topics` fails on
+      `repo_topics_repo_topic_index`, so the seeder generates duplicate rows for a declared unique
+      index rather than respecting it.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were
