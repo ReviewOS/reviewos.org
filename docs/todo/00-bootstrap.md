@@ -375,6 +375,32 @@ Each one is committed and pushed in the repository named.
       what the new stacks requires whenever the framework moves**, and consider whether an override
       that merely restates the required range needs to exist at all.
 
+- [x] **The three dependency bumps that outlived their branches.** buddy-bot had proposed each one
+      and all six of its branches were deleted upstream before any of them landed, so these were
+      taken directly: `@anthropic-ai/sdk` `^0.120.0` to `^0.131.0`, `mermaid` `^11.16.1` to
+      `^12.1.0`, and the Dockerfile's base image.
+
+      `mermaid` is the only one with teeth. It is a major, and the package range is not what the
+      browser loads: `public/js/mermaid.js` is a committed 3.5MB bundle, built by
+      `scripts/vendor-mermaid.ts` and vendored rather than taken from a CDN so that a forge on a
+      closed network still draws diagrams and a reader of an issue is not announced to a third
+      party. Bumping the range alone would have changed nothing a reader sees, which is the stale
+      artifact pattern this phase has now hit four times. Re-bundled, and the asset goes from
+      **3.49MB to 5.05MB** - paid only by pages that contain a diagram, since the loader in
+      `resources/views/layouts/app.stx` imports it on demand, but worth knowing. Verified by
+      importing the built bundle and checking the two functions that loader calls,
+      `initialize` and `run`, plus the six markdown e2e tests.
+
+      The base image went to `oven/bun:1.4` rather than the `1.4.2` the bot proposed, because the
+      Dockerfile pins a floating minor and always has. Taking a patch pin would have been a second
+      decision smuggled in beside a version bump. Worth noting the image was two minors behind what
+      this machine runs, which is Bun 1.4.3.
+
+      Left alone: `config/services.ts` still defaults `anthropic.model` to the pinned
+      `claude-sonnet-4-20250514`. Nothing reads it - it is framework scaffold, and the live AI path
+      is `config/ci-repair.ts`, already on a bare `claude-opus-5` for the reason that file explains.
+      Changing an unconsumed default would be churn in a config this project does not own.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were
