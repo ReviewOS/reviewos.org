@@ -1784,6 +1784,41 @@ gate, in order.
       is the shape `keys-gpg.test.ts` uses. A test nobody can run is worse than one that says why it
       did not.
 
+- [ ] **Run the egress suite somewhere, because right now it runs nowhere.** The five tests above are
+      the only suite left in a green CI run that passes while asserting nothing: `[microvm-egress]
+      skipping: no firecracker, REVIEWOS_GUEST_KERNEL is not set, ...` and then five green ticks.
+      That is the exact shape that hid the search coverage for two months, and it is worse here,
+      because what these five assert is that a stranger's workflow cannot reach the cloud metadata
+      endpoint or the host holding every private repository on the instance.
+
+      **KVM is not the blocker, which is what this was assumed to be.** GitHub's hosted Linux runners
+      have had hardware-accelerated nested virtualization since 2024-04-02, extended that day from
+      the larger runners (2023-02-23) down to the 2-vCPU standard SKU `ubuntu-latest` already uses.
+      `/dev/kvm` is there; it is root-only until the udev rule from that changelog opens it:
+
+      ```sh
+      echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+        | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+      sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      ```
+
+      x86_64 only, since the nested-virtualization extensions have to be on the host, and never on
+      arm64 macOS because of Apple's Virtualization Framework.
+
+      What is actually left is the guest, and it is a build-and-publish problem rather than a
+      hosting-tier one:
+
+      - `firecracker` itself, which is a release download
+      - `REVIEWOS_GUEST_KERNEL`, a kernel for the guest to boot
+      - `REVIEWOS_GUEST_IMAGE` with `REVIEWOS_GUEST_IMAGE_DIGEST`, a root filesystem pinned by
+        content. Not shortcuttable with an unpinned image: `config/ci-execution.ts` refuses to run
+        without the digest, deliberately, because "a run has to be able to record what executed it"
+
+      `tests/fixtures/microvm/` holds `egress-fixture.sh` and nothing else - no kernel, no rootfs, no
+      script that builds either. So the work is reproducibly building those two artifacts and putting
+      them somewhere a job can fetch them by digest, which is the same problem an operator enabling
+      microVM mode has, and solving it once answers both.
+
 ## Workflow developer experience
 
 - [x] Setup or install step can produce a cache snapshot consumed by later steps without giving
