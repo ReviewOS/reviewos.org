@@ -111,6 +111,19 @@ async function probe(steps: { run: string }[], egress: string[] = []) {
   }
 }
 
+/**
+ * The outcome as a sentence, so a failure says what went wrong.
+ *
+ * `expect(outcome.state).toBe('succeeded')` reports `Received: "failed"` and
+ * throws `outcome.reason` away - and the reason is the entire content of the
+ * failure, because every way this can go wrong before a guest boots produces
+ * the same word. Two CI runs were spent on "failed" meaning a scratch directory
+ * that did not exist, which the reason said in full and nobody could see.
+ */
+function said(outcome: { state: string, reason?: string }): string {
+  return outcome.state === 'succeeded' ? 'succeeded' : `failed: ${outcome.reason ?? 'no reason given'}`
+}
+
 /** One shell line that says whether a destination answered. */
 function reach(label: string, address: string) {
   return { run: `if wget -T 5 -q -O - http://${address}/ 2>/dev/null | head -c 40 | grep -q .; then echo "REACHED_${label}"; else echo "BLOCKED_${label}"; fi` }
@@ -148,7 +161,7 @@ describe('a job in a machine', () => {
       [`${REGISTRY}:80`],
     )
 
-    expect(outcome.state).toBe('succeeded')
+    expect(said(outcome)).toBe('succeeded')
     expect(text).toContain('BLOCKED_METADATA')
     expect(text).toContain('REACHED_REGISTRY')
     expect(text).not.toContain('METADATA-CREDENTIALS')
@@ -168,8 +181,9 @@ describe('a job in a machine', () => {
      */
     const host = process.env.REVIEWOS_MICROVM_HOST_IP ?? '172.20.0.1'
 
-    const { text } = await probe([reach('HOST', `${host}:80`), reach('HOST_ALT', `${host}:5432`)])
+    const { text, outcome } = await probe([reach('HOST', `${host}:80`), reach('HOST_ALT', `${host}:5432`)])
 
+    expect(said(outcome)).toBe('succeeded')
     expect(text).toContain('BLOCKED_HOST')
     expect(text).toContain('BLOCKED_HOST_ALT')
   }, 300_000)
@@ -212,8 +226,9 @@ describe('a job in a machine', () => {
       return
 
     // The default an operator gets by doing nothing.
-    const { text } = await probe([reach('REGISTRY', REGISTRY)])
+    const { text, outcome } = await probe([reach('REGISTRY', REGISTRY)])
 
+    expect(said(outcome)).toBe('succeeded')
     expect(text).toContain('BLOCKED_REGISTRY')
   }, 300_000)
 })
