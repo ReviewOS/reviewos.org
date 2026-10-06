@@ -524,17 +524,18 @@ jobs:
           sudo install -m 0755 "/tmp/release-${FIRECRACKER_VERSION}-x86_64/firecracker-${FIRECRACKER_VERSION}-x86_64" /usr/local/bin/firecracker
           firecracker --version
 
+      # Built once, and the four paths and digests carried to the next step
+      # through the environment file rather than by running the build again.
+      # `--env` emits `export` lines for a shell; `$GITHUB_ENV` wants them bare.
       - name: Build the guest kernel and image
-        run: ./scripts/microvm/build-guest.sh
+        run: ./scripts/microvm/build-guest.sh --env | sed 's/^export //' >> "$GITHUB_ENV"
 
       - name: Egress suite
         env:
           APP_URL: https://reviewos.test
           APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
           STACKS_DEFAULT_ROUTES: none
-        run: |
-          eval "$(./scripts/microvm/build-guest.sh --env)"
-          bun test tests/e2e/microvm-egress.test.ts
+        run: bun test tests/e2e/microvm-egress.test.ts
 
   compile:
     runs-on: ubuntu-latest

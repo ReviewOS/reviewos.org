@@ -67,6 +67,23 @@ describe('the guest build script', () => {
       expect(digest).toHaveLength(64)
   })
 
+  test('keeps everything but the env block off stdout', () => {
+    /*
+     * `--env` is meant to be eval'd, so anything else on that stream is eval'd
+     * with it. `mke2fs -q` is quieter than `mke2fs` and not silent - it still
+     * announces "Creating filesystem with 16384 4k blocks" - and the first CI
+     * run of this died with "Creating: command not found".
+     *
+     * The fix is not per-command silencing, which would hold until the next
+     * tool decided to say something. The script moves its own stdout to stderr
+     * and hands the env block the real one on fd 3, so the stream carries the
+     * env or nothing.
+     */
+    expect(script).toContain('exec 3>&1')
+    expect(script).toContain('exec 1>&2')
+    expect(script).toContain('cat >&3 <<ENV')
+  })
+
   test('pins both architectures, because the runner and the author do not share one', () => {
     /*
      * The design was built and verified on aarch64, and the only CI this

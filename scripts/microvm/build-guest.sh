@@ -64,9 +64,24 @@ case "$ARCH" in
   *) echo "no pinned artifacts for $ARCH" >&2; exit 2 ;;
 esac
 
-# Everything this prints that is not an artifact goes to stderr, so `--env` can
-# be eval'd without filtering.
-say() { echo "[guest] $*" >&2; }
+# ---------------------------------------------------------------------------
+# Only the `--env` block is allowed to reach stdout
+#
+# Because that block is meant to be eval'd, and anything else landing on the
+# same stream is eval'd with it. `mke2fs -q` is quieter than `mke2fs` and is not
+# silent - it still announces "Creating filesystem with 16384 4k blocks" - so
+# the first run of this in CI eval'd that sentence and died with
+# "Creating: command not found".
+#
+# Suppressing that one command's output would fix that one command. Moving the
+# whole script's stdout to stderr and handing the env block the real one fixes
+# the class, including the next tool that decides to say something.
+# ---------------------------------------------------------------------------
+
+exec 3>&1
+exec 1>&2
+
+say() { echo "[guest] $*"; }
 
 verify() {
   local file="$1" want="$2" got
@@ -182,8 +197,9 @@ say "image  $ROOTFS"
 say "  sha256 $IMAGE_DIGEST"
 
 if [ "$EMIT_ENV" = 1 ]; then
-  # Absolute, because a job's supervisor does not run in this directory.
-  cat <<ENV
+  # Absolute, because a job's supervisor does not run in this directory. On fd
+  # 3, which is the stdout this script set aside at the top.
+  cat >&3 <<ENV
 export REVIEWOS_GUEST_KERNEL=$(realpath "$KERNEL")
 export REVIEWOS_GUEST_KERNEL_DIGEST=$KERNEL_DIGEST
 export REVIEWOS_GUEST_IMAGE=$(realpath "$ROOTFS")
