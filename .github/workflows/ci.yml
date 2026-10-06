@@ -454,6 +454,88 @@ jobs:
           bun test storage/framework/core/database/tests/committed-migrations-dialect.test.ts
           bun test storage/framework/core/database/tests/model-sources.test.ts
 
+  # The five tests that need a booted guest, and the only ones in this suite
+  # that were passing without asserting anything.
+  #
+  # Its own job rather than steps in `test` above, for two reasons. It installs
+  # a hypervisor and rewrites a udev rule, which is a lot of machinery to put on
+  # the critical path of 6,569 tests that do not need it; and it is new, so a
+  # failure here should be legible as "the microVM plane broke" rather than as
+  # the whole suite going red.
+  #
+  # x86_64 only, which is not a preference: GitHub's nested virtualization needs
+  # the extensions on the host and has them on x86_64 alone. The design was
+  # built and verified on aarch64, so this is the first time these two tests run
+  # on the other architecture at all.
+  microvm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # `/dev/kvm` is present on these runners and owned by root, so a test
+      # checking `existsSync('/dev/kvm')` sees it and Firecracker then cannot
+      # open it. GitHub's own changelog for shipping nested virtualization to
+      # the 2-vCPU runners gives this rule as the step that hands it over.
+      - name: Hand /dev/kvm to the runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      # nftables because `microvmSupervisor.ts` loads the egress ruleset with
+      # `nft -f -` before the machine boots, deliberately in that order: "a
+      # guest that boots into an unfiltered network and is filtered a moment
+      # later has had a moment of unfiltered network".
+      - name: Install nftables
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nftables
+
+      # Pinned and checked, like everything else the guest plane downloads.
+      - name: Install Firecracker
+        env:
+          FIRECRACKER_VERSION: v1.17.0
+          FIRECRACKER_SHA256: 06094a1108ae9e82aa4c23a775aa92758f53f1175d422270d9d6162cb9ade558
+        run: |
+          curl -fsSL -o /tmp/firecracker.tgz \
+            "https://github.com/firecracker-microvm/firecracker/releases/download/${FIRECRACKER_VERSION}/firecracker-${FIRECRACKER_VERSION}-x86_64.tgz"
+          echo "${FIRECRACKER_SHA256}  /tmp/firecracker.tgz" | sha256sum -c -
+          tar xzf /tmp/firecracker.tgz -C /tmp
+          sudo install -m 0755 "/tmp/release-${FIRECRACKER_VERSION}-x86_64/firecracker-${FIRECRACKER_VERSION}-x86_64" /usr/local/bin/firecracker
+          firecracker --version
+
+      - name: Build the guest kernel and image
+        run: ./scripts/microvm/build-guest.sh
+
+      - name: Egress suite
+        env:
+          APP_URL: https://reviewos.test
+          APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
+          STACKS_DEFAULT_ROUTES: none
+        run: |
+          eval "$(./scripts/microvm/build-guest.sh --env)"
+          bun test tests/e2e/microvm-egress.test.ts
+
   compile:
     runs-on: ubuntu-latest
     timeout-minutes: 20

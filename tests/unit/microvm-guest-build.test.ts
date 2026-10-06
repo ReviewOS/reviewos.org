@@ -1,0 +1,107 @@
+/**
+ * The image's contract, which until now was written down and checked nowhere.
+ *
+ * `docs/ci-execution-plane.md` listed this exactly: "what an image must contain
+ * - an agent at `/sbin/reviewos-agent`, a `/work` mount point - is written here
+ * and enforced nowhere." An image that satisfies the prose and not the code
+ * fails at boot, in the one place with no debugger: the kernel hands control to
+ * a path that is not there, and the host sees a machine that stopped without
+ * the agent reporting.
+ *
+ * These are cheap string assertions against the build script on purpose. The
+ * expensive version is booting the thing, which `tests/e2e/microvm-egress.test.ts`
+ * does on a machine with KVM; this is what catches the mismatch before anybody
+ * spends twelve minutes of CI finding out.
+ */
+
+import { describe, expect, test } from 'bun:test'
+import { DEFAULT_INIT } from '../../app/Actions/Runner/microvm'
+import { guestAgent } from '../../app/Actions/Runner/microvmProtocol'
+
+const script = await Bun.file('scripts/microvm/build-guest.sh').text()
+
+describe('the guest build script', () => {
+  test('installs the agent at the path the kernel is told to run', () => {
+    /*
+     * `bootArgs()` passes `init=/sbin/reviewos-agent`, and a kernel given an
+     * init that does not exist panics. The two values have no reason to agree
+     * other than somebody keeping them in step, which is what this is for.
+     */
+    expect(script).toContain(`$TREE${DEFAULT_INIT}`)
+  })
+
+  test('creates the mount points a read-only root cannot create later', () => {
+    /*
+     * The agent mounts /proc, /sys, a tmpfs on /tmp and the payload disk on
+     * /work. `mount` onto a directory that does not exist fails, and the agent
+     * suppresses that error deliberately - so the symptom of a missing /work is
+     * not an error, it is a job whose steps are all "no such file".
+     */
+    for (const directory of ['proc', 'sys', 'tmp', 'work'])
+      expect(script).toContain(`"$TREE/${directory}"`)
+  })
+
+  test('takes the agent from the protocol source rather than writing its own', () => {
+    /*
+     * The one rule that keeps the image honest: the agent is whatever
+     * `guestAgent()` says, because the host parses what `guestAgent()` emits. A
+     * script that wrote its own copy would be a second source of truth for a
+     * wire format, and the failure mode is an image that boots, runs the job,
+     * and reports nothing the host can read.
+     */
+    expect(script).toContain('write-agent.ts')
+    expect(script).not.toContain('#!/bin/sh\n# The ReviewOS guest agent')
+  })
+
+  test('every pinned digest is a whole sha256', () => {
+    /*
+     * A truncated hash still looks like a hash. This is the guard against a
+     * paste that lost its tail, which would fail at build time with "does not
+     * match its pinned digest" and read like a tampered download.
+     */
+    const pinned = [...script.matchAll(/^\s+(kernel|alpine)-\w+\) echo ([0-9a-f]+) ;;$/gm)]
+
+    expect(pinned.length).toBe(4)
+
+    for (const [, , digest] of pinned)
+      expect(digest).toHaveLength(64)
+  })
+
+  test('pins both architectures, because the runner and the author do not share one', () => {
+    /*
+     * The design was built and verified on aarch64, and the only CI this
+     * project has is x86_64 - GitHub's nested virtualization is x86_64 only.
+     * An image pipeline that served one of them would leave the other where
+     * this started.
+     */
+    for (const arch of ['x86_64', 'aarch64']) {
+      expect(script).toContain(`kernel-${arch}`)
+      expect(script).toContain(`alpine-${arch}`)
+    }
+  })
+})
+
+describe('the agent it installs', () => {
+  test('is the one the host knows how to read', async () => {
+    const written = await Bun.$`bun scripts/microvm/write-agent.ts`.quiet().text()
+
+    expect(written).toBe(guestAgent())
+  })
+
+  test('runs every program the image actually ships', () => {
+    /*
+     * Alpine's minirootfs is busybox and little else, and the build adds no
+     * packages - that is what keeps it a tarball plus one file, with no chroot
+     * and no network beyond two pinned downloads. So the agent may only use
+     * what busybox provides, and this is the list that was checked against the
+     * tarball: mount, stty, ip, base64, poweroff, wc, head, cat, rm.
+     *
+     * `wget` is in there too, which the egress tests' steps use to try to reach
+     * somewhere they should not.
+     */
+    const agent = guestAgent()
+
+    for (const program of ['mount', 'stty', 'ip ', 'base64', 'poweroff', 'wc ', 'head ', 'cat ', 'rm '])
+      expect(agent).toContain(program)
+  })
+})

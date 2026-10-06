@@ -470,8 +470,22 @@ it had been written.
   present. The clone token was **not** on the payload disk and **not** in `.git` - which is the claim
   this design rests on, checked rather than asserted.
 - ~~Secrets are not designed into this.~~ **They are.** See below.
-- **No image build pipeline.** What an image must contain - an agent at `/sbin/reviewos-agent`, a
-  `/work` mount point - is written here and enforced nowhere.
+- ~~No image build pipeline.~~ **There is one.** `scripts/microvm/build-guest.sh` produces both
+  artifacts, for x86_64 and aarch64, from two pinned and hash-checked downloads: Firecracker's
+  published guest kernel and Alpine's minirootfs. The agent is not written by that script - it is
+  taken from `guestAgent()` through `scripts/microvm/write-agent.ts`, so the image cannot drift from
+  the frame format the host parses, and `tests/unit/microvm-guest-build.test.ts` holds the contract
+  this bullet used to say was enforced nowhere: the agent lands at `DEFAULT_INIT`, the mount points
+  a read-only root cannot create later exist, and every pinned digest is a whole sha256.
+
+  Two things it does not need, both deliberate. **No root**: `mke2fs -d` populates a filesystem from
+  a directory, where the obvious loop-mount would have put sudo in front of every developer who
+  wants to run these tests once. **No package install**: every program the agent runs is already in
+  busybox, so the image is a tarball plus one file and the build touches the network exactly twice.
+
+  `/dev` is left empty, which looks like an omission and is not: Alpine's tarball ships no device
+  nodes, and Firecracker's kernel config has `CONFIG_DEVTMPFS_MOUNT=y`, so the kernel mounts devtmpfs
+  before executing init and `/dev/console` and `/dev/vdb` are there when the agent asks for them.
 - ~~Ceilings were accepted, not exercised.~~ **They have been.** See below.
 - **aarch64 only**, and **nothing about the hypervisor's own surface** - a microVM moves the escape
   from a kernel bug to a hypervisor bug rather than removing it.

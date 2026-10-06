@@ -1814,10 +1814,26 @@ gate, in order.
         content. Not shortcuttable with an unpinned image: `config/ci-execution.ts` refuses to run
         without the digest, deliberately, because "a run has to be able to record what executed it"
 
-      `tests/fixtures/microvm/` holds `egress-fixture.sh` and nothing else - no kernel, no rootfs, no
-      script that builds either. So the work is reproducibly building those two artifacts and putting
-      them somewhere a job can fetch them by digest, which is the same problem an operator enabling
-      microVM mode has, and solving it once answers both.
+      **The build pipeline exists now**: `scripts/microvm/build-guest.sh`, for x86_64 and aarch64,
+      from two pinned and hash-checked downloads - Firecracker's published guest kernel 6.1.155 and
+      Alpine's 3.24.2 minirootfs. It needs no root, because `mke2fs -d` fills a filesystem from a
+      directory and the loop-mount alternative would have put sudo in front of every developer who
+      wants to run these tests once, and it installs no packages, because every program the agent
+      runs is already in busybox. The agent is taken from `guestAgent()` rather than written by the
+      script, so an image cannot drift from the frame format the host parses, and
+      `tests/unit/microvm-guest-build.test.ts` is the contract `docs/ci-execution-plane.md` said was
+      "enforced nowhere".
+
+      The `microvm` job in `.github/workflows/ci.yml` installs Firecracker and nftables, opens
+      `/dev/kvm` with the udev rule, builds the guest and runs the suite. Its own job rather than
+      steps in `test`, so a hypervisor is not on the critical path of 6,569 tests that do not need
+      one, and `deploy` does not depend on it while it is new.
+
+      **Still unticked because it has not been seen to pass.** Everything above is checked as far as
+      a laptop can check it - the four digests were computed from real downloads, the kernel config
+      was read for `CONFIG_DEVTMPFS_MOUNT` rather than assumed, the agent round-trips byte-identical
+      - but no machine available here can run an ext4 build or boot a guest, so the first real
+      evidence is the CI run itself.
 
 ## Workflow developer experience
 
