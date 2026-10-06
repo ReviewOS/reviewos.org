@@ -228,8 +228,18 @@ Each one is committed and pushed in the repository named.
       exit zero. An operator who reads the last line is told the database is fine, and CI only reads
       the exit code.
 
-      `migrate:fresh` is the only repair, and it worked: 304 ledger rows, 134 tables, no model
-      without a table. The 49 were not peripheral, they were `deployments`, `environments`,
+      **Fixed upstream the same day and verified here on 0.75.81.** `buddy migrate:status` is new
+      and names the condition exactly: it reports `0000000297-create-repair_settings-table.sql` as
+      REVERTED, "recorded as applied, but the effects are gone from the schema", and exits with
+      "Drift detected." `--diff` now reports the missing table and says plainly that migrations will
+      not fix it on their own, rather than claiming a match. `--strict` is there for CI. And there is
+      a repair short of dropping the database, which was the other half of the ask:
+      `migrate:status --reconcile --requeue-reverted` un-records only the migrations whose tables are
+      actually gone, and the next `buddy migrate` rebuilds them. Verified end to end here: ledger 304
+      to 303 to 304, table back, nothing else touched.
+
+      `migrate:fresh` was the only repair before that, and it worked: 304 ledger rows, 134 tables, no
+      model without a table. The 49 were not peripheral, they were `deployments`, `environments`,
       `merge_queue_entries`, `runner_pools`, `git_refs`, `git_wal_entries`, `pages_sites`,
       `atproto_identities`, `managed_tests`, `check_annotations` and `commit_statuses` among others,
       which is phases 9, 10, 13, 15, 16 and 18. None of those features can ever have run here.
@@ -266,14 +276,44 @@ Each one is committed and pushed in the repository named.
       writes nothing and invalidates nothing, so one flag gates two unrelated things and the
       harmless half is only reachable by opting into the harmful one.
 
-      `./buddy seed --fresh --allow-protected` is the workaround and this database now runs it: 90
-      of 98 models, and authorship is populated everywhere it was null.
+      **Fixed upstream the same day and verified here on 0.75.81, and the flag is no longer
+      needed.** Plain `buddy seed --fresh` now reaches 97 of 99 models, where the
+      `--allow-protected` workaround only reached 90 of 98: account relations attach to the rows the
+      same run seeded, and composite unique indexes are honoured, so `watches`,
+      `repo_collaborators`, `repo_topics`, `review_drafts` and `stars` all seed instead of dying on
+      their own declared index. Authorship is populated everywhere it was null, with no flag.
 
-      Two smaller defects in the same path, both in #2861. `uniqueColumns` reads only per-attribute
-      `unique: true`, so a model-level composite unique index is invisible and `chooseRelations`
-      emits duplicate pairs: `watches`, `repo_collaborators`, `repo_topics`, `stars` and
-      `review_drafts` all die on their own declared index. And a polymorphic parent cannot be
-      resolved at all, so `reactions` and `timeline_entries` fail on a null `subject_id`.
+      The composite-index half of #2861 is fixed with it. What remains is the polymorphic half: a
+      `subject_type` plus `subject_id` pair has no `belongsTo` to resolve from, and a factory is
+      handed `faker` rather than a database, so `reactions` and `timeline_entries` are the 2 of 99
+      still failing on a null `subject_id`. Left alone rather than papered over by setting their
+      seeder counts to zero, which would trade a loud failure for a quiet absence.
+
+- [x] **Two seeder bugs of our own, which only the upstream fix could expose.** Both were hidden
+      behind the account-relation defect: nothing downstream of a user could seed, so nothing
+      downstream of these could fail either.
+
+      `ReleaseAsset` asks for fifteen rows and `belongsTo: ['Release']`, and `Release` had no
+      `useSeeder` at all, so its seeder could never succeed and the releases screen had nothing to
+      render. `Release` is seeded now, twelve of them, and the assets attach.
+
+      `RepositoryMirror.repository_id` carried `factory: faker => faker.number.int({ min: 1, max: 8 })`,
+      inventing a repository id rather than letting the seeder resolve one. That held only while a
+      fresh database happened to number repositories 1 to 8; they are 39 to 46 here after a few
+      re-seeds, so every mirror row failed its foreign key. It is `factory: () => null` now, like
+      every other relation column in this codebase.
+
+- [x] **A warning about the `overrides` block, which cost an hour here.** Raising stacks to 0.75.81
+      broke `buddy migrate --diff` with `export 'parseBearerToken' not found in
+      '@stacksjs/bun-router'`, and it was not an upstream bug. `@stacksjs/router@0.75.81` requires
+      `bun-router ^0.1.24`; the override in `package.json` forced `^0.1.22`, which does not export
+      it. `@stacksjs/ts-cloud` was behind the same way, `^0.16.35` against a required `^0.16.40`.
+
+      This is the same trap the `buddy-bot/update-stacks` branch sets, from the other direction: an
+      override that pins a transitive dependency below what stacks asks for fails at *runtime*, with
+      a missing export, and installs without complaint. **Audit every entry in `overrides` against
+      what the new stacks requires whenever the framework moves**, and consider whether an override
+      that merely restates the required range needs to exist at all.
 
 ## Known gaps, deferred deliberately
 

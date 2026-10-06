@@ -6,9 +6,4 @@
 // anything that needs to resolve a name without loading the route table.
 //
 // For more information, please visit: https://stacksjs.com/docs
-export const routeNames = {
-  'contact.send': '/api/contact',
-  'email.subscribe': '/api/email/subscribe',
-  'email.unsubscribe': '/api/email/unsubscribe',
-  'email.unsubscribe.oneclick': '/api/email/unsubscribe',
-} as const
+export const routeNames = {} as const

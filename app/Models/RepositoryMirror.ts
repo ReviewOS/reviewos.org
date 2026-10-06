@@ -40,7 +40,10 @@ export default defineModel({
       order: 1,
       fillable: true,
       validation: { rule: schema.number().required() },
-      factory: faker => faker.number.int({ min: 1, max: 8 }),
+      // Null so the seeder attaches a repository that exists. Inventing an id
+      // in 1..8 only held while a fresh database happened to number them that
+      // way, and the sequence keeps climbing across re-seeds.
+      factory: () => null,
     },
 
     direction: {

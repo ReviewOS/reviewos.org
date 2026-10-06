@@ -54,6 +54,12 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
+    /*
+     * Seeded, because `ReleaseAsset` asks for fifteen rows under a release and
+     * there were none to attach them to: its seeder could not succeed, and the
+     * releases screen had nothing to render either.
+     */
+    useSeeder: { count: 12 },
     useSearch: {
       displayable: ['id', 'version', 'type', 'status', 'createdAt'],
       searchable: ['version', 'type', 'notes'],
