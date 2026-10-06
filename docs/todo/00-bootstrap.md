@@ -451,9 +451,13 @@ Each one is committed and pushed in the repository named.
       something else entirely. See the domain-vocabulary table in [AGENTS.md](../../AGENTS.md) for
       why that matters here more than it would elsewhere.
 
-      Filed upstream. The shape asked for is the one `STACKS_DEFAULT_ROUTES` already proves works:
-      let an application say which models publish an API, with the default being what apps get
-      today so nothing changes on upgrade.
+      Filed as stacksjs/stacks#2866. The shape asked for is the one `STACKS_DEFAULT_ROUTES` already
+      proves works: let an application say which models publish an API, with the default being what
+      apps get today so nothing changes on upgrade. A `own` selection, meaning only the models in
+      `app/Models`, has a precedent worth pointing at - the seeder already behaves that way, since
+      `loadAllModels` returns user models alone when the application has any and reaches for the
+      defaults only when it has none. The model-API surface having the opposite default is the
+      inconsistency.
 
 ## Known gaps, deferred deliberately
 
