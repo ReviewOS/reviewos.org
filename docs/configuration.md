@@ -115,6 +115,34 @@ Default: empty.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Stacks
+
+### `STACKS_DEFAULT_ROUTES`
+
+Default: `none`.
+
+Which of the framework's own default route bundles this instance mounts.
+
+`none`, deliberately. The framework ships six bundles - auth, dashboard,
+delivery, email, forms, payments - and mounting them all put 694 routes on
+this instance that nothing here serves or calls: 322 under `/api/dashboard`,
+125 under `/api/commerce`, a storefront cart and checkout, delivery pings,
+payment webhooks, and a second complete authentication surface at `/login`,
+`/register`, `/me`, `/tokens` and `/oauth/clients`.
+
+That last one is the reason this is not merely tidiness. This forge has its
+own auth under `/api/auth/*` and `/api/user/*`, which is what the sign-in,
+register and password-reset pages post to. The default bundle's parallel
+surface was reachable, unused, and maintained by nobody here.
+
+Turning bundles off stops the framework's ROUTES from registering. It does
+not stop its ACTIONS from resolving, so a route declared in `routes/` can
+still point at a framework action this project never copied - which is how
+several of ours already work. Accepted values: `none`, `all`, or a list such
+as `auth,email`. Unset means `all`, so this line is doing work.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Ports
 
 ### `PORT`

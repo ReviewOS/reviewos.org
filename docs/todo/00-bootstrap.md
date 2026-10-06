@@ -401,6 +401,60 @@ Each one is committed and pushed in the repository named.
       is `config/ci-repair.ts`, already on a bare `claude-opus-5` for the reason that file explains.
       Changing an unconsumed default would be churn in a config this project does not own.
 
+- [x] **The framework's default route bundles are opt-in now, and this instance takes none of them.**
+      `STACKS_DEFAULT_ROUTES=none` in `.env.example`, which the configuration docs pick up
+      automatically from the comment above it. **1,408 registered routes to 714**, and the generated
+      document from 944 paths to 447.
+
+      The lever already existed, which is the lesson rather than the change. `route-loader` has
+      carried `STACKS_DEFAULT_ROUTES` since stacksjs/stacks#2229, with a long note on why bundles
+      are named explicitly instead of gated on `feature()`: `config/auth.ts` ships enabled in every
+      scaffolded app, so gating on it would silently widen the public surface of every app on
+      upgrade, and "an opt-in that is on by default is not an opt-in". The six bundles are `auth`,
+      `dashboard`, `delivery`, `email`, `forms` and `payments`; `social` was already opt-in.
+
+      **The reason this is not tidiness: the `auth` bundle was a second, complete, unused
+      authentication surface.** It mounts `/login`, `/register`, `/logout`, `/logout-all`, `/me`,
+      `/me/data-export`, `/tokens`, `/refresh`, `/enable-two-factor`, `/oauth/clients`,
+      `/referrals` and twenty-eight more at bare paths. This forge has its own under `/api/auth/*`
+      and `/api/user/*`, which is what `login.stx`, `register.stx` and `forgot-password.stx` post
+      to, and its own passkeys, sessions, two-factor and token management beside them. The default
+      set was reachable, parallel, and maintained by nobody here.
+
+      Verified rather than assumed, because turning off auth routes is the kind of change that is
+      discovered in production. Every auth, passkey, session and token e2e suite passes: 97 tests
+      across seven files. Nothing in `resources/`, `app/` or `tests/` references
+      `/webhooks/email`, `/api/forms`, `/webhooks/payments`, `/delivery/`, `/api/contact`,
+      `/auth/magic-link`, `/referrals` or `/oauth/clients`, and the only `/api/dashboard` mentions
+      are two vocabulary tests that exclude it and one that mocks `fetch`. Turning a bundle off
+      stops its routes registering and not its actions resolving, so anything here can still point
+      a route at a framework action it never copied.
+
+- [ ] **Model APIs cannot be made opt-in from this repository.** The other half of the question, and
+      it needs the framework. `@stacksjs/orm/routes` iterates every model in the auto-imports
+      barrel and registers REST routes for any with a `useApi` trait, and the only things it reads
+      are `config/qb.ts`, `config/security.ts` for `api.rowScoping`, and
+      `STACKS_API_ROW_SCOPING`. There is no allowlist and no per-model gate. `rowScoping` is
+      already `deny` here, which only withholds `store`/`update`/`destroy` from models with no
+      row-level scoping, and the commerce defaults have `ownership` config so their writes register
+      anyway.
+
+      **72 default models carry `useApi`, accounting for 178 of the 714 routes that remain**:
+      `auctions`, `bids`, `boards`, `campaigns`, `carts`, `coupons`, `couriers`, `customers`,
+      `menus`, `orders`, `payments`, `pledges`, `products`, `redirects`, `sites`, `subscribers`,
+      `transactions` and more. The barrel is not configurable either: `defaults/app/Models` is
+      hardcoded in five framework packages.
+
+      Four of them are worse than noise because they collide with this product's own vocabulary.
+      `/api/reviews` is the framework's *product review* model on a forge built around code review,
+      and `/api/comments`, `/api/labels` and `/api/tags` read as this instance's own while being
+      something else entirely. See the domain-vocabulary table in [AGENTS.md](../../AGENTS.md) for
+      why that matters here more than it would elsewhere.
+
+      Filed upstream. The shape asked for is the one `STACKS_DEFAULT_ROUTES` already proves works:
+      let an application say which models publish an API, with the default being what apps get
+      today so nothing changes on upgrade.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were
