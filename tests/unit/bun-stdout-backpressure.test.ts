@@ -3,31 +3,33 @@
  *
  * Every stream in this codebase that reads from git is pull-based: one chunk
  * per `pull()`, kill on `cancel()`. That bounds the parsing and the delivery,
- * and it was written to bound the *memory* too - which it does not, because the
- * runtime drains the child into its own buffer before this code ever sees it.
- * So a client downloading a multi-gigabyte archive slowly still costs this
- * process the difference, and `diffStream.ts` has carried the same latent gap
- * since it was written.
+ * and it was written to bound the *memory* too - which for a long time it did
+ * not, because the runtime drained the child into its own buffer before this
+ * code ever saw it. A client downloading a multi-gigabyte archive slowly cost
+ * this process the difference, and `diffStream.ts` carried the same gap.
  *
- * The write direction is honest - a `write()` that returns false really does
- * hold the pump - which is why the boxes either side of this one could be
- * ticked and this one could not.
+ * ## This file used to assert the defect, and now asserts the fix
  *
- * ## Why this is a test rather than a note
+ * It was written the other way round on purpose: it asserted that the child
+ * finished writing with nobody reading, so that **when Bun fixed the bug the
+ * test would fail**, loudly, with its own explanation attached. The
+ * alternative was finding out years later.
  *
- * The note already exists, in phase 16 of the roadmap, and a note is a thing
- * that goes stale silently. This asserts the defect **as it stands today**, so
- * when Bun fixes it the test fails - loudly, on the next run, with this comment
- * attached - and whoever sees that failure knows two things at once: the
- * upstream bug is fixed, and the structural-rather-than-actual caveat on every
- * pull-based stream here can come off.
+ * It fired. Measured on Bun 1.4.3: a 50MB writer against a reader that takes
+ * one chunk and then stops for two seconds is still running when the idle
+ * period ends. The child is held at the pipe, which is what Node has always
+ * done and what the pull-based streams here were written assuming. The caveat
+ * on the memory guarantee in `docs/todo/16-hardening-scale.md` came off with
+ * this change.
  *
- * A test that fails when the world gets better is an odd thing to write. The
- * alternative is finding out years later, which is what happened to the three
- * bugs written up at the top of the roadmap.
+ * So the assertion is inverted rather than the file deleted, which is what the
+ * roadmap asked for: "a Bun issue plus a regression test here when it lands".
+ * A guarantee that was wrong for one runtime release can be wrong again, and
+ * the thing worth protecting is that nobody has to rediscover it from a
+ * memory graph.
  *
- * Adjacent upstream reports: oven-sh/bun#18239 (stdin buffered whole), #14693,
- * #5319.
+ * Adjacent upstream reports, all of them about the same drain:
+ * oven-sh/bun#18239 (stdin buffered whole), #14693, #5319.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -35,7 +37,7 @@ import { describe, expect, test } from 'bun:test'
 /**
  * Enough to be unambiguous, and small enough to be polite.
  *
- * At 50MB the growth is around 128MB of RSS - the buffered bytes plus the
+ * Before the fix, 50MB grew RSS by around 128MB - the buffered bytes plus the
  * runtime's own copies - which is far outside any noise this measurement has.
  */
 const MEGABYTES = 50
@@ -44,7 +46,7 @@ const MEGABYTES = 50
 const IDLE_MS = 2000
 
 describe('a spawned child, and a reader that stops reading', () => {
-  test('finishes writing anyway, which is the bug', async () => {
+  test('is held at the pipe rather than finishing into memory', async () => {
     const child = Bun.spawn(['bash', '-c', `head -c ${MEGABYTES * 1024 * 1024} /dev/zero`], { stdout: 'pipe' })
     const reader = child.stdout.getReader()
 
@@ -59,26 +61,24 @@ describe('a spawned child, and a reader that stops reading', () => {
     child.kill()
 
     /*
-     * `true` is the defect. When this assertion starts failing, Bun has fixed
-     * it: delete this file, and take the "structural rather than actual" caveat
-     * off the memory guarantee in `docs/todo/16-hardening-scale.md`.
+     * Reported as a sentence rather than a boolean, so a failure says which
+     * way round it went without anybody opening this file. If this starts
+     * failing again, the runtime has regressed to draining the child eagerly
+     * and the memory-flat guarantee on every pull-based stream here is
+     * structural rather than actual until it is fixed.
      */
     expect(finished ? 'the child finished with nobody reading' : 'the child was held at the pipe')
-      .toBe('the child finished with nobody reading')
+      .toBe('the child was held at the pipe')
   }, 30_000)
 
   /*
    * There is no RSS assertion here, and the first version of this file had one.
    *
-   * Measured in a process of its own, a 50MB write against a reader that took
-   * one chunk grows RSS by about 128MB, and a 200MB write grows it by 554MB -
-   * which is the whole payload plus the runtime's copies of it, and is the
-   * clearest statement of the bug there is. Measured *inside this suite* it
-   * grew 23MB, because the test above it had already allocated and the
-   * allocator reuses what it has.
-   *
-   * So the number is recorded in the roadmap, where it was taken in isolation,
-   * and the assertion here is the one that is exact in any process: the child
-   * finished, and nothing was reading.
+   * A resident-size measurement is a measurement of the allocator as much as of
+   * the program: it moves with the runtime's own buffering, with GC timing, and
+   * with whatever else the test process has done. Asserting on it produced a
+   * test that failed on a laptop under load and passed in CI, which is worse
+   * than no test. Whether the child is still running is the same fact observed
+   * somewhere it can be observed exactly.
    */
 })

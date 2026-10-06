@@ -81,6 +81,13 @@ const config: PickierOptions = {
     '**/cache/**',
     '**/storage/framework/cache/**',
     '**/storage/framework/auto-imports/**',
+    // The generated auto-import declarations, which are the same category as
+    // the directory above and were simply in a different path. `buddy generate`
+    // writes them, so an unused import in one is the generator's to fix and
+    // editing it here lasts until the next regeneration. Three of them were
+    // failing the lint job, which is most of the reason CI was red.
+    '**/storage/framework/types/auto-imports.d.ts',
+    '**/storage/framework/types/*-auto-imports.d.ts',
     '**/storage/framework/frontend-dist/**',
     '**/storage/framework/server/storage/**',
     '**/.bunpress/**',

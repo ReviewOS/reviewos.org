@@ -153,8 +153,8 @@ indexes it buffers unboundedly.
 - [x] Tests: a fake child proves one-chunk-per-pull and kill-on-cancel
       (`tests/unit/git-stream.test.ts`); existing smart HTTP and download suites confirm normal
       transfers unchanged. The manual memory check is the next box's story.
-- [ ] **The download direction needs a Bun fix, and until it lands the memory-flat guarantee is
-      structural rather than actual.** Measured on Bun 1.3.14 while closing the boxes above: the
+- [x] **The download direction needed a Bun fix. It landed in 1.4.3, and the canary caught it.**
+      Measured on Bun 1.3.14 while closing the boxes above: the
       runtime drains a spawned child's stdout into process memory eagerly no matter how slowly the
       consumer reads - a 50MB writer finished in one second against a paused reader, the buffered
       bytes invisible to `readableLength`, and the same through `pause()`, the async iterator, and
@@ -173,13 +173,29 @@ indexes it buffers unboundedly.
       inside a shared test process is order-dependent: the same 50MB case measured inside the suite
       grew 23MB, since the test before it had already allocated and the allocator reuses.
 
-      So `tests/unit/bun-stdout-backpressure.test.ts` asserts the one thing that is exact in any
-      process - the child finished with nobody reading - and it asserts the defect **as it stands**.
-      When Bun fixes this the test fails, loudly, on the next run, and whoever sees it learns two
-      things at once: the upstream bug is gone, and the structural-rather-than-actual caveat above
-      can come off. A test that fails when the world gets better is an odd thing to write; the
-      alternative is finding out years later, which is what happened to the three bugs written up at
-      the top of the roadmap.
+      So `tests/unit/bun-stdout-backpressure.test.ts` asserted the one thing that is exact in any
+      process - the child finished with nobody reading - and it asserted the defect **as it stood**.
+      When Bun fixed it the test would fail, loudly, on the next run, and whoever saw it would learn
+      two things at once: the upstream bug is gone, and the caveat above can come off. A test that
+      fails when the world gets better is an odd thing to write; the alternative is finding out years
+      later, which is what happened to the three bugs written up at the top of the roadmap.
+
+      **It worked, on 2026-10-06, on Bun 1.4.3.** The same 50MB case now reports `the child was held
+      at the pipe`: a reader that takes one chunk and stops for two seconds leaves the child still
+      running, which is what Node has always done and what every pull-based stream here was written
+      assuming. The caveat is off. The memory-flat guarantee on the download direction is actual
+      rather than structural, and `diffStream.ts` no longer carries the gap.
+
+      The test is inverted rather than deleted, which is the regression test this box asked for. A
+      guarantee that was wrong for one runtime release can be wrong again, and the point is that
+      nobody should have to rediscover it from a memory graph. It now fails if the runtime goes back
+      to draining the child eagerly, and says which way round it went in the failure message.
+
+      Worth noting how close this came to being missed: the failure was read as "the deliberate Bun
+      canary, expected" for an entire working session before anybody opened the file and saw that it
+      asserts the defect rather than the fix. A test that is expected to fail is indistinguishable
+      from a test that is failing, which is the argument for `test.failing` or for inverting the
+      assertion the moment the world changes.
 
 ## M5 - More than one process on one host
 

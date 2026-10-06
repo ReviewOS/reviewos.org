@@ -328,6 +328,17 @@ jobs:
           # rendered clone box, and asserting `https://` against an http
           # instance failed on a page that had rendered perfectly.
           APP_URL: https://reviewos.test
+          # Which framework default route bundles mount, and it has to be said
+          # here because CI has no `.env` to say it in.
+          #
+          # This instance takes none of them - see `STACKS_DEFAULT_ROUTES` in
+          # `.env.example` for why - and the committed OpenAPI document is
+          # generated against that surface. Unset, the default is `all`, so CI
+          # mounted 269 routes the document does not describe and
+          # `openapi-coverage.test.ts` failed on every one of them. The fix is
+          # not to regenerate the document: a document describing routes this
+          # instance does not serve is worse than a failing test.
+          STACKS_DEFAULT_ROUTES: none
           # A mail driver that cannot deliver, which is what the digest suite
           # says it assumes: "there is no mail server in the test environment,
           # so this is the failure path by construction". It was not by

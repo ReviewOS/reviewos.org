@@ -461,8 +461,14 @@ Each one is committed and pushed in the repository named.
 
 - [x] **The end-to-end suite is green: 1,584 tests, 0 failures.** It had 21, which had been there
       since August and were found only because this was the first time the whole suite was run
-      rather than `tests/unit`. **CI does not run `tests/e2e`**, which is why nothing reported them,
-      and that is the finding behind the other four.
+      rather than `tests/unit`.
+
+      **The first version of this entry said CI does not run `tests/e2e`. That was wrong**, and the
+      truth is worse. `buddy test` calls `runTestSuites([''])`, which globs `tests/` recursively, so
+      CI runs 6,569 tests across 494 files and always has. It had simply been **red on every run
+      since 2026-08-22**, including Chris's own last commits, so a red CI was the normal state and
+      carried no signal at all. That is the finding behind the other four, and it is fixed in the
+      entry below.
 
       **Thirteen were a stale search index, not code.** Every query answered 503, from
       `Could not find a field named 'pushed_at' in the schema for sorting`: the Typesense
@@ -512,6 +518,44 @@ Each one is committed and pushed in the repository named.
       action declaring `schema.number()` and asserting 200. The `coerced` rule is still the more
       honest declaration for a field a handler coerces, but nothing is broken and a 123-field sweep
       would be churn.
+
+- [x] **CI can go green again, which is the only thing that makes it mean anything.** It had been
+      red on every run since 2026-08-22. Three causes, and none of them was a missing test run.
+
+      **The lint job failed on four unused imports**, three of them in
+      `storage/framework/types/auto-imports.d.ts`, which `buddy generate` writes. `config/code-style.ts`
+      already ignored `storage/framework/auto-imports/**` as "never user-editable source"; the
+      generated *declarations* were the same category in a different path and were simply not
+      matched. They are now. The fourth was a genuinely unused `fs` in
+      `storage/framework/server/build.ts` and is gone. Worth noting these had been reported here all
+      week as "4 errors, all framework-owned, unchanged" without anybody checking whether they
+      gated anything. They gated the whole job.
+
+      **The test job failed on `openapi-coverage`, and that one was ours from yesterday.** CI has no
+      `.env`, so `STACKS_DEFAULT_ROUTES` was unset and defaulted to `all`, mounting the 269 default
+      routes this instance deliberately does not take, while the committed document describes the
+      surface without them. `STACKS_DEFAULT_ROUTES: none` is in the job's env block now, beside the
+      other values that are there "because CI has no `.env` at all". Regenerating the document
+      instead would have been the wrong fix: a document describing routes this instance does not
+      serve is worse than a failing test.
+
+      **And the third failure was the backpressure canary, which nobody read.** See
+      [phase 16](./16-hardening-scale.md): it asserts the defect rather than the fix, so it fails
+      when Bun repairs it, which Bun did in 1.4.3. It was reported as "the deliberate Bun canary,
+      expected" for an entire session. A test expected to fail is indistinguishable from a test that
+      is failing, which is precisely how a red CI stops being information.
+
+- [ ] **Thirteen search tests still skip in CI, silently.** `tests/e2e/search-action.test.ts` and
+      `search-page.test.ts` call `searchEngineReachable()` and skip when nothing answers, which is
+      right for a laptop and wrong for CI: there is no Typesense service in the `test` job, so the
+      thirteen tests that cover whether a private repository can leak through search have never run
+      there. They were red locally for two months and CI could not have told anybody.
+
+      Not added blind. Typesense configures itself from `TYPESENSE_API_KEY` and
+      `TYPESENSE_DATA_DIR`, which a service container can set, but a GitHub service needs a health
+      check and the image's shell contents are not something to guess at from here with no Docker to
+      try it against. The alternative worth considering with it: make the skip loud when `CI` is
+      set, so a missing engine fails the job instead of quietly removing the coverage.
 
 ## Known gaps, deferred deliberately
 
