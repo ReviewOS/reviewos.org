@@ -1,11 +1,22 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'DigitalDelivery',
   table: 'digital_deliveries',
   primaryKey: 'id',
   autoIncrement: true,
+
+
+  /*
+   * A delivery policy, not a delivery. Its columns are `name`,
+   * `downloadLimit`, `expiryDays`, `requiresLogin` and `automaticDelivery` -
+   * a reusable configuration attached to what is sold, with no customer, order
+   * or file on it. #2412 guessed this "almost certainly belongs to an order or
+   * a customer"; the attributes say otherwise, so it is declared a catalog
+   * record and its writes want an admin gate rather than row scoping.
+   */
+  ownership: false,
 
   traits: {
     useUuid: true,
@@ -23,6 +34,7 @@ export default defineModel({
 
     useApi: {
       uri: 'digital-deliveries',
+      middleware: ['auth'],
     },
 
     observe: true,
@@ -54,7 +66,7 @@ export default defineModel({
       order: 4,
       fillable: true,
       validation: {
-        rule: schema.number(),
+        rule: schema.number().min(0),
       },
       factory: faker => faker.number.int({ min: 1, max: 100 }),
     },
@@ -63,7 +75,7 @@ export default defineModel({
       order: 5,
       fillable: true,
       validation: {
-        rule: schema.number().required(),
+        rule: schema.number().required().min(0),
       },
       factory: faker => faker.number.int({ min: 1, max: 365 }),
     },

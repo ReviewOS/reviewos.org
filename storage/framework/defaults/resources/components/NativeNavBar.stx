@@ -1,0 +1,197 @@
+<script>
+interface NativeNavBarProps {
+  /** The screen's name: display-sized under the bar, then in the bar once scrolled. */
+  title?: string
+  /** A parent to go back to. History is used when the app pushed this screen. */
+  back?: string
+  backLabel?: string
+  /** `false` for a pushed screen: the title sits in the bar from the start. */
+  large?: boolean
+  /**
+   * For a pushed screen that draws its own heading: the bar leaves the title
+   * out until that heading has scrolled away, rather than showing it twice.
+   */
+  titleOnScroll?: boolean
+}
+
+const { title = '', back = '', backLabel = 'Back', large = true } = defineProps<NativeNavBarProps>()
+</script>
+
+<script client>
+import { backLabelFor, canGoBack, enterNavTrail, goBack, haptics, navTrail, observePageScroll } from '@stacksjs/mobile'
+
+const isLarge = useReactiveProp<boolean>('large', true)
+const onScroll = useReactiveProp<boolean>('titleOnScroll', false)
+// Reactive, so a screen whose name arrives with its data can pass it in.
+const navTitle = useReactiveProp<string>('title', '')
+const scrolled = state(false)
+let stopScroll: (() => void) | null = null
+
+// The back button names the screen it returns to, as on iOS: the one the app
+// actually came from, which a fixed label cannot know (a workout opened from
+// Today is not going back to the calendar). Each bar records its screen's
+// name on the window's trail of screens.
+const fallbackLabel = useReactiveProp<string>('backLabel', 'Back')
+const previousTitle = state('')
+const backText = derived(() => backLabelFor({ path: '', title: previousTitle() }, fallbackLabel()))
+let here: { path: string, title: string } | null = null
+effect(() => {
+  const name = navTitle()
+  if (here) here.title = name
+})
+
+onMount(() => {
+  // The large title is about 44px tall; past it, its name belongs in the bar.
+  stopScroll = observePageScroll(offset => scrolled.set(offset > 40))
+  const { current, previous } = enterNavTrail(navTrail(), window.location.pathname + window.location.search)
+  here = current
+  current.title = navTitle()
+  if (previous && canGoBack()) previousTitle.set(previous.title)
+})
+onDestroy(() => stopScroll?.())
+
+const barClass = derived(() => {
+  const collapsed = (!isLarge() && !onScroll()) || scrolled()
+  return `native-nav-bar${collapsed ? ' is-collapsed' : ''}${scrolled() ? ' is-scrolled' : ''}`
+})
+
+function tapBack(event: MouseEvent): void {
+  void haptics.selection()
+  if (goBack()) event.preventDefault()
+}
+</script>
+
+<!-- `display: contents` on this box and on stx's own wrapper: a sticky element
+     sticks within its parent, and either box would give the bar no room. -->
+<div class="native-nav" data-native-nav-bar>
+  <header :class="barClass()">
+    <div class="native-nav-side">
+      @if(back)
+        <a href="{{ back }}" class="native-nav-back" :aria-label="backText()" draggable="false" @click="tapBack">
+          <i aria-hidden="true" class="i-lucide-chevron-left native-nav-back-icon"></i>
+          <span class="native-nav-back-label">{{ backText() }}</span>
+        </a>
+      @endif
+      <slot name="leading" />
+    </div>
+    <p class="native-nav-title" aria-hidden="{{ large ? 'true' : 'false' }}">{{ navTitle() }}</p>
+    <div class="native-nav-side native-nav-actions">
+      <slot name="actions" />
+    </div>
+  </header>
+  @if(large)
+    <h1 class="native-nav-large-title" :class="navTitle() ? '' : 'is-empty'">{{ navTitle() }}</h1>
+  @endif
+  <slot />
+</div>
+
+<style>
+  /* The element stx wraps each component in is a box too, as tall as the bar
+     and its title; the bar stuck inside it and scrolled away with the title.
+     Both boxes step aside so the bar sticks to the page. */
+  .native-nav,
+  [data-stx-scope]:has(> .native-nav) { display: contents; }
+
+  .native-nav-bar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 30;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+  }
+
+  /* The frosted material is always there and only fades. Adding or removing
+     backdrop-filter rebuilds the page's layers, which took 50-140ms of the
+     main thread at the moment the page crossed the threshold, mid-scroll. An
+     opacity change is the compositor's alone, as long as it never reaches 0:
+     WebKit drops a transparent layer and builds it again on the way back. */
+  .native-nav-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-bottom: 1px solid var(--native-bar-border, rgb(148 163 184 / 0.25));
+    background: var(--native-bar-background, rgb(248 250 252 / 0.86));
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    opacity: 0.001;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  .native-nav-bar.is-scrolled::before { opacity: 1; }
+
+  .dark .native-nav-bar::before {
+    border-color: var(--native-bar-border-dark, rgb(51 65 85 / 0.6));
+    background: var(--native-bar-background-dark, rgb(2 6 23 / 0.86));
+  }
+
+  /* Each side is a container, so the back button can tell when its column is
+     too narrow for its word and keep only the chevron, as iOS does, rather
+     than running into the title. */
+  .native-nav-side { display: flex; gap: 0.25rem; align-items: center; min-width: 0; container-type: inline-size; }
+  .native-nav-actions { justify-content: flex-end; }
+
+  .native-nav-title {
+    max-width: 60vw;
+    overflow: hidden;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .native-nav-bar.is-collapsed .native-nav-title { opacity: 1; transform: none; }
+
+  /* A title that is not showing takes no room from the sides either. */
+  .native-nav-bar:not(.is-collapsed) .native-nav-title { max-width: 0; }
+
+  .native-nav-back {
+    display: inline-flex;
+    max-width: 100%;
+    gap: 0.1rem;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-left: -0.4rem;
+    padding-right: 0.5rem;
+    color: var(--native-accent, rgb(37 99 235));
+    font-size: 1.0625rem;
+    text-decoration: none;
+    -webkit-touch-callout: none;
+  }
+
+  .dark .native-nav-back { color: var(--native-accent-dark, rgb(96 165 250)); }
+  .native-nav-back:active { opacity: 0.55; }
+  .native-nav-back-icon { flex-shrink: 0; width: 1.6rem; height: 1.6rem; }
+  .native-nav-back-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @container (max-width: 4.5rem) {
+    .native-nav-back-label { display: none; }
+  }
+
+  .native-nav-large-title.is-empty { display: none; }
+
+  .native-nav-large-title {
+    margin: 0.125rem 0 0.5rem;
+    padding: 0 1rem;
+    font-size: 2.125rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .native-nav-bar::before, .native-nav-title { transition: none; }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .native-nav-bar::before { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--native-bar-solid, rgb(248 250 252)); }
+    .dark .native-nav-bar::before { background: var(--native-bar-solid-dark, rgb(2 6 23)); }
+  }
+</style>

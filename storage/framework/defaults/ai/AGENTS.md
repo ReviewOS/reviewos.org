@@ -15,7 +15,7 @@ team (and every agent) sees the same rules.
 ### Linting
 
 - Use **pickier**, never eslint directly.
-- Lint: `bunx --bun pickier .` Auto-fix: `bunx --bun pickier . --fix`
+- Lint: `./buddy lint` Auto-fix: `./buddy lint:fix`
 - For unused variables, prefer `// eslint-disable-next-line` over an underscore
   prefix.
 
@@ -63,17 +63,38 @@ same path under `app/` and it wins.
 
 ## Skills
 
-The framework ships a skill per subsystem under
-`storage/framework/defaults/ai/skills`, each documenting that area
-authoritatively. Read the relevant `SKILL.md` before doing non-trivial work
-rather than guessing at an API.
+The framework ships two kinds of skill under
+`storage/framework/defaults/ai/skills`.
+
+**Subsystem reference**, one per area (`stacks-orm`, `stacks-router`,
+`stacks-queue`, ...), each documenting it authoritatively. Read the relevant
+`SKILL.md` before doing non-trivial work rather than guessing at an API.
+
+**Engineering craft**, which shape how the work happens:
+
+| Situation | Skill |
+|---|---|
+| Which skill fits, and where to cut a session | `stacks-flow` |
+| Stress-test an idea before building it | `stacks-office-hours`, `stacks-grilling` |
+| Answer a design question with throwaway code | `stacks-prototype` |
+| Plan the change: scope, seams, test matrix | `stacks-plan-review`, `stacks-codebase-design` |
+| Name things, keep `CONTEXT.md` and ADRs current | `stacks-domain-modeling` |
+| Build it test-first, one tracer bullet at a time | `stacks-tdd`, `stacks-new-feature` |
+| Something is broken, flaky or slow | `stacks-investigate` |
+| Review the diff on standards and spec | `stacks-review` |
+| A step only a human can take | `stacks-wizard` |
+| Improve the environment for next time | `stacks-retro` |
+| Write a skill or any doc an agent reads | `stacks-writing-for-agents` |
 
 Add your own with `app/Skills/<name>/SKILL.md`, then re-run `buddy setup:ai`.
+A project skill shadows a bundled one of the same name. Read
+`stacks-writing-for-agents` first: it covers the frontmatter the validator
+enforces and how to write a description that actually fires.
 
 ---
 
 ## Before finishing
 
-- Lint: `bunx --bun pickier .` (fix with `--fix`)
-- Type check: `bun run typecheck:app`
-- Test: `buddy test`
+- Lint: `./buddy lint` (fix with `./buddy lint:fix`)
+- Type check: `./buddy typecheck`
+- Test: `./buddy test`

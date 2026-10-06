@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { giftCards } from '@stacksjs/commerce'
 import { response } from '@stacksjs/router'
 
@@ -7,7 +7,7 @@ export default new Action({
   description: 'Update the balance of a gift card',
   method: 'POST',
 
-  async handle({ request }) {
+  async handle(request) {
     const { id, amount } = request.all()
 
     if (!id || !amount) {

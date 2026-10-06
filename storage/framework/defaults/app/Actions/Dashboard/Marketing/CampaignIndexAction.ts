@@ -1,7 +1,8 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { config } from '@stacksjs/config'
-import { db } from '@stacksjs/database'
+import { db } from '@stacksjs/database/runtime'
 import { Campaign, EmailList } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
 import { normalizeCampaigns } from './campaign-records'
 
 export default new Action({
@@ -11,49 +12,54 @@ export default new Action({
   apiResponse: true,
 
   async handle() {
-    const [
-      campaigns,
-      lists,
-      membershipRows,
-      sendRows,
-      openedRows,
-      clickedRows,
-    ] = await Promise.all([
-      Campaign.orderByDesc('id').limit(500).get(),
-      EmailList.orderBy('name', 'asc').get(),
-      db
-        .selectFrom('email_list_subscribers')
-        .select(['email_list_id', db.fn.count('id').as('count')])
-        .where('status', '=', 'subscribed')
-        .groupBy('email_list_id')
-        .execute(),
-      db
-        .selectFrom('campaign_sends')
-        .select(['campaign_id', 'status', db.fn.count('id').as('count')])
-        .groupBy(['campaign_id', 'status'])
-        .execute(),
-      db
-        .selectFrom('campaign_sends')
-        .select(['campaign_id', db.fn.count('id').as('count')])
-        .where('opened_at', 'is not', null)
-        .groupBy('campaign_id')
-        .execute(),
-      db
-        .selectFrom('campaign_sends')
-        .select(['campaign_id', db.fn.count('id').as('count')])
-        .where('clicked_at', 'is not', null)
-        .groupBy('campaign_id')
-        .execute(),
-    ])
+    try {
+      const [
+        campaigns,
+        lists,
+        membershipRows,
+        sendRows,
+        openedRows,
+        clickedRows,
+      ] = await Promise.all([
+        Campaign.orderByDesc('id').limit(500).get(),
+        EmailList.orderBy('name', 'asc').get(),
+        db
+          .selectFrom('email_list_subscribers')
+          .select(['email_list_id', db.fn.count('id').as('count')])
+          .where('status', '=', 'subscribed')
+          .groupBy('email_list_id')
+          .execute(),
+        db
+          .selectFrom('campaign_sends')
+          .select(['campaign_id', 'status', db.fn.count('id').as('count')])
+          .groupBy(['campaign_id', 'status'])
+          .execute(),
+        db
+          .selectFrom('campaign_sends')
+          .select(['campaign_id', db.fn.count('id').as('count')])
+          .whereNotNull('opened_at')
+          .groupBy('campaign_id')
+          .execute(),
+        db
+          .selectFrom('campaign_sends')
+          .select(['campaign_id', db.fn.count('id').as('count')])
+          .whereNotNull('clicked_at')
+          .groupBy('campaign_id')
+          .execute(),
+      ])
 
-    return normalizeCampaigns(
-      campaigns,
-      lists,
-      membershipRows,
-      sendRows,
-      openedRows,
-      clickedRows,
-      String((config as any).commerce?.currency || 'USD').toUpperCase(),
-    )
+      return normalizeCampaigns(
+        campaigns,
+        lists,
+        membershipRows,
+        sendRows,
+        openedRows,
+        clickedRows,
+        String(config.commerce?.currency || 'USD').toUpperCase(),
+      )
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Campaigns could not be loaded.', 'CampaignIndexAction')
+    }
   },
 })

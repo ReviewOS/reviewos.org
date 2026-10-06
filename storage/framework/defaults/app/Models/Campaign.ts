@@ -1,13 +1,13 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Campaign',
   table: 'campaigns',
   primaryKey: 'id',
   autoIncrement: true,
-  belongsTo: ['EmailList'],
-  hasMany: ['CampaignSend'],
+  belongsTo: ['Team', 'EmailList'],
+  hasMany: ['CampaignSend', 'CampaignVariant'],
 
   traits: {
     useUuid: true,
@@ -18,13 +18,13 @@ export default defineModel({
     useApi: {
       uri: 'campaigns',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
-      middleware: ['auth'],
+      middleware: ['auth', 'team'],
     },
     useSearch: {
       displayable: ['id', 'name', 'type', 'status', 'subject', 'scheduledAt', 'sentAt'],
       searchable: ['name', 'description', 'subject'],
       sortable: ['name', 'type', 'status', 'scheduledAt', 'sentAt', 'createdAt', 'updatedAt'],
-      filterable: ['type', 'status', 'emailListId', 'currency'],
+      filterable: ['teamId', 'type', 'status', 'emailListId', 'currency'],
     },
     observe: true,
   },
@@ -109,6 +109,33 @@ export default defineModel({
       factory: faker => faker.lorem.paragraphs(2),
     },
 
+    content: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify([]),
+    },
+
+    channelSettings: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify({}),
+    },
+
+    segmentDefinition: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.json(),
+      },
+      factory: () => JSON.stringify({ operator: 'and', rules: [] }),
+    },
+
     fromName: {
       required: false,
       fillable: true,
@@ -125,6 +152,43 @@ export default defineModel({
         rule: schema.string().email().max(255),
       },
       factory: faker => faker.internet.email(),
+    },
+
+    replyTo: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.string().email().max(255),
+      },
+      factory: faker => faker.internet.email(),
+    },
+
+    timezone: {
+      required: true,
+      fillable: true,
+      default: 'UTC',
+      validation: {
+        rule: schema.string().max(100),
+      },
+      factory: () => 'UTC',
+    },
+
+    recurrence: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+      factory: () => null,
+    },
+
+    experimentMetric: {
+      required: false,
+      fillable: true,
+      validation: {
+        rule: schema.enum(['open_rate', 'click_rate', 'conversion_rate']),
+      },
+      factory: () => null,
     },
 
     emailListId: {
@@ -203,13 +267,17 @@ export default defineModel({
       factory: faker => faker.number.float({ min: 0.5, max: 8, fractionDigits: 1 }),
     },
 
+    // Integer minor units of `currency`, like every money column (1999 is
+    // $19.99). The columns are INTEGER; a decimal here was stored as a REAL by
+    // SQLite and truncated by MySQL and Postgres.
     budget: {
       required: false,
       fillable: true,
       validation: {
-        rule: schema.number().min(0),
+        rule: schema.number().integer().min(0),
       },
-      factory: faker => faker.number.float({ min: 100, max: 10000, fractionDigits: 2 }),
+      // $100 to $10,000.
+      factory: faker => faker.number.int({ min: 10000, max: 1000000 }),
     },
 
     spent: {
@@ -217,9 +285,10 @@ export default defineModel({
       fillable: true,
       default: 0,
       validation: {
-        rule: schema.number().min(0),
+        rule: schema.number().integer().min(0),
       },
-      factory: faker => faker.number.float({ min: 0, max: 5000, fractionDigits: 2 }),
+      // Within the budget drawn above, so a seeded campaign is never over it.
+      factory: (faker, { budget }) => faker.number.int({ min: 0, max: Number(budget) || 0 }),
     },
 
     currency: {

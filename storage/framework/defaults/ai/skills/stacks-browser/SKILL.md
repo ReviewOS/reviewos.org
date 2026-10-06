@@ -1,6 +1,6 @@
 ---
 name: stacks-browser
-description: Use when working with browser/frontend functionality in Stacks — the useAuth composable (login, register, logout, token management), Stripe billing utilities (loadCardElement, confirmPayment), the API fetch client, browser model loading, or auto-imported browser utilities. Covers @stacksjs/browser.
+description: Use when working with browser/frontend functionality in Stacks - the useAuth composable (login, register, logout, token management), Stripe billing utilities (loadCardElement, confirmPayment), the API fetch client, browser model loading, or auto-imported browser utilities. Covers @stacksjs/browser.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -86,6 +86,11 @@ const db = createBrowserDb({ baseUrl: '/api' })
 ## Utility Functions
 
 ```typescript
+// API URLs: one canonical `/api` root, legacy-prefixed paths do not double it
+resolveApiBaseUrl() // https://app.example/api in a browser
+resolveApiUrl('/users', 'https://app.example/api') // https://app.example/api/users
+resolveApiUrl('/api/users', 'https://app.example/api') // same URL
+
 // Date
 useDateFormat(date, 'YYYY-MM-DD')
 useNow()
@@ -104,8 +109,6 @@ fetchData(fetcher, { onError, fallback })
 random(size?)                  // nanoid
 customAlphabet(alphabet, size) // custom nanoid
 
-// Regex (magic-regexp)
-createRegExp(pattern)
 
 // Retry
 retry(fn, { retries: 3, initialDelay: 100, backoffFactor: 2 })

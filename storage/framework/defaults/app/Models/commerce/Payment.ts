@@ -1,5 +1,5 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { customerOwnership, defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Payment',
@@ -7,14 +7,20 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  // Rows belong to the caller's customer record, one hop from the user
+  // (stacksjs/stacks#2375). Without this the generated writes are reachable by
+  // any authenticated caller for any row.
+  ownership: customerOwnership(),
+
   traits: {
+    gdpr: { subject: { via: 'Customer' }, erasure: 'anonymize', basis: 'legal_obligation', purpose: 'Payment records, kept for tax and accounting' },
     useUuid: true,
     useTimestamps: true,
     useSearch: {
-      displayable: ['id', 'orderId', 'customerId', 'amount', 'method', 'status', 'date'],
+      displayable: ['id', 'orderId', 'customerId', 'amount', 'method', 'status', 'createdAt'],
       searchable: ['orderId', 'customerId', 'referenceNumber'],
       sortable: ['amount', 'createdAt'],
-      filterable: ['method', 'status', 'date'],
+      filterable: ['method', 'status', 'createdAt'],
     },
 
     useSeeder: {
@@ -23,6 +29,7 @@ export default defineModel({
 
     useApi: {
       uri: 'payments',
+      middleware: ['auth'],
     },
 
     observe: true,
@@ -95,7 +102,7 @@ export default defineModel({
       fillable: true,
       default: 'USD',
       validation: {
-        rule: schema.string().max(3),
+        rule: schema.string().required().max(3),
       },
       factory: faker => faker.helpers.arrayElement(['USD', 'EUR', 'GBP', 'CAD', 'AUD']),
     },
@@ -110,6 +117,7 @@ export default defineModel({
     },
 
     cardLastFour: {
+      personal: true,
       order: 9,
       fillable: true,
       validation: {
@@ -119,6 +127,7 @@ export default defineModel({
     },
 
     cardBrand: {
+      personal: true,
       order: 10,
       fillable: true,
       validation: {
@@ -128,6 +137,7 @@ export default defineModel({
     },
 
     billingEmail: {
+      personal: true,
       order: 11,
       fillable: true,
       validation: {
@@ -166,12 +176,23 @@ export default defineModel({
     },
 
     notes: {
+      personal: true,
       order: 15,
       fillable: true,
       validation: {
         rule: schema.string(),
       },
       factory: faker => faker.helpers.maybe(() => faker.lorem.sentence(), { probability: 0.3 }),
+    },
+
+    // Why the provider declined it, in the provider's words. Written by the
+    // payment webhook (`handleCommercePaymentEvent`) for ops triage.
+    failureReason: {
+      order: 16,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(1000),
+      },
     },
   },
 

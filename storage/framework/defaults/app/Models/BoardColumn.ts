@@ -1,5 +1,5 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { defineModel, parentOwnership } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 /**
  * Column on a kanban board (stacksjs/stacks#1846).
@@ -35,10 +35,14 @@ export default defineModel({
     useApi: {
       uri: 'board-columns',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
     },
   },
 
   belongsTo: ['Board'],
+
+  // Owned by whoever owns the board it sits on (stacksjs/stacks#2412).
+  ownership: parentOwnership('Board', 'board_id'),
   hasMany: ['Card'],
 
   attributes: {

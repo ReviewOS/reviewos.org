@@ -10,18 +10,18 @@ interface DigitalDeliveryRecord {
   description: string
   download_limit?: number | null
   expiry_days: number
-  requires_login: boolean | number
-  automatic_delivery: boolean | number
+  requires_login: boolean
+  automatic_delivery: boolean
   status: DigitalDeliveryStatus
 }
 
 interface DigitalDeliveryPayload {
   name: string
   description: string
-  download_limit: number | null
-  expiry_days: number
-  requires_login: boolean
-  automatic_delivery: boolean
+  downloadLimit: number | null
+  expiryDays: number
+  requiresLogin: boolean
+  automaticDelivery: boolean
   status: DigitalDeliveryStatus
 }
 
@@ -62,8 +62,8 @@ function metricCards(): Array<{ label: string, value: string, detail: string }> 
   return [
     { label: 'Methods', value: records().length.toLocaleString(), detail: 'Persisted digital delivery records' },
     { label: 'Active', value: records().filter(record => record.status === 'active').length.toLocaleString(), detail: 'Available for fulfillment' },
-    { label: 'Automatic', value: records().filter(record => Boolean(record.automatic_delivery)).length.toLocaleString(), detail: 'Delivered after payment' },
-    { label: 'Login required', value: records().filter(record => Boolean(record.requires_login)).length.toLocaleString(), detail: 'Protected customer access' },
+    { label: 'Automatic', value: records().filter(record => record.automatic_delivery).length.toLocaleString(), detail: 'Delivered after payment' },
+    { label: 'Login required', value: records().filter(record => record.requires_login).length.toLocaleString(), detail: 'Protected customer access' },
   ]
 }
 
@@ -208,12 +208,12 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Control file access, download limits, expiry, and automatic fulfillment.</p>
     </div>
     <div class="flex gap-2">
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadMethods()"><span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>Refresh</button>
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-50" @click="openCreate()"><span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>Add method</button>
+      <Button :loading="loading()" variant="secondary" @click="loadMethods()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
+      <Button :disabled="loading()" @click="openCreate()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-add-01"></span>Add method</Button>
     </div>
   </header>
 
-  <div :if="loadError()" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><button type="button" class="font-semibold underline" @click="loadMethods()">Retry</button></div>
+  <div :if="loadError()" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><Button variant="secondary" size="sm" @click="loadMethods()">Retry</Button></div>
 
   <section aria-label="Digital delivery metrics" class="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
     <template :for="item in metricCards()" :key="item.label"><article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">{{ item.label }}</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ item.value }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">{{ item.detail }}</p></article></template>

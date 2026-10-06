@@ -219,25 +219,51 @@ Each one is committed and pushed in the repository named.
       with the prefix, and both e2e suites still pass. `docs/api.md` is regenerated, since the
       action name is rendered into it.
 
-- [ ] **`storage/framework/defaults` is a vendored copy and ours is badly stale.** Two type
-      errors and three lint errors come from it, and the published package has none of them:
-      shipped `PruneModelsJob` does `await import('@stacksjs/orm')` where ours names a relative
-      `'../../orm/src/utils/prunable'` that does not exist, and shipped `PruneQueryLogsJob` calls
-      `new QueryController().pruneQueryLogs()`, with a comment saying it is an instance method,
-      against a `QueryController` that has it. So this is not an upstream defect, which is what it
-      was first written up as.
+- [x] **`storage/framework/defaults` was a badly stale vendored copy, now synced.** Two type errors
+      and three lint errors came from it while the published package had none of them, so it was
+      never an upstream defect. It was not a two-file fix either: `app/` alone differed in 858 files
+      against `@stacksjs/defaults@0.75.81`.
 
-      It is not two files, though. `app/` alone differs in **858 files** against
-      `@stacksjs/defaults@0.75.81`, 610 modified and 248 present on only one side, 914 shipped
-      against 726 here. That matters beyond the errors, because resolution falls back from `app/` to
-      this tree, so a stale copy is stale *behaviour* for anything the application has not
-      overridden.
+      Synced with the framework's own `syncPackageProjectFiles` rather than by hand, so the
+      source-to-target mapping is the one `buddy upgrade` uses: `+497 ~1113 -116` across 1,726
+      paths. `buddy upgrade` itself is still not what ran, because it also rewrites `workspace:*` to
+      a pinned range. Five paths it wanted outside the defaults tree were reverted to HEAD and
+      verified byte-identical afterwards: `buddy`, `bootstrap`, `storage/framework/tsconfig.app.json`,
+      `storage/framework/server/tsconfig.docker.json`, and `pantry.lock`, **which the sync wanted to
+      delete**.
 
-      `buddy upgrade` owns the sync and is the reason it has not happened: the same command rewrites
-      `workspace:*` to a pinned range in the workspace packages, which stops them resolving locally.
-      Syncing the tree by hand avoids that but is a large change through a read-only reference
-      directory, and wants its own commit and its own verification rather than riding along with
-      something else.
+      Typecheck is 0 for the first time, from 2. Lint is 4, from 7, and all four are now in
+      generated or framework-owned files rather than anything this repository writes.
+
+      **What the sync changed about behaviour, which is the part worth reading.** The framework grew
+      about thirty-seven default models and three default route files between 0.70 and 0.75, and
+      `route.importRoutes()` mounts the default route files alongside this application's own. So
+      **269 routes are newly registered**, and the generated document goes from 783 paths to 944.
+      Among them: `/api/pledges`, `/api/auctions`, `/api/auction-items`, `/api/couriers`,
+      `/api/delivery-stops`, `/api/menus`, `/api/forms`, `/api/sites`, `/api/redirects`, 103 more
+      under `/api/dashboard`, plus `/oauth/authorize`, `/auth/magic-link` and `/webhooks/email/*`.
+
+      This is a widening of an arrangement the application already had rather than a new one: the
+      committed document already carried 783 paths and 358 mentions of `/api/dashboard` before any
+      of this. Worth deciding about deliberately all the same, because a forge serving
+      `/api/auctions` is surface nobody asked for.
+
+      **And none of those tables exist.** 209 models are typed in `database/types.d.ts` against 134
+      tables in the database: `pledges`, `auctions`, `couriers`, `delivery_stops`, `menus`, `forms`,
+      `sites` and `redirects` are all absent, so those endpoints cannot answer. That predates the
+      sync too, which only made more of it, and `buddy migrate --diff` is right to report no pending
+      changes, because the default models are typed without being migrated. It is still an API
+      surface that is mounted and cannot work, and it wants its own decision: either the default
+      route files and model APIs should be opt-in for an application that wants none of them, or the
+      tables behind them belong in the corpus.
+
+- [x] Two consequences of the sync, fixed with it. `routes/buddy.ts` routed `/commands` at
+      `Actions/Buddy/CommandsAction`, which upstream deleted; nothing on this instance called it and
+      there is no override, so the route is gone. And `openapi-coverage.test.ts` now excludes
+      `/install` and `/test-error`, which the framework's `routes/dashboard.ts` registers inside
+      `if (IS_LOCAL_ENV)`: they do not exist on a deployed instance, so documenting them would
+      describe a surface nobody can call.
+
 
 - [ ] **stacks** - `buddy upgrade` rewrites `workspace:*` to a pinned range in the workspace
       packages under `storage/framework`. Those are workspace members, and a version range stops

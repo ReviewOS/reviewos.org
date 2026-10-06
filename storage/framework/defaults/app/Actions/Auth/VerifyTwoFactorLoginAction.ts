@@ -1,7 +1,7 @@
-import { Action } from '@stacksjs/actions'
-import { Auth, consumeTwoFactorChallenge, verifyTwoFactorLoginCode } from '@stacksjs/auth'
+import { Action } from '@stacksjs/actions/runtime'
+import { Auth, authCookieForBrowserSession, resolveBrowserSessionPolicy, verifyTwoFactorLoginCode, withTwoFactorChallenge } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'VerifyTwoFactorLoginAction',
@@ -10,11 +10,11 @@ export default new Action({
 
   validations: {
     challenge_token: {
-      rule: schema.string().min(1),
+      rule: schema.string().min(1).required(),
       message: 'A challenge token is required.',
     },
     code: {
-      rule: schema.string().min(6).max(6),
+      rule: schema.string().min(6).max(6).required(),
       message: 'Code must be a 6-digit TOTP code.',
     },
   },
@@ -27,20 +27,23 @@ export default new Action({
     // (whether the code was right or wrong) must start over from
     // LoginAction, not retry — mirrors the WebAuthn challenge
     // delete-on-read semantics in passkey.ts (stacksjs/stacks#1866).
-    const userId = await consumeTwoFactorChallenge(challengeToken)
-    if (!userId)
-      return response.unauthorized('This login attempt has expired — please sign in again.')
-
-    const valid = await verifyTwoFactorLoginCode(userId, code)
-    if (!valid)
-      return response.unauthorized('Invalid code — please sign in again.')
-
-    const result = await Auth.loginUsingId(userId)
+    const result = await withTwoFactorChallenge(challengeToken, async (userId, challenge) => {
+      if (!await verifyTwoFactorLoginCode(userId, code)) return null
+      const policy = resolveBrowserSessionPolicy(challenge.remembered)
+      return Auth.loginUsingId(userId, {
+        expiresInMinutes: policy.expiresInMinutes,
+        withRefreshToken: policy.withRefreshToken,
+      })
+    })
     if (!result)
-      return response.unauthorized('Invalid code — please sign in again.')
+      return response.unauthorized('Invalid or expired login attempt. Please sign in again.')
 
     const user = result.user
 
+    // This is where a 2FA account's session actually begins — LoginAction
+    // deliberately mints nothing for these users until the code is verified —
+    // so the cookie belongs here too. Setting it only on LoginAction would
+    // have left every 2FA account exactly where it started (#2306).
     return response.json({
       access_token: result.token,
       refresh_token: result.refreshToken,
@@ -52,6 +55,6 @@ export default new Action({
         email: user?.email,
         name: user?.name,
       },
-    })
+    }, { headers: { 'Set-Cookie': authCookieForBrowserSession(result.token, result.expiresIn) } })
   },
 })

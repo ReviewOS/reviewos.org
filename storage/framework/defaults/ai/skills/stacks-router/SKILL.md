@@ -1,6 +1,6 @@
 ---
 name: stacks-router
-description: Use when working with routing in a Stacks application — defining routes, HTTP methods, route groups, middleware, named routes, URL generation, request enhancement (Laravel-style input/query/file helpers), response helpers, error responses, route model binding, or rate limiting. Covers @stacksjs/router, routes/, and app/Routes.ts.
+description: Use when working with routing in a Stacks application - defining routes, HTTP methods, route groups, middleware, named routes, URL generation, request enhancement (Laravel-style input/query/file helpers), response helpers, error responses, route model binding, or rate limiting. Covers @stacksjs/router, routes/, and app/Routes.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -15,7 +15,8 @@ Built on `@stacksjs/bun-router` with `ts-rate-limiter`.
 - Route files: `routes/` (api.ts, v1.ts, buddy.ts, users.ts)
 - Route registry: `app/Routes.ts`
 - Generated route manifest: `storage/framework/stx/routes.ts` (written by the dev server)
-- Generated action paths: `storage/framework/types/actions.d.ts`
+- Derived name types: `storage/framework/types/registries.d.ts`
+- The maps they read: `storage/framework/auto-imports/{actions,listeners,policies,middleware,emails,routes}.ts`
 
 ## Route Definition
 
@@ -30,6 +31,28 @@ route.delete('/users/{id}', handler)
 route.options('/users', handler)
 route.health()  // GET /health endpoint
 ```
+
+### Zero-allocation static responses
+
+Use `staticResponse()` only when the response is final at registration time and
+must bypass the request pipeline entirely:
+
+```typescript
+route.staticResponse('GET', '/ready', new Response('{"ready":true}', {
+  headers: { 'content-type': 'application/json' },
+}))
+```
+
+Bun serves that `Response` directly from its native route table. No handler,
+middleware, request ID, CSRF check or cookie, rate limit, request context,
+security or CORS header mutation, compression, or response formatting runs.
+Supply the final status, headers, and body bytes yourself.
+
+Static responses return the router, not a chainable route, so `.middleware()`,
+`.name()`, `.skipCsrf()`, `.requireCsrf()`, and `.rateLimit()` cannot be attached
+and silently bypassed. A static response inside a group with middleware or
+`apiResponse: true` throws during registration. Prefix-only groups are valid.
+Duplicate method and path registrations keep the first response.
 
 ### Chainable Methods
 ```typescript
@@ -47,9 +70,111 @@ route.group({ prefix: '/api/v1', middleware: ['auth', 'throttle'] }, () => {
 ```
 
 ### Handler Types
-- Function: `(req: EnhancedRequest) => Response | Promise<Response>`
-- Action string: `'Actions/CreateUser'` — auto-loads action
+- Function: `(req) => …` — return a `Response`, or any value `formatResult`
+  handles: an object/array becomes JSON, a string becomes text, `null` becomes
+  204, a `ReadableStream` streams. `req.params` is narrowed to the path's own
+  placeholders, so `req.params.slugTypo` is a compile error rather than
+  `undefined` at runtime.
+- Action string: `'Actions/CreateUser'` — auto-loads action, lazily
+- Action object: an imported action, passed directly — see typed routes below
 - Controller: `'Controllers/UserController@index'` — calls controller method
+
+## The strings are typed
+
+Action paths, middleware aliases and route names are all checked at compile
+time against what this application actually has, and nothing is maintained by
+hand - or generated as a type.
+
+Each of them is `keyof` over a map the RESOLVER reads:
+`storage/framework/auto-imports/{actions,middleware,routes}.ts`, name to file,
+written by `buddy generate` alongside the models and jobs barrels. So a name
+that type-checks is a name that resolves; there is no second list to go stale.
+`storage/framework/types/registries.d.ts` is where the derivation lives.
+
+Middleware aliases need no map at all - `app/Middleware.ts` and the framework's
+own are ordinary modules, and `defineMiddleware` keeps their literal keys.
+
+```typescript
+route.get('/login', 'Actions/Auth/LogniAction')   // ✗ no such action
+route.get('/admin', handler).middleware('atuh')   // ✗ no such middleware alias
+url('email.unsubscrbe', { token })                // ✗ no such route name
+url('user.post', { id: 42 })                      // params come from the path
+```
+
+The middleware one is the one that matters most: a typo'd alias used to serve
+the route **without** the protection, silently.
+
+Notes:
+- Controllers stay a pattern (`'Controllers/X@method'`) — the method half is a
+  member name, not a filename.
+- Negated (`'!auth'`) and parameterised (`'throttle:60,1'`) middleware forms are
+  both accepted.
+- The maps refresh on `buddy generate`, `buddy generate:types` and dev-server
+  boot, and the staleness check watches the directories they are built from. A
+  map written before a file was added rejects code that is correct.
+- `resource()` takes a BASE, and composes `Actions/<Base><Kind>Action` from it.
+  `route.resource('posts', 'Post')` → `Actions/PostIndexAction`, matching where
+  `buddy make:crud` writes. The base is checked against the actions that exist;
+  which of the five siblings you need depends on `only`/`except`, so that part
+  is settled when the route is hit.
+
+### Path params arrive decoded
+
+`/users/{name}` given `/users/caf%C3%A9` hands the handler `café`, and `%2F`
+becomes a real `/`. Decoded exactly once, in bun-router — do NOT decode again in
+an action or middleware: two passes turn `%2520` into a space, which is how a
+filter that rejects `../` gets walked past. A malformed escape (`%ZZ`) passes
+through raw rather than failing the request.
+
+A decoded param can contain `/`, so anything joining one into a filesystem path
+still has to sanitise. Decoding makes the value correct, not safe.
+
+## Typed Routes (zero generation)
+
+`route.get('/x', 'Actions/Foo')` resolves its action by a dynamic `import()` of a
+string. Good for the runtime — lazy, hot-reload friendly — and completely opaque
+to the compiler, so no client can be typed from it without a generation step.
+
+`createTypedRouter()` registers through the same router while accumulating a
+route map into its own type:
+
+```typescript
+import IndexAction from '../app/Actions/Project/IndexAction'
+import StoreAction from '../app/Actions/Project/StoreAction'
+import { createTypedRouter } from '@stacksjs/router'
+
+export const api = createTypedRouter()
+  .get('/v1/projects', IndexAction)
+  .post('/v1/projects', StoreAction, { middleware: 'auth', rateLimit: { max: 10 } })
+
+export type AppRoutes = typeof api
+```
+
+Any TypeScript consumer then gets full inference with **no CLI step**:
+
+```typescript
+import { createTypedClient } from '@stacksjs/router'
+
+const client = createTypedClient<AppRoutes>({ baseUrl })
+const projects = await client.get('/v1/projects')   // typed from the action
+```
+
+Facts worth knowing before using it:
+
+- **One runtime path.** A directly-registered action goes through the same
+  `wrapAction` as a string-registered one — validation, `authorize`, `before`,
+  `formatResult`, error reporting. Only the compile-time story differs.
+- **Input from `validations`, output from `handle`'s return type.** An action
+  returning a `Response` is typed `unknown`; it took over the wire format.
+- **Options are an argument**, not chained — chaining would return the route and
+  lose the accumulated type.
+- **No `.group()`.** A runtime-only prefix makes every path type wrong; a
+  type-only prefix is a second place for the URL to live.
+- **Both forms feed OpenAPI.** Directly-registered actions are reported by
+  `listRegisteredRoutes()`, so the generator reads their schema with no file
+  path to import.
+- The builder, the client and the contract live in `@stacksjs/bun-router` and
+  are re-exported here. See the `stacks-api` skill for the full client story.
 
 ## Route Registry (app/Routes.ts)
 

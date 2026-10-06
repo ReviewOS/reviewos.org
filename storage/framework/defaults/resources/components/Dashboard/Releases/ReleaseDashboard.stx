@@ -37,14 +37,6 @@ function rows(): ReleaseRecord[] {
   })
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateStatus(event: Event): void {
-  status.set((event.target as HTMLSelectElement).value)
-}
-
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value)
 }
@@ -107,10 +99,10 @@ onMount(() => {
       <h1 class="font-bold text-2xl text-gray-900 dark:text-white">Releases</h1>
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Release model records and recorded download totals.</p>
     </div>
-    <button type="button" :disabled="isLoading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadReleases">
-      <span :class="'mr-2 h-4 w-4 ' + (isLoading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+    <Button variant="secondary" :loading="isLoading()" @click="loadReleases">
+      <span :if="!isLoading()" class="h-4 w-4 i-hugeicons-refresh"></span>
       Refresh
-    </button>
+    </Button>
   </header>
 
   <div :if="loadError()" class="p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ loadError() }}</div>
@@ -142,14 +134,14 @@ onMount(() => {
       </div>
       <div class="flex gap-2">
         <label class="sr-only" for="release-status">Status</label>
-        <select id="release-status" :value="status()" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateStatus($event)">
+        <select id="release-status" x-model="status" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All statuses</option>
           <option value="published">Published</option>
           <option value="scheduled">Scheduled</option>
           <option value="draft">Draft</option>
         </select>
         <label class="sr-only" for="release-search">Search releases</label>
-        <input id="release-search" :value="search()" type="search" placeholder="Search releases" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input id="release-search" x-model="search" type="search" placeholder="Search releases" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </div>
     </div>
 

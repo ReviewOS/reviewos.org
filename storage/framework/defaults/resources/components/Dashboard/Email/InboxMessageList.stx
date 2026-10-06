@@ -35,9 +35,6 @@ function listClass(): string {
   return `${visibility} flex-col w-full md:w-2/5 border-gray-200 border-r dark:border-neutral-600`
 }
 
-function updateSearch(event: Event): void {
-  emit('search', (event.target as HTMLInputElement).value)
-}
 </script>
 
 <section aria-label="Message list" :class="listClass()">
@@ -45,7 +42,7 @@ function updateSearch(event: Event): void {
     <label for="inbox-search" class="sr-only">Search messages</label>
     <div class="relative">
       <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-gray-400 pointer-events-none i-hugeicons-search-01"></span>
-      <input id="inbox-search" :value="search()" type="search" placeholder="Search messages" class="block placeholder-gray-500 dark:placeholder-gray-400 pl-10 pr-3 py-2 w-full text-gray-900 text-sm dark:text-neutral-100 bg-gray-50 dark:bg-neutral-600 border border-gray-300 rounded-md dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" @input="updateSearch($event)" />
+      <input id="inbox-search" x-model="search" type="search" placeholder="Search messages" class="block placeholder-gray-500 dark:placeholder-gray-400 pl-10 pr-3 py-2 w-full text-gray-900 text-sm dark:text-neutral-100 bg-gray-50 dark:bg-neutral-600 border border-gray-300 rounded-md dark:border-neutral-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" @input="emit('search', $event.target.value)" />
     </div>
   </div>
 
@@ -71,7 +68,7 @@ function updateSearch(event: Event): void {
                 <p class="mt-1 text-gray-500 text-xs truncate dark:text-neutral-400">{{ email.preview }}</p>
               </div>
               <div class="flex flex-shrink-0 gap-2 items-center">
-                <span :if="email.hasAttachments" class="h-4 w-4 text-gray-400 i-hugeicons-attachment-01" title="Has attachments"></span>
+                <span :if="email.hasAttachments" class="h-4 w-4 text-gray-400 i-hugeicons-attachment-01" x-tooltip="Has attachments" title="Has attachments"></span>
                 <time class="text-gray-500 text-xs dark:text-neutral-400" :datetime="email.date">{{ formatDate(email.date) }}</time>
               </div>
             </div>

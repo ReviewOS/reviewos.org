@@ -1,7 +1,8 @@
 <script client>
-import type { DeploymentRecord } from '../../../../functions/deployments'
+import type { DeploymentRecord, DeploymentRollbackPlan } from '../../../../functions/deployments'
+import type { DeploymentPreview } from '@stacksjs/types'
 import { dashboardApi } from '../../../../functions/dashboard-api'
-import { fetchDeployments, summarizeDeployments } from '../../../../functions/deployments'
+import { fetchDeployments, previewDeploymentRollback, runDeploymentRollback, summarizeDeployments } from '../../../../functions/deployments'
 import { pushToast } from '../../../../functions/toasts'
 
 interface DeploymentStartResponse {
@@ -16,19 +17,24 @@ const status = state('all')
 const isLoading = state(true)
 const loadError = state('')
 const showDeployModal = state(false)
+const deploymentDialogMode = state<'preview' | 'deploy'>('deploy')
 const isStarting = state(false)
+const isPreviewing = state(false)
+const previewPlan = state<DeploymentPreview | null>(null)
 const environment = state('production')
 const domain = state('')
+const showRollbackModal = state(false)
+const rollbackPlan = state<DeploymentRollbackPlan | null>(null)
+const rollbackSite = state('')
+const rollbackRelease = state('')
+const rollbackConfirmation = state('')
+const isRollingBack = state(false)
 const summary = derived(() => summarizeDeployments(deployments()))
 const environmentOptions = [
   { value: 'production', label: 'Production' },
   { value: 'staging', label: 'Staging' },
   { value: 'development', label: 'Development' },
 ]
-
-function eventValue<T>(value: T | CustomEvent<T>): T {
-  return value instanceof CustomEvent ? value.detail : value
-}
 
 function rows(): DeploymentRecord[] {
   const query = search().trim().toLowerCase()
@@ -45,22 +51,6 @@ function rows(): DeploymentRecord[] {
       deployment.author,
     ].some(value => value.toLowerCase().includes(query))
   })
-}
-
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateStatus(event: Event): void {
-  status.set((event.target as HTMLSelectElement).value)
-}
-
-function updateEnvironment(value: string | CustomEvent<string>): void {
-  environment.set(eventValue(value))
-}
-
-function updateDomain(value: string | CustomEvent<string>): void {
-  domain.set(eventValue(value))
 }
 
 function formatNumber(value: number): string {
@@ -92,14 +82,13 @@ async function loadDeployments(): Promise<void> {
   }
 }
 
-async function startDeployment(dryRun: boolean): Promise<void> {
+async function startDeployment(): Promise<void> {
   isStarting.set(true)
   try {
     const result = await dashboardApi<DeploymentStartResponse>('/api/dashboard/deployments', {
       method: 'POST',
       body: {
-        confirmed: !dryRun,
-        dryRun,
+        confirmed: true,
         environment: environment(),
         domain: domain().trim(),
       },
@@ -110,16 +99,98 @@ async function startDeployment(dryRun: boolean): Promise<void> {
     pushToast('success', result.message, {
       detail: result.pid ? `Process ${result.pid}` : undefined,
     })
-    if (!dryRun)
-      await loadDeployments()
+    await loadDeployments()
   }
   catch (error) {
-    pushToast('error', dryRun ? 'Could not preview deployment' : 'Could not start deployment', {
+    pushToast('error', 'Could not start deployment', {
       detail: error instanceof Error ? error.message : String(error),
     })
   }
   finally {
     isStarting.set(false)
+  }
+}
+
+function openDeploymentDialog(mode: 'preview' | 'deploy'): void {
+  deploymentDialogMode.set(mode)
+  showDeployModal.set(true)
+}
+
+async function previewDeployment(): Promise<void> {
+  isPreviewing.set(true)
+  try {
+    const result = await dashboardApi<{ success: boolean, plan: DeploymentPreview }>('/api/dashboard/deployments/preview', {
+      method: 'POST',
+      body: {
+        environment: environment(),
+        domain: domain().trim(),
+      },
+    })
+    if (!result.success || !result.plan)
+      throw new Error('Deployment preview could not be generated.')
+    showDeployModal.set(false)
+    previewPlan.set(result.plan)
+  }
+  catch (error) {
+    pushToast('error', 'Could not preview deployment', {
+      detail: error instanceof Error ? error.message : String(error),
+    })
+  }
+  finally {
+    isPreviewing.set(false)
+  }
+}
+
+function continueFromPreview(): void {
+  previewPlan.set(null)
+  openDeploymentDialog('deploy')
+}
+
+function openRollback(): void {
+  rollbackPlan.set(null)
+  rollbackConfirmation.set('')
+  showRollbackModal.set(true)
+}
+
+async function previewRollback(): Promise<void> {
+  isRollingBack.set(true)
+  try {
+    const result = await previewDeploymentRollback({
+      environment: environment(),
+      site: rollbackSite().trim() || undefined,
+      release: rollbackRelease().trim() || undefined,
+    })
+    rollbackPlan.set(result.plan)
+  }
+  catch (error) {
+    pushToast('error', 'Could not preview rollback', { detail: error instanceof Error ? error.message : String(error) })
+  }
+  finally {
+    isRollingBack.set(false)
+  }
+}
+
+async function confirmRollback(): Promise<void> {
+  const plan = rollbackPlan()
+  if (!plan) return
+  isRollingBack.set(true)
+  try {
+    const result = await runDeploymentRollback({
+      environment: environment(),
+      site: rollbackSite().trim() || undefined,
+      release: rollbackRelease().trim() || undefined,
+      revision: plan.revision,
+      confirmation: rollbackConfirmation(),
+    })
+    showRollbackModal.set(false)
+    pushToast('success', result.message)
+    await loadDeployments()
+  }
+  catch (error) {
+    pushToast('error', 'Rollback failed', { detail: error instanceof Error ? error.message : String(error) })
+  }
+  finally {
+    isRollingBack.set(false)
   }
 }
 
@@ -135,16 +206,19 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Deployment model records through the guarded dashboard API.</p>
     </div>
     <div class="flex gap-2 items-center">
-      <Button :disabled="isStarting()" variant="outline" @click="startDeployment(true)">
+      <Button :disabled="isStarting() || isPreviewing()" variant="outline" @click="openDeploymentDialog('preview')">
         Preview
       </Button>
-      <Button :disabled="isStarting()" @click="showDeployModal.set(true)">
+      <Button :disabled="isStarting() || isPreviewing() || isRollingBack()" variant="secondary" @click="openRollback">
+        Rollback
+      </Button>
+      <Button :disabled="isStarting() || isPreviewing()" @click="openDeploymentDialog('deploy')">
         Deploy
       </Button>
-      <button type="button" :disabled="isLoading()" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadDeployments">
-        <span :class="'mr-2 h-4 w-4 ' + (isLoading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+      <Button :loading="isLoading()" variant="secondary" @click="loadDeployments">
+        <span :if="!isLoading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
-      </button>
+      </Button>
     </div>
   </header>
 
@@ -177,7 +251,7 @@ onMount(() => {
       </div>
       <div class="flex gap-2">
         <label class="sr-only" for="deployment-status">Status</label>
-        <select id="deployment-status" :value="status()" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateStatus($event)">
+        <select id="deployment-status" x-model="status" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All statuses</option>
           <option value="success">Success</option>
           <option value="failed">Failed</option>
@@ -186,34 +260,37 @@ onMount(() => {
           <option value="cancelled">Cancelled</option>
         </select>
         <label class="sr-only" for="deployment-search">Search deployments</label>
-        <input id="deployment-search" :value="search()" type="search" placeholder="Search deployments" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input id="deployment-search" x-model="search" type="search" placeholder="Search deployments" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </div>
     </div>
     <DeploymentTable :deployments="rows()" :loading="isLoading" />
   </section>
 
+  <section class="grid gap-6 grid-cols-1 xl:grid-cols-2">
+    <DeployScript />
+    <LiveTerminalOutput />
+  </section>
+
   <Modal
     :isOpen="showDeployModal()"
-    title="Start deployment"
-    description="This runs ./buddy deploy as a real background process and records its status."
+    :title="deploymentDialogMode() === 'preview' ? 'Preview deployment' : 'Start deployment'"
+    :description="deploymentDialogMode() === 'preview' ? 'Generate a non-mutating plan from the native Buddy deployment pipeline.' : 'This runs ./buddy deploy as a real background process and records its status.'"
     size="sm"
     @close="showDeployModal.set(false)"
   >
     <div class="space-y-4">
       <Select
-        :value="environment()"
+        v-model:value="environment"
         :options="environmentOptions"
         label="Environment"
         placeholder=""
-        @change="updateEnvironment"
       />
       <Input
-        :value="domain()"
+        v-model:value="domain"
         type="text"
         label="Domain"
         placeholder="app.example.com"
         hint="Optional. Leave blank to use the configured deployment domain."
-        @input="updateDomain"
       />
       <div class="p-3 text-amber-800 text-sm dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-lg dark:border-amber-900">
         A deployment can create or update cloud resources. Confirm only after reviewing the target environment.
@@ -221,9 +298,48 @@ onMount(() => {
     </div>
     <template #footer>
       <div class="flex gap-2 items-center">
-        <Button :disabled="isStarting()" variant="ghost" @click="showDeployModal.set(false)">Cancel</Button>
-        <Button :loading="isStarting()" @click="startDeployment(false)">Start deployment</Button>
+        <Button :disabled="isStarting() || isPreviewing()" variant="ghost" @click="showDeployModal.set(false)">Cancel</Button>
+        <template :if="deploymentDialogMode() === 'preview'">
+          <Button :loading="isPreviewing()" @click="previewDeployment">Generate preview</Button>
+        </template>
+        <template :else>
+          <Button :loading="isStarting()" @click="startDeployment">Start deployment</Button>
+        </template>
       </div>
+    </template>
+  </Modal>
+
+  <DeploymentPreviewDialog :plan="previewPlan" @close="previewPlan.set(null)" @deploy="continueFromPreview" />
+
+  <Modal :isOpen="showRollbackModal()" title="Rollback deployment" description="Preview and validate a preserved release before changing the active runtime." size="lg" @close="showRollbackModal.set(false)">
+    <div class="space-y-4">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <Select v-model:value="environment" :options="environmentOptions" label="Environment" placeholder="" />
+        <Input v-model:value="rollbackSite" label="Site" placeholder="All application sites" hint="Optional site slug." />
+      </div>
+      <Input v-model:value="rollbackRelease" label="Preserved release" placeholder="Previous release" hint="Optional. Leave blank to use the previous preserved release." />
+      <template :if="rollbackPlan()">
+        <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 rounded-lg dark:border-neutral-800">
+          <div class="flex gap-3 items-start">
+            <span aria-hidden="true" class="shrink-0 mt-0.5 h-5 w-5 text-blue-600 i-hugeicons-git-pull-request"></span>
+            <div>
+              <p class="font-semibold text-gray-900 text-sm dark:text-white">Validated rollback to {{ rollbackPlan()?.target }}</p>
+              <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">{{ rollbackPlan()?.site || 'All sites' }} in {{ rollbackPlan()?.environment }}</p>
+            </div>
+          </div>
+          <pre class="mt-4 p-3 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-neutral-600 text-xs dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 rounded-md dark:border-neutral-800">{{ rollbackPlan()?.output }}</pre>
+        </div>
+        <div :for="warning in rollbackPlan()?.warnings || []" class="flex gap-2 items-start text-orange-800 text-sm dark:text-orange-200">
+          <span aria-hidden="true" class="shrink-0 mt-0.5 h-4 w-4 i-hugeicons-alert-02"></span>
+          <span>{{ warning }}</span>
+        </div>
+        <Input v-model:value="rollbackConfirmation" label="Confirmation" :placeholder="'rollback ' + environment()" :hint="'Type rollback ' + environment() + ' to continue.'" autocomplete="off" />
+      </template>
+    </div>
+    <template #footer>
+      <Button variant="secondary" :disabled="isRollingBack()" @click="showRollbackModal.set(false)">Cancel</Button>
+      <Button :if="!rollbackPlan()" :loading="isRollingBack()" @click="previewRollback">Preview rollback</Button>
+      <Button :if="rollbackPlan()" variant="danger" :loading="isRollingBack()" @click="confirmRollback">Rollback deployment</Button>
     </template>
   </Modal>
 </div>

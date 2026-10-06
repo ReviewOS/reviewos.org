@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Author', // defaults to the sanitized file name
@@ -16,6 +16,7 @@ export default defineModel({
   ],
 
   traits: {
+    gdpr: { erasure: 'anonymize', basis: 'legitimate_interests', purpose: 'Byline on published content' },
     useAuth: {
       usePasskey: true,
     },
@@ -32,6 +33,11 @@ export default defineModel({
     // (content/blog/*.md); this model backs the CMS dashboard only.
 
     useApi: {
+      // Public catalog: anyone may browse, only authenticated callers may
+      // write. Declared explicitly because the trait now defaults BOTH sides to
+      // `auth` — an undeclared read route is how a customer list leaks
+      // (stacksjs/stacks#2224). Behaviour here is unchanged.
+      middleware: { read: [], write: ['auth'] },
       uri: 'authors',
 
       routes: ['index', 'store', 'show', 'update', 'destroy'],
@@ -40,11 +46,13 @@ export default defineModel({
     observe: true,
   },
 
+
   hasMany: ['Post'],
   belongsTo: ['User'],
 
   attributes: {
     name: {
+      personal: true,
       order: 1,
       fillable: true,
       validation: {
@@ -59,6 +67,7 @@ export default defineModel({
     },
 
     email: {
+      personal: true,
       unique: true,
       order: 2,
       fillable: true,
@@ -73,6 +82,7 @@ export default defineModel({
     },
 
     bio: {
+      personal: true,
       required: false,
       order: 3,
       fillable: true,
@@ -86,6 +96,7 @@ export default defineModel({
     },
 
     avatar: {
+      personal: true,
       required: false,
       order: 4,
       fillable: true,

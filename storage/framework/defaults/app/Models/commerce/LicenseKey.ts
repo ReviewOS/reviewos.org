@@ -1,11 +1,16 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { customerOwnership, defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'LicenseKey',
   table: 'license_keys',
   primaryKey: 'id',
   autoIncrement: true,
+
+  // Rows belong to the caller's customer record, one hop from the user
+  // (stacksjs/stacks#2375). Without this the generated writes are reachable by
+  // any authenticated caller for any row.
+  ownership: customerOwnership(),
 
   traits: {
     useUuid: true,
@@ -23,6 +28,7 @@ export default defineModel({
 
     useApi: {
       uri: 'license-keys',
+      middleware: ['auth'],
     },
 
     observe: true,

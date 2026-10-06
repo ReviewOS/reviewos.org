@@ -1,6 +1,6 @@
 ---
 name: stacks-events
-description: Use when working with the event system in a Stacks application — dispatching events, listening for events, model events, wildcard listeners, the event emitter, or event-driven architecture. Covers @stacksjs/events, app/Events.ts, app/Listener.ts, and app/Listeners/.
+description: Use when working with the event system in a Stacks application - dispatching events, listening for events, model events, wildcard listeners, the event emitter, or event-driven architecture. Covers @stacksjs/events, app/Events.ts, app/Listener.ts, and app/Listeners/.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -109,25 +109,87 @@ type Off = <Key extends keyof StacksEvents>(type: Key, handler?: Handler<StacksE
 ## Built-in Event Types (StacksEvents)
 
 ```typescript
-interface StacksEvents extends ModelEvents, Record<EventType, unknown> {
-  'user:registered': Record<string, any>
-  'user:logged-in': Record<string, any>
-  'user:logged-out': Record<string, any>
-  'user:password-reset': Record<string, any>
-  'user:password-changed': Record<string, any>
+// @stacksjs/events
+interface AuthEvents {
+  'user:registered': UserRegisteredEvent
+  'user:logged-in': UserLoggedInEvent
+  'user:logged-out': UserLoggedOutEvent
+  'user:password-reset': UserPasswordEvent
+  'user:password-changed': UserPasswordEvent
+}
+
+// Augmentation target - model events land here, and so do yours.
+interface AppEvents {}
+
+type StacksEvents = AppEvents & AuthEvents
+type EventName = keyof StacksEvents & string
+```
+
+There is **no** trailing index signature, deliberately: an arbitrary event name is
+what made `dispatch('user:creatd', …)` compile and reach nobody. Declare an
+application's own events on `AppEvents` and the typo becomes a compile error.
+
+```typescript
+declare module '@stacksjs/events' {
+  interface AppEvents {
+    'invoice:settled': { id: number, total: number }
+  }
 }
 ```
 
-The `Record<EventType, unknown>` intersection allows arbitrary event names beyond the declared ones.
-
 ## Model Events
 
-Every model with `observe: true` trait (in defineModel) emits via `afterCreate`/`afterUpdate`/`afterDelete` hooks:
-- `'{model}:created'` -- after insert
-- `'{model}:updated'` -- after update
-- `'{model}:deleted'` -- after delete
+Every model with the `observe: true` trait emits **eight** events:
 
-Model name is lowercased: `'user:created'`, `'post:updated'`, `'order:deleted'`
+| Event | When | Payload |
+|---|---|---|
+| `{model}:saving` | before any write | the model object |
+| `{model}:creating` / `:updating` / `:deleting` | before that write | the model object |
+| `{model}:created` / `:updated` / `:deleted` | after that write | the row |
+| `{model}:saved` | after insert OR update | the row |
+
+Model name is lowercased: `'user:created'`, `'post:updated'`, `'teammember:saved'`.
+
+A **before** listener can cancel the write by returning `false`:
+
+```ts
+listen('user:deleting', (model) => {
+  if (model.attributes.email.endsWith('@example.com'))
+    return false   // the delete does not happen
+})
+```
+
+Before-events carry the model object (`.attributes` holds the row); after-events
+carry the row itself.
+
+### The payloads are typed, and nothing generates them
+
+`listen('user:created', user => user.emial)` is a compile error - the payload is
+the User row, with the columns your model declares.
+
+`storage/framework/types/model-events.d.ts` derives the whole map from the models
+barrel with a mapped type:
+
+```ts
+type ModelAfterEvents = {
+  [K in keyof Models & string as `${Lowercase<K>}:${AfterEvent}`]: ModelRow<Models[K]>
+}
+```
+
+So a model existing IS its events existing - there is no generated list to keep in
+agreement, and nothing to re-run after adding a model. (It replaced an 817-line
+generated file, and before that a hand-maintained one that listed three events per
+model and typed every payload `Record<string, any>`.)
+
+Declare your own events by augmenting `AppEvents`:
+
+```ts
+declare module '@stacksjs/events' {
+  interface AppEvents {
+    'invoice:overdue': { id: number, daysLate: number }
+  }
+}
+```
 
 Events are dispatched via lazy `import('@stacksjs/events').then(({ dispatch }) => dispatch(...))` to avoid circular dependencies. If the import fails (e.g., browser context), errors are silently caught.
 
@@ -136,93 +198,93 @@ The `observe` trait can be:
 - `['create', 'update']` -- emits only specified events
 - `false` / undefined -- no events
 
-Full model list (45+ with events defined in `storage/framework/types/events.ts`):
-Author, Page, Post, User, Activity, Campaign, Cart, CartItem, Category, Comment, Coupon, Customer, DeliveryRoute, DigitalDelivery, Driver, EmailList, GiftCard, LicenseKey, LoyaltyPoint, LoyaltyReward, Manufacturer, Notification, Order, OrderItem, Payment, PrintDevice, Product, ProductUnit, ProductVariant, Receipt, Review, ShippingMethod, ShippingRate, ShippingZone, SocialPost, Subscription, Tag, TaxRate, Transaction, WaitlistProduct, WaitlistRestaurant, Websocket
+There is no model list to keep here. Every model in `storage/framework/auto-imports/models.ts`
+has its eight events, and that barrel is generated from disk for the runtime, so the
+answer to "which models emit events" is "the ones that exist".
 
 ## Event-to-Listener Mapping (app/Events.ts)
 
 ```typescript
-import type { Events } from '@stacksjs/types'
+import { defineEvents } from '@stacksjs/events'
 
-export default {
+export default defineEvents({
   'user:registered': ['SendWelcomeEmail'],
   'user:created': ['NotifyUser'],
-} satisfies Events
+})
 ```
 
-Keys are event names (must match StacksEvents keys). Values are arrays of **Action names** -- these correspond to files in `app/Actions/`.
+Both halves are checked. A key must be an event that exists (`EventName`, above);
+a value must name a listener that is on disk (`ListenerName`, generated into
+`storage/framework/types/actions.d.ts` from `app/Listeners/`, `app/Actions/` and
+the framework defaults behind them). `satisfies Events` is equivalent and still
+supported; `defineEvents` is preferred because it also keeps the literal types,
+so `keyof typeof events` is the two names the file declares rather than `string`.
 
 ## Listener Resolution (app/Listener.ts)
 
-The `handleEvents()` function sets up the entire event-to-action pipeline:
+`handleEvents()` delegates to `registerAppListeners()`, which registers both
+conventions and is idempotent:
 
-### Setup
 ```typescript
-export async function handleEvents() {
-  emitter.on('*', listenEvents as WildcardHandler<StacksEvents>)
+import { registerAppListeners } from '@stacksjs/events'
+import { path as p } from '@stacksjs/path'
+
+export async function handleEvents(): Promise<number> {
+  return registerAppListeners({ base: p.projectPath() })
 }
 ```
-Subscribes a single wildcard handler that intercepts ALL events.
 
-### Event Processing Flow
-1. **Fast path**: `eventTypes` Set (pre-computed from `Object.keys(events)`) provides O(1) lookup. Events not in the map are skipped immediately.
-2. **Listener resolution**: For each listener name in the array, `resolveAction(listener)` is called:
-   - Checks `actionCache` Map (in-memory module cache)
-   - Checks `pendingImports` Map (deduplicates concurrent imports of the same action)
-   - Dynamically imports `app/Actions/{listener}.ts`
-   - Validates the module exports a `handle(event)` method
-   - Caches the resolved module in `actionCache`
-3. **Execution**: `processListeners()` iterates listeners sequentially (`for...of`), awaiting each action's `handle(event)` method
-4. **Error handling**: Errors are caught per-listener via `handleError()` from `@stacksjs/error-handling` -- one listener failure does not prevent others
+Names in the map resolve against `app/Listeners/`, `app/Actions/`, then the same
+two directories under the framework defaults - first match wins.
 
-### Caching Details
-```typescript
-const actionCache = new Map<string, { handle: (event: any) => Promise<any> | any }>()
-const pendingImports = new Map<string, Promise<...>>()
-const eventTypes = new Set(Object.keys(events))  // pre-computed at module load
-```
+### Registration Flow
+1. **The map**: `registerFromMap()` imports `app/Events.ts` and, for each name,
+   resolves a module with a `handle` method out of `app/Listeners/`,
+   `app/Actions/` or the framework defaults, then subscribes it to that event
+   directly. A name that resolves to nothing is warned about by name.
+2. **The scan**: `discoverListeners()` walks `app/Listeners/` and registers any
+   default export shaped `{ listensTo, handle }`. `listensTo` may be an array.
+3. **Dedup**: every `(event, module)` pair is claimed once per process, so a
+   listener that appears in both conventions - or a dev server that re-runs
+   boot - registers once rather than twice.
+4. **Payload check**: if the resolved action declares `validations`, a dispatched
+   payload that does not match them is warned about. It is not thrown: the
+   dispatcher has already committed the thing the event announces.
 
-- `actionCache`: stores resolved action modules permanently
-- `pendingImports`: prevents double-importing when multiple events fire simultaneously for the same listener
-- `eventTypes`: O(1) lookup to skip events with no registered listeners
+### Where it is called from
+- `injectGlobalAutoImports()` (`@stacksjs/server`), so every path that dispatches -
+  HTTP, `buddy seed`, a scheduled job, a console command - has listeners on the bus
+- `handleEvents()` in `app/Listener.ts`, the app's own override hook
 
-### Listener Type Support
-The listener can also be a function (not just a string):
-```typescript
-if (typeof listener === 'function') {
-  await listener(event)
-  continue
-}
-```
+Both on the same boot in dev. The claim registry is what keeps that from being
+two of every listener.
 
 ## Implementation Details
 
 ### Thread Safety
-- mitt handlers are stored in arrays -- `emit()` calls `.slice()` before iterating to safely handle additions/removals during iteration
-- Wildcard handler registration happens once in `handleEvents()` -- the single handler routes all events
+- handlers are stored in arrays -- `emit()` calls `.slice()` before iterating to safely handle additions/removals during iteration
 
 ### Synchronous vs Asynchronous
-- **mitt itself is synchronous**: `emit()` calls handlers directly, does not await them
-- **Listener resolution is asynchronous**: `processListeners()` uses `async/await` for dynamic imports and action execution
-- The wildcard handler in `app/Listener.ts` calls `processListeners()` as fire-and-forget (no await) since mitt doesn't support async wildcard handlers
+- **`emit` is synchronous**: it calls handlers directly and does not await them; an async handler's rejection is logged rather than lost
+- **`emitAsync` / `dispatchAsync` awaits** every matching handler and resolves with their results
+- **Registration is asynchronous**: resolving a listener name imports a module
 
 ### Memory
-- The emitter is a module-level singleton -- created once at import time
-- Action modules are cached permanently in `actionCache` -- hot-reloading new actions requires server restart
-- The `pendingImports` Map entries are cleaned up in the `finally` block of each import
+- The emitter is one per *process*, keyed on `Symbol.for('stacks.events.emitter')` rather than per copy of the package -- two installed copies would otherwise be two separate buses, and a dispatch into the wrong one looks exactly like a dispatch nobody listened for
+- Resolved listener modules are held by the closures registered on the emitter, so adding an action requires a restart
 
 ## Gotchas
 - Events are functional, not class-based -- no need to create event classes
 - The emitter is a **singleton** -- shared across the entire application process
 - Wildcard `'*'` listeners receive `(type, event)` -- regular handlers receive just `(event)`
-- Listeners in `app/Events.ts` are **Action names** (strings), not file paths or handler functions
-- The action module must export a default with a `handle(event)` method
-- Event dispatch via mitt is **synchronous** but listener action resolution (dynamic import) is **asynchronous**
+- Listeners in `app/Events.ts` are **names** (strings), not file paths or handler functions -- resolved against `app/Listeners/`, `app/Actions/`, then the framework defaults
+- The listener module must export a default with a `handle(event)` method
+- Event dispatch is **synchronous** but listener resolution (dynamic import) happens once, at boot
 - Model events only fire when the model has `observe: true` (or array) trait set
 - The event system is ~200 bytes total -- it is intentionally minimal
-- Listener caching means hot-reloading new actions requires server restart
-- If `evt` is `undefined`, handlers are NOT called (mitt checks `if (evt !== undefined)`)
+- Listeners are resolved once at boot, so adding an action requires a server restart
+- If `evt` is `undefined`, handlers are NOT called (`emit` checks `if (evt !== undefined)`)
 - The `'*'` event type cannot be manually emitted -- it only receives forwarded events
 - `off(type)` without a handler argument clears ALL handlers for that type (sets to empty array, not delete)
-- The `StacksEvents` interface extends `Record<EventType, unknown>` allowing any string as an event name
+- `StacksEvents` has **no** index signature: an undeclared event name is a compile error, not a dispatch into the void. Declare your own on `AppEvents`
 - Error logging in mitt uses `console.error` (not `@stacksjs/logging`) to avoid circular dependencies

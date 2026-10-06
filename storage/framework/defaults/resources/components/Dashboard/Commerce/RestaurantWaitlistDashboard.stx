@@ -1,6 +1,7 @@
 <script client>
 import type { RestaurantWaitlistOptions, RestaurantWaitlistRecord, RestaurantWaitlistSummary, RestaurantWaitlistWritePayload } from '../../../../app/Actions/Dashboard/Commerce/restaurant-waitlist-records'
-import { dashboardApi } from '../../../../functions/dashboard-api'
+import { restaurantWaitlistTimestamp } from '../../../../app/Actions/Dashboard/Commerce/restaurant-waitlist-records'
+import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
 
 interface RestaurantWaitlistResponse {
@@ -24,6 +25,14 @@ const deleteRecord = state<RestaurantWaitlistRecord | null>(null)
 const isSaving = state(false)
 const isDeleting = state(false)
 const busyId = state('')
+const validationErrors = state<Record<string, string>>({})
+const metrics = derived(() => [
+  { label: 'Waiting', value: summary().waiting },
+  { label: 'Quoted wait', value: `${summary().averageQuotedWait} min` },
+  { label: 'Seated', value: summary().seated },
+  { label: 'No show', value: summary().noShow },
+  { label: 'Seating rate', value: `${summary().seatingRate}%` },
+])
 
 function rows(): RestaurantWaitlistRecord[] {
   const query = search().trim().toLowerCase()
@@ -37,27 +46,17 @@ function rows(): RestaurantWaitlistRecord[] {
   })
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateStatus(event: Event): void {
-  status.set((event.target as HTMLSelectElement).value)
-}
-
-function updatePreference(event: Event): void {
-  preference.set((event.target as HTMLSelectElement).value)
-}
-
 function openAddDialog(): void {
   entryDialogMode.set('add')
   editingRecord.set(null)
+  validationErrors.set({})
   entryDialogOpen.set(true)
 }
 
 function openEditDialog(record: RestaurantWaitlistRecord): void {
   entryDialogMode.set('edit')
   editingRecord.set(record)
+  validationErrors.set({})
   entryDialogOpen.set(true)
 }
 
@@ -66,6 +65,7 @@ function closeEntryDialog(): void {
     return
   entryDialogOpen.set(false)
   editingRecord.set(null)
+  validationErrors.set({})
 }
 
 function openDeleteDialog(record: RestaurantWaitlistRecord): void {
@@ -82,14 +82,6 @@ function relationId(value: string): number | null {
   return Number.isInteger(id) && id > 0 ? id : null
 }
 
-function unixTimestamp(value: string): number {
-  if (/^\d{10,13}$/.test(value)) {
-    const numeric = Number(value)
-    return value.length === 13 ? Math.floor(numeric / 1000) : numeric
-  }
-  return Math.floor(new Date(value.replace(' ', 'T')).getTime() / 1000)
-}
-
 function writePayload(record: RestaurantWaitlistRecord, nextStatus = record.status): RestaurantWaitlistWritePayload {
   const payload: RestaurantWaitlistWritePayload = {
     customerId: relationId(record.customerId),
@@ -97,7 +89,7 @@ function writePayload(record: RestaurantWaitlistRecord, nextStatus = record.stat
     email: record.email,
     phone: record.phone,
     partySize: record.partySize,
-    checkInTime: unixTimestamp(record.checkInTime),
+    checkInTime: restaurantWaitlistTimestamp(record.checkInTime),
     tablePreference: record.tablePreference as RestaurantWaitlistWritePayload['tablePreference'],
     status: nextStatus as RestaurantWaitlistWritePayload['status'],
     quoted_wait_time: record.quotedWaitTime,
@@ -110,8 +102,8 @@ function writePayload(record: RestaurantWaitlistRecord, nextStatus = record.stat
 }
 
 function elapsedMinutes(value: string): number {
-  const checkedIn = unixTimestamp(value) * 1000
-  if (!Number.isFinite(checkedIn))
+  const checkedIn = restaurantWaitlistTimestamp(value) * 1000
+  if (checkedIn <= 0)
     return 0
   return Math.max(0, Math.round((Date.now() - checkedIn) / 60000))
 }
@@ -140,11 +132,12 @@ async function saveRecord(payload: RestaurantWaitlistWritePayload): Promise<void
   const current = editingRecord()
   const isEditing = entryDialogMode() === 'edit' && current !== null
   const path = isEditing
-    ? `/api/waitlist-restaurants/${current.id}`
-    : '/api/waitlist-restaurants'
+    ? `/api/dashboard/commerce/waitlist-restaurants/${current.id}`
+    : '/api/dashboard/commerce/waitlist-restaurants'
   const method = isEditing ? 'PATCH' : 'POST'
 
   isSaving.set(true)
+  validationErrors.set({})
   try {
     await dashboardApi(path, { method, body: payload })
     entryDialogOpen.set(false)
@@ -153,6 +146,8 @@ async function saveRecord(payload: RestaurantWaitlistWritePayload): Promise<void
     await loadRecords()
   }
   catch (error) {
+    if (error instanceof DashboardApiError)
+      validationErrors.set(error.fields ?? {})
     pushToast('error', 'Could not save waitlist party', {
       detail: error instanceof Error ? error.message : String(error),
     })
@@ -168,7 +163,7 @@ async function changeStatus(record: RestaurantWaitlistRecord, nextStatus: 'seate
     const payload = writePayload(record, nextStatus)
     if (nextStatus === 'seated' && payload.actual_wait_time === undefined)
       payload.actual_wait_time = elapsedMinutes(record.checkInTime)
-    await dashboardApi(`/api/waitlist-restaurants/${record.id}`, { method: 'PATCH', body: payload })
+    await dashboardApi(`/api/dashboard/commerce/waitlist-restaurants/${record.id}`, { method: 'PATCH', body: payload })
     pushToast('success', nextStatus === 'seated' ? 'Party marked as seated' : 'Party marked as no show')
     await loadRecords()
   }
@@ -190,7 +185,7 @@ async function deleteSelectedRecord(): Promise<void> {
   isDeleting.set(true)
   busyId.set(current.id)
   try {
-    await dashboardApi(`/api/waitlist-restaurants/${current.id}`, { method: 'DELETE' })
+    await dashboardApi(`/api/dashboard/commerce/waitlist-restaurants/${current.id}`, { method: 'DELETE' })
     deleteRecord.set(null)
     pushToast('success', 'Waitlist party deleted')
     await loadRecords()
@@ -218,27 +213,21 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Manage persisted WaitlistRestaurant records and seating states.</p>
     </div>
     <div class="flex gap-2">
-      <button type="button" :disabled="isLoading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadRecords">
-        <span :class="'mr-2 h-4 w-4 ' + (isLoading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+      <Button variant="secondary" :loading="isLoading()" @click="loadRecords">
+        <span :if="!isLoading()" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
-      </button>
-      <button type="button" :disabled="isLoading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-50" @click="openAddDialog()">
-        <span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>
+      </Button>
+      <Button :disabled="isLoading()" @click="openAddDialog()">
+        <span class="h-4 w-4 i-hugeicons-add-01"></span>
         Add party
-      </button>
+      </Button>
     </div>
   </header>
 
   <div :if="loadError()" class="p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ loadError() }}</div>
 
   <section class="grid gap-3 grid-cols-2 lg:grid-cols-5">
-    <template :for="item in [
-      { label: 'Waiting', value: summary().waiting },
-      { label: 'Quoted wait', value: summary().averageQuotedWait + ' min' },
-      { label: 'Seated', value: summary().seated },
-      { label: 'No show', value: summary().noShow },
-      { label: 'Seating rate', value: summary().seatingRate + '%' }
-    ]">
+    <template :for="item in metrics()">
       <div class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
         <p class="text-gray-500 text-xs uppercase dark:text-neutral-400">{{ item.label }}</p>
         <p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ item.value }}</p>
@@ -254,7 +243,7 @@ onMount(() => {
       </div>
       <div class="flex flex-wrap gap-2">
         <label class="sr-only" for="restaurant-waitlist-status">Status</label>
-        <select id="restaurant-waitlist-status" :value="status()" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateStatus($event)">
+        <select id="restaurant-waitlist-status" x-model="status" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All statuses</option>
           <option value="waiting">Waiting</option>
           <option value="seated">Seated</option>
@@ -262,7 +251,7 @@ onMount(() => {
           <option value="no_show">No show</option>
         </select>
         <label class="sr-only" for="restaurant-waitlist-preference">Table preference</label>
-        <select id="restaurant-waitlist-preference" :value="preference()" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updatePreference($event)">
+        <select id="restaurant-waitlist-preference" x-model="preference" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All tables</option>
           <option value="no_preference">No preference</option>
           <option value="indoor">Indoor</option>
@@ -270,7 +259,7 @@ onMount(() => {
           <option value="booth">Booth</option>
         </select>
         <label class="sr-only" for="restaurant-waitlist-search">Search waitlist</label>
-        <input id="restaurant-waitlist-search" :value="search()" type="search" placeholder="Search waitlist" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input id="restaurant-waitlist-search" x-model="search" type="search" placeholder="Search waitlist" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </div>
     </div>
 
@@ -292,6 +281,7 @@ onMount(() => {
   :record="editingRecord()"
   :options="options()"
   :busy="isSaving()"
+  :errors="validationErrors()"
   @submit="saveRecord"
   @close="closeEntryDialog()"
 />

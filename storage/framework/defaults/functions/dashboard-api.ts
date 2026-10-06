@@ -1,5 +1,6 @@
-import type { ApiErrorBody } from '@stacksjs/browser'
-import { describeResponseError, withCsrfHeader } from '@stacksjs/browser'
+import type { ApiErrorBody } from '@stacksjs/browser/composables/request-error'
+import { withCsrfHeader } from '@stacksjs/browser/composables/csrf'
+import { describeResponseError } from '@stacksjs/browser/composables/request-error'
 import { useAuth } from './auth'
 
 /**
@@ -15,8 +16,12 @@ import { useAuth } from './auth'
 
 export interface ApiRequestOptions {
   method?: 'GET' | 'HEAD' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+  /** Send the stored bearer token when available. Disable for public bearer-link reads. */
+  auth?: boolean
   /** JSON request body. Omitted entirely for GET. */
   body?: unknown
+  /** Multipart request body. The browser supplies its boundary header. */
+  formData?: FormData
   signal?: AbortSignal
 }
 
@@ -32,19 +37,15 @@ export class DashboardApiError extends Error {
   }
 }
 
-/**
- * Call a dashboard API endpoint and return its parsed JSON.
- *
- * Throws on a non-2xx response, using the server's `message` / `error`
- * field when there is one so callers can surface something better than a
- * bare status code.
- */
-export async function dashboardApi<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+async function dashboardResponse(path: string, options: ApiRequestOptions, accept: string): Promise<Response> {
   const method = options.method ?? 'GET'
-  const headers: Record<string, string> = { accept: 'application/json' }
+  const headers: Record<string, string> = { accept }
   const authToken = useAuth().getToken()
 
-  if (authToken)
+  if (options.body !== undefined && options.formData)
+    throw new TypeError('dashboardApi accepts either body or formData, not both.')
+
+  if (authToken && options.auth !== false)
     headers.Authorization = `Bearer ${authToken}`
 
   if (options.body !== undefined)
@@ -54,13 +55,41 @@ export async function dashboardApi<T = unknown>(path: string, options: ApiReques
     ? headers
     : withCsrfHeader(headers)
 
-  const res = await fetch(path, {
+  return fetch(path, {
     method,
     headers: requestHeaders,
     credentials: 'same-origin',
     signal: options.signal,
     ...(options.body !== undefined && { body: JSON.stringify(options.body) }),
+    ...(options.formData && { body: options.formData }),
   })
+}
+
+async function dashboardResponseError(res: Response): Promise<DashboardApiError> {
+  const text = await res.text()
+  let payload: ApiErrorBody | null = null
+  try {
+    payload = text ? JSON.parse(text) as ApiErrorBody : null
+  }
+  catch {
+    payload = null
+  }
+
+  const failure = describeResponseError(res.status, payload)
+  if (failure.unexpected)
+    console.error('[dashboard-api] Unexpected request failure:', failure.cause)
+  return new DashboardApiError(failure.message, res.status, failure.fields)
+}
+
+/**
+ * Call a dashboard API endpoint and return its parsed JSON.
+ *
+ * Throws on a non-2xx response, using the server's `message` / `error`
+ * field when there is one so callers can surface something better than a
+ * bare status code.
+ */
+export async function dashboardApi<T = unknown>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const res = await dashboardResponse(path, options, 'application/json')
 
   const text = await res.text()
   let payload: any = null
@@ -79,4 +108,38 @@ export async function dashboardApi<T = unknown>(path: string, options: ApiReques
   }
 
   return payload as T
+}
+
+/**
+ * Open a guarded dashboard stream - server-sent events read through `fetch`,
+ * because `EventSource` cannot send the bearer token the dashboard
+ * authenticates with. Throws on a non-2xx response, as `dashboardApi` does;
+ * the caller reads `res.body`.
+ */
+export async function dashboardStream(path: string, options: Pick<ApiRequestOptions, 'signal'> = {}): Promise<Response> {
+  const res = await dashboardResponse(path, options, 'text/event-stream')
+  if (!res.ok)
+    throw await dashboardResponseError(res)
+  return res
+}
+
+/**
+ * Download a guarded dashboard resource while preserving bearer and session
+ * authentication. The object URL only exists for the duration of the browser
+ * download and is then released.
+ */
+export async function dashboardDownload(path: string, filename: string): Promise<void> {
+  const res = await dashboardResponse(path, {}, 'application/octet-stream')
+  if (!res.ok)
+    throw await dashboardResponseError(res)
+
+  const objectUrl = URL.createObjectURL(await res.blob())
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename
+  anchor.hidden = true
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
 }

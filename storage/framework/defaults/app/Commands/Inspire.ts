@@ -1,16 +1,17 @@
-import type { CLI } from '@stacksjs/types'
 // triggered via `$your-cli inspire` and `buddy inspire`
 import process from 'node:process'
-import { log, quotes } from '@stacksjs/cli'
+import { defineCommand, log, quotes } from '@stacksjs/cli'
 import { ExitCode } from '@stacksjs/types'
 
-// for enhanced type-safety & autocompletion,
-// you may want to define the options' interface
+// Every file in this directory is a command - there is nothing to register.
+// `defineCommand` types the CLI it hands you; the declarative form
+// (`defineCommand({ name, options, handle })`) additionally infers the
+// handler's options from the flags it declares.
 interface InspireOptions {
   two: boolean
 }
 
-export default function (cli: CLI) {
+export default defineCommand((cli) => {
   cli
     .command('inspire', 'Inspire yourself with a random quote')
     .option('--two, -t', 'Inspire yourself with two random quotes', {
@@ -49,9 +50,9 @@ export default function (cli: CLI) {
   })
 
   cli.on('inspire:*', () => {
-    log.error('Invalid command: %s\nSee --help for a list of available commands.', cli.args.join(' '))
+    console.error('Invalid command: %s\nSee --help for a list of available commands.', cli.args.join(' '))
     process.exit(1)
   })
 
-  return cli // TODO: this may not be needed
-}
+  return cli
+})

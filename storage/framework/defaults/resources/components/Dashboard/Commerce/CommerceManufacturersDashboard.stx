@@ -1,6 +1,6 @@
 <script client>
 import type { ManufacturerRecord, ManufacturerSummary } from '../../../../app/Actions/Dashboard/Commerce/manufacturer-records'
-import { dashboardApi } from '../../../../functions/dashboard-api'
+import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
 
 interface ManufacturerIndexResponse {
@@ -30,6 +30,7 @@ const editingRecord = state<ManufacturerRecord | null>(null)
 const deletingRecord = state<ManufacturerRecord | null>(null)
 const saving = state(false)
 const deleting = state(false)
+const validationErrors = state<Record<string, string>>({})
 
 function countries(): string[] {
   return [...new Set(records().map(record => record.country).filter(Boolean))].sort()
@@ -70,22 +71,6 @@ function metricCards(): Array<{ label: string, value: string }> {
   ]
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateFeaturedFilter(event: Event): void {
-  featuredFilter.set((event.target as HTMLSelectElement).value)
-}
-
-function updateCountryFilter(event: Event): void {
-  countryFilter.set((event.target as HTMLSelectElement).value)
-}
-
-function updateSort(event: Event): void {
-  sort.set((event.target as HTMLSelectElement).value)
-}
-
 async function loadManufacturers(): Promise<void> {
   loading.set(true)
   loadError.set('')
@@ -108,12 +93,14 @@ async function loadManufacturers(): Promise<void> {
 function openAdd(): void {
   dialogMode.set('add')
   editingRecord.set(null)
+  validationErrors.set({})
   dialogOpen.set(true)
 }
 
 function openEdit(record: ManufacturerRecord): void {
   dialogMode.set('edit')
   editingRecord.set(record)
+  validationErrors.set({})
   dialogOpen.set(true)
 }
 
@@ -122,15 +109,17 @@ function closeDialog(): void {
     return
   dialogOpen.set(false)
   editingRecord.set(null)
+  validationErrors.set({})
 }
 
 async function saveManufacturer(payload: ManufacturerWritePayload): Promise<void> {
   const current = editingRecord()
   const editing = dialogMode() === 'edit' && current !== null
   const path = editing
-    ? `/api/product-manufacturers/${current.id}`
-    : '/api/product-manufacturers'
+    ? `/api/dashboard/commerce/manufacturers/${current.id}`
+    : '/api/dashboard/commerce/manufacturers'
   saving.set(true)
+  validationErrors.set({})
   try {
     await dashboardApi(path, { method: editing ? 'PATCH' : 'POST', body: payload })
     dialogOpen.set(false)
@@ -139,6 +128,8 @@ async function saveManufacturer(payload: ManufacturerWritePayload): Promise<void
     await loadManufacturers()
   }
   catch (error) {
+    if (error instanceof DashboardApiError)
+      validationErrors.set(error.fields ?? {})
     pushToast('error', 'Could not save manufacturer', {
       detail: error instanceof Error ? error.message : String(error),
     })
@@ -163,7 +154,7 @@ async function deleteManufacturer(): Promise<void> {
     return
   deleting.set(true)
   try {
-    await dashboardApi(`/api/product-manufacturers/${current.id}`, { method: 'DELETE' })
+    await dashboardApi(`/api/dashboard/commerce/manufacturers/${current.id}`, { method: 'DELETE' })
     deletingRecord.set(null)
     pushToast('success', 'Manufacturer deleted')
     await loadManufacturers()
@@ -190,14 +181,14 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Manage native Manufacturer records and their product relationships.</p>
     </div>
     <div class="flex gap-2">
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadManufacturers">
-        <span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+      <Button variant="secondary" :loading="loading()" @click="loadManufacturers">
+        <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
-      </button>
-      <button type="button" class="inline-flex items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md" @click="openAdd()">
-        <span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>
+      </Button>
+      <Button @click="openAdd()">
+        <span class="h-4 w-4 i-hugeicons-add-01"></span>
         Add manufacturer
-      </button>
+      </Button>
     </div>
   </header>
 
@@ -219,11 +210,11 @@ onMount(() => {
         <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-gray-400 pointer-events-none">
           <span class="h-4 w-4 i-hugeicons-search-01"></span>
         </span>
-        <input :value="search()" type="search" placeholder="Search manufacturers" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input x-model="search" type="search" placeholder="Search manufacturers" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </label>
       <label>
         <span class="sr-only">Featured state</span>
-        <select :value="featuredFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateFeaturedFilter($event)">
+        <select x-model="featuredFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All manufacturers</option>
           <option value="featured">Featured only</option>
           <option value="not-featured">Not featured</option>
@@ -231,7 +222,7 @@ onMount(() => {
       </label>
       <label>
         <span class="sr-only">Country</span>
-        <select :value="countryFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateCountryFilter($event)">
+        <select x-model="countryFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All countries</option>
           <template :for="country in countries()" :key="country">
             <option :value="country">{{ country }}</option>
@@ -244,7 +235,7 @@ onMount(() => {
       <p class="text-gray-500 text-sm dark:text-neutral-400">{{ visibleRecords().length }} matching manufacturers</p>
       <label class="flex gap-2 items-center text-gray-500 text-sm dark:text-neutral-400">
         Sort
-        <select :value="sort()" class="px-3 py-1.5 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateSort($event)">
+        <select x-model="sort" class="px-3 py-1.5 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="name">Name</option>
           <option value="products">Most products</option>
           <option value="country">Country</option>
@@ -262,6 +253,7 @@ onMount(() => {
   :mode="dialogMode()"
   :record="editingRecord()"
   :busy="saving()"
+  :errors="validationErrors()"
   @submit="saveManufacturer"
   @close="closeDialog()"
 />

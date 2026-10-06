@@ -1,6 +1,6 @@
 ---
 name: stacks-development
-description: Use when setting up or configuring the Stacks development environment — dev server, hot reload, development utilities, or IDE configuration. Covers the @stacksjs/development package, the dev server, CLI commands, reverse proxy, SSL, and dev workflow.
+description: Use when setting up or configuring the Stacks development environment - dev server, hot reload, development utilities, or IDE configuration. Covers the @stacksjs/development package, the dev server, CLI commands, reverse proxy, SSL, and dev workflow.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -79,6 +79,8 @@ buddy/src/commands/
 - `buddy dev` -- Start ALL dev servers in parallel (frontend, API, docs, dashboard + reverse proxy if custom domain)
 - `buddy dev [server]` -- Start a specific server: `frontend`, `api`, `components`, `dashboard`, `desktop`, `system-tray`, `docs`
 - `buddy dev -i` / `--interactive` -- Interactive prompt to choose which server to start
+- `buddy dev --browser` -- Override a configured native launch and open the browser app
+- `buddy dev --site` -- Open the marketing site instead of the app or native window
 - `buddy dev --verbose` -- Show detailed output including proxy info and dependency logs
 - `buddy dev:frontend` (aliases: `dev:pages`, `dev:views`) -- Frontend only
 - `buddy dev:api` -- API server only
@@ -86,6 +88,7 @@ buddy/src/commands/
 - `buddy dev:docs` -- Documentation server only
 - `buddy dev:components` -- Vue component library dev server
 - `buddy dev:desktop` -- Desktop app dev server
+- `buddy dev:native` -- Equivalent native app development flow
 - `buddy dev:system-tray` (alias: `dev:tray`) -- System tray dev server
 
 ### Build Commands
@@ -111,17 +114,18 @@ buddy/src/commands/
 
 ### Unified Dev Server (`buddy dev` with no arguments)
 When `buddy dev` runs without a specific server flag, `startDevelopmentServer()` in `dev.ts`:
-1. Reads port configuration from env vars (`PORT`, `PORT_API`, `PORT_DOCS`, `PORT_ADMIN`)
-2. Detects custom domain from `APP_URL` (e.g., `stacks.localhost`)
-3. Prints Vite-style banner with URLs for Frontend, API, Docs, Dashboard
-4. Sets `STACKS_PROXY_MANAGED=1` to prevent subprocesses from starting their own proxies
-5. Starts all servers in parallel via `Promise.all()`:
+1. Reads `config/app.ts` `devLaunch`; `native` opens `appPath` in Craft, while `browser` keeps the browser default
+2. Reads port configuration from env vars (`PORT`, `PORT_API`, `PORT_DOCS`, `PORT_ADMIN`)
+3. Detects custom domain from `APP_URL` (e.g., `stacks.localhost`)
+4. Prints Vite-style banner with URLs for Frontend, API, Docs, Dashboard
+5. Sets `STACKS_PROXY_MANAGED=1` to prevent subprocesses from starting their own proxies
+6. Starts all servers in parallel via `Promise.all()`:
    - `runFrontendDevServer()` -- STX template server on port 3000
    - `runApiDevServer()` -- bun-router API on port 3008
    - `runDocsDevServer()` -- bunpress docs on port 3006
    - `runDashboardDevServer()` -- STX + Craft native window on port 3002
    - `startReverseProxy()` -- rpx HTTPS proxy on port 443 (only if custom domain set)
-6. Registers SIGINT/SIGTERM handlers that `SIGKILL` the entire process group
+7. Registers SIGINT/SIGTERM handlers that `SIGKILL` the entire process group
 
 ### Action Execution (`runAction` in helpers/utils.ts)
 - Dev actions (paths starting with `dev/`) automatically get `--watch` flag via `bun --watch`
@@ -143,13 +147,16 @@ Uses `bun-plugin-stx` serve function with pattern-based view resolution:
 - Serves on `127.0.0.1` at `config.ports.api` (default 3008)
 
 ### Dashboard Dev Server (dashboard.ts)
-- Starts STX server + config API + native Craft window in parallel
-- Config API runs on `dashboardPort + 1` (default 3003), handles `POST /api/config/update`
-- Config API allows live editing of `config/*.ts` files via regex-based key replacement
+- Starts the STX server on `config.ports.admin` and optionally opens a native Craft window
+- Mounts the config API on the same dashboard origin under `/api/config/*`
+- Config routes list, read, expose source for, and atomically update `config/*.ts` files
+- Config updates support top-level scalar literals only and preserve comments and environment-backed expressions
 - Discovers ORM models from `app/Models/` and `storage/framework/defaults/app/Models/`
 - Writes `.discovered-models.json` manifest for sidebar population
-- Opens `@craft-native/ts` native window (1400x900, titlebar hidden, native sidebar)
-- Sidebar has 10 sections: Home, Library, Content, App, Data, Commerce, Marketing, Analytics, Management, Utilities
+- Preloads ORM model globals for server scripts, while framework server helpers use explicit imports
+- Leaves `resources/functions` to the STX client auto-import pipeline because browser helpers may depend on signals and other browser-only primitives
+- Opens a Craft `createApp()` window when a supported SDK and native binary are available (1400x900, titlebar hidden)
+- Builds the web sidebar from configured sections and discovered model dashboard metadata
 
 ### Docs Dev Server (docs.ts)
 - Uses `@stacksjs/bunpress` with `{ watch: true, quiet: true }`
@@ -245,7 +252,7 @@ Default configurations provided at `storage/framework/defaults/ide/`:
 - `vscode/.vscode/extensions.json` -- Recommended extensions
 - `vscode/.vscode/settings.json` -- Editor settings
 - `vscode/.vscode/stacks.code-snippets` -- Code snippets
-- `vscode/package.json` -- VS Code extension manifest
+- `vscode/package.json` -- the Stacks extension (`Stacks.vscode-stacks`). Self-contained: it installs no extension pack and depends on no extension. It builds in `.stx` support from `@stacksjs/stx-vscode` (the stx extension's language support as a library; the standalone stx extension, `Stacks.vscode-stx`, stands down next to it), pickier lint/format/fix-all through the project's own pickier, and env file hover decryption and `buddy env:*` commands. Run `bun run sync:stx` there after updating `@stacksjs/stx-vscode`; never map `*.stx` to `html` in `files.associations`, which takes `.stx` files away from the stx language.
 
 ### JetBrains
 - `.idea/` config (ESLint, modules, VCS, web resources)
@@ -272,9 +279,9 @@ Default configurations provided at `storage/framework/defaults/ide/`:
 
 ```typescript
 {
-  componentsDir: 'resources/components',
-  layoutsDir: 'resources/layouts',
-  partialsDir: 'resources/partials',
+  componentsDir: 'components',
+  layoutsDir: 'layouts',
+  partialsDir: 'partials',
 }
 ```
 
@@ -288,7 +295,7 @@ Note: Dashboard mode overrides these settings via its own `serve()` options.
 - Dev actions are executed with `bun --watch` automatically -- do NOT add `--watch` manually or you get double-restart behavior
 - The `dev/views` action is special-cased in `runAction()` to run in-process (no subprocess) for performance -- other dev actions spawn subprocesses
 - `NODE_PATH` is injected to include `pantry/` directory so compiled pantry packages can resolve `@stacksjs/*` dependencies at runtime
-- The dashboard config API (port 3003) modifies `config/*.ts` files via regex replacement -- it only handles simple key-value patterns, not nested objects or arrays
+- The dashboard config API shares the dashboard origin and atomically modifies top-level scalar literals in `config/*.ts`. Nested values, arrays, and environment-backed expressions remain read-only.
 - SSL certificates are stored in `~/.stacks/ssl/`, NOT in the project directory -- they persist across projects using the same domain
 - Custom server configuration in `server/` at the project root overrides the default server config via file copy (checked by `useCustomOrDefaultServerConfig()`)
 - The production server doubles as a queue worker when `QUEUE_WORKER` env var is set -- it imports the job by name from `app/Jobs/` and exits after completion

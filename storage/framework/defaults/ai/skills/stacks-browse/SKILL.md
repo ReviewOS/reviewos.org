@@ -1,6 +1,6 @@
 ---
 name: stacks-browse
-description: Use for headless browser QA on Stacks applications — navigation, screenshots, responsive testing, console/network monitoring, and accessibility snapshots. Dependency-free: drives a system browser over the Chrome DevTools Protocol using only Bun (no Playwright/Puppeteer). Invoke with /stacks-browse.
+description: Use for headless browser QA on Stacks applications - navigation, screenshots, responsive testing, console/network monitoring, and accessibility snapshots. Dependency-free, driving a system browser over the Chrome DevTools Protocol using only Bun (no Playwright/Puppeteer). Invoke with /stacks-browse.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, a Chromium-family browser on the machine
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -44,6 +44,11 @@ you to `brew install --cask chromium` or set `BROWSE_BROWSER`.
 - Admin dashboard: `http://localhost:3002`
 - Docs: `http://localhost:3005`
 - API: `http://localhost:3008`
+
+For headless dashboard QA, start the server with
+`STACKS_NO_NATIVE=1 ./buddy dev --dashboard`. Never point `CRAFT_BIN` at a
+missing file to suppress the native window because invalid binary overrides are
+configuration errors.
 
 > Pages with an open HMR/SSE connection never reach "network idle"; the driver waits for
 > the load event (with a timeout) plus a short settle, so it won't hang on the dev server.
@@ -96,11 +101,47 @@ bun storage/framework/defaults/ai/skills/stacks-browse/scripts/browse.ts snapsho
 ```
 Extracts headings, links (`text -> href`), buttons, forms (action + field count), and ARIA landmarks — useful for auditing structure and catching broken links.
 
+### Scenario (stateful SPA interactions)
+```bash
+bun storage/framework/defaults/ai/skills/stacks-browse/scripts/browse.ts scenario <url> \
+  --step '{"action":"click","selector":"button[data-open]"}' \
+  --step '{"action":"focus","selector":"input[name=name]"}' \
+  --step '{"action":"evaluate","expression":"window.__stxDevtools?.stats()"}' \
+  --step '{"action":"fill","selector":"input[name=name]","value":"Example"}' \
+  --step '{"action":"click","selector":"button[type=submit]"}' \
+  --step '{"action":"assert","selector":"main","text":"Saved"}' \
+  --step '{"action":"assert","selector":"[role=dialog]","absent":true}' \
+  --out storage/framework/runtime/shots/scenario.png
+```
+
+Steps run in order within one isolated browser page, preserving reactive STX state and SPA navigation. Supported actions are `click`, `fill`, `focus`, `press`, `wait`, `evaluate`, and `assert`. Each step is a JSON object passed through a repeatable `--step` flag. Click and focus steps may include `text` to select the matching control from their CSS selector. They scroll matched controls into view before interacting, including controls inside horizontal overflow regions. Evaluate steps run a JavaScript expression in the isolated page and return its serialized value, which is useful for inspecting STX signals and DevTools state between interactions. The command reports every completed step, the final URL and page text, console messages, console exceptions, failed requests, and an optional screenshot. It exits nonzero when the scenario assertion, evaluation, browser console, or network fails.
+Use `{"action":"assert","selector":"...","absent":true}` to verify that an element is missing or hidden after an interaction.
+Use `{"action":"assert","selector":"button","text":"Save","focused":true}` to verify keyboard focus and focus restoration.
+
+### Crawl (whole-site browser audit)
+```bash
+bun storage/framework/defaults/ai/skills/stacks-browse/scripts/browse.ts crawl <url> [--viewport 1280x900] [--max 500] [--path /extra-route] [--settle 350] [--progress] [--summary]
+```
+Uses a fresh isolated page target per route, waits for each target to fully close,
+and relaunches Chromium if its DevTools session or target lifecycle fails during a long audit, while
+following every same-origin link it discovers.
+The viewport is deterministic and defaults to `1280x900`; pass `--viewport 768x1024`
+to repeat the same route audit at a tablet breakpoint.
+Each page is checked for a non-200 document, console exceptions, failed
+requests, and horizontal overflow. Repeat `--path` to seed routes that are not
+linked from the starting page. The command prints every crawled path and exits
+nonzero when any page fails. Add `--progress` to stream each completed page
+during a long audit. Add `--summary` to report totals and compact failure
+diagnostics without printing every visited path or overflowing element.
+
 ## Stacks-Specific QA
 
 When testing a Stacks app, check:
 - **Dashboard routes** — admin pages rendering? (`localhost:3002`)
-- **API health** — `GET localhost:3008/health` returns ok?
+- **API health** — `GET localhost:3008/api/health` returns ok? (`/api/health`, not
+  `/health`: the probe is mounted under `/api` so it cannot collide with a page of
+  the same name, and the API port answers `/api` only - every other path is a 404
+  there by design, so point page checks at the frontend instead.)
 - **Auth flow** — `/login`, `/register`
 - **CMS/blog** — `/blog`, post detail pages, `/blog/feed.xml`, `/blog/sitemap.xml`
 - **STX components** — do custom components render server-side?

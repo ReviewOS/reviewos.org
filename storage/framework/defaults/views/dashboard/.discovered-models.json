@@ -8,6 +8,28 @@
       "category": "data"
     },
     {
+      "id": "auction",
+      "name": "Auction",
+      "icon": "i-hugeicons-auction",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "icon": "i-hugeicons-auction",
+        "label": "Auctions"
+      }
+    },
+    {
+      "id": "auction-item",
+      "name": "AuctionItem",
+      "icon": "i-hugeicons-package",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "icon": "i-hugeicons-package",
+        "label": "Lots"
+      }
+    },
+    {
       "id": "author",
       "name": "Author",
       "icon": "person.text.rectangle.fill",
@@ -15,6 +37,17 @@
       "category": "content",
       "dashboard": {
         "highlight": true
+      }
+    },
+    {
+      "id": "bid",
+      "name": "Bid",
+      "icon": "i-hugeicons-hand-pointing-right-01",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "icon": "i-hugeicons-hand-pointing-right-01",
+        "label": "Bids"
       }
     },
     {
@@ -119,6 +152,23 @@
       }
     },
     {
+      "id": "courier",
+      "name": "Courier",
+      "icon": "car.fill",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "highlight": true
+      }
+    },
+    {
+      "id": "courier-ping",
+      "name": "CourierPing",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "commerce"
+    },
+    {
       "id": "customer",
       "name": "Customer",
       "icon": "person.crop.circle.fill",
@@ -132,6 +182,16 @@
       "id": "delivery-route",
       "name": "DeliveryRoute",
       "icon": "map.fill",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "highlight": true
+      }
+    },
+    {
+      "id": "delivery-stop",
+      "name": "DeliveryStop",
+      "icon": "tablecells.fill",
       "hasDedicatedPage": false,
       "category": "commerce",
       "dashboard": {
@@ -159,13 +219,13 @@
       }
     },
     {
-      "id": "driver",
-      "name": "Driver",
-      "icon": "car.fill",
+      "id": "email-idempotency",
+      "name": "EmailIdempotency",
+      "icon": "tablecells.fill",
       "hasDedicatedPage": false,
-      "category": "commerce",
+      "category": "data",
       "dashboard": {
-        "highlight": true
+        "enabled": false
       }
     },
     {
@@ -181,6 +241,26 @@
       "icon": "tablecells.fill",
       "hasDedicatedPage": false,
       "category": "data"
+    },
+    {
+      "id": "email-suppression",
+      "name": "EmailSuppression",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "data",
+      "dashboard": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "email-webhook-event",
+      "name": "EmailWebhookEvent",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "data",
+      "dashboard": {
+        "enabled": false
+      }
     },
     {
       "id": "gift-card",
@@ -343,6 +423,17 @@
       "category": "commerce"
     },
     {
+      "id": "pledge",
+      "name": "Pledge",
+      "icon": "i-hugeicons-give-blood",
+      "hasDedicatedPage": false,
+      "category": "commerce",
+      "dashboard": {
+        "icon": "i-hugeicons-give-blood",
+        "label": "Pledges"
+      }
+    },
+    {
       "id": "post",
       "name": "Post",
       "icon": "doc.text.fill",
@@ -457,6 +548,13 @@
       }
     },
     {
+      "id": "social-account",
+      "name": "SocialAccount",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "data"
+    },
+    {
       "id": "social-post",
       "name": "SocialPost",
       "icon": "bubble.left.and.bubble.right.fill",
@@ -509,6 +607,26 @@
       "category": "data",
       "dashboard": {
         "highlight": true
+      }
+    },
+    {
+      "id": "team-invitation",
+      "name": "TeamInvitation",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "data",
+      "dashboard": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "team-member",
+      "name": "TeamMember",
+      "icon": "tablecells.fill",
+      "hasDedicatedPage": false,
+      "category": "data",
+      "dashboard": {
+        "enabled": false
       }
     },
     {
@@ -576,5 +694,6 @@
       "subscribers": true,
       "allModels": true
     }
-  }
+  },
+  "nav": []
 }

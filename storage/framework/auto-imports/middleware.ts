@@ -32,5 +32,6 @@ export const middleware = {
   'Permission': '../defaults/app/Middleware/Permission.ts',
   'Role': '../defaults/app/Middleware/Role.ts',
   'Signed': '../defaults/app/Middleware/Signed.ts',
+  'Site': '../defaults/app/Middleware/Site.ts',
   'Team': '../defaults/app/Middleware/Team.ts',
 } as const

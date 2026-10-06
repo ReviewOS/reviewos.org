@@ -1,11 +1,17 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'ShippingMethod',
   table: 'shipping_methods',
   primaryKey: 'id',
   autoIncrement: true,
+
+  // A reference table: no row here has a per-caller owner, so there is nothing
+  // to scope by and writes are an administrative concern gated by `middleware`.
+  // Declared rather than left silent so `security.api.rowScoping: 'deny'` can
+  // tell "considered" from "nobody thought about it" (stacksjs/stacks#2375).
+  ownership: false,
 
   traits: {
     useUuid: true,
@@ -22,6 +28,11 @@ export default defineModel({
     },
 
     useApi: {
+      // Public catalog: anyone may browse, only authenticated callers may
+      // write. Declared explicitly because the trait now defaults BOTH sides to
+      // `auth` — an undeclared read route is how a customer list leaks
+      // (stacksjs/stacks#2224). Behaviour here is unchanged.
+      middleware: { read: [], write: ['auth'] },
       uri: 'shipping-methods',
     },
 
@@ -71,7 +82,7 @@ export default defineModel({
       order: 5,
       fillable: true,
       validation: {
-        rule: schema.number(),
+        rule: schema.number().min(0),
       },
       factory: (faker) => {
         // 30% chance of being null (N/A), otherwise a minimum order amount

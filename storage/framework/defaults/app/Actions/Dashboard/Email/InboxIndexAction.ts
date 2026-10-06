@@ -1,6 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import type { RequestInstance } from '@stacksjs/types'
+import { Action } from '@stacksjs/actions/runtime'
 import { emailSDK } from '@stacksjs/email'
-import { config } from '@stacksjs/config'
+import { dashboardMailbox, inboxActionError } from './inbox-request'
 
 export interface InboxItem {
   messageId: string
@@ -15,20 +16,15 @@ export interface InboxItem {
   path: string
 }
 
-function defaultMailbox(): string {
-  const domain = (config as any)?.email?.domain || 'stacksjs.com'
-  return `chris@${domain}`
-}
-
 export default new Action({
   name: 'InboxIndexAction',
   description: 'Returns real inbound emails for a mailbox from S3.',
   method: 'GET',
   apiResponse: true,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     try {
-      const mailbox = request?.query?.mailbox || defaultMailbox()
+      const mailbox = dashboardMailbox(request)
       const emails = await emailSDK.getInbox(mailbox, { limit: 1000 })
 
       return {
@@ -38,12 +34,7 @@ export default new Action({
       }
     }
     catch (err) {
-      return {
-        mailbox: request?.query?.mailbox || defaultMailbox(),
-        total: 0,
-        emails: [],
-        error: err instanceof Error ? err.message : 'unknown error',
-      }
+      return inboxActionError(err, 'Inbox messages could not be loaded.')
     }
   },
 })

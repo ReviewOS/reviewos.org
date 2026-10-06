@@ -1,29 +1,35 @@
-import { Action } from '@stacksjs/actions'
+import type { RequestInstance } from '@stacksjs/types'
+import { Action } from '@stacksjs/actions/runtime'
 import { FailedJob, Job } from '@stacksjs/orm'
-import { request } from '@stacksjs/router'
+import { response } from '@stacksjs/router'
+import { dashboardOperationalError } from '../dashboard-response'
 import { normalizeActiveJob, normalizeFailedJob, parseJobReference } from './job-records'
 
 export default new Action({
   name: 'JobShowAction',
   description: 'Returns one native Job or FailedJob record for dashboard inspection.',
   method: 'GET',
-  async handle() {
-    const reference = String((request as any).params?.id || '')
+  async handle(request: RequestInstance) {
+    const reference = request.getParam('id')
     const parsed = parseJobReference(reference)
     const id = Number(parsed.id)
 
     if (!Number.isFinite(id) || id <= 0)
-      return { job: null, error: 'Invalid job id.' }
+      return response.json({ message: 'Invalid job id.' }, 400)
 
     try {
       if (parsed.source === 'failed') {
         const record = await FailedJob.find(id)
-        return { job: record ? normalizeFailedJob(record) : null }
+        return record
+          ? { job: normalizeFailedJob(record) }
+          : response.json({ message: 'Job not found.' }, 404)
       }
 
       if (parsed.source === 'job') {
         const record = await Job.find(id)
-        return { job: record ? normalizeActiveJob(record) : null }
+        return record
+          ? { job: normalizeActiveJob(record) }
+          : response.json({ message: 'Job not found.' }, 404)
       }
 
       const activeRecord = await Job.find(id)
@@ -31,13 +37,12 @@ export default new Action({
         return { job: normalizeActiveJob(activeRecord) }
 
       const failedRecord = await FailedJob.find(id)
-      return { job: failedRecord ? normalizeFailedJob(failedRecord) : null }
+      return failedRecord
+        ? { job: normalizeFailedJob(failedRecord) }
+        : response.json({ message: 'Job not found.' }, 404)
     }
     catch (error) {
-      return {
-        job: null,
-        error: error instanceof Error ? error.message : 'Job could not be loaded.',
-      }
+      return dashboardOperationalError(error, 'Job could not be loaded.', 'JobShowAction')
     }
   },
 })

@@ -1,6 +1,6 @@
 ---
 name: stacks-ai
-description: Use when integrating AI capabilities into a Stacks application — using Anthropic/OpenAI/Ollama/AWS Bedrock drivers, image generation (DALL-E), vision analysis, RAG/vector search, embeddings, MCP (Model Context Protocol) clients, text summarization, sentiment analysis, content classification, personalization, or the buddy AI assistant. Covers @stacksjs/ai and config/ai.ts.
+description: Use when integrating AI capabilities into a Stacks application - using Anthropic/OpenAI/Ollama/AWS Bedrock drivers, image generation (DALL-E), vision analysis, RAG/vector search, embeddings, text-to-speech and speech-to-text, MCP (Model Context Protocol) clients, text summarization, sentiment analysis, content classification, personalization, or the buddy AI assistant. Covers @stacksjs/ai and config/ai.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -21,15 +21,16 @@ ai/src/
 │   ├── anthropic.ts      # Claude driver
 │   ├── openai.ts         # GPT + DALL-E + Whisper + TTS
 │   ├── ollama.ts         # Local LLM driver
-│   └── bedrock.ts        # AWS Bedrock utilities
+│   └── bedrock/          # Amazon Bedrock, through the Converse API
 ├── image.ts              # Image generation & vision
+├── speech.ts             # Provider-neutral text-to-speech & speech-to-text
 ├── search.ts             # RAG, embeddings, vector index
 ├── mcp.ts                # Model Context Protocol client
 ├── personalization.ts    # Sentiment, classification, recommendations
 ├── buddy.ts              # AI coding assistant
 ├── claude-agent.ts       # Claude CLI agent (local & EC2)
 ├── claude-agent-sdk.ts   # Claude Agent SDK driver
-└── text.ts               # Bedrock text summarization
+└── text.ts               # ask() / summarize(), on the Bedrock driver
 ```
 
 ## Anthropic Driver
@@ -37,7 +38,7 @@ ai/src/
 ```typescript
 import { anthropic } from '@stacksjs/ai'
 
-anthropic.configure({ apiKey: '...', model: 'claude-sonnet-4-20250514', maxTokens: 4096 })
+anthropic.configure({ apiKey: '...', model: 'claude-sonnet-5-5', maxTokens: 4096 })
 const result = await anthropic.chat([{ role: 'user', content: 'Hello' }])
 const stream = await anthropic.streamChat(messages, options)
 const response = await anthropic.prompt('Summarize this text...')
@@ -57,6 +58,89 @@ const image = await openai.generateImage('a sunset over mountains')
 const transcription = await openai.transcribe(audioFile)
 const speech = await openai.textToSpeech('Hello world')
 ```
+
+## Bedrock Driver
+
+```typescript
+import { bedrock } from '@stacksjs/ai'
+
+bedrock.configure({ model: 'global.anthropic.claude-sonnet-5-5', region: 'us-east-1' })
+const result = await bedrock.chat([{ role: 'user', content: 'Hello' }], { system: 'Be brief.' })
+```
+
+- Every request goes through Bedrock's Converse API, so one shape serves Nova,
+  Claude and Llama; the model is configuration. No streaming yet.
+- Credentials come from the AWS credential chain, never config. Region:
+  `drivers.bedrock.region`, `AWS_REGION`, `AWS_DEFAULT_REGION`, us-east-1.
+- Default model `amazon.nova-lite-v1:0`: on demand, no profile, no agreement.
+- Claude and the newer Nova/Llama models are invoked by **inference profile**
+  id (`global.anthropic.claude-sonnet-5-5`, `us.meta.llama4-...`). The bare
+  `anthropic.claude-...` id is refused by Bedrock. `bedrockModels` in
+  `@stacksjs/types` lists the ids Bedrock serves, each in invocable form.
+- `buddy ai:access` (or `requestModelAccess()`) makes the models in
+  `config/ai.ts` invocable and reports each one.
+
+## Tool Calls
+
+```typescript
+import { assistantTurn, toolResultsTurn } from '@stacksjs/ai'
+
+const result = await client.generate(messages, { tools })
+// result.toolCalls: [{ id, name, arguments }] - same shape from every driver
+messages.push(assistantTurn(result), toolResultsTurn(
+  result.toolCalls!.map(call => ({ toolCallId: call.id, name: call.name, content: run(call) })),
+))
+```
+
+- `content` is the model's text, `''` when it only called tools.
+- The `responseFormat` structured-output tool is internal: its JSON is
+  `content`, never a tool call.
+- Ollama refuses `toolChoice: 'required'` / `{ name }`; it cannot force a call.
+- `streamChat()` streams text only.
+
+## Provider-Neutral Client
+
+Use the config-driven client for application features that can run against
+Anthropic, OpenAI, Ollama, or Bedrock. `default` is a provider name or a model
+id that implies one: `claude-...` Anthropic, `gpt-...` OpenAI, any Bedrock
+model or profile id (`amazon.nova-lite-v1:0`, `global.anthropic.claude-...`)
+Bedrock. Configuration inspection is safe to return from a
+status endpoint because it never includes credentials.
+
+```typescript
+import { createAIClient, getAIProviderConfiguration } from '@stacksjs/ai'
+import aiConfig from './config/ai'
+
+const configuration = getAIProviderConfiguration(aiConfig)
+// { provider: 'openai', model: 'gpt-4o-mini', configured: true, source: 'environment' }
+
+if (configuration.configured) {
+  const client = createAIClient(aiConfig)
+  const result = await client.generate([{ role: 'user', content: 'Draft a launch plan.' }])
+}
+```
+
+## Speech (Text-to-Speech, Speech-to-Text)
+
+Provider-neutral, in `ai/src/speech.ts`. The driver is the `driver` option, else
+`default` from `config/ai.ts`. Only `openai` implements speech (`SPEECH_DRIVERS`);
+any other driver throws naming itself and the supported ones - do not catch that
+and fall back to a different provider.
+
+```typescript
+import { speechToText, storeSpeech, textToSpeech } from '@stacksjs/ai'
+
+const speech = await textToSpeech('Hello', { voice: 'nova', format: 'mp3', speed: 1.1 })
+// { audio: Uint8Array, mimeType: 'audio/mpeg', format, driver, model, voice }
+await storeSpeech(speech, 'audio/hello.mp3', { disk: 'public' }) // disk name or adapter
+const { text } = await speechToText(Bun.file('memo.m4a'), { language: 'en' })
+```
+
+Defaults: model `gpt-4o-mini-tts`, voice `alloy`, format `mp3`, speed omitted
+(provider default 1.0); transcription model `whisper-1`. `instructions` is
+rejected for `tts-1` / `tts-1-hd`. OpenAI caps input at 4096 characters per
+request. HTTP failures throw with the status and a body snippet. In tests, mock
+`globalThis.fetch` and pass `config` explicitly (see `ai/tests/speech.test.ts`).
 
 ## Ollama Driver (Local LLMs)
 
@@ -174,7 +258,7 @@ const sentiment = await analyzeSentiment('I love this product!')
 const classification = await classifyText('Fix the login bug', ['bug', 'feature', 'question'])
 // { label: 'bug', confidence: 0.92, allLabels: [...] }
 
-const summary = await summarize(longText, { maxLength: 100, style: 'bullet' })
+const summary = await summarize(longText, { maxTokenCount: 100 })
 
 const profile = createProfile('user-123', ['tech', 'gaming'])
 recordInteraction(profile, { type: 'view', itemId: 'article-1', weight: 1.0 })
@@ -187,7 +271,7 @@ const interests = await extractUserInterests(profile, items)
 ```typescript
 import { processCommand, buddyProcessStreaming, buddyStreamSimple, getAvailableDrivers } from '@stacksjs/ai'
 
-const drivers = getAvailableDrivers()  // ['anthropic', 'openai', 'ollama']
+const drivers = getAvailableDrivers()  // ['claude-cli-local', 'claude-cli-ec2', 'claude', 'claude-sdk', 'openai', 'ollama', 'mock']
 const context = await getRepoContext('/path/to/repo')
 await processCommand('Add error handling to auth.ts', 'anthropic')
 // Streaming
@@ -256,9 +340,13 @@ await driver.resumeSession(sessionId, 'Add validation')
 
 ```typescript
 {
-  default: 'meta.llama2-70b-chat-v1',
-  models: ['meta.llama2-70b-chat-v1', ...],  // AWS Bedrock models
-  deploy: true
+  default: 'anthropic',                       // or 'openai', 'ollama', 'bedrock', a model id
+  models: ['amazon.nova-lite-v1:0'],          // Bedrock models `buddy ai:access` enables
+  deploy: false,
+  drivers: {
+    anthropic: { model: 'claude-sonnet-5-5' },
+    bedrock: { model: 'global.anthropic.claude-sonnet-5-5' },
+  },
 }
 ```
 
@@ -272,5 +360,5 @@ await driver.resumeSession(sessionId, 'Add validation')
 - MCP supports stdio (subprocess), SSE, and HTTP transports
 - The buddy assistant has git integration (commit, push, apply changes)
 - Claude Agent SDK wraps the Claude Code CLI for agentic workflows
-- Bedrock utilities are for AWS-hosted model invocation
+- A Bedrock id as `default` selects the Bedrock driver; it never reaches api.anthropic.com
 - Sentiment/classification use AI models — they're not rule-based

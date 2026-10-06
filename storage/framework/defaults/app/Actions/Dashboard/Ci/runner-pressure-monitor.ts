@@ -26,7 +26,7 @@
 
 import type { DashboardData, PressureAction, RunnerAlertState, RunnerSample } from '@stacksjs/github'
 import { dashboard as dashboardConfig } from '@stacksjs/config'
-import { db } from '@stacksjs/database'
+import { db, getDatabaseDialect, sqlHelpers } from '@stacksjs/database/runtime'
 import { detectRunnerPressure } from '@stacksjs/github'
 import { notify } from '@stacksjs/notifications'
 
@@ -53,7 +53,8 @@ async function appendSamples(snapshot: DashboardData, nowIso: string): Promise<v
   // Insert one row per org. Cross-dialect multi-row INSERT keeps it
   // a single round-trip even for the typical 5-org fleet.
   const rows = orgs.map((org) => {
-    const r = runners[org]
+    // An org with no sample yet reads as zero pressure rather than throwing.
+    const r = runners[org] ?? { running: 0, queued: 0, cap: 0 }
     return { org, running: r.running, queued: r.queued, cap: r.cap, sampled_at: nowIso }
   })
   await db.insertInto('ci_runner_samples').values(rows as any).execute()
@@ -68,10 +69,11 @@ async function pruneOldSamples(retentionHours: number, nowMs: number): Promise<v
 
 async function loadWindowSamples(windowMinutes: number, nowMs: number): Promise<RunnerSample[]> {
   const cutoffIso = new Date(nowMs - windowMinutes * 60_000).toISOString()
+  const { param } = sqlHelpers(getDatabaseDialect())
   const rows = await db.unsafe(
-    'SELECT org, running, queued, cap, sampled_at FROM ci_runner_samples WHERE sampled_at >= ? ORDER BY sampled_at ASC',
+    `SELECT org, running, queued, cap, sampled_at FROM ci_runner_samples WHERE sampled_at >= ${param(1)} ORDER BY sampled_at ASC`,
     [cutoffIso],
-  ).execute() as SampleRow[]
+  ).execute() as unknown as SampleRow[]
 
   return (rows ?? []).map((r): RunnerSample => ({
     org: r.org,
@@ -85,7 +87,7 @@ async function loadWindowSamples(windowMinutes: number, nowMs: number): Promise<
 async function loadAlertStates(): Promise<Map<string, RunnerAlertState>> {
   const rows = await db.unsafe(
     'SELECT org, alerting, last_alerted_at, last_cleared_at FROM ci_runner_alert_states',
-  ).execute() as AlertStateRow[]
+  ).execute() as unknown as AlertStateRow[]
 
   const map = new Map<string, RunnerAlertState>()
   for (const r of rows ?? []) {
@@ -101,11 +103,15 @@ async function loadAlertStates(): Promise<Map<string, RunnerAlertState>> {
 
 async function upsertAlertState(org: string, alerting: boolean, nowIso: string): Promise<void> {
   // Cross-dialect upsert: SELECT-then-INSERT/UPDATE. Same shape as
-  // the failure-notifier's state writes — keep the patterns
-  // consistent so future maintainers don't second-guess the
+  // the failure-notifier's state writes, so keep the patterns
+  // consistent and future maintainers don't second-guess the
   // dialect choice in one place vs another.
+  //
+  // That portability covers the upsert, not the placeholder, which has
+  // to be rendered per dialect (stacksjs/stacks#2846).
+  const { param } = sqlHelpers(getDatabaseDialect())
   const existing = await db.unsafe(
-    'SELECT org FROM ci_runner_alert_states WHERE org = ? LIMIT 1',
+    `SELECT org FROM ci_runner_alert_states WHERE org = ${param(1)} LIMIT 1`,
     [org],
   ).execute() as Array<{ org: string }>
 
@@ -132,7 +138,7 @@ async function upsertAlertState(org: string, alerting: boolean, nowIso: string):
 function buildPayload(action: PressureAction): { subject: string, body: string, data: Record<string, unknown> } {
   const { org, current, sustainedMs } = action
   const minutes = Math.round(sustainedMs / 60_000)
-  const subject = `Runner pressure: ${org} — ${current.queued} queued`
+  const subject = `Runner pressure: ${org}, ${current.queued} queued`
   const body = [
     `Org: ${org}`,
     `Queue depth: ${current.queued} (cap ${current.cap}, ${current.running} running)`,
@@ -240,14 +246,15 @@ export async function fetchRunnerHistory(
 
   // ASC-by-newest then re-reverse so we get the N most recent samples
   // in ASC order (oldest → newest) — what the sparkline path needs.
+  const { param } = sqlHelpers(getDatabaseDialect())
   const rows = await db.unsafe(
     `SELECT org, running, queued, cap, sampled_at
     FROM ci_runner_samples
-    WHERE org = ? AND sampled_at >= ?
+    WHERE org = ${param(1)} AND sampled_at >= ${param(2)}
     ORDER BY sampled_at DESC
-    LIMIT ?`,
+    LIMIT ${param(3)}`,
     [org, cutoffIso, limit],
-  ).execute() as SampleRow[]
+  ).execute() as unknown as SampleRow[]
 
   return (rows ?? []).reverse().map((r): RunnerSample => ({
     org: r.org,

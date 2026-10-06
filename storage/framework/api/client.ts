@@ -100,6 +100,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /.well-known/oauth-authorization-server
+   */
+  getWellKnownOauthAuthorizationServer(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/.well-known/oauth-authorization-server", {}, [], false, options)
+  },
+
+  /**
    * GET /.well-known/openid-configuration
    */
   getWellKnownOpenidConfiguration(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -118,6 +125,20 @@ export function createClient(config: ClientConfig) {
    */
   getPages(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/_pages/*", {}, [], false, options)
+  },
+
+  /**
+   * GET /_stacks/email/unsubscribe/{token}
+   */
+  getStacksEmailUnsubscribeToken(input: { "token": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/_stacks/email/unsubscribe/{token}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /_stacks/email/unsubscribe/{token}
+   */
+  postStacksEmailUnsubscribeToken(input: { "token": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/_stacks/email/unsubscribe/{token}", input ?? {}, [], false, options)
   },
 
   /**
@@ -158,14 +179,14 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /ai/ask
    */
-  postAiAsk(input?: { body?: { "question"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postAiAsk(input: { body: { "question": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/ai/ask", input ?? {}, [], true, options)
   },
 
   /**
    * POST /ai/summary
    */
-  postAiSummary(input?: { body?: { "text"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postAiSummary(input: { body: { "text": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/ai/summary", input ?? {}, [], true, options)
   },
 
@@ -293,6 +314,104 @@ export function createClient(config: ClientConfig) {
    */
   getAnalyticsWeb(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/analytics/web", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/auction-items
+   */
+  getAuctionItems(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/auction-items", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/auction-items
+   */
+  postAuctionItems(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/auction-items", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/auction-items/bulk-delete
+   */
+  postAuctionItemsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auction-items/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/auction-items/{id}
+   */
+  getAuctionItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/auction-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/auction-items/{id}
+   */
+  putAuctionItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/auction-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/auction-items/{id}
+   */
+  deleteAuctionItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/auction-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/auction-items/{id}
+   */
+  patchAuctionItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "lot_number"?: number; "title"?: string; "description"?: string; "image_url"?: string; "category"?: string; "donor_name"?: string; "fair_market_value"?: number; "starting_bid"?: number; "min_increment"?: number; "buy_now_price"?: number; "reserve_price"?: number; "status"?: "open" | "closed" | "sold" | "passed"; "closes_at"?: unknown; "extension_count"?: number; "auction_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/auction-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/auctions
+   */
+  getAuctions(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/auctions", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/auctions
+   */
+  postAuctions(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/auctions", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/auctions/bulk-delete
+   */
+  postAuctionsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auctions/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/auctions/{id}
+   */
+  getAuctionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/auctions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/auctions/{id}
+   */
+  putAuctionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/auctions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/auctions/{id}
+   */
+  deleteAuctionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/auctions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/auctions/{id}
+   */
+  patchAuctionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "event_id"?: number; "title"?: string; "description"?: string; "status"?: "draft" | "preview" | "open" | "closed" | "settled"; "currency"?: string; "goal_amount"?: number; "opens_at"?: unknown; "closes_at"?: unknown; "anti_snipe_minutes"?: number; "extend_on_bid_window_minutes"?: number; "max_extensions"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/auctions/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -436,6 +555,83 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/automation-runs
+   */
+  getAutomationRuns(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "status": "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled"; "current_node_id"?: string; "version": number; "subject_type"?: string; "subject_id"?: string; "context": unknown; "idempotency_key": string; "started_at"?: unknown; "finished_at"?: unknown; "error"?: string; "team_id"?: number; "automation_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/automation-runs", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/automation-runs/{id}
+   */
+  getAutomationRunsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status": "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled"; "current_node_id"?: string; "version": number; "subject_type"?: string; "subject_id"?: string; "context": unknown; "idempotency_key": string; "started_at"?: unknown; "finished_at"?: unknown; "error"?: string; "team_id"?: number; "automation_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/automation-runs/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/automations
+   */
+  getAutomations(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/automations", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/automations
+   */
+  postAutomations(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/automations", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/automations/bulk-delete
+   */
+  postAutomationsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/automations/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/automations/{id}
+   */
+  getAutomationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/automations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/automations/{id}
+   */
+  putAutomationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/automations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/automations/{id}
+   */
+  deleteAutomationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/automations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/automations/{id}
+   */
+  patchAutomationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "status": "draft" | "active" | "paused" | "archived"; "version": number; "trigger": unknown; "graph": unknown; "published_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/automations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/bids
+   */
+  getBids(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "bidder_name"?: string; "bidder_email"?: string; "amount"?: number; "status"?: "leading" | "outbid" | "won" | "lost" | "invalid"; "placed_at"?: unknown; "auction_id"?: number; "auction_item_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/bids", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/bids/{id}
+   */
+  getBidsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "bidder_name"?: string; "bidder_email"?: string; "amount"?: number; "status"?: "leading" | "outbid" | "won" | "lost" | "invalid"; "placed_at"?: unknown; "auction_id"?: number; "auction_item_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/bids/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/board-columns
    */
   getBoardColumns(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string }> }>> {
@@ -487,14 +683,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/boards
    */
-  getBoards(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string }> }>> {
+  getBoards(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/boards", {}, [], false, options)
   },
 
   /**
    * POST /api/boards
    */
-  postBoards(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  postBoards(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/boards", {}, [], false, options)
   },
 
@@ -508,56 +704,105 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/boards/{id}
    */
-  getBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  getBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/boards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/boards/{id}
    */
-  putBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  putBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/boards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/boards/{id}
    */
-  deleteBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/boards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/boards/{id}
    */
-  patchBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  patchBoardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/boards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * GET /api/campaign-sends
    */
-  getCampaignSends(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "campaign_id": number; "subscriber_id": number; "email_list_id": number; "status": "queued" | "sent" | "failed" | "bounced" | "complained"; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "created_at"?: string; "updated_at"?: string }> }>> {
+  getCampaignSends(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "campaign_id": number; "subscriber_id"?: number; "email_list_id"?: number; "status": "queued" | "deferred" | "sending" | "sent" | "delivered" | "failed" | "undelivered" | "bounced" | "complained" | "suppressed" | "cancelled"; "channel": "email" | "sms" | "push"; "recipient": string; "idempotency_key": string; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "delivered_at"?: unknown; "failed_at"?: unknown; "segments"?: number; "cost"?: number; "metadata"?: unknown; "team_id"?: number; "campaign_variant_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/campaign-sends", {}, [], false, options)
   },
 
   /**
    * GET /api/campaign-sends/{id}
    */
-  getCampaignSendsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "campaign_id": number; "subscriber_id": number; "email_list_id": number; "status": "queued" | "sent" | "failed" | "bounced" | "complained"; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  getCampaignSendsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "campaign_id": number; "subscriber_id"?: number; "email_list_id"?: number; "status": "queued" | "deferred" | "sending" | "sent" | "delivered" | "failed" | "undelivered" | "bounced" | "complained" | "suppressed" | "cancelled"; "channel": "email" | "sms" | "push"; "recipient": string; "idempotency_key": string; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "delivered_at"?: unknown; "failed_at"?: unknown; "segments"?: number; "cost"?: number; "metadata"?: unknown; "team_id"?: number; "campaign_variant_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/campaign-sends/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/campaign-variants
+   */
+  getCampaignVariants(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/campaign-variants", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/campaign-variants
+   */
+  postCampaignVariants(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/campaign-variants", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/campaign-variants/bulk-delete
+   */
+  postCampaignVariantsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/campaign-variants/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/campaign-variants/{id}
+   */
+  getCampaignVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/campaign-variants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/campaign-variants/{id}
+   */
+  putCampaignVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/campaign-variants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/campaign-variants/{id}
+   */
+  deleteCampaignVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/campaign-variants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/campaign-variants/{id}
+   */
+  patchCampaignVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subject"?: string; "content": unknown; "allocation": number; "sent_count": number; "open_count": number; "click_count": number; "conversion_count": number; "is_winner": boolean; "team_id"?: number; "campaign_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/campaign-variants/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * GET /api/campaigns
    */
-  getCampaigns(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string }> }>> {
+  getCampaigns(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/campaigns", {}, [], false, options)
   },
 
   /**
    * POST /api/campaigns
    */
-  postCampaigns(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  postCampaigns(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/campaigns", {}, [], false, options)
   },
 
@@ -571,28 +816,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/campaigns/{id}
    */
-  getCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  getCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/campaigns/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/campaigns/{id}
    */
-  putCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  putCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/campaigns/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/campaigns/{id}
    */
-  deleteCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/campaigns/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/campaigns/{id}
    */
-  patchCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+  patchCampaignsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "content"?: unknown; "channel_settings"?: unknown; "segment_definition"?: unknown; "from_name"?: string; "from_address"?: string; "reply_to"?: string; "timezone": string; "recurrence"?: string; "experiment_metric"?: "open_rate" | "click_rate" | "conversion_rate"; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/campaigns/{id}", input ?? {}, [], false, options)
   },
 
@@ -625,10 +870,24 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * PUT /api/card-comments/{id}
+   */
+  putCardCommentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/card-comments/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * DELETE /api/card-comments/{id}
    */
   deleteCardCommentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/card-comments/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/card-comments/{id}
+   */
+  patchCardCommentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/card-comments/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -905,6 +1164,41 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/commerce/couriers
+   */
+  getCommerceCouriers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/commerce/couriers", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/commerce/couriers
+   */
+  postCommerceCouriers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/commerce/couriers", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/commerce/couriers/{id}
+   */
+  getCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/commerce/couriers/{id}
+   */
+  deleteCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/commerce/couriers/{id}
+   */
+  patchCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/commerce/customers
    */
   getCommerceCustomers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -1014,41 +1308,6 @@ export function createClient(config: ClientConfig) {
    */
   patchCommerceDigitalDeliveriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PATCH", "/api/commerce/digital-deliveries/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * GET /api/commerce/drivers
-   */
-  getCommerceDrivers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/commerce/drivers", {}, [], false, options)
-  },
-
-  /**
-   * POST /api/commerce/drivers
-   */
-  postCommerceDrivers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/commerce/drivers", {}, [], false, options)
-  },
-
-  /**
-   * GET /api/commerce/drivers/{id}
-   */
-  getCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/commerce/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * DELETE /api/commerce/drivers/{id}
-   */
-  deleteCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/commerce/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * PATCH /api/commerce/drivers/{id}
-   */
-  patchCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PATCH", "/api/commerce/drivers/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -1353,6 +1612,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * DELETE /api/commerce/products/reviews/{id}
+   */
+  deleteCommerceProductsReviewsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/commerce/products/reviews/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * PATCH /api/commerce/products/reviews/{id}
    */
   patchCommerceProductsReviewsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -1385,6 +1651,13 @@ export function createClient(config: ClientConfig) {
    */
   deleteCommerceProductsUnitsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/commerce/products/units/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/commerce/products/units/{id}
+   */
+  patchCommerceProductsUnitsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/commerce/products/units/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -1731,6 +2004,55 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/communication-suppressions
+   */
+  getCommunicationSuppressions(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "reason": "unsubscribe" | "bounce" | "complaint" | "carrier" | "manual" | "legal"; "source": string; "suppressed_at": unknown; "lifted_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/communication-suppressions", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/communication-suppressions
+   */
+  postCommunicationSuppressions(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "reason": "unsubscribe" | "bounce" | "complaint" | "carrier" | "manual" | "legal"; "source": string; "suppressed_at": unknown; "lifted_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/communication-suppressions", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/communication-suppressions/bulk-delete
+   */
+  postCommunicationSuppressionsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/communication-suppressions/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/communication-suppressions/{id}
+   */
+  getCommunicationSuppressionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "reason": "unsubscribe" | "bounce" | "complaint" | "carrier" | "manual" | "legal"; "source": string; "suppressed_at": unknown; "lifted_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/communication-suppressions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/communication-suppressions/{id}
+   */
+  deleteCommunicationSuppressionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "reason": "unsubscribe" | "bounce" | "complaint" | "carrier" | "manual" | "legal"; "source": string; "suppressed_at": unknown; "lifted_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/communication-suppressions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/consent-events
+   */
+  getConsentEvents(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "action": "requested" | "granted" | "revoked" | "confirmed" | "suppressed"; "purpose": string; "source": string; "jurisdiction"?: string; "policy_version": string; "idempotency_key"?: string; "proof"?: unknown; "ip_address"?: string; "occurred_at": unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/consent-events", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/consent-events/{id}
+   */
+  getConsentEventsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "recipient": string; "channel": "email" | "sms" | "push"; "action": "requested" | "granted" | "revoked" | "confirmed" | "suppressed"; "purpose": string; "source": string; "jurisdiction"?: string; "policy_version": string; "idempotency_key"?: string; "proof"?: unknown; "ip_address"?: string; "occurred_at": unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/consent-events/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * contact.send
    */
   contactSend(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -1787,6 +2109,55 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/couriers
+   */
+  getCouriers(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/couriers", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/couriers
+   */
+  postCouriers(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/couriers", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/couriers/bulk-delete
+   */
+  postCouriersBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/couriers/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/couriers/{id}
+   */
+  getCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/couriers/{id}
+   */
+  putCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/couriers/{id}
+   */
+  deleteCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/couriers/{id}
+   */
+  patchCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break" | "offline"; "latitude"?: number; "longitude"?: number; "heading"?: number; "speed"?: number; "last_ping_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/customers
    */
   getCustomers(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
@@ -1836,17 +2207,10 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /api/dashboard/analytics/events
+   * GET /api/dashboard/activity
    */
-  getDashboardAnalyticsEvents(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/dashboard/analytics/events", {}, [], false, options)
-  },
-
-  /**
-   * POST /api/dashboard/analytics/events
-   */
-  postDashboardAnalyticsEvents(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/dashboard/analytics/events", {}, [], false, options)
+  getDashboardActivity(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/activity", {}, [], false, options)
   },
 
   /**
@@ -1903,6 +2267,13 @@ export function createClient(config: ClientConfig) {
    */
   patchDashboardAuthorsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PATCH", "/api/dashboard/authors/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/billing
+   */
+  getDashboardBilling(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/billing", {}, [], false, options)
   },
 
   /**
@@ -2011,6 +2382,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/dashboard/cloud
+   */
+  getDashboardCloud(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/cloud", {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/comments
    */
   getDashboardComments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2039,6 +2417,27 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/categories
+   */
+  postDashboardCommerceCategories(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/categories", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/categories/{id}
+   */
+  deleteDashboardCommerceCategoriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/categories/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/categories/{id}
+   */
+  patchDashboardCommerceCategoriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/categories/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/coupons
    */
   getDashboardCommerceCoupons(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2046,10 +2445,87 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/coupons
+   */
+  postDashboardCommerceCoupons(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/coupons", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/coupons/{id}
+   */
+  deleteDashboardCommerceCouponsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/coupons/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/coupons/{id}
+   */
+  patchDashboardCommerceCouponsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/coupons/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/commerce/couriers
+   */
+  getDashboardCommerceCouriers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/commerce/couriers", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/couriers
+   */
+  postDashboardCommerceCouriers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/couriers", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/commerce/couriers/{id}
+   */
+  getDashboardCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/couriers/{id}
+   */
+  deleteDashboardCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/couriers/{id}
+   */
+  patchDashboardCommerceCouriersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/couriers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/customers
    */
   getDashboardCommerceCustomers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/customers", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/customers
+   */
+  postDashboardCommerceCustomers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/customers", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/customers/{id}
+   */
+  deleteDashboardCommerceCustomersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/customers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/customers/{id}
+   */
+  patchDashboardCommerceCustomersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/customers/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2130,45 +2606,31 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /api/dashboard/commerce/drivers
-   */
-  getDashboardCommerceDrivers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/dashboard/commerce/drivers", {}, [], false, options)
-  },
-
-  /**
-   * POST /api/dashboard/commerce/drivers
-   */
-  postDashboardCommerceDrivers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/dashboard/commerce/drivers", {}, [], false, options)
-  },
-
-  /**
-   * GET /api/dashboard/commerce/drivers/{id}
-   */
-  getDashboardCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/dashboard/commerce/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * DELETE /api/dashboard/commerce/drivers/{id}
-   */
-  deleteDashboardCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/dashboard/commerce/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * PATCH /api/dashboard/commerce/drivers/{id}
-   */
-  patchDashboardCommerceDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PATCH", "/api/dashboard/commerce/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
    * GET /api/dashboard/commerce/gift-cards
    */
   getDashboardCommerceGiftCards(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/gift-cards", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/gift-cards
+   */
+  postDashboardCommerceGiftCards(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/gift-cards", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/gift-cards/{id}
+   */
+  deleteDashboardCommerceGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/gift-cards/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/gift-cards/{id}
+   */
+  patchDashboardCommerceGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/gift-cards/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2221,10 +2683,52 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/manufacturers
+   */
+  postDashboardCommerceManufacturers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/manufacturers", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/manufacturers/{id}
+   */
+  deleteDashboardCommerceManufacturersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/manufacturers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/manufacturers/{id}
+   */
+  patchDashboardCommerceManufacturersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/manufacturers/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/orders
    */
   getDashboardCommerceOrders(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/orders", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/orders
+   */
+  postDashboardCommerceOrders(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/orders", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/orders/{id}
+   */
+  deleteDashboardCommerceOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/orders/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/orders/{id}
+   */
+  patchDashboardCommerceOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/orders/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2263,10 +2767,38 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/print-devices
+   */
+  postDashboardCommercePrintDevices(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/print-devices", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/print-devices/{id}
+   */
+  deleteDashboardCommercePrintDevicesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/print-devices/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/print-devices/{id}
+   */
+  patchDashboardCommercePrintDevicesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/print-devices/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/print-logs
    */
   getDashboardCommercePrintLogs(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/print-logs", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/print-logs/{id}
+   */
+  deleteDashboardCommercePrintLogsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/print-logs/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2277,6 +2809,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/products
+   */
+  postDashboardCommerceProducts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/products", {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/products/{id}
    */
   getDashboardCommerceProductsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2284,10 +2823,38 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * DELETE /api/dashboard/commerce/products/{id}
+   */
+  deleteDashboardCommerceProductsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/products/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/products/{id}
+   */
+  patchDashboardCommerceProductsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/products/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/reviews
    */
   getDashboardCommerceReviews(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/reviews", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/reviews/{id}
+   */
+  deleteDashboardCommerceReviewsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/reviews/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/reviews/{id}
+   */
+  patchDashboardCommerceReviewsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/reviews/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2410,6 +2977,27 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/taxes
+   */
+  postDashboardCommerceTaxes(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/taxes", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/taxes/{id}
+   */
+  deleteDashboardCommerceTaxesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/taxes/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/taxes/{id}
+   */
+  patchDashboardCommerceTaxesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/taxes/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * PATCH /api/dashboard/commerce/taxes/{id}/default
    */
   patchDashboardCommerceTaxesIdDefault(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2421,6 +3009,27 @@ export function createClient(config: ClientConfig) {
    */
   getDashboardCommerceUnits(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/units", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/units
+   */
+  postDashboardCommerceUnits(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/units", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/units/{id}
+   */
+  deleteDashboardCommerceUnitsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/units/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/units/{id}
+   */
+  patchDashboardCommerceUnitsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/units/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2438,6 +3047,27 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/variants
+   */
+  postDashboardCommerceVariants(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/variants", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/variants/{id}
+   */
+  deleteDashboardCommerceVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/variants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/variants/{id}
+   */
+  patchDashboardCommerceVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/variants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/waitlist-products
    */
   getDashboardCommerceWaitlistProducts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2445,10 +3075,59 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/commerce/waitlist-products
+   */
+  postDashboardCommerceWaitlistProducts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/waitlist-products", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/waitlist-products/{id}
+   */
+  deleteDashboardCommerceWaitlistProductsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/waitlist-products/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/waitlist-products/{id}
+   */
+  patchDashboardCommerceWaitlistProductsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/waitlist-products/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/commerce/waitlist-restaurants
    */
   getDashboardCommerceWaitlistRestaurants(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/commerce/waitlist-restaurants", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/commerce/waitlist-restaurants
+   */
+  postDashboardCommerceWaitlistRestaurants(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/commerce/waitlist-restaurants", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/commerce/waitlist-restaurants/{id}
+   */
+  deleteDashboardCommerceWaitlistRestaurantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/commerce/waitlist-restaurants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/commerce/waitlist-restaurants/{id}
+   */
+  patchDashboardCommerceWaitlistRestaurantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/commerce/waitlist-restaurants/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/content/overview
+   */
+  getDashboardContentOverview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/content/overview", {}, [], false, options)
   },
 
   /**
@@ -2508,10 +3187,31 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/deployments/preview
+   */
+  postDashboardDeploymentsPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/deployments/preview", {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/deployments/recent
    */
   getDashboardDeploymentsRecent(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/deployments/recent", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/deployments/rollback
+   */
+  postDashboardDeploymentsRollback(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/deployments/rollback", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/deployments/rollback/preview
+   */
+  postDashboardDeploymentsRollbackPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/deployments/rollback/preview", {}, [], false, options)
   },
 
   /**
@@ -2543,10 +3243,31 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/dashboard/dns
+   */
+  getDashboardDns(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/dns", {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/email/activity
    */
   getDashboardEmailActivity(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/email/activity", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/email/captured
+   */
+  getDashboardEmailCaptured(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/email/captured", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/email/captured/{id}
+   */
+  getDashboardEmailCapturedId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/email/captured/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2568,6 +3289,13 @@ export function createClient(config: ClientConfig) {
    */
   deleteDashboardEmailInboxId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/dashboard/email/inbox/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/email/inbox/{id}/attachments/{attachmentId}
+   */
+  getDashboardEmailInboxIdAttachmentsAttachmentId(input: { "id": string; "attachmentId": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/email/inbox/{id}/attachments/{attachmentId}", input ?? {}, [], false, options)
   },
 
   /**
@@ -2613,10 +3341,122 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/dashboard/environment
+   */
+  getDashboardEnvironment(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/environment", {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/dashboard/environment
+   */
+  putDashboardEnvironment(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/dashboard/environment", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/event-metrics
+   */
+  getDashboardEventMetrics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/event-metrics", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/event-metrics
+   */
+  postDashboardEventMetrics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/event-metrics", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/files
+   */
+  getDashboardFiles(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/files", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/files
+   */
+  deleteDashboardFiles(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/files", {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/files
+   */
+  patchDashboardFiles(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/files", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/files/directories
+   */
+  postDashboardFilesDirectories(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/files/directories", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/files/duplicates
+   */
+  postDashboardFilesDuplicates(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/files/duplicates", {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/dashboard/files/favorite
+   */
+  putDashboardFilesFavorite(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/dashboard/files/favorite", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/files/reprocess
+   */
+  postDashboardFilesReprocess(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/files/reprocess", {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/dashboard/files/tags
+   */
+  putDashboardFilesTags(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/dashboard/files/tags", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/files/uploads
+   */
+  postDashboardFilesUploads(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/files/uploads", {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/dashboard/files/visibility
+   */
+  putDashboardFilesVisibility(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/dashboard/files/visibility", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/health
+   */
+  getDashboardHealth(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/health", {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/home
    */
   getDashboardHome(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/home", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/insights
+   */
+  getDashboardInsights(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/insights", {}, [], false, options)
   },
 
   /**
@@ -2781,6 +3621,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * PATCH /api/dashboard/kanban/comments/{id}
+   */
+  patchDashboardKanbanCommentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/kanban/comments/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * POST /api/dashboard/kanban/labels
    */
   postDashboardKanbanLabels(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -2848,6 +3695,48 @@ export function createClient(config: ClientConfig) {
    */
   getDashboardLibraryPackages(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/library/packages", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/logs
+   */
+  getDashboardLogs(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/logs", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/mail-settings
+   */
+  getDashboardMailSettings(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/mail-settings", {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/dashboard/mail-settings
+   */
+  putDashboardMailSettings(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/dashboard/mail-settings", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/mailboxes
+   */
+  getDashboardMailboxes(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/mailboxes", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/marketing/abandoned-carts
+   */
+  getDashboardMarketingAbandonedCarts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/marketing/abandoned-carts", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/marketing/abandoned-carts/campaign
+   */
+  postDashboardMarketingAbandonedCartsCampaign(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/marketing/abandoned-carts/campaign", {}, [], false, options)
   },
 
   /**
@@ -2970,6 +3859,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/dashboard/models/{slug}
+   */
+  postDashboardModelsSlug(input: { "slug": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/models/{slug}", input ?? {}, [], false, options)
+  },
+
+  /**
    * DELETE /api/dashboard/models/{slug}/{id}
    */
   deleteDashboardModelsSlugId(input: { "slug": string; "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3072,6 +3968,146 @@ export function createClient(config: ClientConfig) {
    */
   postDashboardNotificationDeliveriesIdRetry(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/dashboard/notification-deliveries/{id}/retry", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/audit
+   */
+  getDashboardOperationsAudit(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/audit", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/changes
+   */
+  getDashboardOperationsChanges(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/changes", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/changes/releases/{id}/decision
+   */
+  postDashboardOperationsChangesReleasesIdDecision(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/changes/releases/{id}/decision", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/incidents
+   */
+  getDashboardOperationsIncidents(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/incidents", {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/operations/incidents/{id}
+   */
+  patchDashboardOperationsIncidentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/operations/incidents/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/migrations
+   */
+  getDashboardOperationsMigrations(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/migrations", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/migrations/apply
+   */
+  postDashboardOperationsMigrationsApply(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/migrations/apply", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/migrations/reconcile
+   */
+  postDashboardOperationsMigrationsReconcile(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/migrations/reconcile", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/recovery
+   */
+  getDashboardOperationsRecovery(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/recovery", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/destinations
+   */
+  postDashboardOperationsRecoveryDestinations(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/destinations", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/destinations/{id}/test
+   */
+  postDashboardOperationsRecoveryDestinationsIdTest(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/destinations/{id}/test", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/operations/recovery/points/{id}/protection
+   */
+  patchDashboardOperationsRecoveryPointsIdProtection(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/operations/recovery/points/{id}/protection", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/points/{id}/restore
+   */
+  postDashboardOperationsRecoveryPointsIdRestore(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/points/{id}/restore", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/points/{id}/verify
+   */
+  postDashboardOperationsRecoveryPointsIdVerify(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/points/{id}/verify", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/policies
+   */
+  postDashboardOperationsRecoveryPolicies(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/policies", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/policies/{id}/run
+   */
+  postDashboardOperationsRecoveryPoliciesIdRun(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/policies/{id}/run", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/recovery/retention
+   */
+  postDashboardOperationsRecoveryRetention(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/recovery/retention", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/operations/scheduler
+   */
+  getDashboardOperationsScheduler(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/operations/scheduler", {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/operations/scheduler/{name}
+   */
+  patchDashboardOperationsSchedulerName(input: { "name": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/operations/scheduler/{name}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/operations/scheduler/{name}/run
+   */
+  postDashboardOperationsSchedulerNameRun(input: { "name": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/operations/scheduler/{name}/run", input ?? {}, [], false, options)
   },
 
   /**
@@ -3257,10 +4293,87 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/dashboard/remote/commands
+   */
+  getDashboardRemoteCommands(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/remote/commands", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/remote/run
+   */
+  postDashboardRemoteRun(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/remote/run", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/remote/terminals
+   */
+  postDashboardRemoteTerminals(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/remote/terminals", {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/remote/terminals/{id}
+   */
+  deleteDashboardRemoteTerminalsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/remote/terminals/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/remote/terminals/{id}/input
+   */
+  postDashboardRemoteTerminalsIdInput(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/remote/terminals/{id}/input", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/remote/terminals/{id}/resize
+   */
+  postDashboardRemoteTerminalsIdResize(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/remote/terminals/{id}/resize", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/remote/terminals/{id}/stream
+   */
+  getDashboardRemoteTerminalsIdStream(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/remote/terminals/{id}/stream", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/dashboard/requests
    */
   getDashboardRequests(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/requests", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/search
+   */
+  getDashboardSearch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/search", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/serverless
+   */
+  getDashboardServerless(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/serverless", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/servers
+   */
+  getDashboardServers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/servers", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/servers/{id}
+   */
+  getDashboardServersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/servers/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -3275,6 +4388,13 @@ export function createClient(config: ClientConfig) {
    */
   getDashboardSourceCommands(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/dashboard/source/commands", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/stats
+   */
+  getDashboardStats(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/stats", {}, [], false, options)
   },
 
   /**
@@ -3296,6 +4416,48 @@ export function createClient(config: ClientConfig) {
    */
   deleteDashboardTagsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "DELETE", "/api/dashboard/tags/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/teams/{id}/invitations
+   */
+  postDashboardTeamsIdInvitations(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/teams/{id}/invitations", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/teams/{id}/invitations/{invitationId}
+   */
+  deleteDashboardTeamsIdInvitationsInvitationId(input: { "id": string; "invitationId": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/teams/{id}/invitations/{invitationId}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/dashboard/teams/{id}/invitations/{invitationId}/resend
+   */
+  postDashboardTeamsIdInvitationsInvitationIdResend(input: { "id": string; "invitationId": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/dashboard/teams/{id}/invitations/{invitationId}/resend", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/dashboard/teams/{id}/members/{memberId}
+   */
+  deleteDashboardTeamsIdMembersMemberId(input: { "id": string; "memberId": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/dashboard/teams/{id}/members/{memberId}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/dashboard/teams/{id}/members/{memberId}
+   */
+  patchDashboardTeamsIdMembersMemberId(input: { "id": string; "memberId": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/api/dashboard/teams/{id}/members/{memberId}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/dashboard/teams/{id}/people
+   */
+  getDashboardTeamsIdPeople(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/dashboard/teams/{id}/people", input ?? {}, [], false, options)
   },
 
   /**
@@ -3329,14 +4491,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/delivery-routes
    */
-  getDeliveryRoutes(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getDeliveryRoutes(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/delivery-routes", {}, [], false, options)
   },
 
   /**
    * POST /api/delivery-routes
    */
-  postDeliveryRoutes(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postDeliveryRoutes(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/delivery-routes", {}, [], false, options)
   },
 
@@ -3350,29 +4512,78 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/delivery-routes/{id}
    */
-  getDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/delivery-routes/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/delivery-routes/{id}
    */
-  putDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/delivery-routes/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/delivery-routes/{id}
    */
-  deleteDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/delivery-routes/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/delivery-routes/{id}
    */
-  patchDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchDeliveryRoutesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "courier"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "status"?: "planned" | "active" | "completed" | "cancelled"; "started_at"?: unknown; "completed_at"?: unknown; "courier_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/delivery-routes/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/delivery-stops
+   */
+  getDeliveryStops(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/delivery-stops", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/delivery-stops
+   */
+  postDeliveryStops(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/delivery-stops", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/delivery-stops/bulk-delete
+   */
+  postDeliveryStopsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/delivery-stops/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/delivery-stops/{id}
+   */
+  getDeliveryStopsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/delivery-stops/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/delivery-stops/{id}
+   */
+  putDeliveryStopsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/delivery-stops/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/delivery-stops/{id}
+   */
+  deleteDeliveryStopsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/delivery-stops/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/delivery-stops/{id}
+   */
+  patchDeliveryStopsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "sequence": number; "status": "pending" | "en_route" | "arrived" | "completed" | "failed" | "skipped"; "address": string; "latitude"?: number; "longitude"?: number; "recipient_name"?: string; "recipient_phone"?: string; "eta_at"?: unknown; "notified_nearby_at"?: unknown; "arrived_at"?: unknown; "completed_at"?: unknown; "notes"?: string; "type": "pickup" | "dropoff"; "delivery_route_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/delivery-stops/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -3432,52 +4643,31 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /api/drivers
+   * GET /api/email-idempotency
    */
-  getDrivers(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
-    return request(config, "GET", "/api/drivers", {}, [], false, options)
+  getEmailIdempotency(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "message_id"?: string; "provider"?: string; "success": boolean; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/email-idempotency", {}, [], false, options)
   },
 
   /**
-   * POST /api/drivers
+   * POST /api/email-idempotency/bulk-delete
    */
-  postDrivers(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "POST", "/api/drivers", {}, [], false, options)
+  postEmailIdempotencyBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/email-idempotency/bulk-delete", {}, [], false, options)
   },
 
   /**
-   * POST /api/drivers/bulk-delete
+   * GET /api/email-idempotency/{id}
    */
-  postDriversBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/drivers/bulk-delete", {}, [], false, options)
+  getEmailIdempotencyId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "message_id"?: string; "provider"?: string; "success": boolean; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/email-idempotency/{id}", input ?? {}, [], false, options)
   },
 
   /**
-   * GET /api/drivers/{id}
+   * DELETE /api/email-idempotency/{id}
    */
-  getDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "GET", "/api/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * PUT /api/drivers/{id}
-   */
-  putDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "PUT", "/api/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * DELETE /api/drivers/{id}
-   */
-  deleteDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "DELETE", "/api/drivers/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * PATCH /api/drivers/{id}
-   */
-  patchDriversId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "PATCH", "/api/drivers/{id}", input ?? {}, [], false, options)
+  deleteEmailIdempotencyId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "message_id"?: string; "provider"?: string; "success": boolean; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/email-idempotency/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -3544,6 +4734,62 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/email-suppressions
+   */
+  getEmailSuppressions(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "email": string; "type": "bounce" | "complaint" | "unsubscribe" | "manual"; "reason"?: string; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/email-suppressions", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/email-suppressions/bulk-delete
+   */
+  postEmailSuppressionsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/email-suppressions/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/email-suppressions/{id}
+   */
+  getEmailSuppressionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "email": string; "type": "bounce" | "complaint" | "unsubscribe" | "manual"; "reason"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/email-suppressions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/email-suppressions/{id}
+   */
+  deleteEmailSuppressionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "email": string; "type": "bounce" | "complaint" | "unsubscribe" | "manual"; "reason"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/email-suppressions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/email-webhook-events
+   */
+  getEmailWebhookEvents(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "provider": "mailgun" | "postmark" | "ses" | "sendgrid"; "processed_at": unknown; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/email-webhook-events", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/email-webhook-events/bulk-delete
+   */
+  postEmailWebhookEventsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/email-webhook-events/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/email-webhook-events/{id}
+   */
+  getEmailWebhookEventsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "provider": "mailgun" | "postmark" | "ses" | "sendgrid"; "processed_at": unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/email-webhook-events/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/email-webhook-events/{id}
+   */
+  deleteEmailWebhookEventsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "provider": "mailgun" | "postmark" | "ses" | "sendgrid"; "processed_at": unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/email-webhook-events/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * email.subscribe
    */
   emailSubscribe(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3586,6 +4832,104 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/form-fields
+   */
+  getFormFields(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/form-fields", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/form-fields
+   */
+  postFormFields(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/form-fields", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/form-fields/bulk-delete
+   */
+  postFormFieldsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/form-fields/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/form-fields/{id}
+   */
+  getFormFieldsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/form-fields/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/form-fields/{id}
+   */
+  putFormFieldsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/form-fields/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/form-fields/{id}
+   */
+  deleteFormFieldsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/form-fields/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/form-fields/{id}
+   */
+  patchFormFieldsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "name": string; "label": string; "type": "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"; "required"?: boolean; "position"?: number; "width"?: "full" | "half"; "options"?: unknown; "conditions"?: unknown; "form_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/form-fields/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/forms
+   */
+  getForms(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/forms", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/forms
+   */
+  postForms(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/forms", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/forms/bulk-delete
+   */
+  postFormsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/forms/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/forms/{id}
+   */
+  getFormsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/forms/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/forms/{id}
+   */
+  putFormsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/forms/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/forms/{id}
+   */
+  deleteFormsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/forms/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/forms/{id}
+   */
+  patchFormsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "handle": string; "status"?: "draft" | "active" | "closed"; "settings"?: unknown; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/forms/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * POST /api/gh/repos/{owner}/{repo}/issues/{number}/comments
    */
   postGhReposOwnerRepoIssuesNumberComments(input: { "owner": string; "repo": string; "number": string; body?: { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3609,14 +4953,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/gift-cards
    */
-  getGiftCards(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getGiftCards(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/gift-cards", {}, [], false, options)
   },
 
   /**
    * POST /api/gift-cards
    */
-  postGiftCards(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postGiftCards(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/gift-cards", {}, [], false, options)
   },
 
@@ -3630,28 +4974,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/gift-cards/{id}
    */
-  getGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/gift-cards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/gift-cards/{id}
    */
-  putGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/gift-cards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/gift-cards/{id}
    */
-  deleteGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/gift-cards/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/gift-cards/{id}
    */
-  patchGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchGiftCardsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: "ACTIVE" | "USED" | "EXPIRED" | "DEACTIVATED"; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/gift-cards/{id}", input ?? {}, [], false, options)
   },
 
@@ -3789,16 +5133,30 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/logs
+   */
+  getLogs(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "timestamp"?: number; "type"?: "warning" | "error" | "info" | "success"; "source"?: "file" | "cli" | "system"; "message"?: string; "project"?: string; "stacktrace"?: string; "file"?: string; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/logs", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/logs/{id}
+   */
+  getLogsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "timestamp"?: number; "type"?: "warning" | "error" | "info" | "success"; "source"?: "file" | "cli" | "system"; "message"?: string; "project"?: string; "stacktrace"?: string; "file"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/logs/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/loyalty-points
    */
-  getLoyaltyPoints(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string }> }>> {
+  getLoyaltyPoints(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/loyalty-points", {}, [], false, options)
   },
 
   /**
    * POST /api/loyalty-points
    */
-  postLoyaltyPoints(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  postLoyaltyPoints(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/loyalty-points", {}, [], false, options)
   },
 
@@ -3812,28 +5170,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/loyalty-points/{id}
    */
-  getLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  getLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/loyalty-points/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/loyalty-points/{id}
    */
-  putLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  putLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/loyalty-points/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/loyalty-points/{id}
    */
-  deleteLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/loyalty-points/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/loyalty-points/{id}
    */
-  patchLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  patchLoyaltyPointsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/loyalty-points/{id}", input ?? {}, [], false, options)
   },
 
@@ -3964,6 +5322,104 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/menu-items
+   */
+  getMenuItems(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/menu-items", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/menu-items
+   */
+  postMenuItems(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/menu-items", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/menu-items/bulk-delete
+   */
+  postMenuItemsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/menu-items/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/menu-items/{id}
+   */
+  getMenuItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/menu-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/menu-items/{id}
+   */
+  putMenuItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/menu-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/menu-items/{id}
+   */
+  deleteMenuItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/menu-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/menu-items/{id}
+   */
+  patchMenuItemsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "label": string; "url"?: string; "target"?: "_self" | "_blank"; "parent_id"?: number; "position"?: number; "visibility"?: "public" | "auth"; "menu_id"?: number; "page_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/menu-items/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/menus
+   */
+  getMenus(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/menus", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/menus
+   */
+  postMenus(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/menus", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/menus/bulk-delete
+   */
+  postMenusBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/menus/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/menus/{id}
+   */
+  getMenusId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/menus/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/menus/{id}
+   */
+  putMenusId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/menus/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/menus/{id}
+   */
+  deleteMenusId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/menus/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/menus/{id}
+   */
+  patchMenusId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "handle": string; "name": string; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/menus/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/metrics
    */
   getMetrics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -4055,13 +5511,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * POST /api/notification-deliveries/bulk-delete
-   */
-  postNotificationDeliveriesBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/notification-deliveries/bulk-delete", {}, [], false, options)
-  },
-
-  /**
    * GET /api/notification-deliveries/{id}
    */
   getNotificationDeliveriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
@@ -4069,31 +5518,10 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * DELETE /api/notification-deliveries/{id}
-   */
-  deleteNotificationDeliveriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "DELETE", "/api/notification-deliveries/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
    * GET /api/notifications
    */
   getNotifications(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/notifications", {}, [], false, options)
-  },
-
-  /**
-   * POST /api/notifications
-   */
-  postNotifications(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "POST", "/api/notifications", {}, [], false, options)
-  },
-
-  /**
-   * POST /api/notifications/bulk-delete
-   */
-  postNotificationsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/notifications/bulk-delete", {}, [], false, options)
   },
 
   /**
@@ -4132,27 +5560,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * PUT /api/notifications/{id}
-   */
-  putNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "PUT", "/api/notifications/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * DELETE /api/notifications/{id}
-   */
-  deleteNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "DELETE", "/api/notifications/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
-   * PATCH /api/notifications/{id}
-   */
-  patchNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "PATCH", "/api/notifications/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
    * GET /api/og
    */
   getOg(input?: { "path"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -4183,14 +5590,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/orders
    */
-  getOrders(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getOrders(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/orders", {}, [], false, options)
   },
 
   /**
    * POST /api/orders
    */
-  postOrders(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postOrders(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/orders", {}, [], false, options)
   },
 
@@ -4204,28 +5611,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/orders/{id}
    */
-  getOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/orders/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/orders/{id}
    */
-  putOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/orders/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/orders/{id}
    */
-  deleteOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/orders/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/orders/{id}
    */
-  patchOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchOrdersId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "tracking_token"?: string; "delivery_latitude"?: number; "delivery_longitude"?: number; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/orders/{id}", input ?? {}, [], false, options)
   },
 
@@ -4344,14 +5751,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/pages
    */
-  getPages2(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getPages2(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/pages", {}, [], false, options)
   },
 
   /**
    * POST /api/pages
    */
-  postPages(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postPages(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/pages", {}, [], false, options)
   },
 
@@ -4365,42 +5772,42 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/pages/{id}
    */
-  getPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/pages/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/pages/{id}
    */
-  putPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/pages/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/pages/{id}
    */
-  deletePagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deletePagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/pages/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/pages/{id}
    */
-  patchPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchPagesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "path"?: string; "parent_id"?: number; "template": string; "blocks"?: unknown; "meta_description"?: string; "status"?: "draft" | "published" | "scheduled" | "archived"; "scheduled_at"?: unknown; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/pages/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * GET /api/payments
    */
-  getPayments(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getPayments(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/payments", {}, [], false, options)
   },
 
   /**
    * POST /api/payments
    */
-  postPayments(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postPayments(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/payments", {}, [], false, options)
   },
 
@@ -4414,42 +5821,91 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/payments/{id}
    */
-  getPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/payments/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/payments/{id}
    */
-  putPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/payments/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/payments/{id}
    */
-  deletePaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deletePaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/payments/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/payments/{id}
    */
-  patchPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchPaymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "failure_reason"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/payments/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/pledges
+   */
+  getPledges(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/pledges", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/pledges
+   */
+  postPledges(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/pledges", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/pledges/bulk-delete
+   */
+  postPledgesBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/pledges/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/pledges/{id}
+   */
+  getPledgesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/pledges/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/pledges/{id}
+   */
+  putPledgesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/pledges/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/pledges/{id}
+   */
+  deletePledgesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/pledges/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/pledges/{id}
+   */
+  patchPledgesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "donor_name"?: string; "donor_email"?: string; "amount"?: number; "level"?: string; "status"?: "pending" | "confirmed" | "cancelled"; "auction_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/pledges/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * GET /api/posts
    */
-  getPosts(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getPosts(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/posts", {}, [], false, options)
   },
 
   /**
    * POST /api/posts
    */
-  postPosts(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postPosts(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/posts", {}, [], false, options)
   },
 
@@ -4463,28 +5919,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/posts/{id}
    */
-  getPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/posts/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/posts/{id}
    */
-  putPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/posts/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/posts/{id}
    */
-  deletePostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deletePostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/posts/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/posts/{id}
    */
-  patchPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchPostsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "title": string; "slug"?: string; "poster"?: string; "content": string; "excerpt"?: string; "focus_keyword"?: string; "meta_description"?: string; "canonical_url"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/posts/{id}", input ?? {}, [], false, options)
   },
 
@@ -4785,14 +6241,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/product-variants
    */
-  getProductVariants(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+  getProductVariants(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/product-variants", {}, [], false, options)
   },
 
   /**
    * POST /api/product-variants
    */
-  postProductVariants(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  postProductVariants(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/product-variants", {}, [], false, options)
   },
 
@@ -4806,28 +6262,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/product-variants/{id}
    */
-  getProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  getProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/product-variants/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/product-variants/{id}
    */
-  putProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  putProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/product-variants/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/product-variants/{id}
    */
-  deleteProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/product-variants/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/product-variants/{id}
    */
-  patchProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+  patchProductVariantsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "sku"?: string; "price"?: number; "compare_at_price"?: number; "inventory_count"?: number; "product_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/product-variants/{id}", input ?? {}, [], false, options)
   },
 
@@ -4930,7 +6386,7 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * /api/queries/:id
+   * GET /api/queries/{id}
    */
   getQueriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/queries/{id}", input ?? {}, [], false, options)
@@ -4948,6 +6404,55 @@ export function createClient(config: ClientConfig) {
    */
   getQueryLogsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "query": string; "normalized_query"?: string; "duration"?: number; "connection"?: string; "status"?: "completed" | "failed" | "slow"; "error"?: string; "executed_at": string; "model"?: string; "method"?: string; "line"?: number; "memory_usage"?: number; "rows_affected"?: number; "transaction_id"?: string; "tags"?: string; "affected_tables"?: string; "indexes_used"?: string; "missing_indexes"?: string; "explain_plan"?: string; "optimization_suggestions"?: string; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/query-logs/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/redirects
+   */
+  getRedirects(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/redirects", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/redirects
+   */
+  postRedirects(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/redirects", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/redirects/bulk-delete
+   */
+  postRedirectsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/redirects/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/redirects/{id}
+   */
+  getRedirectsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/redirects/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/redirects/{id}
+   */
+  putRedirectsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/redirects/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/redirects/{id}
+   */
+  deleteRedirectsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/redirects/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/redirects/{id}
+   */
+  patchRedirectsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "from_path": string; "to_path": string; "status_code"?: number; "source"?: "slug-change" | "manual"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/redirects/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -6008,6 +7513,55 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/sender-domains
+   */
+  getSenderDomains(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/sender-domains", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/sender-domains
+   */
+  postSenderDomains(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/sender-domains", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/sender-domains/bulk-delete
+   */
+  postSenderDomainsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/sender-domains/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/sender-domains/{id}
+   */
+  getSenderDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/sender-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/sender-domains/{id}
+   */
+  putSenderDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/sender-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/sender-domains/{id}
+   */
+  deleteSenderDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/sender-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/sender-domains/{id}
+   */
+  patchSenderDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "domain": string; "status": "pending" | "verified" | "failed" | "disabled"; "selector": string; "dns_records"?: unknown; "verified_at"?: unknown; "last_checked_at"?: unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/sender-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/serverless
    */
   getServerless(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -6176,6 +7730,104 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/site-domains
+   */
+  getSiteDomains(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/site-domains", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/site-domains
+   */
+  postSiteDomains(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/site-domains", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/site-domains/bulk-delete
+   */
+  postSiteDomainsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/site-domains/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/site-domains/{id}
+   */
+  getSiteDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/site-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/site-domains/{id}
+   */
+  putSiteDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/site-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/site-domains/{id}
+   */
+  deleteSiteDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/site-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/site-domains/{id}
+   */
+  patchSiteDomainsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "domain": string; "is_primary"?: boolean; "verified_at"?: unknown; "ssl_status"?: "pending" | "issued" | "failed"; "site_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/site-domains/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/sites
+   */
+  getSites(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/sites", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/sites
+   */
+  postSites(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/sites", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/sites/bulk-delete
+   */
+  postSitesBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/sites/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/sites/{id}
+   */
+  getSitesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/sites/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PUT /api/sites/{id}
+   */
+  putSitesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/sites/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/sites/{id}
+   */
+  deleteSitesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/sites/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * PATCH /api/sites/{id}
+   */
+  patchSitesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name": string; "subdomain": string; "status": "active" | "suspended" | "archived"; "settings"?: unknown; "timezone"?: string; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/sites/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
    * GET /api/social-posts
    */
   getSocialPosts(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
@@ -6339,14 +7991,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/tax-rates
    */
-  getTaxRates(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string }> }>> {
+  getTaxRates(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/tax-rates", {}, [], false, options)
   },
 
   /**
    * POST /api/tax-rates
    */
-  postTaxRates(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  postTaxRates(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "POST", "/api/tax-rates", {}, [], false, options)
   },
 
@@ -6360,29 +8012,71 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/tax-rates/{id}
    */
-  getTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  getTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/tax-rates/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PUT /api/tax-rates/{id}
    */
-  putTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  putTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PUT", "/api/tax-rates/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * DELETE /api/tax-rates/{id}
    */
-  deleteTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  deleteTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "DELETE", "/api/tax-rates/{id}", input ?? {}, [], false, options)
   },
 
   /**
    * PATCH /api/tax-rates/{id}
    */
-  patchTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
+  patchTaxRatesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "code"?: string; "exemptible"?: boolean; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/tax-rates/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/team-invitation-links/{token}
+   */
+  getTeamInvitationLinksToken(input: { "token": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/team-invitation-links/{token}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/team-invitations
+   */
+  getTeamInvitations(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "team_id": number; "email": string; "role": "admin" | "member" | "viewer"; "invited_by_user_id"?: number; "accepted_by_user_id"?: number; "status": "pending" | "accepted" | "revoked" | "expired"; "delivery_status": "pending" | "sent" | "failed"; "expires_at": unknown; "delivered_at"?: unknown; "accepted_at"?: unknown; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/team-invitations", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/team-invitations/bulk-delete
+   */
+  postTeamInvitationsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/team-invitations/bulk-delete", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/team-invitations/{id}
+   */
+  getTeamInvitationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "team_id": number; "email": string; "role": "admin" | "member" | "viewer"; "invited_by_user_id"?: number; "accepted_by_user_id"?: number; "status": "pending" | "accepted" | "revoked" | "expired"; "delivery_status": "pending" | "sent" | "failed"; "expires_at": unknown; "delivered_at"?: unknown; "accepted_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/team-invitations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * DELETE /api/team-invitations/{id}
+   */
+  deleteTeamInvitationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "team_id": number; "email": string; "role": "admin" | "member" | "viewer"; "invited_by_user_id"?: number; "accepted_by_user_id"?: number; "status": "pending" | "accepted" | "revoked" | "expired"; "delivery_status": "pending" | "sent" | "failed"; "expires_at": unknown; "delivered_at"?: unknown; "accepted_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/team-invitations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/team-invitations/{token}/accept
+   */
+  postTeamInvitationsTokenAccept(input: { "token": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/team-invitations/{token}/accept", input ?? {}, [], false, options)
   },
 
   /**
@@ -6432,6 +8126,20 @@ export function createClient(config: ClientConfig) {
    */
   patchTransactionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "PATCH", "/api/transactions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/usage-events
+   */
+  getUsageEvents(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "meter": "contacts" | "email_sends" | "sms_segments" | "ai_generations" | "storage_bytes"; "quantity": number; "idempotency_key": string; "metadata"?: unknown; "occurred_at": unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
+    return request(config, "GET", "/api/usage-events", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/usage-events/{id}
+   */
+  getUsageEventsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "meter": "contacts" | "email_sends" | "sms_segments" | "ai_generations" | "storage_bytes"; "quantity": number; "idempotency_key": string; "metadata"?: unknown; "occurred_at": unknown; "team_id"?: number; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "GET", "/api/usage-events/{id}", input ?? {}, [], false, options)
   },
 
   /**
@@ -6771,6 +8479,69 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /auth/magic-link
+   */
+  postAuthMagicLink(input: { body: { "email": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/magic-link", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /auth/magic-link/consume
+   */
+  postAuthMagicLinkConsume(input: { body: { "token": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/magic-link/consume", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /auth/oauth/clients
+   */
+  getAuthOauthClients(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/auth/oauth/clients", {}, [], false, options)
+  },
+
+  /**
+   * POST /auth/oauth/clients
+   */
+  postAuthOauthClients(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/oauth/clients", {}, [], false, options)
+  },
+
+  /**
+   * PATCH /auth/oauth/clients/{id}
+   */
+  patchAuthOauthClientsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PATCH", "/auth/oauth/clients/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /auth/oauth/clients/{id}/disable
+   */
+  postAuthOauthClientsIdDisable(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/oauth/clients/{id}/disable", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /auth/oauth/clients/{id}/rotate-secret
+   */
+  postAuthOauthClientsIdRotateSecret(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/oauth/clients/{id}/rotate-secret", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /auth/oauth/connections
+   */
+  getAuthOauthConnections(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/auth/oauth/connections", {}, [], false, options)
+  },
+
+  /**
+   * POST /auth/oauth/connections/{id}/disconnect
+   */
+  postAuthOauthConnectionsIdDisconnect(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/auth/oauth/connections/{id}/disconnect", input ?? {}, [], false, options)
+  },
+
+  /**
    * POST /auth/refresh
    */
   postAuthRefresh(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -6988,13 +8759,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /cms/seo
-   */
-  getCmsSeo(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/cms/seo", {}, [], false, options)
-  },
-
-  /**
    * GET /cms/tags
    */
   getCmsTags(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7032,7 +8796,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /dashboard/activity
    */
-  getDashboardActivity(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getDashboardActivity2(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/dashboard/activity", {}, [], false, options)
   },
 
@@ -7151,7 +8915,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /dashboard/health
    */
-  getDashboardHealth(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getDashboardHealth2(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/dashboard/health", {}, [], false, options)
   },
 
@@ -7160,13 +8924,6 @@ export function createClient(config: ClientConfig) {
    */
   getDashboardHome2(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/dashboard/home", {}, [], false, options)
-  },
-
-  /**
-   * GET /dashboard/search
-   */
-  getDashboardSearch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/dashboard/search", {}, [], false, options)
   },
 
   /**
@@ -7186,7 +8943,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /dashboard/stats
    */
-  getDashboardStats(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getDashboardStats2(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/dashboard/stats", {}, [], false, options)
   },
 
@@ -7216,6 +8973,13 @@ export function createClient(config: ClientConfig) {
    */
   getDeploymentsCount(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/deployments/count", {}, [], false, options)
+  },
+
+  /**
+   * POST /deployments/preview
+   */
+  postDeploymentsPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/deployments/preview", {}, [], false, options)
   },
 
   /**
@@ -7249,14 +9013,14 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /disable-two-factor
    */
-  postDisableTwoFactor(input?: { body?: { "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postDisableTwoFactor(input: { body: { "password": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/disable-two-factor", input ?? {}, [], true, options)
   },
 
   /**
    * POST /enable-two-factor
    */
-  postEnableTwoFactor(input?: { body?: { "code"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postEnableTwoFactor(input: { body: { "code": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/enable-two-factor", input ?? {}, [], true, options)
   },
 
@@ -7366,20 +9130,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /inbox/
-   */
-  getInbox(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/inbox/", {}, [], false, options)
-  },
-
-  /**
-   * GET /inbox/{id}
-   */
-  getInboxId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/inbox/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
    * GET /infrastructure/cloud
    */
   getInfrastructureCloud(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7433,13 +9183,6 @@ export function createClient(config: ClientConfig) {
    */
   getInfrastructureServers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/infrastructure/servers", {}, [], false, options)
-  },
-
-  /**
-   * GET /install
-   */
-  getInstall(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/install", {}, [], false, options)
   },
 
   /**
@@ -7597,6 +9340,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /me/data-export
+   */
+  getMeDataExport(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/me/data-export", {}, [], false, options)
+  },
+
+  /**
    * GET /models/
    */
   getModels(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7618,6 +9368,41 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /oauth/authorize
+   */
+  getOauthAuthorize(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/oauth/authorize", {}, [], false, options)
+  },
+
+  /**
+   * POST /oauth/authorize
+   */
+  postOauthAuthorize(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/oauth/authorize", {}, [], false, options)
+  },
+
+  /**
+   * POST /oauth/introspect
+   */
+  postOauthIntrospect(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/oauth/introspect", {}, [], false, options)
+  },
+
+  /**
+   * POST /oauth/revoke
+   */
+  postOauthRevoke(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/oauth/revoke", {}, [], false, options)
+  },
+
+  /**
+   * POST /oauth/token
+   */
+  postOauthToken(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/oauth/token", {}, [], false, options)
+  },
+
+  /**
    * POST /password/forgot
    */
   postPasswordForgot(input: { body: { "email": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7627,8 +9412,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /password/reset
    */
-  postPasswordReset(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/password/reset", {}, [], false, options)
+  postPasswordReset(input: { body: { "email": string; "token": string; "password": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/password/reset", input ?? {}, [], true, options)
   },
 
   /**
@@ -7828,6 +9613,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /referrals
+   */
+  getReferrals(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/referrals", {}, [], false, options)
+  },
+
+  /**
+   * POST /referrals/code
+   */
+  postReferralsCode(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/referrals/code", {}, [], false, options)
+  },
+
+  /**
    * POST /register
    */
   postRegister(input?: { body?: { "email"?: string; "handle"?: string; "name"?: string; "next"?: string; "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7863,13 +9662,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /test-error
-   */
-  getTestError(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/test-error", {}, [], false, options)
-  },
-
-  /**
    * POST /unsubscribe/{token}
    */
   postUnsubscribeToken(input: { "token": string; body?: { "token"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -7877,10 +9669,10 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /verify-authentication
+   * POST /verify-authentication
    */
-  getVerifyAuthentication(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/verify-authentication", {}, [], false, options)
+  postVerifyAuthentication(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/verify-authentication", {}, [], false, options)
   },
 
   /**
@@ -7893,7 +9685,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /verify-two-factor-login
    */
-  postVerifyTwoFactorLogin(input?: { body?: { "challenge_token"?: string; "code"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postVerifyTwoFactorLogin(input: { body: { "challenge_token": string; "code": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/verify-two-factor-login", input ?? {}, [], true, options)
   },
 
@@ -7993,6 +9785,34 @@ export function createClient(config: ClientConfig) {
    */
   postVoideTitle(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/voide/title", {}, [], false, options)
+  },
+
+  /**
+   * POST /webhooks/email/mailgun
+   */
+  postWebhooksEmailMailgun(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/webhooks/email/mailgun", {}, [], false, options)
+  },
+
+  /**
+   * POST /webhooks/email/postmark
+   */
+  postWebhooksEmailPostmark(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/webhooks/email/postmark", {}, [], false, options)
+  },
+
+  /**
+   * POST /webhooks/email/sendgrid
+   */
+  postWebhooksEmailSendgrid(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/webhooks/email/sendgrid", {}, [], false, options)
+  },
+
+  /**
+   * POST /webhooks/email/ses
+   */
+  postWebhooksEmailSes(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/webhooks/email/ses", {}, [], false, options)
   },
 
   /**

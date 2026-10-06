@@ -11,6 +11,7 @@ export const emails = {
   'email-verification': '../defaults/resources/emails/email-verification.stx',
   'password-changed': '../defaults/resources/emails/password-changed.stx',
   'password-reset': '../defaults/resources/emails/password-reset.stx',
+  'team-invitation': '../defaults/resources/emails/team-invitation.stx',
   'welcome': '../defaults/resources/emails/welcome.stx',
   'layouts/base': '../defaults/resources/emails/layouts/base.html',
 } as const

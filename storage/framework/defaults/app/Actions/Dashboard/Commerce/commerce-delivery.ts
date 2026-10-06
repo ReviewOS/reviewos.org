@@ -1,3 +1,5 @@
+import { formatCurrency } from '@stacksjs/commerce/money'
+
 export interface DeliveryOverviewStat {
   label: string
   value: string
@@ -6,7 +8,7 @@ export interface DeliveryOverviewStat {
 
 export interface DeliveryOverviewRoute {
   id: number
-  driver: string
+  courier: string
   vehicle: string
   stops: number
   duration: string
@@ -35,7 +37,7 @@ export interface DeliveryOverviewResult {
   routes: DeliveryOverviewRoute[]
   methods: DeliveryOverviewMethod[]
   zones: DeliveryOverviewZone[]
-  drivers: {
+  couriers: {
     total: number
     active: number
     onDelivery: number
@@ -45,68 +47,29 @@ export interface DeliveryOverviewResult {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-function value(record: any, ...keys: string[]): unknown {
-  for (const key of keys) {
-    const result = typeof record?.get === 'function' ? record.get(key) : record?.[key]
-    if (result !== null && result !== undefined)
-      return result
-  }
-  return undefined
+/**
+ * Shipping rates and thresholds are integer minor units. Dividing by 100 was
+ * right for USD and EUR and a hundred times off for JPY (stacksjs/stacks#2851).
+ */
+function formatMoney(minor: number, currency: string): string {
+  return formatCurrency(minor, currency, 'en-US')
 }
 
-function text(input: unknown): string {
-  return input === null || input === undefined ? '' : String(input)
-}
-
-function number(input: unknown): number {
-  const result = Number(input)
-  return Number.isFinite(result) && result >= 0 ? result : 0
-}
-
-function list(input: unknown): string[] {
-  if (Array.isArray(input))
-    return input.map(item => text(item).trim()).filter(Boolean)
-
-  const raw = text(input).trim()
-  if (!raw)
-    return []
-
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed))
-      return parsed.map(item => text(item).trim()).filter(Boolean)
+export function deliveryTimestamp(input: unknown, source = 'DeliveryRoute', field = 'last_active'): number {
+  const raw = typeof input === 'number' ? String(input) : commerceRequiredString(input, source, field)
+  if (/^\d{10,13}$/.test(raw)) {
+    const timestamp = raw.length === 10 ? Number(raw) * 1000 : Number(raw)
+    if (Number.isSafeInteger(timestamp))
+      return timestamp
   }
-  catch {
-    return raw.split(/[\n,|;]+/).map(item => item.trim()).filter(Boolean)
-  }
-
-  return []
-}
-
-function formatMoney(cents: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-    }).format(cents / 100)
-  }
-  catch {
-    return `${currency} ${(cents / 100).toFixed(2)}`
-  }
-}
-
-export function deliveryTimestamp(input: unknown): number {
-  const raw = text(input).trim()
-  if (!raw)
-    return 0
-  if (/^\d{10,13}$/.test(raw))
-    return raw.length === 10 ? Number(raw) * 1000 : Number(raw)
 
   const normalized = /^\d{4}-\d{2}-\d{2} \d/.test(raw)
     ? `${raw.replace(' ', 'T')}Z`
     : raw
   const timestamp = new Date(normalized).getTime()
-  return Number.isFinite(timestamp) ? timestamp : 0
+  if (!Number.isFinite(timestamp))
+    throw new TypeError(`${source}.${field} must be a valid Unix or ISO timestamp.`)
+  return timestamp
 }
 
 export function formatDeliveryDuration(minutes: number): string {
@@ -122,28 +85,75 @@ export function buildDeliveryOverview(
   methodRows: any[],
   routeRows: any[],
   zoneRows: any[],
-  driverRows: any[],
+  courierRows: any[],
   currency = 'USD',
   now = new Date(),
 ): DeliveryOverviewResult {
-  const driversById = new Map(driverRows.map(driver => [
-    text(value(driver, 'id')),
-    {
-      name: text(value(driver, 'name')),
-      vehicle: text(value(driver, 'vehicle_number', 'vehicleNumber')),
-    },
-  ]))
-
-  const allRoutes = routeRows.map((route): DeliveryOverviewRoute => {
-    const linkedDriver = driversById.get(text(value(route, 'driver_id', 'driverId')))
+  const normalizedCurrency = commerceCurrency(currency, 'Commerce configuration')
+  const normalizedCouriers = courierRows.map((courier) => {
+    const identifier = commerceIdentifier(commerceValue(courier, 'id', 'uuid'), 'Courier')
+    const source = `Courier ${identifier}`
     return {
-      id: number(value(route, 'id')),
-      driver: linkedDriver?.name || text(value(route, 'driver')) || 'Unassigned',
-      vehicle: linkedDriver?.vehicle || text(value(route, 'vehicle')) || 'Not assigned',
-      stops: number(value(route, 'stops')),
-      duration: formatDeliveryDuration(number(value(route, 'delivery_time', 'deliveryTime'))),
-      distance: `${number(value(route, 'total_distance', 'totalDistance')).toLocaleString('en-US')} mi`,
-      lastActive: deliveryTimestamp(value(route, 'last_active', 'lastActive')),
+      id: identifier,
+      name: commerceRequiredString(commerceValue(courier, 'name'), source, 'name'),
+      vehicle: commerceRequiredString(
+        commerceValue(courier, 'vehicle_number', 'vehicleNumber'),
+        source,
+        'vehicle_number',
+      ),
+      status: commerceEnum(commerceValue(courier, 'status'), source, 'status', [
+        'active',
+        'on_delivery',
+        'on_break',
+      ]),
+    }
+  })
+  const couriersById = new Map(normalizedCouriers.map(courier => [courier.id, courier]))
+
+  const routeMinutesById = new Map<number, number>()
+  const allRoutes = routeRows.map((route): DeliveryOverviewRoute => {
+    const numericId = commerceNumber(commerceValue(route, 'id'), 'DeliveryRoute', 'id', {
+      min: 1,
+      integer: true,
+    })
+    const source = `DeliveryRoute ${numericId}`
+    const courierId = commerceOptionalIdentifier(
+      commerceValue(route, 'courier_id', 'courierId'),
+      source,
+      'courier_id',
+    )
+    const linkedCourier = courierId ? couriersById.get(courierId) : undefined
+    if (courierId && !linkedCourier)
+      throw new TypeError(`${source}.courier_id references missing Courier ${courierId}.`)
+    const deliveryTime = commerceNumber(
+      commerceValue(route, 'delivery_time', 'deliveryTime'),
+      source,
+      'delivery_time',
+      { min: 0, integer: true },
+    )
+    routeMinutesById.set(numericId, deliveryTime)
+    return {
+      id: numericId,
+      courier: linkedCourier?.name
+        || commerceRequiredString(commerceValue(route, 'courier'), source, 'courier'),
+      vehicle: linkedCourier?.vehicle
+        || commerceRequiredString(commerceValue(route, 'vehicle'), source, 'vehicle'),
+      stops: commerceNumber(commerceValue(route, 'stops'), source, 'stops', {
+        min: 0,
+        integer: true,
+      }),
+      duration: formatDeliveryDuration(deliveryTime),
+      distance: `${commerceNumber(
+        commerceValue(route, 'total_distance', 'totalDistance'),
+        source,
+        'total_distance',
+        { min: 0 },
+      ).toLocaleString('en-US')} mi`,
+      lastActive: deliveryTimestamp(
+        commerceValue(route, 'last_active', 'lastActive'),
+        source,
+        'last_active',
+      ),
     }
   })
 
@@ -151,22 +161,36 @@ export function buildDeliveryOverview(
   const activeRoutes = allRoutes
     .filter(route => route.lastActive >= activeCutoff && route.lastActive <= now.getTime())
     .sort((left, right) => right.lastActive - left.lastActive)
-  const routeMinutesById = new Map(routeRows.map(route => [
-    number(value(route, 'id')),
-    number(value(route, 'delivery_time', 'deliveryTime')),
-  ]))
-
   const methods = methodRows
     .map((method): DeliveryOverviewMethod => {
-      const threshold = value(method, 'free_shipping', 'freeShipping')
+      const id = commerceNumber(commerceValue(method, 'id'), 'ShippingMethod', 'id', {
+        min: 1,
+        integer: true,
+      })
+      const source = `ShippingMethod ${id}`
+      const threshold = commerceOptionalNumber(
+        commerceValue(method, 'free_shipping', 'freeShipping'),
+        source,
+        'free_shipping',
+        { min: 0 },
+      )
       return {
-        id: number(value(method, 'id')),
-        name: text(value(method, 'name')) || 'Unnamed method',
-        status: text(value(method, 'status')) || 'draft',
-        baseRate: formatMoney(number(value(method, 'base_rate', 'baseRate')), currency),
-        freeShipping: threshold === null || threshold === undefined || threshold === ''
+        id,
+        name: commerceRequiredString(commerceValue(method, 'name'), source, 'name'),
+        status: commerceEnum(commerceValue(method, 'status'), source, 'status', [
+          'active',
+          'inactive',
+          'draft',
+        ]),
+        baseRate: formatMoney(commerceNumber(
+          commerceValue(method, 'base_rate', 'baseRate'),
+          source,
+          'base_rate',
+          { min: 0 },
+        ), normalizedCurrency),
+        freeShipping: threshold === null
           ? 'Not enabled'
-          : formatMoney(number(threshold), currency),
+          : formatMoney(threshold, normalizedCurrency),
       }
     })
     .sort((left, right) => {
@@ -175,21 +199,31 @@ export function buildDeliveryOverview(
     })
 
   const zones = zoneRows
-    .map((zone): DeliveryOverviewZone => ({
-      id: number(value(zone, 'id')),
-      name: text(value(zone, 'name')) || 'Unnamed zone',
-      status: text(value(zone, 'status')) || 'draft',
-      countries: list(value(zone, 'countries')).length,
-      regions: list(value(zone, 'regions')).length,
-    }))
+    .map((zone): DeliveryOverviewZone => {
+      const id = commerceNumber(commerceValue(zone, 'id'), 'ShippingZone', 'id', {
+        min: 1,
+        integer: true,
+      })
+      const source = `ShippingZone ${id}`
+      return {
+        id,
+        name: commerceRequiredString(commerceValue(zone, 'name'), source, 'name'),
+        status: commerceEnum(commerceValue(zone, 'status'), source, 'status', [
+          'active',
+          'inactive',
+          'draft',
+        ]),
+        countries: commerceStringList(commerceValue(zone, 'countries'), source, 'countries').length,
+        regions: commerceStringList(commerceValue(zone, 'regions'), source, 'regions').length,
+      }
+    })
     .sort((left, right) => {
       const statusOrder = Number(right.status === 'active') - Number(left.status === 'active')
       return statusOrder || left.name.localeCompare(right.name)
     })
 
-  const driverStatusCounts = driverRows.reduce<Record<string, number>>((counts, driver) => {
-    const status = text(value(driver, 'status')).toLowerCase() || 'active'
-    counts[status] = (counts[status] || 0) + 1
+  const courierStatusCounts = normalizedCouriers.reduce<Record<string, number>>((counts, courier) => {
+    counts[courier.status] = (counts[courier.status] || 0) + 1
     return counts
   }, {})
 
@@ -206,9 +240,9 @@ export function buildDeliveryOverview(
         detail: `${activeRoutes.reduce((total, route) => total + route.stops, 0).toLocaleString('en-US')} stops active in 24h`,
       },
       {
-        label: 'Drivers on Delivery',
-        value: (driverStatusCounts.on_delivery || 0).toLocaleString('en-US'),
-        detail: `${driverRows.length.toLocaleString('en-US')} drivers total`,
+        label: 'Couriers on Delivery',
+        value: (courierStatusCounts.on_delivery || 0).toLocaleString('en-US'),
+        detail: `${courierRows.length.toLocaleString('en-US')} couriers total`,
       },
       {
         label: 'Average Route',
@@ -224,11 +258,22 @@ export function buildDeliveryOverview(
     routes: activeRoutes.slice(0, 5),
     methods: methods.slice(0, 5),
     zones: zones.slice(0, 5),
-    drivers: {
-      total: driverRows.length,
-      active: driverStatusCounts.active || 0,
-      onDelivery: driverStatusCounts.on_delivery || 0,
-      onBreak: driverStatusCounts.on_break || 0,
+    couriers: {
+      total: normalizedCouriers.length,
+      active: courierStatusCounts.active || 0,
+      onDelivery: courierStatusCounts.on_delivery || 0,
+      onBreak: courierStatusCounts.on_break || 0,
     },
   }
 }
+import {
+  commerceCurrency,
+  commerceEnum,
+  commerceIdentifier,
+  commerceNumber,
+  commerceOptionalIdentifier,
+  commerceOptionalNumber,
+  commerceRequiredString,
+  commerceStringList,
+  commerceValue,
+} from './commerce-record'

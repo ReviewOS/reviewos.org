@@ -1,6 +1,6 @@
 ---
 name: stacks-buddy
-description: Use when working with the Stacks CLI (buddy/bud/stacks/stx) — understanding all 50+ commands with their flags and options, adding custom commands, the make:* scaffolding commands, development server commands, build commands, deployment commands, email/mail commands, environment management, or domain/DNS commands. Covers @stacksjs/buddy and all CLI command files.
+description: Use when working with the Stacks CLI (buddy/bud/stacks/stx) - understanding every command with its flags and options, adding custom commands, the make:* scaffolding commands, development server commands, build commands, deployment commands, email/mail commands, environment management, or domain/DNS commands. Covers @stacksjs/buddy and all CLI command files.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -8,7 +8,7 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 # Stacks Buddy CLI
 
-The complete CLI runtime for the Stacks framework with 50+ commands, lazy-loaded for fast cold starts.
+The complete CLI runtime for the Stacks framework, lazy-loaded for fast cold starts. `docs/guide/buddy/commands.md` lists every command and is generated from the runtime registry, so it is the count as well as the reference.
 
 ## Key Paths
 - Core package: `storage/framework/core/buddy/src/`
@@ -17,8 +17,8 @@ The complete CLI runtime for the Stacks framework with 50+ commands, lazy-loaded
 - Lazy command registry: `storage/framework/core/buddy/src/lazy-commands.ts`
 - Config system: `storage/framework/core/buddy/src/config.ts`
 - Shell entry: `buddy` (shell script at project root that invokes `bun run ./storage/framework/core/buddy/src/cli.ts`)
-- Application commands: `app/Commands/`
-- Command registry: `app/Commands.ts`
+- Application commands: `app/Commands/` (auto-discovered; no registration step)
+- Optional registry: `app/Commands.ts`
 - Make templates: `storage/framework/defaults/`
 
 ## CLI Aliases
@@ -126,15 +126,26 @@ buddy dev -o/--docs          # docs only
 buddy dev -s/--system-tray   # system tray only
 buddy dev -i/--interactive   # interactive server selection menu
 buddy dev -l/--with-localhost # include localhost URL in output
+buddy dev --browser          # open the browser app instead of a configured native window
+buddy dev --site             # open the marketing site instead of the detected app entry
 buddy dev -p/--project [name]
 buddy dev --verbose
 ```
+
+When `config/app.ts` defines `appPath` (for example, `/dashboard`), plain
+`buddy dev` treats it as the primary application URL. Set `devLaunch: 'native'`
+for a desktop app to open that URL in a Craft window by default. Use
+`buddy dev --browser` to open the application in a browser or `buddy dev --site`
+to force the marketing homepage for that session. Without `appPath`, Buddy
+detects common application views and falls back to `/` for site-only projects.
+Set `STACKS_DEV_NO_OPEN=1` when the browser should remain closed.
 
 Sub-commands with aliases:
 ```bash
 buddy dev:components         # component library dev server
 buddy dev:docs               # documentation dev server
 buddy dev:desktop            # desktop app dev server
+buddy dev:native             # equivalent native desktop app flow
 buddy dev:api                # API dev server
 buddy dev:frontend           # frontend dev server (aliases: dev:pages, dev:views)
 buddy dev:dashboard          # dashboard dev server (alias: dev:admin)
@@ -214,7 +225,7 @@ buddy migrate:fresh -s/--seed   # seed after fresh migration
 buddy migrate:fresh -a/--auth   # include auth tables
 buddy migrate:fresh -d/--diff   # show SQL without running
 
-buddy migrate:dns            # DNS migration for APP_URL domain
+buddy dns:sync               # create the config/dns.ts records at the registrar
 ```
 
 Both `migrate` and `migrate:fresh` validate that models exist in `app/Models` or `storage/framework/defaults/app/Models` before running.
@@ -239,7 +250,7 @@ buddy make:certificate        # generate SSL certificate (alias: make:cert)
 buddy make:command [name]     # create CLI command in app/Commands/
   --signature [sig]           # CLI command name
   --description [desc]        # command description
-  --no-register               # skip registering in Commands.ts
+  --register                  # also add an entry to app/Commands.ts (optional)
 buddy make:component [name]   # create STX component
 buddy make:database [name]    # create database
 buddy make:factory [name]     # create model factory (stub)
@@ -356,7 +367,57 @@ buddy env:check                  # validate environment configuration
 ## Cloud & Deployment
 
 ### `buddy deploy` - Deploy to cloud
-Handles full deployment workflow: prerequisites check, pantry install, env setup, APP_KEY, AWS credentials (from .env.{env} or ~/.aws/credentials), domain setup, email DNS records (DKIM, MX, SPF, DMARC), mail user creation.
+Handles full deployment workflow: prerequisites check, pantry install, env setup, APP_KEY, provider credentials, domain setup, email DNS records (DKIM, MX, SPF, DMARC), mail user creation.
+
+```bash
+buddy deploy [env]             # env is production | staging | development
+  --domain <domain>            # override the domain this deploy publishes
+  -p/--project [project]       # target a specific project
+  --prod                       # deploy to production
+  --staging                    # deploy to staging
+  --dev                        # deploy to development
+  --site <name>                # deploy only this one site to the existing server
+  --docker                     # also build an OCI image with pantry and push it
+  --dry-run                    # preview the plan, change nothing
+  --yes                        # skip confirmation (required from a non-TTY)
+  -J/--json                    # machine-readable deployment preview
+  --verbose                    # verbose output
+
+buddy deploy:rollback [site]   # activate a preserved release (hetzner/ssh targets)
+  --env <environment>          # environment to roll back (default: production)
+  --to <release>               # preserved release id to activate
+  --dry-run                    # preview without changing the active release
+  --verbose                    # verbose output
+```
+
+Where it deploys is `cloud.provider` in `config/cloud.ts`: `'aws'` (default, CloudFormation),
+`'hetzner'` (provision a server, then deploy over SSH), or `'ssh'` (a host you already own).
+`CLOUD_PROVIDER` overrides the config value.
+
+### `buddy server:*` - An SSH deploy target
+For `cloud.provider: 'ssh'`, a Linux box you already own. The `raspberry-pi` profile tunes the
+bootstrap for a small single-board computer.
+
+```bash
+buddy server:flash        # write an OS image to an SD card or USB disk
+  --os <name>             # raspberry-pi-os-lite (default), raspberry-pi-os, ubuntu-24.04, ubuntu-26.04
+  --device <path>         # the whole disk to write to, e.g. /dev/disk4
+  --list                  # list writable disks and exit
+  --dry-run               # say what would happen without writing
+  --yes                   # skip the confirmation
+buddy server:first-boot   # write cloud-init user-data to the mounted boot partition
+  --hostname <name>       # the board's hostname
+  --user <name>           # the login user cloud-init creates
+buddy server:doctor       # preflight over SSH: arch, OS, memory, disk, sudo, clock, HTTPS
+buddy server:setup        # adopt and bootstrap the host (bun, rpx, systemd units)
+buddy server:trust        # install the box's local CA here, or emit a .mobileconfig
+```
+
+Then `buddy deploy --prod` behaves exactly as it does for Hetzner. Connection details come from
+`ssh.hosts` in `config/cloud.ts`, or from `TS_CLOUD_SSH_HOST`, `TS_CLOUD_SSH_USER`,
+`TS_CLOUD_SSH_PORT` and `TS_CLOUD_SSH_KEY`, which win over the config. A host on a private address
+publishes no DNS and requests no certificate; `TS_CLOUD_SSH_PUBLISH_DNS=1` forces publishing on
+and `0` forces it off.
 
 ### `buddy cloud` - Cloud management
 ```bash
@@ -365,14 +426,14 @@ buddy cloud --diff             # show infrastructure changes (local vs deployed 
 buddy cloud --invalidate-cache # invalidate CloudFront CDN cache
   --paths [paths]              # specific paths to invalidate (default: /*)
 
-buddy cloud:add --jump-box     # add jump box EC2 instance
+buddy cloud:add --jump-box     # check for the jump box infrastructure.jumpBox declares (buddy deploy creates it)
 buddy cloud:remove             # remove cloud infrastructure (aliases: cloud:destroy, cloud:rm, undeploy)
-  --jump-box                   # remove just the jump-box
+  --jump-box                   # check for the jump box, say how to drop it from the stack
   --force                      # force deletion
   --yes                        # skip confirmation
-buddy cloud:optimize-cost      # remove optional resources (jump-box)
+buddy cloud:optimize-cost      # check optional resources (jump-box) that can be dropped
 buddy cloud:cleanup            # clean up retained resources after stack deletion
-# Cleans: jump-boxes, S3 buckets, Lambda functions, CloudWatch logs,
+# Cleans: S3 buckets, Lambda functions, CloudWatch logs,
 # Parameter Store, VPCs, Subnets, CDK remnants, IAM users
 buddy cloud:invalidate-cache   # invalidate CloudFront cache
   --paths [paths]              # paths to invalidate
@@ -550,7 +611,7 @@ buddy ai:context             # compact deterministic project context for coding 
   -o/--output [path]         # write to a file instead of stdout
   --max-chars [characters]   # prompt payload character budget (default: 4000)
   --model [model]            # model family for heuristic token estimates
-buddy doctor                 # health checks (Bun version, Node, package.json, .env, APP_KEY)
+buddy doctor                 # health checks (Bun version, Node, package.json, .env, APP_KEY, mail DNS)
 buddy tinker                 # interactive REPL with Stacks preloaded
   -e/--eval [expr]           # evaluate expression and exit
   --print [expr]             # evaluate, print, and exit
@@ -611,34 +672,63 @@ buddy stacks                 # Stacks framework commands (registered as 'stack' 
 
 ## Adding Custom Commands
 
-### Method 1: Commands.ts Registry (preferred)
+### Method 1: Drop a file in `app/Commands/` (preferred)
 
-```typescript
-// app/Commands.ts
-export default {
-  'inspire': 'Inspire',                              // simple: maps to app/Commands/Inspire.ts
-  'deploy-hooks': { file: 'DeployHooks', enabled: true, aliases: ['dh'] },  // with options
-  'disabled-cmd': { file: 'Disabled', enabled: false }, // disabled command
-}
-```
+Every `.ts` file there is a command - no registration, no generated file.
+Nested directories work too (`app/Commands/Archive/Run.ts`).
 
 ```typescript
 // app/Commands/Inspire.ts
-import type { CLI } from '@stacksjs/cli'
+import { defineCommand } from '@stacksjs/cli'
 
-export default function (buddy: CLI) {
-  buddy
-    .command('inspire', 'Display inspirational quote')
-    .option('-t, --two', 'Show two quotes')
-    .action(async (options: { two?: boolean }) => {
+// Declarative: `options` is inferred from the flags declared above it.
+export default defineCommand({
+  name: 'inspire',
+  description: 'Display inspirational quote',
+  aliases: ['insp'],
+  options: {
+    '--two, -t': { description: 'Show two quotes', default: false },
+  },
+  handle(options) {
+    console.log(randomQuote())
+    if (options.two)
       console.log(randomQuote())
-      if (options.two) console.log(randomQuote())
-    })
-}
+  },
+})
 ```
 
-### Method 2: Auto-discovery (fallback)
-If `app/Commands.ts` does not exist, all `.ts` files in `app/Commands/` are auto-discovered and loaded. Each must export a default function that receives the CLI instance.
+```typescript
+// Imperative, for a file that registers several commands or uses cli.on()
+import { defineCommand } from '@stacksjs/cli'
+
+export default defineCommand((buddy) => {
+  buddy.command('inspire', 'Display inspirational quote').action(() => {})
+  buddy.command('inspire:two', 'Two quotes').action(() => {})
+})
+```
+
+A command file can also configure itself with named exports:
+
+```typescript
+export const aliases = ['emails', 'mail'] // extra aliases
+export const enabled = false              // keep the file, hide the command
+```
+
+### Method 2: `app/Commands.ts` (optional overlay)
+
+Only worth keeping to control listing order, or to alias/disable a command
+without editing its file. Files it does not mention still load.
+
+```typescript
+// app/Commands.ts
+import { defineCommands } from '@stacksjs/cli'
+
+export default defineCommands({
+  'inspire': 'Inspire',                                                    // maps to app/Commands/Inspire.ts
+  'deploy-hooks': { file: 'DeployHooks', enabled: true, aliases: ['dh'] }, // with options
+  'disabled-cmd': { file: 'Disabled', enabled: false },                    // disabled command
+})
+```
 
 ### Method 3: buddy.config.ts
 ```typescript

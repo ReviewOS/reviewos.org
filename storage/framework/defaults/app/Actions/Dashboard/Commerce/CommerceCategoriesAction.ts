@@ -1,5 +1,6 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { Category } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
 import { normalizeCommerceCategoryRecord, summarizeCommerceCategories } from './commerce-category-records'
 
 export default new Action({
@@ -9,11 +10,21 @@ export default new Action({
   apiResponse: true,
 
   async handle() {
-    const categories = await Category.orderBy('display_order', 'asc').limit(500).get()
-    const records = categories.map(normalizeCommerceCategoryRecord)
-    return {
-      records,
-      summary: summarizeCommerceCategories(records),
+    try {
+      const categories = await Category.orderBy('display_order', 'asc').limit(500).get()
+      const records = categories.map(normalizeCommerceCategoryRecord)
+      const ids = new Set(records.map(record => record.id))
+      for (const record of records) {
+        if (record.parentCategoryId && !ids.has(record.parentCategoryId))
+          throw new TypeError(`Category ${record.id}.parent_category_id references missing Category ${record.parentCategoryId}.`)
+      }
+      return {
+        records,
+        summary: summarizeCommerceCategories(records),
+      }
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Category records could not be read.', 'CommerceCategoriesAction')
     }
   },
 })

@@ -15,69 +15,8 @@
  * ```
  */
 
-import process from 'node:process'
-import { response, route } from '@stacksjs/router'
-
-// ============================================================================
-// Auth Routes
-// ============================================================================
-
-// Rate limits on token-issuance + password-reset endpoints
-// (stacksjs/stacks#1921). `Auth.attempt()` already has a per-email
-// lockout but it doesn't stop credential-stuffing across many emails
-// from one IP, and the token endpoints have no upstream brake at all
-// — a leaked refresh token could be hammered for unlimited access
-// tokens until the row TTL. Userland that overrides any of these in
-// `routes/api.ts` (user routes win) gets to pick its own limits.
-route.post('/login', 'Actions/Auth/LoginAction').rateLimit(5, 'minute')
-route.post('/register', 'Actions/Auth/RegisterAction').rateLimit(3, 'minute')
-// Passkey ENROLLMENT (attaching a new credential to an account) must be
-// auth-gated — it's not a login flow, it's a logged-in user adding a
-// second factor to their own account. Previously unauthenticated and
-// keyed off a client-supplied `email` field: anyone who knew a victim's
-// email could register a passkey against that account and log in as
-// them, no password required. GenerateRegistrationAction/
-// VerifyRegistrationAction now derive identity from request.user().
-route.get('/generate-registration-options', 'Actions/Auth/GenerateRegistrationAction').middleware('auth').rateLimit(10, 'minute')
-route.post('/verify-registration', 'Actions/Auth/VerifyRegistrationAction').middleware('auth').rateLimit(5, 'minute')
-// Passkey AUTHENTICATION (logging in) is correctly unauthenticated —
-// the caller doesn't have a session yet, that's the point.
-route.get('/generate-authentication-options', 'Actions/Auth/GenerateAuthenticationAction').rateLimit(10, 'minute')
-route.get('/verify-authentication', 'Actions/Auth/VerifyAuthenticationAction').rateLimit(10, 'minute')
-
-// TOTP 2FA. Setup/enable/disable act on the caller's own authenticated
-// account (auth-gated, same identity rule as passkey enrollment above).
-// verify-two-factor-login is the second step of LoginAction's flow and
-// is correctly unauthenticated — the caller only has a short-lived
-// challenge token at that point, not a session yet.
-route.post('/generate-two-factor-secret', 'Actions/Auth/GenerateTwoFactorSecretAction').middleware('auth').rateLimit(10, 'minute')
-route.post('/enable-two-factor', 'Actions/Auth/EnableTwoFactorAction').middleware('auth').rateLimit(10, 'minute')
-route.post('/disable-two-factor', 'Actions/Auth/DisableTwoFactorAction').middleware('auth').rateLimit(10, 'minute')
-route.post('/verify-two-factor-login', 'Actions/Auth/VerifyTwoFactorLoginAction').rateLimit(10, 'minute')
-
-route.group({ prefix: '/auth' }, () => {
-  route.post('/refresh', 'Actions/Auth/RefreshTokenAction').rateLimit(10, 'minute')
-  route.get('/tokens', 'Actions/Auth/ListTokensAction').middleware('auth')
-  route.post('/token', 'Actions/Auth/CreateTokenAction').middleware('auth').rateLimit(10, 'minute')
-  route.delete('/tokens/{id}', 'Actions/Auth/RevokeTokenAction').middleware('auth')
-  route.get('/abilities', 'Actions/Auth/TestAbilitiesAction').middleware('auth')
-})
-
-route.group({ middleware: 'auth' }, () => {
-  route.get('/me', 'Actions/Auth/AuthUserAction')
-  route.post('/logout', 'Actions/Auth/LogoutAction')
-  // Sign out everywhere: revoke every access/refresh token AND destroy
-  // every session for the authenticated user (stacksjs/stacks#1957).
-  route.post('/logout-all', 'Actions/Auth/LogoutAllAction')
-})
-
-// Password Reset. `/forgot` triggers a mailer hop so it's the most
-// abuse-prone — keep that tighter than the verification endpoints.
-route.group({ prefix: '/password' }, () => {
-  route.post('/forgot', 'Actions/Password/SendPasswordResetEmailAction').rateLimit(3, 'minute')
-  route.post('/reset', 'Actions/Password/PasswordResetAction').rateLimit(5, 'minute')
-  route.post('/verify-token', 'Actions/Password/VerifyResetTokenAction').rateLimit(10, 'minute')
-})
+import { isLocalDeployment } from '@stacksjs/env'
+import { route } from '@stacksjs/router'
 
 // ============================================================================
 // Email
@@ -101,6 +40,12 @@ route.post('/api/email/unsubscribe', 'Actions/UnsubscribeAction').name('email.un
 // mailer hop makes rate-limiting essential. Quota is enforced inside
 // the action itself.
 route.post('/api/contact', 'Actions/ContactAction').name('contact.send').skipCsrf()
+
+// Team invitation bearers are high-entropy, single-use tokens. The public
+// read supplies the acceptance screen; the write still requires a real
+// authenticated user whose email matches the invitation.
+route.get('/api/team-invitation-links/{token}', 'Actions/Teams/ShowInvitationAction').rateLimit(30, 'minute')
+route.post('/api/team-invitations/{token}/accept', 'Actions/Teams/AcceptInvitationAction').middleware('auth').rateLimit(10, 'minute')
 
 // ============================================================================
 // Storefront (anonymous cart + multi-step checkout)
@@ -141,8 +86,10 @@ route.health()
 // Apps that intentionally want either route in production can
 // re-register the path in `routes/api.ts` — user routes load first,
 // so their copy wins.
-const APP_ENV = (process.env.APP_ENV ?? process.env.NODE_ENV ?? '').toLowerCase()
-const IS_LOCAL_ENV = APP_ENV === '' || APP_ENV === 'local' || APP_ENV === 'development' || APP_ENV === 'dev' || APP_ENV === 'test' || APP_ENV === 'testing'
+// Same rule as dashboard-api.ts: a deployment is local when its URL says so.
+// The environment name alone sent these two to production in any app whose
+// `.env` still carried the `APP_ENV=development` that `.env.example` ships.
+const IS_LOCAL_ENV = isLocalDeployment()
 
 if (IS_LOCAL_ENV) {
   route.get('/install', 'Actions/InstallAction')
@@ -226,11 +173,6 @@ route.group({ prefix: '/dashboard', middleware: 'auth' }, () => {
   route.get('/services', 'Actions/Dashboard/ServiceHealthAction')
   route.get('/buddy', 'Actions/Dashboard/BuddyDashboardAction')
   route.get('/settings', 'Actions/Dashboard/Settings/SettingsIndexAction')
-  // Dashboard's omnisearch endpoint. Lived at root `/search` until users
-  // building a public site discovered it shadowed `resources/views/search.stx`
-  // (a registered route always wins over a same-path stx file). Now scoped
-  // under /dashboard so userland keeps `/search` for their own pages.
-  route.get('/search', 'Actions/Dashboard/Search/GlobalSearchAction')
 })
 
 // ============================================================================
@@ -361,7 +303,6 @@ route.group({ prefix: '/cms', middleware: 'auth' }, () => {
   route.patch('/pages/{id}', 'Actions/Cms/PageUpdateAction')
   route.delete('/pages/{id}', 'Actions/Cms/PageDestroyAction')
 
-  route.get('/seo', 'Actions/Dashboard/Content/SeoIndexAction')
   route.get('/files', 'Actions/Dashboard/Content/FileIndexAction')
 })
 
@@ -399,6 +340,7 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
   route.get('/products/units', 'Actions/Commerce/Product/ProductUnitIndexAction')
   route.get('/products/units/{id}', 'Actions/Commerce/Product/ProductUnitShowAction')
   route.post('/products/units', 'Actions/Commerce/Product/ProductUnitStoreAction')
+  route.patch('/products/units/{id}', 'Actions/Commerce/Product/ProductUnitUpdateAction')
   route.delete('/products/units/{id}', 'Actions/Commerce/Product/ProductUnitDestroyAction')
 
   route.get('/product-categories', 'Actions/Commerce/Product/ProductCategoryIndexAction')
@@ -410,7 +352,7 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
   route.get('/product-manufacturers', 'Actions/Commerce/Product/ManufacturerIndexAction')
   route.get('/product-manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerShowAction')
   route.post('/product-manufacturers', 'Actions/Commerce/Product/ManufacturerStoreAction')
-  route.patch('/product-manufacturers/{id}', 'Actions/Commerce/Product/ProductManufacturerUpdateAction')
+  route.patch('/product-manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerUpdateAction')
   route.delete('/product-manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerDestroyAction')
 
   route.get('/orders', 'Actions/Commerce/OrderIndexAction')
@@ -452,6 +394,7 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
   route.get('/products/reviews/{id}', 'Actions/Commerce/ReviewShowAction')
   route.post('/products/reviews', 'Actions/Commerce/ReviewStoreAction')
   route.patch('/products/reviews/{id}', 'Actions/Commerce/ReviewUpdateAction')
+  route.delete('/products/reviews/{id}', 'Actions/Commerce/ReviewDestroyAction')
 
   route.get('/receipts', 'Actions/Commerce/ReceiptIndexAction')
   route.get('/receipts/{id}', 'Actions/Commerce/ReceiptShowAction')
@@ -498,9 +441,9 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
   // Shipping (moved from a top-level /shipping group on 2026-05-08).
   // The frontend composables (defaults/functions/commerce/shippings/*.ts)
   // all expect these resources under /commerce/*, so the prior /shipping
-  // group was orphaned — every shipping/driver/license/digital call
+  // group was orphaned — every shipping/courier/license/digital call
   // from the dashboard was 404ing. Resource names match the composable
-  // file names: shipping-methods/rates/zones, delivery-routes, drivers,
+  // file names: shipping-methods/rates/zones, delivery-routes, couriers,
   // digital-deliveries, license-keys.
   // ----------------------------------------------------------------
   route.get('/shipping-methods', 'Actions/Commerce/Shipping/ShippingMethodIndexAction')
@@ -527,11 +470,11 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
   route.patch('/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteUpdateAction')
   route.delete('/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteDestroyAction')
 
-  route.get('/drivers', 'Actions/Commerce/Shipping/DriverIndexAction')
-  route.get('/drivers/{id}', 'Actions/Commerce/Shipping/DriverShowAction')
-  route.post('/drivers', 'Actions/Commerce/Shipping/DriverStoreAction')
-  route.patch('/drivers/{id}', 'Actions/Commerce/Shipping/DriverUpdateAction')
-  route.delete('/drivers/{id}', 'Actions/Commerce/Shipping/DriverDestroyAction')
+  route.get('/couriers', 'Actions/Commerce/Shipping/CourierIndexAction')
+  route.get('/couriers/{id}', 'Actions/Commerce/Shipping/CourierShowAction')
+  route.post('/couriers', 'Actions/Commerce/Shipping/CourierStoreAction')
+  route.patch('/couriers/{id}', 'Actions/Commerce/Shipping/CourierUpdateAction')
+  route.delete('/couriers/{id}', 'Actions/Commerce/Shipping/CourierDestroyAction')
 
   // Renamed from `/digital` — frontend composable expects `/digital-deliveries`.
   route.get('/digital-deliveries', 'Actions/Commerce/Shipping/DigitalDeliveryIndexAction')
@@ -582,19 +525,6 @@ route.group({ prefix: '/queue', middleware: 'auth' }, () => {
 })
 
 // ============================================================================
-// Inbox — captured transactional emails (log driver)
-//
-// Auth-gated: the rendered email body can include reset links, billing
-// receipts, and PII. Treat as sensitive even though the log driver is
-// "dev-only" — staging environments are still real.
-// ============================================================================
-
-route.group({ prefix: '/inbox', middleware: 'auth' }, () => {
-  route.get('/', 'Actions/Dashboard/Inbox/InboxIndexAction')
-  route.get('/{id}', 'Actions/Dashboard/Inbox/InboxShowAction')
-})
-
-// ============================================================================
 // Releases
 // ============================================================================
 
@@ -638,7 +568,7 @@ route.group({ prefix: '/infrastructure', middleware: 'auth' }, () => {
   route.get('/cloud', 'Actions/Dashboard/Cloud/CloudIndexAction')
 })
 
-route.get('/api/serverless', 'Actions/Dashboard/Cloud/CloudIndexAction').middleware('auth')
+route.get('/api/serverless', 'Actions/Dashboard/Cloud/ServerlessIndexAction').middleware('auth')
 
 // ============================================================================
 // Dashboard Views — Commerce
@@ -684,10 +614,10 @@ route.group({ prefix: '/api/marketing', middleware: 'auth' }, () => {
 // ============================================================================
 
 route.group({ prefix: '/api/notifications', middleware: 'auth' }, () => {
-  route.get('/dashboard', 'Actions/Dashboard/Notifications/NotificationDashboardAction')
-  route.get('/email', 'Actions/Dashboard/Notifications/NotificationDashboardAction')
-  route.get('/sms', 'Actions/Dashboard/Notifications/NotificationDashboardAction')
-  route.get('/history', 'Actions/Dashboard/Notifications/NotificationDashboardAction')
+  route.get('/dashboard', 'Actions/Dashboard/Notifications/NotificationDeliveryOverviewAction')
+  route.get('/email', 'Actions/Dashboard/Notifications/NotificationDeliveryIndexAction')
+  route.get('/sms', 'Actions/Dashboard/Notifications/NotificationDeliveryIndexAction')
+  route.get('/history', 'Actions/Dashboard/Notifications/NotificationDeliveryHistoryAction')
 })
 
 // ============================================================================
@@ -719,6 +649,7 @@ route.group({ prefix: '/deployments', middleware: 'auth' }, () => {
   route.get('/recent', 'Actions/Dashboard/Deployments/GetRecentDeployments')
   route.get('/avg-time', 'Actions/Dashboard/Deployments/GetAverageDeploymentTime')
   route.post('/', 'Actions/Dashboard/Deployments/CreateDeployment')
+  route.post('/preview', 'Actions/Dashboard/Deployments/PreviewDeployment')
   route.get('/script', 'Actions/Dashboard/Deployments/GetDeployScript')
   route.put('/script', 'Actions/Dashboard/Deployments/UpdateDeployScript')
   route.get('/terminal', 'Actions/Dashboard/Deployments/GetDeploymentLiveTerminalOutput')

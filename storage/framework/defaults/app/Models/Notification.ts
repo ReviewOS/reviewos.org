@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Notification',
@@ -8,6 +8,7 @@ export default defineModel({
   autoIncrement: true,
 
   traits: {
+    gdpr: { erasure: 'delete', basis: 'contract', purpose: 'In-app notifications' },
     useUuid: true,
     useTimestamps: true,
     useSeeder: {
@@ -16,6 +17,7 @@ export default defineModel({
     useApi: {
       uri: 'notifications',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
     },
   },
 
@@ -37,6 +39,8 @@ export default defineModel({
     },
 
     data: {
+      personal: true,
+      type: 'text',
       required: true,
       fillable: true,
       validation: {

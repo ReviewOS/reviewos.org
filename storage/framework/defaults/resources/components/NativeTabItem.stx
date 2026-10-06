@@ -1,0 +1,42 @@
+<script>
+interface NativeTabItemProps {
+  label: string
+  href: string
+  icon: string
+  /** A count on the icon. Zero and empty draw nothing. */
+  badge?: string | number
+  /**
+   * More paths that belong to this tab, space-separated, for a screen
+   * reached with no tab current yet: a deep link to a workout lights the
+   * Calendar tab. Opened from a tab, a screen keeps that tab lit instead
+   * (the tab bar's sticky nav).
+   */
+  match?: string
+}
+
+const { href, icon, label, badge = '', match = '' } = defineProps<NativeTabItemProps>()
+const hasBadge = badge !== '' && badge !== 0 && badge !== '0'
+</script>
+
+<!-- `draggable="false"`: a slow tap on a busy page reaches the WebView as a
+     long press, and a draggable link starts a native drag instead of
+     navigating. `data-stx-prefetch="eager"`: every tab's page is fetched once
+     the current one is idle, so switching tabs is served from the router's
+     cache, as instant as a native tab bar. -->
+<StxLink
+  to="{{ href }}"
+  aria-label="{{ label }}"
+  activeClass="is-active"
+  activeMatch="{{ match }}"
+  class="native-tab-item"
+  draggable="false"
+  data-stx-prefetch="eager"
+>
+  <span class="native-tab-glyph">
+    <i aria-hidden="true" class="{{ icon }} native-tab-icon"></i>
+    @if(hasBadge)
+      <span class="native-tab-badge">{{ badge }}</span>
+    @endif
+  </span>
+  <span>{{ label }}</span>
+</StxLink>

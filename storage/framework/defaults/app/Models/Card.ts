@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 /**
  * Kanban card (stacksjs/stacks#1846).
@@ -21,6 +21,7 @@ export default defineModel({
   autoIncrement: true,
 
   traits: {
+    gdpr: { erasure: 'keep', basis: 'legitimate_interests', purpose: 'Shared board content, attributed to the (anonymized) author' },
     useUuid: true,
     useTimestamps: true,
     useSearch: {
@@ -35,6 +36,7 @@ export default defineModel({
     useApi: {
       uri: 'cards',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
     },
   },
 

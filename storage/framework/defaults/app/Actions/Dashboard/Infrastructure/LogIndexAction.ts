@@ -1,50 +1,47 @@
-import { Action } from '@stacksjs/actions'
-import { Log } from '@stacksjs/orm'
+import type { RequestInstance } from '@stacksjs/types'
+import type { DashboardLogQuery, DashboardLogRange } from './log-provider'
+import { Action } from '@stacksjs/actions/runtime'
+import { dashboardRequestValue } from '../dashboard-request'
+import { dashboardOperationalError } from '../dashboard-response'
+import { DASHBOARD_LOG_TYPES } from './log-dashboard'
+import { DASHBOARD_LOG_RANGES, readDashboardLogs } from './log-provider'
+
+function queryValue(request: RequestInstance, key: string): string {
+  return dashboardRequestValue(request, key)
+}
+
+/** Reads the filters off the request. Unknown values fall back rather than fail. */
+function logQuery(request: RequestInstance): DashboardLogQuery {
+  const requestedType = queryValue(request, 'type').toLowerCase()
+  const requestedRange = queryValue(request, 'range').toLowerCase()
+
+  return {
+    page: Math.max(1, Number.parseInt(queryValue(request, 'page') || '1', 10) || 1),
+    perPage: Math.min(100, Math.max(10, Number.parseInt(queryValue(request, 'per_page') || '25', 10) || 25)),
+    search: queryValue(request, 'search'),
+    type: DASHBOARD_LOG_TYPES.includes(requestedType as typeof DASHBOARD_LOG_TYPES[number])
+      ? requestedType
+      : '',
+    source: queryValue(request, 'source').toLowerCase(),
+    project: queryValue(request, 'project'),
+    range: DASHBOARD_LOG_RANGES.includes(requestedRange as DashboardLogRange)
+      ? requestedRange as DashboardLogRange
+      : '30',
+  }
+}
 
 export default new Action({
   name: 'LogIndexAction',
-  description: 'Returns log data for the dashboard.',
+  description: 'Returns filtered, paginated Log model records for the dashboard.',
   method: 'GET',
-  async handle() {
-    const levels = ['All', 'Error', 'Warning', 'Info', 'Debug']
-    const sources = ['All Sources', 'api', 'auth', 'queue', 'http', 'cache', 'payment', 'deploy']
+  apiResponse: true,
 
+  async handle(request: RequestInstance) {
     try {
-      const allLogs = await Log.orderByDesc('id').limit(50).get()
-      const totalLogs = await Log.count()
-
-      const logs = allLogs.map(l => ({
-        timestamp: String(l.get('created_at') || l.get('timestamp') || ''),
-        level: String(l.get('level') || 'info'),
-        source: String(l.get('source') || l.get('channel') || ''),
-        message: String(l.get('message') || ''),
-        context: String(l.get('context') || ''),
-      }))
-
-      const errorCount = allLogs.filter(l => l.get('level') === 'error').length
-      const warnCount = allLogs.filter(l => l.get('level') === 'warn' || l.get('level') === 'warning').length
-
-      const stats = [
-        { label: 'Total Logs (24h)', value: String(totalLogs) },
-        { label: 'Errors', value: String(errorCount) },
-        { label: 'Warnings', value: String(warnCount) },
-        { label: 'Avg Response', value: '-' },
-      ]
-
-      return { logs, stats, levels, sources }
+      return await readDashboardLogs(logQuery(request))
     }
-    catch {
-      return {
-        logs: [],
-        stats: [
-          { label: 'Total Logs (24h)', value: '0' },
-          { label: 'Errors', value: '0' },
-          { label: 'Warnings', value: '0' },
-          { label: 'Avg Response', value: '-' },
-        ],
-        levels,
-        sources,
-      }
+    catch (error) {
+      return dashboardOperationalError(error, 'Logs could not be loaded.', 'LogIndexAction')
     }
   },
 })

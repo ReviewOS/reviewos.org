@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Request',
@@ -7,7 +7,28 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  indexes: [
+    {
+      name: 'requests_created_at_index',
+      columns: ['created_at'],
+    },
+    {
+      name: 'requests_duration_ms_index',
+      columns: ['duration_ms'],
+    },
+    {
+      name: 'requests_status_code_index',
+      columns: ['status_code'],
+    },
+  ],
+
+  // An infrastructure table: rows are written by the system, not on behalf of a
+  // caller, so no row has a per-caller owner to scope by. Writes are gated by
+  // `middleware` instead. Declared rather than left silent (stacksjs/stacks#2375).
+  ownership: false,
+
   traits: {
+    gdpr: { basis: 'legitimate_interests', purpose: 'Request log for debugging and abuse prevention' },
     useTimestamps: true,
     useSoftDeletes: true,
     useSeeder: {
@@ -16,7 +37,10 @@ export default defineModel({
     useApi: {
       uri: 'requests',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
-      middleware: ['auth'],
+      // Reads stay as they were; writes need an admin.
+      // request logs are an audit trail, and carry whatever the request carried,
+      // so `auth` alone let any signed-in caller do it (stacksjs/stacks#2412).
+      middleware: { read: ['auth'], write: ['auth', 'role:admin'] },
     },
   },
 
@@ -70,6 +94,7 @@ export default defineModel({
     },
 
     ip_address: {
+      personal: true,
       fillable: true,
       validation: {
         rule: schema.string(),
@@ -94,6 +119,7 @@ export default defineModel({
     },
 
     user_agent: {
+      personal: true,
       fillable: true,
       validation: {
         rule: schema.string(),

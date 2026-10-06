@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Log',
@@ -7,8 +7,32 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  indexes: [
+    {
+      name: 'logs_timestamp_index',
+      columns: ['timestamp'],
+    },
+    {
+      name: 'logs_type_timestamp_index',
+      columns: ['type', 'timestamp'],
+    },
+    {
+      name: 'logs_source_timestamp_index',
+      columns: ['source', 'timestamp'],
+    },
+    {
+      name: 'logs_project_timestamp_index',
+      columns: ['project', 'timestamp'],
+    },
+  ],
+
   traits: {
     useTimestamps: true,
+    useApi: {
+      uri: 'logs',
+      routes: ['index', 'show'],
+      middleware: ['auth'],
+    },
     useSeeder: {
       count: 50,
     },

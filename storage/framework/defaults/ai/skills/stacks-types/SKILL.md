@@ -1,6 +1,6 @@
 ---
 name: stacks-types
-description: Use when working with TypeScript type definitions in a Stacks application — model types, request types, environment variables, event types, billing types, attribute types, or auto-imported globals. Covers storage/framework/types/ and storage/framework/core/types/src/.
+description: Use when working with TypeScript type definitions in a Stacks application - model types, request types, environment variables, event types, billing types, attribute types, or auto-imported globals. Covers storage/framework/types/ and storage/framework/core/types/src/.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -29,7 +29,7 @@ interface AuthConfig {
   username: string
   password: string
   tokenExpiry: number           // 30 days
-  tokenRotation: number         // 7 days
+  tokenRotation?: number        // deprecated; rotate explicitly
   defaultAbilities: string[]
   defaultTokenName: string
 }
@@ -86,7 +86,7 @@ All model CRUD events: `model:created`, `model:updated`, `model:deleted`
 
 - **Content**: author, post, page
 - **Core**: user, activity, campaign, comment, email-list, notification, social-post, subscription, tag
-- **Commerce (30+ models)**: cart, cart-item, category, coupon, customer, order, order-item, payment, product, product-variant, review, shipping-method, shipping-rate, tax-rate, transaction, gift-card, license-key, and more
+- **Commerce (37 models)**: cart, cart-item, category, coupon, customer, order, order-item, payment, product, product-variant, review, shipping-method, shipping-rate, tax-rate, transaction, gift-card, license-key, and more
 
 All payloads are `Record<string, any>`.
 

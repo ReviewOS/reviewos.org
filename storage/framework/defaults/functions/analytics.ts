@@ -5,12 +5,12 @@ import { ref } from '@stacksjs/stx'
 import { dashboardApi } from './dashboard-api'
 
 export interface AnalyticsOverview {
-  realtime: number
-  people: number
-  views: number
-  avgTimeOnSite: string
-  bounceRate: string
-  eventCompletions: number
+  realtimeVisitors: number
+  uniqueVisitors: number
+  pageViews: number
+  averageResponseTime: string
+  errorRate: string
+  successfulRequests: number
 }
 
 export interface TrafficDataPoint {
@@ -137,19 +137,19 @@ export interface CampaignAnalyticsResponse {
   }
   overview: {
     campaigns: number
-    audience: number
-    sent: number
-    opens: number
-    clicks: number
-    conversions: number
-    openRate: number
-    clickRate: number
-    conversionRate: number
+    audience: number | null
+    sent: number | null
+    opens: number | null
+    clicks: number | null
+    conversions: number | null
+    openRate: number | null
+    clickRate: number | null
+    conversionRate: number | null
   }
   spendByCurrency: Array<{
     currency: string
-    budget: number
-    spent: number
+    budget: number | null
+    spent: number | null
     campaigns: number
   }>
   campaigns: Array<{
@@ -157,30 +157,30 @@ export interface CampaignAnalyticsResponse {
     name: string
     type: string
     status: string
-    audienceSize: number
-    sentCount: number
-    openRate: number
-    clickRate: number
-    conversionRate: number
-    budget: number
-    spent: number
+    audienceSize: number | null
+    sentCount: number | null
+    openRate: number | null
+    clickRate: number | null
+    conversionRate: number | null
+    budget: number | null
+    spent: number | null
     currency: string
     createdAt: string
-    opens: number
-    clicks: number
-    conversions: number
+    opens: number | null
+    clicks: number | null
+    conversions: number | null
   }>
   channels: Array<{
     type: string
     name: string
     currency: string
     campaigns: number
-    audience: number
-    sent: number
-    spent: number
-    openRate: number
-    clickRate: number
-    conversionRate: number
+    audience: number | null
+    sent: number | null
+    spent: number | null
+    openRate: number | null
+    clickRate: number | null
+    conversionRate: number | null
   }>
   statuses: Array<{
     status: string
@@ -259,18 +259,25 @@ export async function fetchCampaignAnalytics(range: AnalyticsRange = 'month'): P
 }
 
 export async function fetchEventAnalytics(range: AnalyticsRange = 'month'): Promise<EventAnalyticsResponse> {
-  return await dashboardApi<EventAnalyticsResponse>(`/api/dashboard/analytics/events?range=${encodeURIComponent(range)}`)
+  return await dashboardApi<EventAnalyticsResponse>(`/api/dashboard/event-metrics?range=${encodeURIComponent(range)}`)
 }
 
 export async function recordAnalyticsEvent(input: RecordAnalyticsEventInput): Promise<{ success: true }> {
-  return await dashboardApi<{ success: true }>('/api/dashboard/analytics/events', {
+  return await dashboardApi<{ success: true }>('/api/dashboard/event-metrics', {
     method: 'POST',
     body: input,
   })
 }
 
 export function useAnalytics() {
-  const overview = ref<AnalyticsOverview>({ realtime: 0, people: 0, views: 0, avgTimeOnSite: '0s', bounceRate: '0%', eventCompletions: 0 })
+  const overview = ref<AnalyticsOverview>({
+    realtimeVisitors: 0,
+    uniqueVisitors: 0,
+    pageViews: 0,
+    averageResponseTime: '-',
+    errorRate: 'N/A',
+    successfulRequests: 0,
+  })
   const trafficData = ref<TrafficDataPoint[]>([])
   const pagesData = ref<PageData[]>([])
   const referrersData = ref<ReferrerData[]>([])

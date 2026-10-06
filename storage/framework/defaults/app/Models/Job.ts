@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Job',
@@ -28,10 +28,21 @@ export default defineModel({
 
     payload: {
       fillable: true,
+      // `text`, not the default varchar(255): a job's serialized envelope is
+      // far longer, and on Postgres every dispatch failed with "value too long
+      // for type character varying(255)". SQLite ignores the length, which is
+      // how it went unnoticed.
+      type: 'text',
       validation: {
         rule: schema.string().required(),
       },
-      factory: faker => faker.lorem.sentence(),
+      factory: () => JSON.stringify({
+        jobName: 'ExampleJob',
+        payload: {},
+        options: { tries: 3 },
+        envelopeVersion: 1,
+        dispatchedAt: new Date().toISOString(),
+      }),
     },
 
     attempts: {
@@ -42,7 +53,7 @@ export default defineModel({
           number: 'attempts must be a number',
         },
       },
-      factory: faker => faker.number.int({ min: 0, max: 10 }),
+      factory: () => 0,
     },
 
     available_at: {
@@ -50,14 +61,14 @@ export default defineModel({
       validation: {
         rule: schema.number(),
       },
-      factory: faker => faker.number.int({ min: 1000000, max: 1999999 }),
+      factory: () => Math.floor(Date.now() / 1000),
     },
     reserved_at: {
       fillable: true,
       validation: {
-        rule: schema.date(),
+        rule: schema.number(),
       },
-      factory: () => '2024-12-23 13:32:19',
+      factory: () => null,
     },
   },
 } as const)

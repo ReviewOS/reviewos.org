@@ -1,5 +1,8 @@
-import { Action } from '@stacksjs/actions'
-import { db } from '@stacksjs/database'
+import type { RequestInstance } from '@stacksjs/types'
+import { Action } from '@stacksjs/actions/runtime'
+import { db } from '@stacksjs/database/runtime'
+import { response } from '@stacksjs/router'
+import { dashboardOperationalError } from '../dashboard-response'
 import { dashboardQueryColumns, mapDashboardQueryLog, type QueryLogSourceRow } from './query-dashboard'
 
 export default new Action({
@@ -11,7 +14,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const id = Number(request.getParam('id'))
     if (!Number.isInteger(id) || id <= 0)
-      return { query: null }
+      return response.json({ message: 'Query id must be a positive integer.' }, 422)
 
     try {
       const row = await db
@@ -20,12 +23,13 @@ export default new Action({
         .where('id', '=', id)
         .executeTakeFirst()
 
-      return {
-        query: row ? mapDashboardQueryLog(row as QueryLogSourceRow) : null,
-      }
+      if (!row)
+        return response.json({ message: 'Query log not found.' }, 404)
+
+      return { query: mapDashboardQueryLog(row as unknown as QueryLogSourceRow) }
     }
-    catch {
-      return { query: null }
+    catch (error) {
+      return dashboardOperationalError(error, 'Query log could not be loaded.', 'QueryShowAction')
     }
   },
 })

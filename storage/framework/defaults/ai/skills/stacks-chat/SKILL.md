@@ -1,6 +1,6 @@
 ---
 name: stacks-chat
-description: Use when implementing chat messaging in Stacks — sending messages to Slack (webhooks, bot tokens, block kit), Discord (webhooks, bot tokens, embeds), Microsoft Teams (adaptive cards, webhooks), the BaseChatDriver abstraction, retry logic, or multi-channel chat routing. Covers @stacksjs/chat.
+description: Use when implementing chat messaging in Stacks - sending messages to Slack (webhooks, bot tokens, block kit), Discord (webhooks, bot tokens, embeds), Microsoft Teams (adaptive cards, webhooks), the BaseChatDriver abstraction, retry logic, multi-channel chat routing, or READING a person's conversations from iMessage, WhatsApp, Slack and Discord and archiving them there (the inbox drivers). Covers @stacksjs/chat.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -43,7 +43,13 @@ await sendToDiscord(webhookUrl, content, options?)
 await sendToTeams(webhookUrl, text)
 ```
 
-Configure functions:
+Settings come from `config/services.ts` by default, read on each send after the
+app's config has loaded: `SLACK_WEBHOOK_URL` / `SLACK_BOT_TOKEN`,
+`DISCORD_WEBHOOK_URL` / `DISCORD_BOT_TOKEN`, `TEAMS_WEBHOOK_URL`, and each
+driver's `*_MAX_RETRIES` / `*_RETRY_TIMEOUT`. A webhook URL from config passes
+the same HTTPS and host checks as one given to `configure*()`.
+
+The configure functions override config, for an app that keeps these elsewhere:
 ```typescript
 import { configureSlack, configureDiscord, configureTeams } from '@stacksjs/chat'
 configureSlack({ webhookUrl: '...', botToken: '...' })
@@ -324,9 +330,9 @@ interface TeamsMessage {
 ### Teams Sending
 
 - Uses `config.webhookUrl` or falls back to `message.to` as the webhook URL
-- Validates URL contains `webhook.office.com`
-- Simple messages (no subject/template): sends `{ type: 'message', text: content }`
-- Rich messages (with subject or template): builds an Adaptive Card v1.4 with:
+- Validates the URL as a Teams Workflows (Power Automate) webhook on https: `*.environment.api.powerplatform.com`, `*.api.powerautomate.com`, `flow.microsoft.com` or `*.logic.azure.com` (`.us` / `.cn` too). An Office 365 connector URL (`*.webhook.office.com`) is refused with a migration message - Microsoft retired those connectors in May 2026
+- Every message is an Adaptive Card in `attachments`, which the Workflows webhook template requires; a plain message is a card holding its text
+- Rich messages (with subject or template): the Adaptive Card v1.4 has:
   - Title as `TextBlock` (size: Large, weight: Bolder)
   - Content as `TextBlock` (wrap: true)
   - Timestamp as `TextBlock` (size: Small, color: Dark)
@@ -341,6 +347,83 @@ async function sendCard(webhookUrl: string, card: TeamsAdaptiveCard, summary?: s
 - `TeamsDriver` class (also as `Driver`)
 - `driver` -- pre-instantiated singleton
 - `send()`, `sendWebhook()`, `sendCard()`, `configure()` functions
+
+## Inbox drivers (reading and archiving)
+
+`send()` pushes messages out. The inbox drivers go the other way: they list a
+person's conversations, read messages, notice new ones (a per-conversation
+`cursor`), and archive a conversation *in the real app* as far as the provider
+allows. Source: `chat/src/inbox/`. One interface, `InboxDriver`:
+
+```typescript
+import { inbox } from '@stacksjs/chat'
+
+const drivers = [
+  inbox.createInboxDriver('imessage', {}),                                 // chat.db, needs Full Disk Access
+  inbox.createInboxDriver('whatsapp', {}),                                 // WhatsApp for Mac's ChatStorage.sqlite, same
+  inbox.createInboxDriver('slack', { token: env.SLACK_USER_TOKEN }),       // xoxp user token
+  inbox.createInboxDriver('discord', { token: env.DISCORD_BOT_TOKEN, userId }), // bot token
+]
+for (const driver of drivers) {
+  if (!(await driver.status()).connected) continue
+  for (const c of await driver.conversations()) {
+    const fresh = await driver.messages(c.id, { after: lastCursor[c.id] })  // oldest first
+    if (wantArchived) await driver.archive(c.id)
+  }
+}
+```
+
+What archiving does is part of every conversation (`conversation.archive`):
+
+| Provider | `mode` | Effect in the real app |
+|---|---|---|
+| iMessage | `confirm` | With a `controller`, Messages' own Delete on the row found by name; without one, opens the conversation for the person to delete. Apple has no API, and editing chat.db is ignored or synced everywhere. |
+| WhatsApp | `native` | With a `controller`, WhatsApp's own Archive on the row found by name, reported `removed` only once WhatsApp records it (`ZARCHIVED`); `unarchive` unarchives. Without one, `confirm`: opens the chat (`whatsapp://send?phone=`) for the person, or `unsupported` for a group, which has no link. |
+| Slack DM / group DM | `native` | `conversations.close`; Slack reopens it when someone writes. `unarchive` reopens. |
+| Slack public channel | `native` | `conversations.leave`; `unarchive` rejoins. |
+| Slack private channel | `unsupported` | Untouched: leaving would need a re-invite. |
+| Discord thread | `native` | Archived in Discord (reopens on a new post). |
+| Discord channel | `unsupported` | Discord cannot hide a channel for one person. |
+
+For iMessage, pass a `controller` (`{ remove(names, url, confirm), recover(names) }`)
+whenever the app can drive Messages by accessibility: it receives every label
+Messages might give the row (contact name, formatted number, handle) and should
+act on the row found by name, never on the current selection. Without a
+controller the driver only opens the conversation in Messages for the person to delete. With a controller, `unarchive` recovers
+from Recently Deleted, and `confirmDeletes: true` accepts Messages' alert too.
+Attic (`~/Code/Apps/attic`, `app/Desktop/messages-control.swift`) is the reference.
+
+WhatsApp is read from WhatsApp for Mac's `ChatStorage.sqlite` (a Core Data
+store in its group container, so Full Disk Access again), never written. Its
+`controller` is `{ archive(names), unarchive(names) }`, given the chat's name
+and formatted number. Message types map onto the inbox shape: captions come
+from the media item's title, contact cards and locations become text, deleted
+messages are `unsent`, group events and calls are `kind: 'event'`. Reactions
+come out of the receipts protobuf (field 7) as `kind: 'reaction'` messages, and
+a reply's `replyToId` is field 5 of the media item's metadata - both read with
+the schema-less `formats/protobuf` reader. Status updates and broadcast lists
+are not listed.
+
+Profile pictures: a person (and a group or server conversation) may carry an
+`avatar` reference; pass it to the optional `driver.avatar(ref)` for the image
+as a `Response`. iMessage reads the contact's photo from Contacts (inline, or
+the store's `_EXTERNAL_DATA` file for larger iCloud photos) and a group's own
+photo from `chat.properties` (a binary plist, read by `formats/bplist`), WhatsApp the
+pictures it has cached on this Mac (only some - it keeps the ones it showed
+recently), Slack `profile.image_72`, Discord user avatars and server icons.
+The remote ones are fetched only from the provider's own image hosts.
+
+A conversation deleted in Messages sits in Recently Deleted for 30 days:
+`conversation.visible` is false and `conversation.deleted` counts what is still
+recoverable. `messages(id, { includeDeleted: true })` reads those messages, so an
+app can keep a deleted conversation without recovering it in Messages.
+
+Discord personal DMs are deliberately absent: only a user token reads them, and
+automating a user account breaks Discord's terms. Reactions are separate
+`kind: 'reaction'` messages with `targetId` and an emoji `reaction`; Slack and
+Discord attachments carry a remote `url` that `driver.attachment()` fetches with
+the right credentials. The HTTP drivers take an injectable `fetch`, which is how
+`tests/inbox.test.ts` exercises them against API-shaped fixtures.
 
 ## Retry Logic
 
@@ -359,7 +442,7 @@ All three drivers implement `sendWithRetry()`:
 - Slack bot token mode uses `https://slack.com/api/chat.postMessage`, not a webhook
 - Discord webhook returns `204` on success with no body -- this is handled as success
 - Discord bot token mode uses `message.to` as the channel ID
-- Teams validates that the webhook URL contains `webhook.office.com`
+- Teams accepts only Workflows webhook URLs; the retired `webhook.office.com` connectors are refused
 - Teams uses `message.to` as fallback webhook URL if `config.webhookUrl` is not set
 - All drivers set `mrkdwn: true` or equivalent by default
 - Block Kit blocks are only built when `message.template` is set (Slack) or when `message.subject`/`message.template` is set (Discord/Teams)

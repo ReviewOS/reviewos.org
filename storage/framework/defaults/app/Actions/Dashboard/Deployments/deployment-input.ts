@@ -1,12 +1,11 @@
+import type { ReadableRecord } from '@stacksjs/orm'
 export interface DeploymentCommandInput {
   environment?: unknown
   domain?: unknown
-  dryRun?: unknown
 }
 
-export interface DeploymentRecordLike {
-  get: (key: string) => unknown
-}
+/** The shared shape, kept under this name for the helpers below. */
+export type DeploymentRecordLike = ReadableRecord
 
 export function booleanValue(value: unknown): boolean {
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'on'
@@ -24,9 +23,12 @@ export function deploymentCommandArgs(input: DeploymentCommandInput): string[] {
       throw new Error('Domain must be a valid DNS name.')
     args.push('--domain', domain)
   }
-  if (booleanValue(input.dryRun))
-    args.push('--dry-run')
   return args
+}
+
+export function deploymentPreviewCommandArgs(input: DeploymentCommandInput): string[] {
+  const args = deploymentCommandArgs(input)
+  return [...args.filter(arg => arg !== '--no-interaction' && arg !== '--yes'), '--dry-run', '--json', '--no-interaction']
 }
 
 export function averageRecordedDuration(records: DeploymentRecordLike[]): number | null {

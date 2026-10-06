@@ -1,6 +1,6 @@
 ---
 name: stacks-docs
-description: Use when building or configuring documentation for a Stacks project — BunPress setup, doc generation, navigation, sidebar structure, or documentation meta/SEO. Covers @stacksjs/docs and config/docs.ts.
+description: Use when building or configuring documentation for a Stacks project - BunPress setup, doc generation, navigation, sidebar structure, or documentation meta/SEO. Covers @stacksjs/docs and config/docs.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -54,7 +54,7 @@ export default {
   // Navigation
   nav: [
     { text: 'Changelog', link: 'https://github.com/stacksjs/stacks/blob/main/CHANGELOG.md' },
-    { text: 'Blog', link: 'https://updates.stacksjs.org' },
+    { text: 'Blog', link: 'https://updates.stacksjs.com' },
   ],
 
   // Markdown settings

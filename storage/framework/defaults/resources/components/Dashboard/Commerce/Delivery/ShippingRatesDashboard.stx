@@ -1,6 +1,7 @@
 <script client>
 import { dashboardApi } from '../../../../../functions/dashboard-api'
 import { pushToast } from '../../../../../functions/toasts'
+import { formatCurrency, minorToInput } from '@stacksjs/commerce/money'
 
 interface ShippingResourceOption {
   id: number
@@ -20,10 +21,10 @@ interface ShippingRateRecord {
 }
 
 interface ShippingRatePayload {
-  shipping_method_id: number
-  shipping_zone_id: number
-  weight_from: number
-  weight_to: number
+  shippingMethodId: number
+  shippingZoneId: number
+  weightFrom: number
+  weightTo: number
   rate: number
 }
 
@@ -69,7 +70,7 @@ function filteredRecords(): ShippingRateRecord[] {
     record.shipping_zone?.name,
     record.weight_from,
     record.weight_to,
-    record.rate / 100,
+    minorToInput(record.rate, 'USD'),
   ].some(value => String(value ?? '').toLowerCase().includes(query)))
 }
 
@@ -86,7 +87,7 @@ function averageRate(): string {
   if (!records().length)
     return '$0.00'
   const average = records().reduce((sum, record) => sum + record.rate, 0) / records().length
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(average / 100)
+  return formatCurrency(average, 'USD', 'en-US')
 }
 
 function metricCards(): Array<{ label: string, value: string, detail: string }> {
@@ -251,12 +252,12 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Price method and zone combinations across exact weight bands.</p>
     </div>
     <div class="flex gap-2">
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadRates()"><span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>Refresh</button>
-      <button type="button" :disabled="loading() || methods().length === 0 || zones().length === 0" class="inline-flex items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-50" @click="openCreate()"><span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>Add rate</button>
+      <Button :loading="loading()" variant="secondary" @click="loadRates()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
+      <Button :disabled="loading() || methods().length === 0 || zones().length === 0" @click="openCreate()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-add-01"></span>Add rate</Button>
     </div>
   </header>
 
-  <div :if="loadError()" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><button type="button" class="font-semibold underline" @click="loadRates()">Retry</button></div>
+  <div :if="loadError()" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><Button variant="secondary" size="sm" @click="loadRates()">Retry</Button></div>
   <div :if="!loading() && (!methods().length || !zones().length)" class="p-4 text-amber-800 text-sm dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-lg dark:border-amber-900">Add at least one shipping method and one shipping zone before creating a rate.</div>
 
   <section aria-label="Shipping rate metrics" class="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">

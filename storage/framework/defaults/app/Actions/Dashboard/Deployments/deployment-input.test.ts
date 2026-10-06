@@ -3,6 +3,7 @@ import {
   averageRecordedDuration,
   booleanValue,
   deploymentCommandArgs,
+  deploymentPreviewCommandArgs,
   tailLines,
 } from './deployment-input'
 
@@ -19,7 +20,6 @@ describe('dashboard deployment inputs', () => {
     expect(deploymentCommandArgs({
       environment: 'staging',
       domain: 'app.example.com',
-      dryRun: true,
     })).toEqual([
       'deploy',
       '--env',
@@ -28,13 +28,23 @@ describe('dashboard deployment inputs', () => {
       '--yes',
       '--domain',
       'app.example.com',
-      '--dry-run',
     ])
   })
 
   it('rejects invalid command fields', () => {
     expect(() => deploymentCommandArgs({ environment: '../production' })).toThrow()
     expect(() => deploymentCommandArgs({ domain: 'not a domain' })).toThrow()
+  })
+
+  it('builds a non-mutating machine-readable preview command', () => {
+    expect(deploymentPreviewCommandArgs({ environment: 'staging' })).toEqual([
+      'deploy',
+      '--env',
+      'staging',
+      '--dry-run',
+      '--json',
+      '--no-interaction',
+    ])
   })
 
   it('aggregates only recorded durations', () => {

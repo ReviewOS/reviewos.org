@@ -1,6 +1,6 @@
 ---
 name: stacks-composables
-description: Use when creating or using reactive composables in STX templates — 90+ composables for state management, DOM interaction, sensors, animation, browser APIs, async operations, or the complete list of auto-imported composables. Covers @stacksjs/composables.
+description: Use when creating or using reactive composables in STX templates - 154 composables for state management, DOM interaction, sensors, animation, browser APIs, async operations, or the complete list of auto-imported composables. Covers @stacksjs/composables.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -8,7 +8,56 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 # Stacks Composables
 
-90+ reactive composables for STX templates. All are auto-imported in STX templates.
+154 reactive composables for STX templates. **A fixed set of them is available
+bare**, listed below; everything else needs an explicit import from
+`@stacksjs/composables`.
+
+The stx runtime decides this, not `browser-auto-imports.json`. That manifest
+feeds an ambient `.d.ts` and nothing reads it at build time, so it says what the
+compiler accepts and not what the browser has; the two disagree in both
+directions (stacksjs/stacks#2585).
+
+This page said "All are auto-imported in STX templates", which is the mistake
+`AGENTS.md` carries a scar about under "200+ composables": an agent reaching for
+a name on that authority writes a template that does not run, and reads the
+failure as a framework bug.
+
+## What you can write bare in a template
+
+<!-- auto-imported:begin - checked against the stx runtime by
+     core/composables/tests/skill-runtime-globals.test.ts. These are the names
+     `getCachedSignalsRuntime()` attaches to `window`, which is what decides
+     whether a bare call resolves in a template. Do not derive this list from
+     `browser-auto-imports.json`: that manifest is compile-time only, and 22 of
+     the 27 `use*` it declares are absent from the runtime. -->
+
+`useAsync`, `useClickOutside`, `useColorMode`, `useCounter`, `useDark`,
+`useDebounce`, `useDebouncedValue`, `useEventListener`, `useFetch`, `useFocus`,
+`useHead`, `useInterval`, `useLocalStorage`, `useMutation`, `useQuery`,
+`useRef`, `useRoute`, `useSearchParams`, `useSeoMeta`, `useSessionStorage`,
+`useStore`, `useThrottle`, `useTimeout`, `useToggle`, `useWebSocket`.
+
+<!-- auto-imported:end -->
+
+Everything else needs an explicit import, and that is most of what the sections
+below list:
+
+```ts
+import { useStorage } from '@stacksjs/composables'
+```
+
+**`buddy typecheck` will not tell you which is which, and currently disagrees
+with the browser in both directions** (stacksjs/stacks#2585).
+`storage/framework/browser-auto-imports.json` feeds an ambient `.d.ts`, so the
+compiler accepts every name it declares - and only five of its 27 `use*` are in
+the runtime. `useStorage`, `useNow`, `useDateFormat`, `useForm` and the `use*Store`
+composables typecheck and then throw a ReferenceError during setup, which takes
+the page down rather than failing the one call. In the other direction
+`useLocalStorage`, `useColorMode`, `useCounter` and `useMediaQuery` all work in
+a template and `tsc` rejects them.
+
+The list above is the runtime's, so it is the one that predicts whether the page
+loads.
 
 ## Key Path
 - Core package: `storage/framework/core/composables/src/`
@@ -153,7 +202,11 @@ isRef(val)           // type guard
 - `and`, `or`, `logicNot`, `logicOr`
 
 ## Gotchas
-- All composables are auto-imported in STX templates — no import needed
+- Only the names listed above are available bare in an STX template, and they
+  come from the stx runtime, not from `browser-auto-imports.json` - that
+  manifest is compile-time only and disagrees with the runtime in both
+  directions (stacksjs/stacks#2585). Everything else needs
+  `import { … } from '@stacksjs/composables'`
 - NEVER use vanilla JS (`var`, `document.*`, `window.*`) in STX `<script>` tags
 - Only use stx-compatible code: signals, composables, directives
 - Auto-imports defined in `storage/framework/browser-auto-imports.json`

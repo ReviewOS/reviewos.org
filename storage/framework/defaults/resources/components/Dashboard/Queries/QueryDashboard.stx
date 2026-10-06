@@ -17,6 +17,8 @@ const range = state<QueryRange>(mode() === 'history' ? 'week' : 'day')
 const connection = state('all')
 const type = state<QueryType>('all')
 const status = state<QueryStatus>('all')
+const currentPage = state(1)
+const itemsPerPage = state(50)
 const loading = state(true)
 const loadError = state('')
 
@@ -43,6 +45,11 @@ const filteredQueries = derived(() => rangedQueries().filter((query) => {
     return false
   return type() === 'all' || query.type === type()
 }))
+const totalPages = derived(() => Math.max(1, Math.ceil(filteredQueries().length / itemsPerPage())))
+const visibleQueries = derived(() => {
+  const start = (currentPage() - 1) * itemsPerPage()
+  return filteredQueries().slice(start, start + itemsPerPage())
+})
 
 const pageTitle = derived(() => mode() === 'slow' ? 'Slow Queries' : mode() === 'history' ? 'Query History' : 'Queries')
 const pageDescription = derived(() => mode() === 'slow'
@@ -66,18 +73,15 @@ const averageDuration = derived(() => {
 
 function setRange(value: QueryRange): void {
   range.set(value)
+  currentPage.set(1)
 }
 
-function updateConnection(event: Event): void {
-  connection.set((event.target as HTMLSelectElement).value)
+function resetPage(): void {
+  currentPage.set(1)
 }
 
-function updateType(event: Event): void {
-  type.set((event.target as HTMLSelectElement).value as QueryType)
-}
-
-function updateStatus(event: Event): void {
-  status.set((event.target as HTMLSelectElement).value as QueryStatus)
+function setCurrentPage(page: number): void {
+  currentPage.set(Math.min(Math.max(1, page), totalPages()))
 }
 
 function formatQuery(query: string): string {
@@ -91,6 +95,10 @@ function formatDuration(duration: number): string {
 function formatDate(value: string): string {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function queryDetailsPath(id: DashboardQueryLog['id']): string {
+  return `/queries/${encodeURIComponent(String(id))}`
 }
 
 function typeClass(value: DashboardQueryLog['type']): string {
@@ -141,14 +149,14 @@ onMount(() => {
     </div>
     <div class="flex flex-wrap gap-3 items-center">
       <div class="inline-flex p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
-        <button type="button" :aria-pressed="range() === 'hour'" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'hour' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('hour')">Hour</button>
-        <button type="button" :aria-pressed="range() === 'day'" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'day' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('day')">Day</button>
-        <button type="button" :aria-pressed="range() === 'week'" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'week' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('week')">Week</button>
+        <button type="button" :aria-pressed="String(range() === 'hour')" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'hour' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('hour')">Hour</button>
+        <button type="button" :aria-pressed="String(range() === 'day')" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'day' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('day')">Day</button>
+        <button type="button" :aria-pressed="String(range() === 'week')" :class="'px-3 py-1.5 font-medium text-sm rounded-md ' + (range() === 'week' ? 'text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 shadow-sm' : 'text-neutral-500 dark:text-neutral-400')" @click="setRange('week')">Week</button>
       </div>
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-medium text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700 disabled:opacity-50" @click="loadQueries">
-        <span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+      <Button variant="secondary" :loading="loading()" @click="loadQueries">
+        <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
-      </button>
+      </Button>
     </div>
   </header>
 
@@ -182,14 +190,14 @@ onMount(() => {
         </div>
         <div class="flex gap-2 items-center">
           <label for="query-connection" class="sr-only">Connection</label>
-          <select id="query-connection" :value="connection()" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="updateConnection($event)">
+          <select id="query-connection" x-model="connection" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="resetPage">
             <option value="all">All connections</option>
             <template :for="item in connections()">
               <option :value="item">{{ item }}</option>
             </template>
           </select>
           <label for="query-type" class="sr-only">Query type</label>
-          <select id="query-type" :value="type()" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="updateType($event)">
+          <select id="query-type" x-model="type" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="resetPage">
             <option value="all">All types</option>
             <option value="SELECT">SELECT</option>
             <option value="INSERT">INSERT</option>
@@ -198,7 +206,7 @@ onMount(() => {
             <option value="OTHER">OTHER</option>
           </select>
           <label :if="mode() !== 'slow'" for="query-status" class="sr-only">Query status</label>
-          <select :if="mode() !== 'slow'" id="query-status" :value="status()" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="updateStatus($event)">
+          <select :if="mode() !== 'slow'" id="query-status" x-model="status" class="px-3 py-2 text-neutral-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-neutral-300 rounded-lg dark:border-neutral-700" @change="resetPage">
             <option value="all">All statuses</option>
             <option value="completed">Completed</option>
             <option value="slow">Slow</option>
@@ -229,7 +237,7 @@ onMount(() => {
           </tr>
         </thead>
         <tbody class="divide-neutral-100 divide-y dark:divide-neutral-700">
-          <template :for="query in filteredQueries()">
+          <template :for="query in visibleQueries()">
             <tr>
               <td class="pl-5 pr-4 py-3.5 max-w-2xl">
                 <div class="flex gap-2 items-start">
@@ -244,14 +252,25 @@ onMount(() => {
               </td>
               <td class="px-4 py-3.5 text-neutral-500 text-right text-xs whitespace-nowrap dark:text-neutral-400">{{ formatDate(query.executedAt) }}</td>
               <td class="pr-5 py-3.5 text-right">
-                <StxLink :to="'/queries/' + query.id" :aria-label="'View query ' + query.id" class="inline-flex p-1.5 text-neutral-500 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-md">
+                <a :href="queryDetailsPath(query.id)" :aria-label="'View query ' + query.id" class="inline-flex p-1.5 text-neutral-500 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-md">
                   <span class="h-4 w-4 i-hugeicons-arrow-right-01"></span>
-                </StxLink>
+                </a>
               </td>
             </tr>
           </template>
         </tbody>
       </table>
+    </div>
+
+    <div :if="!loading() && !loadError() && filteredQueries().length > 0" class="px-5 py-4 border-neutral-200 border-t dark:border-neutral-700">
+      <Pagination
+        :currentPage="currentPage"
+        :totalPages="totalPages"
+        :totalItems="filteredQueries().length"
+        :itemsPerPage="itemsPerPage"
+        showTotalItems
+        @page="setCurrentPage"
+      />
     </div>
   </Card>
 </div>

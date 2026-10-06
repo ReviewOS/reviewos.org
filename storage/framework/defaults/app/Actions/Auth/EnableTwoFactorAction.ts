@@ -1,7 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { consumePendingTwoFactorSecret, enableTwoFactor } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'EnableTwoFactorAction',
@@ -10,7 +10,7 @@ export default new Action({
 
   validations: {
     code: {
-      rule: schema.string().min(6).max(6),
+      rule: schema.string().min(6).max(6).required(),
       message: 'Code must be a 6-digit TOTP code.',
     },
   },

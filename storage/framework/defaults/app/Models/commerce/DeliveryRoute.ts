@@ -1,5 +1,5 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { defineModel, parentOwnership } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'DeliveryRoute',
@@ -7,14 +7,19 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  // No owner of its own: these rows are owned by whoever owns the courier, who is a user
+  // (stacksjs/stacks#2375). Resolved through the parent so it follows any change
+  // to how Courier decides ownership.
+  ownership: parentOwnership('Courier', 'courier_id'),
+
   traits: {
     useUuid: true,
     useTimestamps: true,
     useSearch: {
-      displayable: ['id', 'driver', 'vehicle', 'stops', 'deliveryTime', 'totalDistance', 'lastActive'],
-      searchable: ['driver', 'vehicle'],
+      displayable: ['id', 'courier', 'vehicle', 'stops', 'deliveryTime', 'totalDistance', 'lastActive'],
+      searchable: ['courier', 'vehicle'],
       sortable: ['stops', 'deliveryTime', 'totalDistance', 'lastActive', 'createdAt', 'updatedAt'],
-      filterable: ['driver', 'vehicle'],
+      filterable: ['courier', 'vehicle'],
     },
 
     useSeeder: {
@@ -23,15 +28,17 @@ export default defineModel({
 
     useApi: {
       uri: 'delivery-routes',
+      middleware: ['auth'],
     },
 
     observe: true,
   },
 
-  belongsTo: ['Driver'],
+  belongsTo: ['Courier'],
+  hasMany: ['DeliveryStop', 'CourierPing'],
 
   attributes: {
-    driver: {
+    courier: {
       order: 1,
       fillable: true,
       validation: {
@@ -83,6 +90,39 @@ export default defineModel({
         rule: schema.unix().required(),
       },
       factory: faker => faker.date.recent().getTime(),
+    },
+
+    /*
+     * Route lifecycle. `stops` and `totalDistance` describe a route that has
+     * already run; a route being followed right now needs to say so, because
+     * that is the difference between a tracking map that draws a moving
+     * vehicle and one that draws yesterday's.
+     */
+    status: {
+      order: 7,
+      fillable: true,
+      default: 'planned',
+      validation: {
+        rule: schema.enum(['planned', 'active', 'completed', 'cancelled']),
+        message: {
+          enum: 'Status must be one of: planned, active, completed, cancelled',
+        },
+      },
+      factory: faker => faker.helpers.arrayElement(['planned', 'active', 'completed']),
+    },
+
+    startedAt: {
+      order: 8,
+      fillable: true,
+      validation: { rule: schema.timestamp() },
+      factory: () => null,
+    },
+
+    completedAt: {
+      order: 9,
+      fillable: true,
+      validation: { rule: schema.timestamp() },
+      factory: () => null,
     },
   },
 

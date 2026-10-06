@@ -20,7 +20,7 @@
 
 import type { DashboardData, FailedTransition, PreviousRunState } from '@stacksjs/github'
 import { dashboard as dashboardConfig } from '@stacksjs/config'
-import { db } from '@stacksjs/database'
+import { db, getDatabaseDialect, sqlHelpers } from '@stacksjs/database/runtime'
 import { detectNewlyFailedRuns } from '@stacksjs/github'
 import { notify } from '@stacksjs/notifications'
 
@@ -36,7 +36,7 @@ interface CiRunStateRow {
 async function loadPreviousStates(): Promise<Map<string, PreviousRunState>> {
   const rows = await db.unsafe(
     'SELECT repo_full_name, last_conclusion, last_run_id, last_notified_at FROM ci_run_states',
-  ).execute() as CiRunStateRow[]
+  ).execute() as unknown as CiRunStateRow[]
 
   const map = new Map<string, PreviousRunState>()
   for (const r of rows ?? []) {
@@ -60,13 +60,17 @@ async function upsertSnapshotStates(snapshot: DashboardData): Promise<void> {
   const nowIso = new Date().toISOString()
   for (const r of snapshot.repos) {
     const runId = parseRunIdFromUrl(r.runUrl)
-    // Two-step upsert — works across SQLite/MySQL/Postgres without
-    // dialect-specific ON CONFLICT shapes. Each repo is its own
-    // round-trip, but the table is small (one row per repo, so
-    // typically O(50) for a busy fleet) and this runs in the
-    // background after the response goes out.
+    // Two-step upsert, which avoids the dialect-specific ON CONFLICT
+    // shapes. Each repo is its own round-trip, but the table is small
+    // (one row per repo, so typically O(50) for a busy fleet) and this
+    // runs in the background after the response goes out.
+    //
+    // The upsert shape is portable; the placeholder is not. Postgres
+    // numbers its parameters, so the `?` this used to carry bound
+    // nothing there (stacksjs/stacks#2846).
+    const { param } = sqlHelpers(getDatabaseDialect())
     const existing = await db.unsafe(
-      'SELECT repo_full_name FROM ci_run_states WHERE repo_full_name = ? LIMIT 1',
+      `SELECT repo_full_name FROM ci_run_states WHERE repo_full_name = ${param(1)} LIMIT 1`,
       [r.fullName],
     ).execute() as Array<{ repo_full_name: string }>
     if (existing?.length) {
@@ -114,7 +118,7 @@ function buildPayload(t: FailedTransition): { subject: string, body: string, dat
   const shortSha = t.commitSha ? t.commitSha.slice(0, 7) : ''
   const commit = t.commitMessage ? `${shortSha} ${t.commitMessage.split('\n')[0]}` : shortSha
   const workflow = t.workflowName ? ` (${t.workflowName})` : ''
-  const author = t.commitAuthor ? ` — ${t.commitAuthor}` : ''
+  const author = t.commitAuthor ? `, ${t.commitAuthor}` : ''
   const subject = `CI failed: ${t.repoFullName}${workflow}`
   const lines = [
     `${t.repoFullName}${workflow}`,

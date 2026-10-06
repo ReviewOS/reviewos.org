@@ -1,7 +1,7 @@
 import { ref } from '@stacksjs/stx'
 import { dashboardApi } from './dashboard-api'
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed'
+export type JobStatus = 'queued' | 'processing' | 'failed'
 
 export interface DashboardJob {
   id: string
@@ -9,12 +9,12 @@ export interface DashboardJob {
   source: 'job' | 'failed'
   name: string
   queue: string
-  connection: string
+  connection: string | null
   status: JobStatus
-  attempts: number
-  maxAttempts: number
-  duration: string
-  runtime?: number
+  attempts: number | null
+  maxAttempts: number | null
+  duration: string | null
+  runtime: number | null
   error?: string
   payload: unknown
   created_at: string
@@ -52,7 +52,6 @@ export interface JobListFilters {
 
 export interface JobShowResponse {
   job: DashboardJob | null
-  error?: string
 }
 
 export async function fetchJobs(filters: JobListFilters = {}): Promise<JobListResponse> {

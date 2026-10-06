@@ -51,6 +51,12 @@ const NOT_PUBLIC = [
   // product, and documenting the document is a circle.
   /^\/_stacks\//,
   /^\/__/,
+  // The installer and the error-page probe, both registered by the framework's
+  // `routes/dashboard.ts` inside `if (IS_LOCAL_ENV)`. They do not exist on a
+  // deployed instance at all, so documenting them would describe a surface
+  // nobody can call and imply it is supported.
+  /^\/install$/,
+  /^\/test-error$/,
 ]
 
 function isPublic(path: string): boolean {

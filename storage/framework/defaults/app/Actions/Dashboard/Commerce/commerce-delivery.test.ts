@@ -12,7 +12,7 @@ describe('commerce delivery overview', () => {
     expect(deliveryTimestamp('1785326400000')).toBe(1785326400000)
     expect(deliveryTimestamp('1785326400')).toBe(1785326400000)
     expect(deliveryTimestamp('2026-07-29 12:00:00')).toBe(now.getTime())
-    expect(deliveryTimestamp('invalid')).toBe(0)
+    expect(() => deliveryTimestamp('invalid')).toThrow('valid Unix or ISO timestamp')
     expect(formatDeliveryDuration(45)).toBe('45 min')
     expect(formatDeliveryDuration(135)).toBe('2h 15m')
   })
@@ -26,8 +26,8 @@ describe('commerce delivery overview', () => {
       [
         {
           id: 1,
-          driver_id: 7,
-          driver: 'Old Driver Name',
+          courier_id: 7,
+          courier: 'Old Courier Name',
           vehicle: 'Old Vehicle',
           stops: 4,
           delivery_time: 90,
@@ -36,7 +36,7 @@ describe('commerce delivery overview', () => {
         },
         {
           id: 2,
-          driver: 'Stale Driver',
+          courier: 'Stale Courier',
           vehicle: 'Van S1',
           stops: 8,
           delivery_time: 180,
@@ -49,8 +49,8 @@ describe('commerce delivery overview', () => {
         { id: 2, name: 'Active Zone', status: 'active', countries: '["US","CA"]', regions: '["West"]' },
       ],
       [
-        { id: 7, name: 'Current Driver', vehicle_number: 'VAN-7', status: 'on_delivery' },
-        { id: 8, name: 'Available Driver', vehicle_number: 'VAN-8', status: 'active' },
+        { id: 7, name: 'Current Courier', vehicle_number: 'VAN-7', status: 'on_delivery' },
+        { id: 8, name: 'Available Courier', vehicle_number: 'VAN-8', status: 'active' },
       ],
       'EUR',
       now,
@@ -60,7 +60,7 @@ describe('commerce delivery overview', () => {
     expect(result.routes).toEqual([
       {
         id: 1,
-        driver: 'Current Driver',
+        courier: 'Current Courier',
         vehicle: 'VAN-7',
         stops: 4,
         duration: '1h 30m',
@@ -76,11 +76,55 @@ describe('commerce delivery overview', () => {
     })
     expect(result.methods[1]?.freeShipping).toBe('Not enabled')
     expect(result.zones[0]).toMatchObject({ name: 'Active Zone', countries: 2, regions: 1 })
-    expect(result.drivers).toEqual({
+    expect(result.couriers).toEqual({
       total: 2,
       active: 1,
       onDelivery: 1,
       onBreak: 0,
     })
+  })
+
+  test('formats shipping rates in the currency\'s own minor unit (stacksjs/stacks#2851)', () => {
+    const methods = (currency: string) => buildDeliveryOverview(
+      [{ id: 1, name: 'Express', status: 'active', base_rate: 1500, free_shipping: 5000 }],
+      [],
+      [],
+      [],
+      currency,
+      now,
+    ).methods[0]
+
+    // A yen has no minor unit, so 1500 is 1,500 yen, not 15.
+    expect(methods('JPY')).toMatchObject({ baseRate: '¥1,500', freeShipping: '¥5,000' })
+    expect(methods('USD')).toMatchObject({ baseRate: '$15.00', freeShipping: '$50.00' })
+  })
+
+  test('rejects corrupt delivery records and missing courier relationships', () => {
+    expect(() => buildDeliveryOverview(
+      [{ id: 1, name: 'Ground', status: 'active', base_rate: 'free', free_shipping: null }],
+      [],
+      [],
+      [],
+      'USD',
+      now,
+    )).toThrow('ShippingMethod 1.base_rate must be a finite number')
+
+    expect(() => buildDeliveryOverview(
+      [],
+      [{
+        id: 1,
+        courier_id: 99,
+        courier: 'Recorded courier',
+        vehicle: 'Recorded vehicle',
+        stops: 1,
+        delivery_time: 30,
+        total_distance: 5,
+        last_active: now.toISOString(),
+      }],
+      [],
+      [],
+      'USD',
+      now,
+    )).toThrow('DeliveryRoute 1.courier_id references missing Courier 99')
   })
 })

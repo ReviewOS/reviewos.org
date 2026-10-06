@@ -1,7 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { categorizable } from '@stacksjs/cms'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'Category Store',
@@ -10,20 +10,20 @@ export default new Action({
   async handle(request: RequestInstance) {
     await request.validate({
       name: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           name: 'Name is required',
         },
       },
       description: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           description: 'Description is required',
         },
       },
 
       categorizable_type: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           categorizable_type: 'Categorizable type is required',
         },

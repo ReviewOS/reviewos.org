@@ -6,6 +6,7 @@ import type {
 import type { ProductOption } from '../../../../app/Actions/Dashboard/Commerce/commerce-product-records'
 import { dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
+import { formatCurrency } from '@stacksjs/commerce/money'
 
 interface PosPaymentMethod {
   id: string
@@ -91,8 +92,10 @@ const checkoutKey = state('')
 const receipt = state<PosReceipt | null>(null)
 const receiptOpen = state(false)
 
+// Amounts are integer minor units (cents for USD). Only tax can produce a
+// fraction of one, and it rounds to the nearest unit as the server does.
 function money(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100
+  return Math.round(value)
 }
 
 function cartUnits(): number {
@@ -112,12 +115,7 @@ function totalAmount(): number {
 }
 
 function formatMoney(value: number): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: defaultCurrency() }).format(value)
-  }
-  catch {
-    return `${value.toFixed(2)} ${defaultCurrency()}`
-  }
+  return formatCurrency(value, defaultCurrency())
 }
 
 function visibleProducts(): CommercePosProduct[] {
@@ -186,18 +184,6 @@ async function loadPos(): Promise<void> {
   finally {
     loading.set(false)
   }
-}
-
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateCategory(event: Event): void {
-  categoryFilter.set((event.target as HTMLSelectElement).value)
-}
-
-function updateAvailability(event: Event): void {
-  availabilityFilter.set((event.target as HTMLSelectElement).value)
 }
 
 function addProduct(product: CommercePosProduct): void {
@@ -333,7 +319,7 @@ onMount(() => {
       <h1 class="font-bold text-2xl text-gray-900 dark:text-white">Point of sale</h1>
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Create server-priced cash sales from native Product, Order, OrderItem, Payment, Customer, and TaxRate records.</p>
     </div>
-    <button type="button" :disabled="loading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadPos()"><span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>Refresh</button>
+    <Button variant="secondary" :loading="loading()" @click="loadPos()"><span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
   </header>
 
   <div :if="loadError()" class="p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ loadError() }}</div>
@@ -349,7 +335,7 @@ onMount(() => {
   </section>
 
   <div class="grid gap-6 grid-cols-1 items-start lg:grid-cols-[minmax(0,1fr)_20rem]">
-    <CommercePosCatalog :products="visibleProducts()" :categories="categories()" :search="search()" :category="categoryFilter()" :availability="availabilityFilter()" :currency="defaultCurrency()" :loading="loading()" @search="updateSearch" @category="updateCategory" @availability="updateAvailability" @add="addProduct" />
+    <CommercePosCatalog :products="visibleProducts()" :categories="categories()" :search="search()" :category="categoryFilter()" :availability="availabilityFilter()" :currency="defaultCurrency()" :loading="loading()" @search="search.set($event)" @category="categoryFilter.set($event)" @availability="availabilityFilter.set($event)" @add="addProduct" />
     <CommercePosCart :lines="cartLines()" :currency="defaultCurrency()" :subtotal="subtotal()" :tax-rate="taxRate()" :tax-amount="taxAmount()" :total-amount="totalAmount()" @increase="increaseLine" @decrease="decreaseLine" @remove="removeLine" @instructions="updateInstructions" @clear="clearCart()" @checkout="openCheckout()" />
   </div>
 </div>

@@ -1,28 +1,34 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { comments } from '@stacksjs/cms'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'Comment Update',
   description: 'Comment Update ORM Action',
   method: 'PATCH',
   async handle(request: RequestInstance) {
+    /*
+     * PATCH, so these are NOT required: a partial update sends the fields it
+     * means to change. The messages used to say "X is required", which fires on
+     * a type failure and never on absence - a message describing a rule the
+     * block does not have.
+     */
     await request.validate({
       title: {
         rule: schema.string(),
         message: {
-          title: 'Title is required',
+          title: 'Title must be a string.',
         },
       },
       body: {
         rule: schema.string(),
         message: {
-          body: 'Body is required',
+          body: 'Body must be a string.',
         },
       },
     })
-    const id = request.getParam('id')
+    const id = Number(request.getParam('id'))
 
     const data = {
       title: request.get('title'),

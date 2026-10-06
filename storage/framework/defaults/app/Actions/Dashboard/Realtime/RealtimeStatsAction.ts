@@ -1,6 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { config } from '@stacksjs/config'
 import { Websocket } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
 import { buildRealtimeStats } from './realtime-stats'
 
 export default new Action({
@@ -34,15 +35,8 @@ export default new Action({
         }))),
       }
     }
-    catch {
-      return {
-        config: {
-          enabled: Boolean(config.realtime?.enabled),
-          mode: String(config.realtime?.mode || 'server'),
-          url: '',
-        },
-        ...buildRealtimeStats([]),
-      }
+    catch (error) {
+      return dashboardOperationalError(error, 'Realtime events could not be loaded.', 'RealtimeStatsAction')
     }
   },
 })

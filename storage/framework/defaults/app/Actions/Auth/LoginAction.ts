@@ -1,8 +1,8 @@
-import { Action } from '@stacksjs/actions'
-import { Auth, createTwoFactorChallenge, getTwoFactorState } from '@stacksjs/auth'
-import { User } from '@stacksjs/orm'
+import { Action } from '@stacksjs/actions/runtime'
+import { Auth, authCookieForBrowserSession, createTwoFactorChallenge, getTwoFactorState, resolveBrowserSessionPolicy } from '@stacksjs/auth'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
+import { PASSWORD_MAX_LENGTH, PASSWORD_PRESENCE_MESSAGE } from '../../password-policy'
 
 export default new Action({
   name: 'LoginAction',
@@ -11,41 +11,56 @@ export default new Action({
 
   validations: {
     email: {
-      rule: schema.string().email(),
+      rule: schema.string().email().required(),
       message: 'Email must be a valid email address.',
     },
+    // Presence only, NOT the creation policy. Enforcing a minimum length on
+    // sign-in locks out every account created under a shorter one: the user is
+    // told their own password is too short, with a 422 raised before the
+    // credentials are ever checked. The policy belongs on the paths that SET a
+    // password (#2226).
     password: {
-      rule: schema.string().min(6).max(255),
-      message: 'Password must be between 6 and 255 characters.',
+      rule: schema.string().min(1).max(PASSWORD_MAX_LENGTH).required(),
+      message: PASSWORD_PRESENCE_MESSAGE,
     },
   },
 
   async handle(request: RequestInstance) {
     const email = request.get('email')
     const password = request.get('password')
+    const remember = request.get('remember')
 
-    // Verify credentials WITHOUT minting tokens yet — if the account
-    // has TOTP 2FA enabled, no token pack should exist until the code
-    // is also verified (VerifyTwoFactorLoginAction mints the real
-    // pack via Auth.loginUsingId, same as the non-2FA path below).
-    const isValid = await Auth.attempt({ email, password })
-    if (!isValid)
+    // Verify once, then keep the observed password version locked while
+    // choosing and issuing the challenge or token. A completed password reset
+    // cannot be followed by this old in-flight login minting fresh access.
+    const decision = await Auth.withVerifiedCredentials({ email, password }, async (authedUser) => {
+      const { enabled: twoFactorEnabled } = await getTwoFactorState(authedUser.id as number)
+      const policy = resolveBrowserSessionPolicy(remember)
+      if (twoFactorEnabled) {
+        return {
+          kind: 'challenge' as const,
+          token: await createTwoFactorChallenge(authedUser.id as number, { remembered: policy.remembered }),
+        }
+      }
+      return {
+        kind: 'login' as const,
+        result: await Auth.loginUsingId(authedUser.id as number, {
+          expiresInMinutes: policy.expiresInMinutes,
+          withRefreshToken: policy.withRefreshToken,
+        }),
+      }
+    })
+    if (!decision)
       return response.unauthorized('Incorrect email or password')
 
-    const authedUser = await User.where('email', '=', email).first()
-    if (!authedUser)
-      return response.unauthorized('Incorrect email or password')
-
-    const { enabled: twoFactorEnabled } = await getTwoFactorState(authedUser.id as number)
-    if (twoFactorEnabled) {
-      const challengeToken = await createTwoFactorChallenge(authedUser.id as number)
+    if (decision.kind === 'challenge') {
       return response.json({
         requires_two_factor: true,
-        challenge_token: challengeToken,
+        challenge_token: decision.token,
       })
     }
 
-    const result = await Auth.loginUsingId(authedUser.id as number)
+    const result = decision.result
     if (!result)
       return response.unauthorized('Incorrect email or password')
 
@@ -60,6 +75,15 @@ export default new Action({
     // The legacy `token` field is kept for backward compatibility
     // with clients that haven't been updated yet — it shadows
     // `access_token` and will be removed in a future major.
+    //
+    // The same token also goes out as an httpOnly cookie, matching
+    // SocialCallbackAction. Without it, how a browser ends up signed in
+    // depended on which way it signed in: OAuth left a cookie, email+password
+    // left only JSON, and a server-rendered page cannot read JSON — it posts a
+    // form, follows a redirect, and comes back carrying nothing but cookies.
+    // So the first authenticated document render had no way to identify the
+    // user (#2306). The body is unchanged, so an API client that ignores the
+    // cookie behaves exactly as before.
     return response.json({
       access_token: result.token,
       refresh_token: result.refreshToken,
@@ -71,6 +95,6 @@ export default new Action({
         email: user?.email,
         name: user?.name,
       },
-    })
+    }, { headers: { 'Set-Cookie': authCookieForBrowserSession(result.token, result.expiresIn) } })
   },
 })

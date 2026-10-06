@@ -1,6 +1,6 @@
 ---
 name: stacks-config
-description: Use when working with Stacks configuration — the 44 config files, config helper functions, default values, environment-specific overrides, or the defineApp/defineDatabase/etc builder functions. Covers @stacksjs/config and the config/ directory.
+description: Use when working with Stacks configuration - the 44 config files, config helper functions, default values, environment-specific overrides, or the defineApp/defineDatabase/etc builder functions. Covers @stacksjs/config and the config/ directory.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -44,7 +44,17 @@ export default defineApp({
 }) satisfies AppConfig
 ```
 
-All builders: `defineApp`, `defineCache`, `defineCdn`, `defineChat`, `defineCli`, `defineDatabase`, `defineDependencies`, `defineDns`, `defineEmailConfig`, `defineEmail`, `defineGit`, `defineHashing`, `defineLibrary`, `defineNotification`, `definePayment`, `defineQueue`, `defineSearchEngine`, `defineSecurity`, `defineServices`, `defineSms`, `defineFilesystems`, `defineUi`, `defineModel`, `defineEvents`
+All builders: `defineApp`, `defineCache`, `defineCdn`, `defineChat`, `defineCli`, `defineDatabase`, `defineDependencies`, `defineDns`, `defineEmailConfig`, `defineEmail`, `defineGit`, `defineHashing`, `defineLibrary`, `defineNotification`, `definePayment`, `defineQueue`, `defineSearchEngine`, `defineSecurity`, `defineServices`, `defineSms`, `defineFilesystems`, `defineUi`, `defineEvents`
+
+`defineModel` is NOT among them: it comes from `@stacksjs/orm`, and it builds a
+model rather than returning a config object. `@stacksjs/config` used to export a
+second one typed `(config: Model) => Model`, which widened every literal a model
+declared - its table name, its attribute names - so a model that imported the
+wrong one silently lost the typing the ORM version exists to provide.
+
+The app-level registries have their own helpers, in the packages that own what
+they name: `defineEvents` and `defineListener` from `@stacksjs/events`,
+`defineMiddleware` from `@stacksjs/router`, `defineGates` from `@stacksjs/auth`.
 
 ## Helper Functions
 - `determineAppEnv(): 'dev' | 'stage' | 'prod' | string`
@@ -55,8 +65,8 @@ All builders: `defineApp`, `defineCache`, `defineCdn`, `defineChat`, `defineCli`
 ### Core App
 | File | Type | Key Settings |
 |------|------|-------------|
-| `app.ts` | AppConfig | name, env, url, debug, key, timezone, locale |
-| `auth.ts` | AuthConfig | guards, providers, tokenExpiry(30d), tokenRotation(7d), passwordReset |
+| `app.ts` | AppConfig | name, env, url, debug, key, timezone, locale, seo (sitemap.xml / robots.txt) |
+| `auth.ts` | AuthConfig | guards, providers, token and browser-session lifetimes, passwordReset |
 | `database.ts` | DatabaseConfig | default driver, connections (sqlite/mysql/postgres/dynamodb), queryLogging |
 | `cache.ts` | CacheConfig | driver('memory'), ttl(3600), maxKeys(-1), redis config |
 | `env.ts` | EnvConfig | validation schemas for env vars |
@@ -100,7 +110,7 @@ All builders: `defineApp`, `defineCache`, `defineCdn`, `defineChat`, `defineCli`
 ### Features
 | File | Type | Key Settings |
 |------|------|-------------|
-| `blog.ts` | BlogConfig | subdomain, postsPerPage, enableComments/RSS/sitemap |
+| `blog.ts` | BlogConfig | subdomain, postsPerPage, enableRss/enableSitemap (enableComments and enableSearch are declared but not yet honoured) |
 | `cms.ts` | CmsConfig | content management settings |
 | `saas.ts` | SaasConfig | plans (Hobby/Pro/Lifetime with pricing), webhook, currencies |
 | `ui.ts` | HeadwindOptions | content, output, minify |
@@ -117,7 +127,7 @@ All builders: `defineApp`, `defineCache`, `defineCdn`, `defineChat`, `defineCli`
 ### Other
 | File | Type | Key Settings |
 |------|------|-------------|
-| `buddy-bot.ts` | BuddyBotConfig | repository, dashboard, workflows |
+| `buddy-bot.ts` | BuddyConfig (`@buddysh/buddy`) | repository, dashboard, workflows |
 | `cli.ts` | BinaryConfig | name, command, description |
 | `deps.ts` | PantryConfig | system dependencies (bun, sqlite, redis, etc.) |
 | `errors.ts` | ErrorConfig | comprehensive validation error messages |

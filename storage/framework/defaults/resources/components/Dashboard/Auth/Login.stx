@@ -22,18 +22,6 @@ function fieldError(field: string): string {
   return fieldErrors()[field] || ''
 }
 
-function setEmail(value: string): void {
-  email.set(value)
-}
-
-function setPassword(value: string): void {
-  password.set(value)
-}
-
-function setRememberMe(event: Event): void {
-  rememberMe.set((event.target as HTMLInputElement).checked)
-}
-
 function validateEmail(): boolean {
   if (!email().trim()) {
     setFieldError('email', 'Email is required')
@@ -56,15 +44,14 @@ function validatePassword(): boolean {
   return true
 }
 
-function handleSubmit(event: Event): void {
-  event.preventDefault()
+function handleSubmit(): void {
   if (!validateEmail() || !validatePassword())
     return
 
   emit('submit', {
     email: email(),
     password: password(),
-    rememberMe: rememberMe(),
+    remember: rememberMe(),
   })
 }
 </script>
@@ -87,15 +74,14 @@ function handleSubmit(event: Event): void {
         </div>
       </div>
 
-      <form @submit="handleSubmit">
+      <form @submit.prevent="handleSubmit">
         <div class="mb-4">
           <Input
             type="email"
             label="Email address"
             placeholder="you@example.com"
-            :value="email()"
-            @input="setEmail"
-            @blur="validateEmail"
+            v-model:value="email"
+            @blur="validateEmail()"
             :error="fieldError('email')"
             required
             :disabled="isLoading()"
@@ -107,9 +93,8 @@ function handleSubmit(event: Event): void {
             type="password"
             label="Password"
             placeholder="Enter your password"
-            :value="password()"
-            @input="setPassword"
-            @blur="validatePassword"
+            v-model:value="password"
+            @blur="validatePassword()"
             :error="fieldError('password')"
             required
             :disabled="isLoading()"
@@ -121,8 +106,7 @@ function handleSubmit(event: Event): void {
             <input
               type="checkbox"
               class="h-4 w-4 text-blue-500 bg-white dark:bg-neutral-800 border-neutral-300 rounded dark:border-neutral-600 focus:ring-blue-500/40 focus:ring-offset-0"
-              :checked="rememberMe()"
-              @change="setRememberMe"
+              x-model="rememberMe"
               :disabled="isLoading()"
             />
             <span class="text-neutral-600 text-sm dark:text-neutral-400">Remember me</span>
@@ -145,6 +129,14 @@ function handleSubmit(event: Event): void {
           <span :if="!isLoading()">Sign in</span>
         </Button>
       </form>
+
+      {{--
+        Anything that belongs with the credentials, inside the same card:
+        the social sign-in buttons the /login page fills this with. It is a
+        slot because the provider list has to be computed server-side by
+        `configuredSocialProviders()`, and this component is client-only.
+      --}}
+      <slot name="social" />
     </div>
 
     <p :if="showSignUp()" class="mt-6 text-center text-neutral-500 text-sm dark:text-neutral-400">

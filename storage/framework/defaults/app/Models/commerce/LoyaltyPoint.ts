@@ -1,11 +1,23 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { customerOwnership, defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'LoyaltyPoint',
   table: 'loyalty_points',
   primaryKey: 'id',
   autoIncrement: true,
+
+
+  /*
+   * Points belong to a customer. The model carried `walletId`, pointing at a
+   * `LoyaltyWallet` that was never built, so nothing resolved an owner and the
+   * writes stayed denied (stacksjs/stacks#2412). Scoping by customer is the
+   * additive half of that issue's second option; `walletId` is left alone
+   * because repointing an existing column is a data decision of its own.
+   */
+  belongsTo: ['Customer'],
+
+  ownership: customerOwnership(),
 
   traits: {
     useUuid: true,
@@ -23,6 +35,7 @@ export default defineModel({
 
     useApi: {
       uri: 'loyalty-points',
+      middleware: ['auth'],
     },
 
     observe: true,

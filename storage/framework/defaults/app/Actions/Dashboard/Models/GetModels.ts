@@ -1,17 +1,20 @@
 import type { Model } from '@stacksjs/types'
 import { Glob } from 'bun'
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { path } from '@stacksjs/path'
-import { safeCount } from '../../../../resources/functions/dashboard/data'
+import { countRows } from '../../../../resources/functions/dashboard/data'
+import { dashboardOperationalError } from '../dashboard-response'
 
 export default new Action({
   name: 'GetModels',
   description: 'Gets the application models.',
+  method: 'GET',
 
   async handle() {
-    const glob = new Glob('**/*.ts')
-    const scanOptions = { cwd: path.userModelsPath(), onlyFiles: true }
-    const displayModels: Model[] = []
+    try {
+      const glob = new Glob('**/*.ts')
+      const scanOptions = { cwd: path.userModelsPath(), onlyFiles: true }
+      const displayModels: Model[] = []
 
     for await (const file of glob.scan(scanOptions)) {
       const model = (await import(path.userModelsPath(file))).default as Model
@@ -31,9 +34,13 @@ export default new Action({
       displayModels.length = 8
     displayModels.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
-    return await Promise.all(displayModels.map(async model => ({
-      model: model.name,
-      total: await safeCount(model),
-    })))
+      return await Promise.all(displayModels.map(async model => ({
+        model: model.name,
+        total: await countRows(model),
+      })))
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Dashboard models could not be loaded.', 'GetModels')
+    }
   },
 })

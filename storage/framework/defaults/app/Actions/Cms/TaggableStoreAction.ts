@@ -1,7 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { tags } from '@stacksjs/cms'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'Tag Store',
@@ -10,13 +10,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     await request.validate({
       name: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           name: 'Name is required',
         },
       },
       description: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           description: 'Description is required',
         },

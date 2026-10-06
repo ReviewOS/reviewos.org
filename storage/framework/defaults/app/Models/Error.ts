@@ -1,11 +1,18 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Error',
   table: 'errors',
   primaryKey: 'id',
   autoIncrement: true,
+
+  indexes: [
+    {
+      name: 'errors_created_at_index',
+      columns: ['created_at'],
+    },
+  ],
 
   traits: {
     useTimestamps: true,

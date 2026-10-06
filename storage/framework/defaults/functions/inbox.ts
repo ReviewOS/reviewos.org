@@ -1,13 +1,12 @@
 /**
  * Inbox Composable
  *
- * Reads captured transactional emails from the framework's mail log driver
- * (in-memory + storage/logs/mail/*.html) for the dashboard inbox view.
+ * Reads inbound mailbox messages and exposes inbox actions for the dashboard.
  */
 
 import { ref } from '@stacksjs/stx'
 import { get } from './api'
-import { dashboardApi } from './dashboard-api'
+import { dashboardApi, dashboardDownload } from './dashboard-api'
 import { pushToast } from './toasts'
 
 export type InboxActivityRange = 'day' | 'week' | 'month' | 'year'
@@ -72,6 +71,15 @@ export interface DashboardInboxEmail {
   date: string
   read: boolean
   hasAttachments: boolean
+  attachments: DashboardInboxAttachment[]
+  detailsLoaded: boolean
+}
+
+export interface DashboardInboxAttachment {
+  id: string
+  name: string
+  size: number
+  lastModified?: string
 }
 
 interface DashboardInboxEntry {
@@ -95,6 +103,7 @@ interface DashboardInboxResponse {
 interface DashboardInboxBodyResponse {
   html?: string
   text?: string
+  attachments?: DashboardInboxAttachment[]
   error?: string
 }
 
@@ -119,6 +128,41 @@ export function parseInboxSender(from: string, fromName = ''): { name: string; e
   return { name: fromName.trim() || from, email: from }
 }
 
+export function normalizeInboxPreview(preview: string, maxLength = 200): string {
+  let result = preview.trim().replace(/^[-=_]{2,}[^\s]*\s+/, '')
+
+  for (let pass = 0; pass < 6; pass++) {
+    const next = result
+      .replace(/^content-transfer-encoding:\s*[^\s]+\s*/i, '')
+      .replace(/^mime-version:\s*[^\s]+\s*/i, '')
+      .replace(/^content-description:\s*[^\s]+\s*/i, '')
+      .replace(/^content-type:\s*[^\s;]+(?:;\s*(?:charset|boundary|name)\s*=\s*(?:"[^"]*"|[^\s]+))*\s*/i, '')
+    if (next === result)
+      break
+    result = next
+  }
+
+  const encoded = result.replace(/^[-=_]{4,}[^\s]*\s*/, '').replace(/=\r?\n/g, '')
+  const bytes: number[] = []
+  const encoder = new TextEncoder()
+  for (let index = 0; index < encoded.length; index++) {
+    const token = encoded.slice(index, index + 3)
+    if (/^=[0-9a-f]{2}$/i.test(token)) {
+      bytes.push(Number.parseInt(token.slice(1), 16))
+      index += 2
+    }
+    else {
+      bytes.push(...encoder.encode(encoded[index]!))
+    }
+  }
+
+  return new TextDecoder().decode(Uint8Array.from(bytes))
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+}
+
 export function mapDashboardInboxEntry(item: DashboardInboxEntry): DashboardInboxEmail {
   const sender = parseInboxSender(item.from || '', item.fromName || '')
   return {
@@ -126,12 +170,14 @@ export function mapDashboardInboxEntry(item: DashboardInboxEntry): DashboardInbo
     from: sender.name || sender.email,
     email: sender.email,
     subject: item.subject || '(no subject)',
-    preview: item.preview || '',
+    preview: normalizeInboxPreview(item.preview || ''),
     bodyHtml: '',
     bodyText: '',
     date: item.date,
     read: item.read === true,
     hasAttachments: item.hasAttachments === true,
+    attachments: [],
+    detailsLoaded: false,
   }
 }
 
@@ -145,7 +191,7 @@ export async function fetchDashboardInbox(mailbox?: string): Promise<LoadedDashb
   }
 }
 
-export async function fetchDashboardInboxBody(messageId: string, mailbox?: string): Promise<Pick<DashboardInboxEmail, 'bodyHtml' | 'bodyText'>> {
+export async function fetchDashboardInboxBody(messageId: string, mailbox?: string): Promise<Pick<DashboardInboxEmail, 'attachments' | 'bodyHtml' | 'bodyText' | 'detailsLoaded' | 'hasAttachments'>> {
   const query = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ''
   const data = await dashboardApi<DashboardInboxBodyResponse>(`/api/dashboard/email/inbox/${encodeURIComponent(messageId)}${query}`)
   if (data.error)
@@ -153,7 +199,20 @@ export async function fetchDashboardInboxBody(messageId: string, mailbox?: strin
   return {
     bodyHtml: data.html || '',
     bodyText: data.text || '',
+    attachments: data.attachments || [],
+    detailsLoaded: true,
+    hasAttachments: (data.attachments || []).length > 0,
   }
+}
+
+export async function downloadDashboardInboxAttachment(
+  messageId: string,
+  attachment: DashboardInboxAttachment,
+  mailbox?: string,
+): Promise<void> {
+  const query = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ''
+  const path = `/api/dashboard/email/inbox/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}${query}`
+  await dashboardDownload(path, attachment.name)
 }
 
 export async function fetchInboxActivity(range: InboxActivityRange): Promise<InboxActivity | null> {

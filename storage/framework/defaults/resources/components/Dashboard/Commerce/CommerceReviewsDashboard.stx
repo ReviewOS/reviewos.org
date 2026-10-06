@@ -4,7 +4,7 @@ import type {
   ReviewRecord,
   ReviewSummary,
 } from '../../../../app/Actions/Dashboard/Commerce/review-records'
-import { dashboardApi } from '../../../../functions/dashboard-api'
+import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
 
 interface ReviewIndexResponse {
@@ -52,6 +52,7 @@ const deletingReview = state<ReviewRecord | null>(null)
 const saving = state(false)
 const deleting = state(false)
 const busyId = state('')
+const validationErrors = state<Record<string, string>>({})
 
 function timestamp(value: string): number {
   if (!value)
@@ -136,30 +137,14 @@ function metricCards(): Array<{ label: string, value: string }> {
   ]
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
+effect(() => {
+  search()
+  productFilter()
+  ratingFilter()
+  moderationFilter()
+  sort()
   page.set(1)
-}
-
-function updateProductFilter(event: Event): void {
-  productFilter.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
-
-function updateRatingFilter(event: Event): void {
-  ratingFilter.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
-
-function updateModerationFilter(event: Event): void {
-  moderationFilter.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
-
-function updateSort(event: Event): void {
-  sort.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
+})
 
 async function loadReviews(): Promise<void> {
   loading.set(true)
@@ -186,7 +171,15 @@ async function loadReviews(): Promise<void> {
 async function patchReview(review: ReviewRecord, payload: Record<string, unknown>, successMessage: string): Promise<void> {
   busyId.set(review.id)
   try {
-    await dashboardApi(`/api/product-reviews/${review.id}`, { method: 'PATCH', body: payload })
+    await dashboardApi(`/api/dashboard/commerce/reviews/${review.id}`, {
+      method: 'PATCH',
+      body: {
+        title: review.title,
+        content: review.content,
+        rating: review.rating,
+        ...payload,
+      },
+    })
     pushToast('success', successMessage)
     await loadReviews()
   }
@@ -218,11 +211,14 @@ function toggleFeatured(review: ReviewRecord): void {
 
 function openEdit(review: ReviewRecord): void {
   editingReview.set(review)
+  validationErrors.set({})
 }
 
 function closeEdit(): void {
-  if (!saving())
+  if (!saving()) {
     editingReview.set(null)
+    validationErrors.set({})
+  }
 }
 
 async function saveReview(payload: ReviewEditPayload): Promise<void> {
@@ -230,13 +226,16 @@ async function saveReview(payload: ReviewEditPayload): Promise<void> {
   if (!review)
     return
   saving.set(true)
+  validationErrors.set({})
   try {
-    await dashboardApi(`/api/product-reviews/${review.id}`, { method: 'PATCH', body: payload })
+    await dashboardApi(`/api/dashboard/commerce/reviews/${review.id}`, { method: 'PATCH', body: payload })
     editingReview.set(null)
     pushToast('success', 'Review updated')
     await loadReviews()
   }
   catch (error) {
+    if (error instanceof DashboardApiError)
+      validationErrors.set(error.fields ?? {})
     pushToast('error', 'Could not save review', {
       detail: error instanceof Error ? error.message : String(error),
     })
@@ -261,7 +260,7 @@ async function deleteSelectedReview(): Promise<void> {
     return
   deleting.set(true)
   try {
-    await dashboardApi(`/api/product-reviews/${review.id}`, { method: 'DELETE' })
+    await dashboardApi(`/api/dashboard/commerce/reviews/${review.id}`, { method: 'DELETE' })
     deletingReview.set(null)
     pushToast('success', 'Review deleted')
     await loadReviews()
@@ -287,10 +286,10 @@ onMount(() => {
       <h1 class="font-bold text-2xl text-gray-900 dark:text-white">{{ title() }}</h1>
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">{{ description() }}</p>
     </div>
-    <button type="button" :disabled="loading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadReviews">
-      <span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+    <Button variant="secondary" :loading="loading()" @click="loadReviews">
+      <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
       Refresh
-    </button>
+    </Button>
   </header>
 
   <div :if="loadError()" class="p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ loadError() }}</div>
@@ -311,11 +310,11 @@ onMount(() => {
         <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-gray-400 pointer-events-none">
           <span class="h-4 w-4 i-hugeicons-search-01"></span>
         </span>
-        <input id="review-search" :value="search()" type="search" placeholder="Search reviews" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input id="review-search" x-model="search" type="search" placeholder="Search reviews" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </div>
       <label>
         <span class="sr-only">Product</span>
-        <select :value="productFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateProductFilter($event)">
+        <select x-model="productFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All products</option>
           <template :for="product in products()" :key="product.id">
             <option :value="product.id">{{ product.label }}</option>
@@ -324,7 +323,7 @@ onMount(() => {
       </label>
       <label>
         <span class="sr-only">Rating</span>
-        <select :value="ratingFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateRatingFilter($event)">
+        <select x-model="ratingFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All ratings</option>
           <option value="5">5 stars</option>
           <option value="4">4 stars</option>
@@ -335,7 +334,7 @@ onMount(() => {
       </label>
       <label>
         <span class="sr-only">Moderation state</span>
-        <select :value="moderationFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateModerationFilter($event)">
+        <select x-model="moderationFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All states</option>
           <option value="approved">Approved</option>
           <option value="pending">Pending</option>
@@ -351,7 +350,7 @@ onMount(() => {
       </p>
       <label class="flex gap-2 items-center text-gray-500 text-sm dark:text-neutral-400">
         Sort
-        <select :value="sort()" class="px-3 py-1.5 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateSort($event)">
+        <select x-model="sort" class="px-3 py-1.5 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
           <option value="rating-high">Highest rating</option>
@@ -372,9 +371,9 @@ onMount(() => {
     />
 
     <nav :if="totalPages() > 1" aria-label="Review pages" class="flex items-center justify-between">
-      <button type="button" :disabled="page() <= 1" class="px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="page.update(value => value - 1)">Previous</button>
+      <Button variant="secondary" :disabled="page() <= 1" @click="page.update(value => value - 1)">Previous</Button>
       <span class="text-gray-500 text-sm dark:text-neutral-400">Page {{ page() }} of {{ totalPages() }}</span>
-      <button type="button" :disabled="page() >= totalPages()" class="px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="page.update(value => value + 1)">Next</button>
+      <Button variant="secondary" :disabled="page() >= totalPages()" @click="page.update(value => value + 1)">Next</Button>
     </nav>
   </section>
 </div>
@@ -383,6 +382,7 @@ onMount(() => {
   :open="Boolean(editingReview())"
   :review="editingReview()"
   :busy="saving()"
+  :errors="validationErrors()"
   @submit="saveReview"
   @close="closeEdit()"
 />

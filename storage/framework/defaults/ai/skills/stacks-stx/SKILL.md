@@ -1,6 +1,6 @@
 ---
 name: stacks-stx
-description: Use when working with STX templates in a Stacks application — template syntax, components, directives, signals, reactivity, SSR, streaming, hydration, or debugging STX rendering. STX is the ONLY templating system for Stacks.
+description: Use when working with STX templates in a Stacks application - template syntax, components, directives, signals, reactivity, SSR, streaming, hydration, or debugging STX rendering. STX is the ONLY templating system for Stacks.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -28,6 +28,36 @@ When the task is how a page should *look* (not just how stx renders), pair this 
 1. **ALWAYS use STX** for templating — never write vanilla JS
 2. **NEVER use** `var`, `document.*`, `window.*` in STX templates
 3. STX `<script>` tags should ONLY contain stx-compatible code (signals, composables, directives)
+
+### Pre-paint appearance
+
+Use `@appearanceBootstrap({...})` when persisted appearance must be applied
+before the browser parses the application shell. Do not add a raw inline
+script for `localStorage`, `document`, or `matchMedia`. The directive emits the
+synchronous compiler-owned guard, validates storage through explicit
+allowlists, applies the root data attributes and `dark` class, and receives the
+request CSP nonce when nonce support is enabled.
+
+```stx
+@appearanceBootstrap({
+  storageKey: 'app-appearance',
+  appearance: {
+    key: 'sidebarStyle',
+    attribute: 'appearance',
+    allowed: ['macos', 'arc'],
+    default: 'macos',
+  },
+  colorMode: {
+    key: 'colorMode',
+    attribute: 'color-mode',
+    default: 'system',
+  },
+})
+```
+
+Persist a JSON object under `storageKey`. Invalid JSON, storage errors, unknown
+appearance values, and unsupported color modes all fall back to the declared
+defaults before first paint.
 
 ## Template Structure
 
@@ -60,6 +90,30 @@ STX signals are callable. Read with `count()`, replace with
 `count.set(value)`, and update from the current value with
 `count.update(value => value + 1)`. Do not use Vue-style `.value` access in
 STX templates or `resources/functions`.
+
+### Client loop conditionals
+
+Attribute loops create a client-owned scope. Their item and index aliases may
+be used with either reactive attribute conditionals or STX block conditionals.
+The compiler promotes a block chain that reads those aliases into one reactive
+runtime chain:
+
+```html
+<template :for="(field, index) in fields()">
+  @if(field.editable)
+    <input x-model="drafts[field.key]">
+  @elseif(index === 0)
+    <span>First read-only field</span>
+  @else
+    <span>{{ field.value }}</span>
+  @endif
+</template>
+```
+
+Loop aliases are scoped to the owning element and inherited by nested client
+loops. A condition outside that element remains server-owned. Do not mix a
+server context value into a client loop chain. Serialize the value into client
+state when the browser must reevaluate it.
 
 ### Native form binding
 
@@ -97,9 +151,9 @@ dedicated signal for each binding. Arbitrary expressions such as
 import type { StxOptions } from '@stacksjs/stx'
 
 export default {
-  componentsDir: 'resources/components',
-  layoutsDir: 'resources/layouts',
-  partialsDir: 'resources/partials',
+  componentsDir: 'components',
+  layoutsDir: 'layouts',
+  partialsDir: 'partials',
 } satisfies StxOptions
 ```
 
@@ -145,6 +199,29 @@ interface StxConfig {
 - Reactivity system (ref, computed, watch)
 - Component composition and lifecycle
 - Dependency injection (provide/inject)
+- DOM update scheduling with the browser-auto-imported `nextTick()`
+
+### Template refs after structural updates
+
+Use `useRef()` with `nextTick()` when an element is inserted by `:if`, a modal, or another structural directive and must be focused or measured immediately afterward:
+
+```ts
+const open = state(false)
+const searchInput = useRef('searchInput')
+
+function showSearch(): void {
+  open.set(true)
+  void nextTick(() => searchInput.current?.focus())
+}
+```
+
+```html
+<template :if="open()">
+  <input ref="searchInput" type="search">
+</template>
+```
+
+`nextTick()` runs after the current synchronous signal and effect flush. Prefer it over `querySelector`, manual DOM polling, or `requestAnimationFrame` when the task is waiting for STX to materialize reactive markup.
 
 ### Rendering
 - **SSR** — Server-Side Rendering
@@ -162,6 +239,30 @@ interface StxConfig {
 - **Animation** — CSS and JS animation system
 - **Markdown** — Markdown rendering with syntax highlighting
 - **A11y** — Accessibility checking and auto-fixing
+
+### SEO directives
+
+Every argument is an expression evaluated against the template context (`<script server>` variables, the render context, and, inside an `@include` partial, the partial's own `<script server>`). A quoted string is literal text.
+
+```html
+<script server>
+const seo = { title: post.title, description: post.excerpt, canonical: url, openGraph: { image: post.cover } }
+</script>
+
+@seo(seo)                              <!-- or @seo({ ...seo, title }), @seo(buildSeo(post)), @seo({ title: 'Literal' }) -->
+@seo(page.seo ?? {})                   <!-- a variable only some pages define -->
+@meta('author', post.author)           <!-- unquoted value: an expression -->
+@meta('description', 'Plain text')     <!-- quoted value: literal, never looked up -->
+@meta('keywords', tags)                <!-- an array joins with ", " -->
+@meta('og:title')                      <!-- one argument: reads `title`, then `openGraph.title` -->
+@metaTag({ httpEquiv: 'refresh', content: '30' })
+@structuredData(product)               <!-- object or array of objects; @context defaults to schema.org -->
+```
+
+- `@seo` reads only `title`, `description`, `keywords`, `robots`, `canonical`, `openGraph`, `twitter`, `structuredData`. `image`, `url` and `type` are not top-level keys (use `openGraph.image`, `canonical`, `openGraph.type`); stray keys are ignored with a warning.
+- A directive that cannot produce its tag (a variable that is not defined, a value of the wrong type, a syntax error, an unclosed call) leaves `<!-- [SEO Error ...] -->` in its place and logs `[stx] @seo(seo) in <file>: ...`. A defined variable holding `null` renders nothing, quietly. Read those warnings; they are the only sign a page shipped without its preview card.
+- `@meta` in a page is staged into `<head>`. `@seo`, `@metaTag` and `@structuredData` write where they sit, so put them inside `<head>` (a layout or head partial). In a page body use `useSeoMeta({ title, description, ogImage })` in `<script server>`, which always reaches `<head>`.
+- Requires `@stacksjs/stx` >= 0.2.343. Older versions only matched `@seo({ ... })` literally and sent unquoted `@meta` values such as `post.author` as text, without a warning.
 
 ### Dev Tools
 - **Dev server** with HMR (Hot Module Replacement)
@@ -201,9 +302,18 @@ await addLayout('admin', { nav: true, footer: true })
 - **STX is the ONLY templating system** — do not use other template engines
 - **`bun-plugin-stx` must be loaded** — without it, `.stx` files won't be processed
 - **Auto-imports** — browser auto-imports defined in `storage/framework/browser-auto-imports.json`
+- **Imported module dependencies** - browser auto-imports are injected into the STX script entry only; imported `.ts` modules must explicitly import every function or store they use
+- **Project-root server imports** - use `~/path` or `@/path` inside `<script server>` when a layout, partial, or page needs a project file. STX resolves both aliases against the application root before executing the server script. Relative imports still resolve against the `.stx` file
+- **Browser package inputs are bundled** - core browser helpers and model auto-import bootstraps are compiler bundle inputs. Rendered HTML must never contain a bare `import '@stacksjs/browser'`, because browsers cannot resolve package specifiers without an import map
+- **Server-to-client values are explicit** - a JSON-serializable top-level value exported by `<script server>` can be referenced by name in `<script client>`. STX serializes only referenced values and never overwrites a client-owned declaration
 - **`storage/framework/stx/`** — stx build cache and the generated route manifest. `config/ui.ts` sets stx's `stateDir` here, so nothing lands in the project root. Gitignored; safe to delete
 - **Reactivity is signal-based** - use callable `state()` and `derived()` signals, not Vue-style `ref()` or `.value`
+- **Client loop conditions** - `@if` chains that read `:for` or `@for` aliases compile into scoped runtime chains; aliases do not leak outside the loop element
+- **Component tag case is semantic** - `<Input v-model:value="query">` is a paired component, while lowercase `<input v-model="query">` is a native void element. Keep component tags PascalCase, including names that collide with native elements
+- **Structural DOM timing** - use `nextTick()` with `useRef()` after opening reactive markup
 - **Crosswind for styling** — use utility classes, not inline styles
 - **Script block restrictions** — only stx-compatible code (signals, composables, directives), no vanilla DOM APIs
+- **Pre-paint state** - use `@appearanceBootstrap`, never a raw browser script in the template
 - **Components go in `resources/`** — not in `app/` or `storage/`
+- **SEO directives take expressions** - `@seo(seo)`, `@meta('author', post.author)` and `@structuredData(product)` are evaluated; a failure shows up as an inline `<!-- [... Error] -->` comment plus a `[stx]` console warning naming the file, never as silent emptiness. Keep `@seo` inside `<head>`
 - **118+ modules** — STX is a comprehensive framework covering rendering, routing, forms, i18n, SEO, PWA, and more

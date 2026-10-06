@@ -1,5 +1,5 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { defineModel, parentOwnership } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 /**
  * Card label / tag (stacksjs/stacks#1846).
@@ -33,10 +33,14 @@ export default defineModel({
     useApi: {
       uri: 'labels',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
     },
   },
 
   belongsTo: ['Board'],
+
+  // Owned by whoever owns the board it sits on (stacksjs/stacks#2412).
+  ownership: parentOwnership('Board', 'board_id'),
 
   attributes: {
     boardId: {

@@ -1,6 +1,6 @@
 ---
 name: stacks-models
-description: Use when working with data models in Stacks — the defineModel() API, model attributes with validation and factories, relationships (hasOne/hasMany/belongsTo/belongsToMany), traits (useAuth, useUuid, useTimestamps, useSearch, useApi, billable, taggable, categorizable, commentable, likeable, observe), computed properties (get/set), model generation, and the 50+ built-in framework models. Covers model definitions and storage/framework/defaults/app/Models/.
+description: Use when working with data models in Stacks - the defineModel() API, model attributes with validation and factories, relationships (hasOne/hasMany/belongsTo/belongsToMany), traits (useAuth, useUuid, useTimestamps, useSearch, useApi, billable, taggable, categorizable, commentable, likeable, observe), computed properties (get/set), model generation, and the 105 built-in framework models. Covers model definitions and storage/framework/defaults/app/Models/.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -88,7 +88,8 @@ generated model types stay precise.
 | `guarded` | Block mass assignment |
 | `hidden` | Exclude from JSON serialization (passwords, tokens) |
 | `foreignKey` | Disable, infer, or configure the FK constraint |
-| `factory` | `(faker) => value`, used by seeders and tests |
+| `personal` | Personal data: exported by `gdpr:export`, anonymized by erasure and retention. `true`, or `{ anonymize?, export? }`. See "Personal data (GDPR)" below |
+| `factory` | `(faker, attributes) => value`, used by seeders and tests. `attributes` holds what this record's earlier-declared factories produced, so one value can depend on another: `(faker, { discountType }) => ...` |
 | `validation` | `{ rule, message? }` - `rule` from `schema`, `message` keyed by rule name |
 
 ### Traits
@@ -98,14 +99,16 @@ generated model types stay precise.
 | `useUuid` | UUID column alongside the primary key |
 | `useTimestamps` (alias `timestampable`) | `created_at` / `updated_at`. On by default |
 | `useSoftDeletes` (alias `softDeletable`) | `deleted_at` plus soft-delete query scopes |
-| `useAuth` (alias `authenticatable`) | Auth columns; `{ usePasskey: true }` adds passkeys |
+| `useAuth` (alias `authenticatable`) | Auth columns; `{ usePasskey: true }` adds passkeys. Also confers `morphMany: { tokenable: 'PersonalAccessToken' }`, so any authenticatable model can hold API tokens |
 | `useApi` | Generates REST actions and routes: `{ uri, routes, middleware? }` |
 | `useSearch` (alias `searchable`) | Search-engine indexing: `{ displayable, searchable, sortable, filterable }` |
 | `useSocials` | OAuth identities, e.g. `['github']` |
-| `useActivityLog` | Writes an `Activity` row per change |
+| `useActivityLog` | Writes an `activities` feed row per change: `{ logOnly }` / `{ include }` / `{ exclude }` pick the attributes |
+| `useAudit` | Writes a `model_audits` row per change with an old/new diff |
 | `observe` | Emits `{model}:created` / `:updated` / `:deleted` events |
 | `billable` | Stripe methods (`checkout()`, `activeSubscription()`, ...) |
 | `taggable` / `categorizable` / `commentable` / `likeable` | Pivot tables and their relation methods |
+| `gdpr` | Whose data the rows are (`subject`), what erasure does (`erasure`), how long rows live (`retention`), and why (`basis`, `purpose`). See "Personal data (GDPR)" below |
 
 Also at the top level: `indexes: [{ name, columns, unique?, where? }]` for
 composite and partial-unique indexes, and `dashboard: { highlight: true }` to
@@ -140,6 +143,28 @@ duplicating that relationship column as an attribute.
 `hasManyThrough`, `morphOne`, `morphMany`, `morphTo`, `morphToMany`,
 `morphedByMany`. Each takes an array of model names, or an object form when you
 need to name the foreign key.
+
+The object form is also where a `belongsTo` says what happens to its row when
+the row it points at is deleted:
+
+```ts
+belongsTo: [
+  { model: 'Repository', onDelete: 'cascade' },
+  { model: 'User', foreignKey: 'author_id', onDelete: 'set null' },
+],
+```
+
+`'cascade' | 'set null' | 'restrict' | 'no action'`, enforced by the database
+on the foreign key. Left off, the default applies: the delete is refused while
+a child still points at the row.
+
+Worth declaring rather than deleting children in application code. The order
+has to be right in every place that deletes, forever, and the place that misses
+one leaves rows nothing can reach - while the database applies the rule to
+deletes the application never made: a manual `DELETE`, a restore, another
+service sharing the schema. Not for a polymorphic pair (`commentable_id`
+beside `commentable_type`): those carry no foreign key at all, because a
+constraint would name one table and reject every row pointing at another.
 
 Use the named object form for a many-to-many relation that owns its pivot
 schema. It keeps the relation accessor, migration, pivot defaults, timestamps,
@@ -189,6 +214,40 @@ scopes: {
 },
 ```
 
+## Personal data (GDPR)
+
+Declared on the model, read by access exports, erasure, retention and the
+processing register (stacksjs/stacks#365). Full guide: `docs/guide/gdpr.md`.
+
+```ts
+belongsTo: ['Customer'],
+traits: {
+  gdpr: {
+    subject: { via: 'Customer' },   // or 'user_id', ['a_id', 'b_id'], { column, where }, { email: 'col' }
+    erasure: 'anonymize',           // default; or 'delete' | 'keep'
+    retention: { days: 3650, action: 'anonymize' }, // optional; column defaults to created_at
+    basis: 'legal_obligation',
+    purpose: 'Order fulfilment, kept for tax and accounting',
+  },
+},
+attributes: {
+  deliveryAddress: { personal: true, validation: { rule: schema.string() } },
+},
+```
+
+- `subject` is derived when left out: `id` on `User`, the `belongsTo: ['User']`
+  foreign key elsewhere. A `via` parent must itself declare a subject.
+- Anonymization writes NULL to nullable columns and a typed placeholder to
+  `NOT NULL` ones (`erased-<id>` when unique). A `NOT NULL` enum or timestamp
+  needs `personal: { anonymize: <value> }`, or every request refuses to run.
+- A model that `belongsTo: ['User']` and declares nothing is **unclassified**:
+  erasure does not reach it and `buddy gdpr:register` lists it. Classify it, even
+  as `erasure: 'keep'`. `core/orm/tests/gdpr.test.ts` fails if a built-in one is.
+- Engine: `exportSubjectData`, `eraseSubject({ dryRun })`, `pruneRetainedData`,
+  `resolveGdprPlan`, `renderProcessingRegister`, all from `@stacksjs/orm`.
+  Commands: `buddy gdpr:export|erase|prune|register|register:check`. Every
+  request writes a `gdpr_requests` row (the `GdprRequest` model).
+
 ## Workflow
 
 ```sh
@@ -222,7 +281,10 @@ traits: {
 ```
 
 `buddy seed` walks every model carrying the trait and fills its table from the
-attribute factories. Nothing else is needed - no seeder files, no registration.
+attribute factories. Model fixture data needs no separate seeder or registration.
+Idempotent application bootstrap work can live in `database/seeders` as a
+default-exported class extending `Seeder` from `@stacksjs/database`. Buddy runs
+those application seeders after the model factories.
 
 ```bash
 buddy seed                       # every model with a useSeeder trait
@@ -234,9 +296,26 @@ buddy seed --include-defaults    # framework built-ins too
 
 A model with no `useSeeder` trait is never seeded. Auth and OAuth models are
 skipped on a non-fresh database so re-seeding cannot invalidate live sessions -
-pass `--allow-protected` to override.
+pass `--allow-protected` to override. A `belongsTo` to `User`, `Team` or `Customer` is
+filled only from accounts the same run seeded (never a pre-existing, possibly real one);
+`--attach-accounts` lifts that on a scratch database. Composite `unique: true` indexes are
+honoured: fewer rows are seeded rather than a duplicate combination.
 
-## All 62 built-in models by category
+## Built-in models by category
+
+The ones below are worth knowing by name. They are a selection, not the set:
+`storage/framework/defaults/app/Models/` holds 105, and that directory is the
+authority. This section said "All 62 built-in models by category" while
+listing fewer than that against 102 on disk, so an agent reading to the end
+had no way to tell it was short.
+
+No count of what this section itself lists, deliberately - that number is
+maintained by hand, drifts the moment anyone adds a bullet, and is the same
+habit that produced the "All 62". The total above is pinned by
+`buddy docs:agent-counts`.
+
+Run `find storage/framework/defaults/app/Models -name '*.ts'` for the full
+list, or `buddy list` for what a given project resolves.
 
 ### Users & Auth
 - **User** — name, email, password | traits: useAuth(passkey), useUuid, useTimestamps, useSocials(github) | hasOne: Subscriber, Driver, Author | hasMany: PersonalAccessToken, Customer
@@ -254,7 +333,7 @@ pass `--allow-protected` to override.
 
 ### Commerce (20+ models)
 - **Product** — name(max100), description, price(min1), imageUrl, isAvailable, inventoryCount, preparationTime, allergens(JSON), nutritionalInfo(JSON) | belongsTo: Category, Manufacturer | hasMany: Review, ProductUnit, ProductVariant, LicenseKey, WaitlistProduct, Coupon | seeder: 10, dashboard: highlighted
-- **ProductVariant** — SKU, options, pricing
+- **ProductVariant** — variant, type, options, status, sku (unique per product), price / compareAtPrice (minor units, null price inherits the product's), inventoryCount (null = untracked) | belongsTo: Product | seeder: 50
 - **ProductUnit** — unit-specific pricing
 - **Cart** — status(active|abandoned|converted|expired), totalItems, subtotal, taxAmount, discountAmount, total, expiresAt, currency(USD), notes | hasMany: CartItem | belongsTo: Customer, Coupon
 - **CartItem** — quantity(min1), unitPrice, totalPrice, taxRate, taxAmount, discountPercentage, productName, productSku | belongsTo: Cart

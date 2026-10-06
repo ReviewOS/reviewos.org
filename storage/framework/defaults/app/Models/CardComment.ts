@@ -1,14 +1,13 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 /**
- * Card comment (stacksjs/stacks#1846 Phase 3).
+ * Card comment for the dashboard Kanban surface.
  *
  * Each comment belongs to a card and (optionally) to the user who
  * wrote it. Anonymous comments are allowed via nullable `user_id` —
  * makes the dev dashboard usable on localhost without an auth round-
- * trip, and supports system-generated activity entries
- * (eventually — Phase 4 could write status-change comments here).
+ * trip, and supports system-generated activity entries.
  *
  * Distinct from `Comment` (which is post-specific) so the schemas
  * don't fight: post comments carry `author_name`/`author_email` for
@@ -22,6 +21,7 @@ export default defineModel({
   autoIncrement: true,
 
   traits: {
+    gdpr: { erasure: 'keep', basis: 'legitimate_interests', purpose: 'Shared board discussion, attributed to the (anonymized) author' },
     useUuid: true,
     useTimestamps: true,
     useSearch: {
@@ -35,7 +35,8 @@ export default defineModel({
 
     useApi: {
       uri: 'card-comments',
-      routes: ['index', 'store', 'show', 'destroy'],
+      routes: ['index', 'store', 'show', 'update', 'destroy'],
+      middleware: ['auth'],
     },
   },
 

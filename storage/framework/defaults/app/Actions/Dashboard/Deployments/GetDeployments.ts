@@ -1,5 +1,6 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { Deployment } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
 
 export default new Action({
   name: 'GetDeployments',
@@ -15,8 +16,8 @@ export default new Action({
         deployments: deployments.map(d => d.toJSON()),
       }
     }
-    catch {
-      return { deployments: [] }
+    catch (error) {
+      return dashboardOperationalError(error, 'Deployment records could not be loaded.', 'GetDeployments')
     }
   },
 })

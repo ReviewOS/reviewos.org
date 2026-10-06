@@ -1,3 +1,14 @@
+import { formatCurrency, minorToMajor } from '@stacksjs/commerce/money'
+import {
+  commerceCurrency,
+  commerceIdentifier,
+  commerceNumber,
+  commerceOptionalIdentifier,
+  commerceRequiredString,
+  commerceTimestamp,
+  commerceValue,
+} from './commerce-record'
+
 export type CommerceDashboardRange = 'today' | '7d' | '30d' | '90d' | 'year' | 'all'
 
 export interface CommerceDashboardOrderRow {
@@ -35,6 +46,7 @@ export interface CommerceDashboardStat {
 
 export interface CommerceDashboardChartSeries {
   labels: string[]
+  /** Major units per bucket (19.99, not 1999): chart axes are read by people. */
   revenue: Array<{ currency: string, data: number[] }>
   orders: number[]
 }
@@ -76,6 +88,66 @@ interface Bucket {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+export function normalizeCommerceDashboardOrder(record: any): CommerceDashboardOrderRow {
+  const id = commerceIdentifier(commerceValue(record, 'id', 'uuid'), 'Order')
+  const source = `Order ${id}`
+  return {
+    id,
+    status: commerceRequiredString(commerceValue(record, 'status'), source, 'status'),
+    totalAmount: commerceNumber(
+      commerceValue(record, 'total_amount', 'totalAmount'),
+      source,
+      'total_amount',
+      { min: 0 },
+    ),
+    currency: commerceCurrency(commerceValue(record, 'currency'), source),
+    customerId: commerceOptionalIdentifier(
+      commerceValue(record, 'customer_id', 'customerId'),
+      source,
+      'customer_id',
+    ),
+    createdAt: commerceTimestamp(commerceValue(record, 'created_at', 'createdAt'), source),
+  }
+}
+
+export function normalizeCommerceDashboardOrderItem(record: any): CommerceDashboardOrderItemRow {
+  const id = commerceIdentifier(commerceValue(record, 'id'), 'OrderItem')
+  const source = `OrderItem ${id}`
+  return {
+    orderId: commerceIdentifier(
+      commerceValue(record, 'order_id', 'orderId'),
+      source,
+      'order_id',
+    ),
+    productId: commerceIdentifier(
+      commerceValue(record, 'product_id', 'productId'),
+      source,
+      'product_id',
+    ),
+    quantity: commerceNumber(commerceValue(record, 'quantity'), source, 'quantity', {
+      min: 1,
+      integer: true,
+    }),
+    price: commerceNumber(commerceValue(record, 'price'), source, 'price', { min: 0 }),
+  }
+}
+
+export function normalizeCommerceDashboardProduct(record: any): CommerceDashboardProductRow {
+  const id = commerceIdentifier(commerceValue(record, 'id', 'uuid'), 'Product')
+  return {
+    id,
+    name: commerceRequiredString(commerceValue(record, 'name'), `Product ${id}`, 'name'),
+  }
+}
+
+export function normalizeCommerceDashboardCustomer(record: any): CommerceDashboardCustomerRow {
+  const id = commerceIdentifier(commerceValue(record, 'id', 'uuid'), 'Customer')
+  return {
+    id,
+    name: commerceRequiredString(commerceValue(record, 'name'), `Customer ${id}`, 'name'),
+  }
+}
 
 export function normalizeCommerceDashboardRange(value: unknown): CommerceDashboardRange {
   const range = String(value || '').toLowerCase()
@@ -128,7 +200,9 @@ function rangeWindow(range: CommerceDashboardRange, now: Date, rows: CommerceDas
     .map(row => timestamp(row.createdAt))
     .filter(Number.isFinite)
     .sort((left, right) => left - right)[0]
-  const start = Number.isFinite(earliest) ? new Date(earliest) : startOfUtcMonth(now)
+  // `earliest` is `number | undefined` (the array may be empty), and
+  // `Number.isFinite` does not narrow it for `new Date(...)`.
+  const start = earliest !== undefined && Number.isFinite(earliest) ? new Date(earliest) : startOfUtcMonth(now)
   const elapsedDays = Math.max(0, (now.getTime() - start.getTime()) / DAY_MS)
   return {
     start,
@@ -144,20 +218,11 @@ export function commerceDashboardQueryStart(range: CommerceDashboardRange, now =
 }
 
 function timestamp(value: string): number {
-  if (!value)
-    return Number.NaN
-  if (/^\d{10,13}$/.test(value)) {
-    const numeric = Number(value)
-    return value.length === 10 ? numeric * 1000 : numeric
-  }
-  const normalized = /^\d{4}-\d{2}-\d{2} \d/.test(value)
-    ? `${value.replace(' ', 'T')}Z`
-    : value
-  return new Date(normalized).getTime()
+  return new Date(commerceTimestamp(value, 'Commerce dashboard order', 'created_at')).getTime()
 }
 
 function currency(value: string): string {
-  return value.trim().toUpperCase() || 'USD'
+  return commerceCurrency(value, 'Commerce dashboard order')
 }
 
 function isCancelled(status: string): boolean {
@@ -176,26 +241,20 @@ function percentChange(current: number, previous: number): string {
   return `${sign}${percentage.toFixed(1)}%`
 }
 
+/** Order amounts are integer minor units (stacksjs/stacks#2851). */
 function formatMoney(amount: number, code: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: code,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)
-  }
-  catch {
-    return `${code} ${amount.toFixed(2)}`
-  }
+  return formatCurrency(amount, code, 'en-US')
 }
 
 function formatCurrencyTotals(totals: Map<string, number>): { value: string, detail: string } {
   const entries = [...totals.entries()].sort((left, right) => right[1] - left[1])
   if (entries.length === 0)
     return { value: formatMoney(0, 'USD'), detail: 'No recorded revenue' }
-  if (entries.length === 1)
-    return { value: formatMoney(entries[0][1], entries[0][0]), detail: entries[0][0] }
+  // Destructured rather than indexed: a `length === 1` check does not narrow
+  // `entries[0]` for the compiler, and every index below would need a guard.
+  const [only] = entries
+  if (entries.length === 1 && only)
+    return { value: formatMoney(only[1], only[0]), detail: only[0] }
   return {
     value: `${entries.length} currencies`,
     detail: entries.map(([code, amount]) => formatMoney(amount, code)).join(' | '),
@@ -208,10 +267,11 @@ function formatCurrencyAverages(totals: Map<string, { amount: number, orders: nu
     .sort((left, right) => right[1].amount - left[1].amount)
   if (entries.length === 0)
     return { value: formatMoney(0, 'USD'), detail: 'No recorded orders' }
-  if (entries.length === 1)
+  const [only] = entries
+  if (entries.length === 1 && only)
     return {
-      value: formatMoney(entries[0][1].amount / entries[0][1].orders, entries[0][0]),
-      detail: entries[0][0],
+      value: formatMoney(only[1].amount / only[1].orders, only[0]),
+      detail: only[0],
     }
   return {
     value: 'Mixed currencies',
@@ -268,7 +328,10 @@ function buildBuckets(start: Date, end: Date, bucket: RangeWindow['bucket']): Bu
 function singleCurrencyChange(current: Map<string, number>, previous: Map<string, number>): string {
   if (current.size !== 1)
     return ''
-  const [[code, amount]] = [...current.entries()]
+  const [entry] = [...current.entries()]
+  if (!entry)
+    return ''
+  const [code, amount] = entry
   return percentChange(amount, previous.get(code) || 0)
 }
 
@@ -280,6 +343,20 @@ export function buildCommerceDashboard(
   range: CommerceDashboardRange,
   now = new Date(),
 ): CommerceDashboardResult {
+  const allOrderIds = new Set(allOrders.map(order => order.id))
+  const allProductIds = new Set(products.map(product => product.id))
+  const allCustomerIds = new Set(customers.map(customer => customer.id))
+  for (const order of allOrders) {
+    if (order.customerId && !allCustomerIds.has(order.customerId))
+      throw new TypeError(`Order ${order.id}.customer_id references missing Customer ${order.customerId}.`)
+  }
+  for (const item of orderItems) {
+    if (!allOrderIds.has(item.orderId))
+      throw new TypeError(`OrderItem.order_id references missing Order ${item.orderId}.`)
+    if (!allProductIds.has(item.productId))
+      throw new TypeError(`OrderItem.product_id references missing Product ${item.productId}.`)
+  }
+
   const window = rangeWindow(range, now, allOrders)
   const startTime = window.start?.getTime() ?? Number.NEGATIVE_INFINITY
   const previousStartTime = window.previousStart?.getTime() ?? Number.NEGATIVE_INFINITY
@@ -334,12 +411,14 @@ export function buildCommerceDashboard(
     const index = bucketIndexes.get(bucketKey(createdAt, window.bucket))
     if (index === undefined)
       continue
-    orderSeries[index]++
+    // `index` came out of a Map lookup, so the compiler treats these slots as
+    // possibly missing even though the arrays are pre-filled to bucket length.
+    orderSeries[index] = (orderSeries[index] ?? 0) + 1
     if (isCancelled(order.status))
       continue
     const code = currency(order.currency)
     const values = revenueSeries.get(code) || Array.from({ length: buckets.length }, () => 0)
-    values[index] += order.totalAmount
+    values[index] = (values[index] ?? 0) + order.totalAmount
     revenueSeries.set(code, values)
   }
 
@@ -350,11 +429,14 @@ export function buildCommerceDashboard(
     const order = ordersById.get(item.orderId)
     if (!order || isCancelled(order.status))
       continue
+    const product = productsById.get(item.productId)
+    if (!product)
+      throw new TypeError(`OrderItem product_id references missing Product ${item.productId}.`)
     const code = currency(order.currency)
     const key = `${item.productId}:${code}`
     const total = productTotals.get(key) || {
       productId: item.productId,
-      name: productsById.get(item.productId)?.name || `Product ${item.productId}`,
+      name: product.name,
       currency: code,
       sales: 0,
       revenue: 0,
@@ -368,13 +450,18 @@ export function buildCommerceDashboard(
   const recentOrders = [...current]
     .sort((left, right) => timestamp(right.createdAt) - timestamp(left.createdAt))
     .slice(0, 5)
-    .map(order => ({
-      id: `ORD-${order.id.padStart(4, '0')}`,
-      customer: customersById.get(order.customerId) || (order.customerId ? `Customer ${order.customerId}` : 'Guest'),
-      total: formatMoney(order.totalAmount, currency(order.currency)),
-      status: order.status,
-      createdAt: order.createdAt,
-    }))
+    .map((order) => {
+      const customer = order.customerId ? customersById.get(order.customerId) : undefined
+      if (order.customerId && !customer)
+        throw new TypeError(`Order ${order.id}.customer_id references missing Customer ${order.customerId}.`)
+      return {
+        id: `ORD-${order.id.padStart(4, '0')}`,
+        customer: customer || 'Guest',
+        total: formatMoney(order.totalAmount, currency(order.currency)),
+        status: order.status,
+        createdAt: order.createdAt,
+      }
+    })
 
   return {
     range,
@@ -411,7 +498,7 @@ export function buildCommerceDashboard(
       labels: buckets.map(bucket => bucket.label),
       revenue: [...revenueSeries.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([code, data]) => ({ currency: code, data })),
+        .map(([code, data]) => ({ currency: code, data: data.map(amount => minorToMajor(amount, code)) })),
       orders: orderSeries,
     },
     topProducts: [...productTotals.entries()]

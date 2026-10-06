@@ -1,5 +1,5 @@
 import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 /**
  * Pivot row between Subscriber and EmailList.
@@ -18,6 +18,7 @@ export default defineModel({
   belongsTo: ['EmailList', 'Subscriber'],
 
   traits: {
+    gdpr: { subject: { via: 'Subscriber' }, erasure: 'delete', basis: 'consent', purpose: 'Mailing list membership' },
     useUuid: true,
     useTimestamps: true,
     useApi: {

@@ -1,6 +1,6 @@
 ---
 name: stacks-push
-description: Use when implementing push notifications in Stacks — sending via Expo Push Service or Firebase Cloud Messaging (FCM legacy and v1 APIs), configuring push drivers, batch sending, multicast, topic subscriptions, push notification payloads, token validation, or receipt checking. Covers @stacksjs/push.
+description: Use when implementing push notifications in Stacks - sending via Expo Push Service or Firebase Cloud Messaging (FCM v1 API), configuring push drivers, batch sending, multicast, topic subscriptions, push notification payloads, token validation, or receipt checking. Covers @stacksjs/push.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -8,7 +8,11 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 # Stacks Push Notifications
 
-Push notification support with Expo Push Service and FCM (Firebase Cloud Messaging) drivers. FCM supports both the legacy server key API and the v1 service account API.
+Push notification support with Expo Push Service and FCM (Firebase Cloud Messaging) drivers.
+
+FCM is the v1 service account API only. The legacy server-key API was
+decommissioned on 2024-06-20 and its endpoint answers 404, so a `serverKey` is
+no longer a way to configure this driver and there is no fallback to it.
 
 ## Key Paths
 - Core package: `storage/framework/core/push/src/`
@@ -17,11 +21,11 @@ Push notification support with Expo Push Service and FCM (Firebase Cloud Messagi
 ## Source Files
 ```
 push/src/
-├── index.ts              # send(), configureFCM(), PushNotification type
+├── index.ts              # send(), configureFCM(), configureExpo(), PushNotification type
 └── drivers/
     ├── index.ts          # re-exports expo and fcm
     ├── expo.ts           # Expo Push Service driver
-    └── fcm.ts            # FCM legacy + v1 API driver
+    └── fcm.ts            # FCM v1 API driver
 ```
 
 ## Main send() Function
@@ -155,15 +159,14 @@ Sends multiple messages in chunks (default chunk size: 100, per Expo's recommend
 
 ## FCM Driver (fcm.ts)
 
-Supports two APIs:
-1. **Legacy API** (`https://fcm.googleapis.com/fcm/send`) -- uses server key
-2. **v1 API** (`https://fcm.googleapis.com/v1/projects/{projectId}/messages:send`) -- uses service account with OAuth2 JWT
+One API: **v1** (`https://fcm.googleapis.com/v1/projects/{projectId}/messages:send`),
+using a service account with an OAuth2 JWT. Everything needs `serviceAccount`
+and `projectId`; nothing accepts a server key.
 
 ### FCMConfig
 ```typescript
 interface FCMConfig {
-  serverKey?: string                    // for legacy API
-  projectId?: string                    // for v1 API
+  projectId?: string
   serviceAccount?: {
     clientEmail: string
     privateKey: string                  // PEM format
@@ -175,8 +178,7 @@ interface FCMConfig {
 ```typescript
 interface FCMMessage {
   to?: string                           // single device token
-  registrationIds?: string[]            // multiple device tokens (legacy only)
-  topic?: string                        // topic name (auto-prefixed with /topics/)
+  topic?: string                        // topic name
   condition?: string                    // topic condition expression
   notification?: {
     title: string
@@ -195,19 +197,6 @@ interface FCMMessage {
 }
 ```
 
-### FCMResponse (legacy API)
-```typescript
-interface FCMResponse {
-  multicastId?: number
-  success: number
-  failure: number
-  results?: Array<{
-    messageId?: string
-    error?: string
-  }>
-}
-```
-
 ### Functions
 
 #### configure()
@@ -215,12 +204,16 @@ interface FCMResponse {
 function configure(options: FCMConfig): void
 ```
 Sets module-level config. Called by `configureFCM()` from the main index.
+Optional: anything it does not set is read from `config/services.ts` on each
+send (see Configuration), and anything it does set wins.
 
 #### send()
 ```typescript
 async function send(message: FCMMessage): Promise<PushResult>
 ```
-If `serviceAccount` and `projectId` are configured, uses the v1 API. Otherwise falls back to `sendLegacy()`.
+Requires `serviceAccount` and `projectId`. Without them it returns a failed
+`PushResult` naming what is missing, rather than falling back - the legacy
+endpoint it used to fall back to is gone.
 
 **v1 API flow:**
 1. Generates JWT with RS256 signing using the service account private key
@@ -235,31 +228,21 @@ If `serviceAccount` and `projectId` are configured, uses the v1 API. Otherwise f
 - Expiry: 1 hour
 - Key imported via `crypto.subtle.importKey('pkcs8', ...)`
 
-#### sendLegacy()
-```typescript
-async function sendLegacy(message: FCMMessage): Promise<PushResult>
-```
-Uses the legacy API with `Authorization: key=<serverKey>`. Supports:
-- Single device via `to`
-- Multiple devices via `registration_ids`
-- Topics via `/topics/<topic>`
-- Conditions via `condition`
-
 #### sendMulticast()
 ```typescript
 async function sendMulticast(
   tokens: string[],
-  message: Omit<FCMMessage, 'to' | 'registrationIds'>,
+  message: Omit<FCMMessage, 'to'>,
 ): Promise<PushResult[]>
 ```
-- v1 API: sends individually to each token via `Promise.all` (v1 doesn't support multicast natively)
-- Legacy API: uses `registrationIds` field for native multicast in a single request
+Sends individually to each token via `Promise.all`: the v1 API has no native
+multicast, and the legacy API that did is decommissioned.
 
 #### sendToTopic()
 ```typescript
 async function sendToTopic(
   topic: string,
-  message: Omit<FCMMessage, 'to' | 'registrationIds' | 'topic'>,
+  message: Omit<FCMMessage, 'to' | 'topic'>,
 ): Promise<PushResult>
 ```
 Convenience wrapper that sets the `topic` field and calls `send()`.
@@ -268,24 +251,54 @@ Convenience wrapper that sets the `topic` field and calls `send()`.
 ```typescript
 async function subscribeToTopic(tokens: string[], topic: string): Promise<boolean>
 ```
-Uses `https://iid.googleapis.com/iid/v1:batchAdd` with legacy server key auth. Subscribes device tokens to a topic.
+`POST {FCM_V1_URL}/{projectId}/registrations/{token}/topicSubscriptions?topic_name={topic}`,
+authenticated with the same OAuth token `send()` uses. Needs `serviceAccount` and
+`projectId`; a legacy `serverKey` is not accepted. The v1 API acts on one
+registration, so the batch is one request per token, and a 409 counts as success
+because it means the subscription already exists.
+
+It used to call `https://iid.googleapis.com/iid/v1:batchAdd`. Those Instance ID
+endpoints stop serving on 2027-09-29 and admit no new projects from 2027-01-01
+(stacksjs/stacks#2856).
 
 #### unsubscribeFromTopic()
 ```typescript
 async function unsubscribeFromTopic(tokens: string[], topic: string): Promise<boolean>
 ```
-Uses `https://iid.googleapis.com/iid/v1:batchRemove` with legacy server key auth.
+`DELETE {FCM_V1_URL}/{projectId}/registrations/{token}/topicSubscriptions/{topic}`.
+The topic is a query parameter when subscribing and a path segment when
+unsubscribing; that asymmetry is the API's.
 
 ### Exports
-- `send`, `sendLegacy`, `sendMulticast`, `sendToTopic`, `subscribeToTopic`, `unsubscribeFromTopic`, `configure` functions
+- `send`, `sendMulticast`, `sendToTopic`, `subscribeToTopic`, `unsubscribeFromTopic`, `configure`, `buildServiceAccountAssertion` functions
 - `Send` alias for `send`
 
 ## Configuration
 
-```typescript
-import { configureFCM } from '@stacksjs/push'
+Set the env vars `config/services.ts` reads and both drivers pick them up on the
+next send. No code is needed:
 
-// FCM v1 API (recommended)
+```bash
+FCM_PROJECT_ID=my-firebase-project
+FCM_CLIENT_EMAIL=firebase@project.iam.gserviceaccount.com
+# Paste the key from the service account JSON as-is: its literal \n escapes
+# are turned back into newlines.
+FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# Only needed once "enhanced push security" is on for the Expo project:
+# Expo then rejects every send and receipt request without it.
+EXPO_ACCESS_TOKEN=...
+```
+
+The values are read lazily, after the app's config has loaded, never at
+import - a value captured at import would be the framework default.
+
+`configureFCM()` / `configureExpo()` override config, for an app that keeps
+credentials somewhere else:
+
+```typescript
+import { configureExpo, configureFCM } from '@stacksjs/push'
+
 configureFCM({
   projectId: 'my-firebase-project',
   serviceAccount: {
@@ -294,13 +307,12 @@ configureFCM({
   }
 })
 
-// FCM Legacy API (simpler setup)
-configureFCM({
-  serverKey: 'your-fcm-server-key'
-})
-
-// Expo requires no configuration
+configureExpo({ accessToken: '...' })
 ```
+
+FCM access tokens are cached per service account until a minute before they
+expire, so a multicast exchanges one token, not one per device.
+`fcm.resetConfiguration()` drops both the configured credentials and the cache.
 
 ## Usage Examples
 
@@ -363,11 +375,10 @@ await fcm.unsubscribeFromTopic(['token1'], 'news')
 - Expo `send()` fans out array tokens into individual payload entries (one per token)
 - Expo default `sound` is `'default'` and default `priority` is `'high'` (set in the driver, not the main send)
 - FCM `data` values must be `Record<string, string>` (strings only, not arbitrary JSON)
-- FCM `send()` auto-falls back to legacy API if no `serviceAccount`/`projectId` configured
+- FCM `send()` fails with a message naming the missing config rather than falling back; the legacy endpoint was decommissioned 2024-06-20 and answers 404
 - FCM v1 API does not support native multicast -- `sendMulticast()` sends individually via `Promise.all`
-- FCM legacy API supports multicast via `registrationIds` in a single request
-- FCM topic names are auto-prefixed with `/topics/` in the legacy API
-- `subscribeToTopic()` and `unsubscribeFromTopic()` require the legacy `serverKey` (not service account)
+- `subscribeToTopic()` and `unsubscribeFromTopic()` require `serviceAccount` + `projectId`, and throw on a `serverKey`-only config. They return a single boolean for the whole batch, so a partial failure reads as `false`; the per-token status is logged
+- The v1 topic API takes the topic as a **query parameter** on subscribe and a **path segment** on unsubscribe
 - The main `send()` converts `priority: 'default'` to `'normal'` for FCM
 - Expo `sendBatch()` processes chunks sequentially but messages within each chunk in parallel
 - FCM v1 JWT tokens expire after 1 hour -- a new token is generated for each `send()` call (no caching)

@@ -1,6 +1,8 @@
-import { Action } from '@stacksjs/actions'
-import { GiftCard } from '@stacksjs/orm'
+import { Action } from '@stacksjs/actions/runtime'
+import { Customer, GiftCard } from '@stacksjs/orm'
+import { dashboardOperationalError } from '../dashboard-response'
 import { normalizeGiftCardRecord, summarizeGiftCards } from './gift-card-records'
+import { commerceIdentifier, commerceValue } from './commerce-record'
 
 export default new Action({
   name: 'CommerceGiftCardsAction',
@@ -9,11 +11,22 @@ export default new Action({
   apiResponse: true,
 
   async handle() {
-    const giftCards = await GiftCard.orderByDesc('id').limit(500).get()
-    const records = giftCards.map(normalizeGiftCardRecord)
-    return {
-      records,
-      summary: summarizeGiftCards(records),
+    try {
+      const [giftCards, customers] = await Promise.all([
+        GiftCard.orderByDesc('id').limit(500).get(),
+        Customer.orderBy('id', 'asc').limit(500).get(),
+      ])
+      const customerIds = new Set(customers.map(customer =>
+        commerceIdentifier(commerceValue(customer, 'id', 'uuid'), 'Customer'),
+      ))
+      const records = giftCards.map(giftCard => normalizeGiftCardRecord(giftCard, customerIds))
+      return {
+        records,
+        summary: summarizeGiftCards(records),
+      }
+    }
+    catch (error) {
+      return dashboardOperationalError(error, 'Gift card records could not be read.', 'CommerceGiftCardsAction')
     }
   },
 })

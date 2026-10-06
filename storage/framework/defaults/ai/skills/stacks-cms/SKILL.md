@@ -1,6 +1,6 @@
 ---
 name: stacks-cms
-description: Use when working with the CMS in a Stacks application — posts, authors, pages, categories, tags, comments, blog configuration, RSS feeds, or sitemaps. Covers @stacksjs/cms, CMS models, routes, and actions.
+description: Use when working with the CMS in a Stacks application - posts, authors, pages, categories, tags, comments, blog configuration, RSS feeds, or sitemaps. Covers @stacksjs/cms, CMS models, routes, and actions.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -148,6 +148,21 @@ cms.comments.rejectComment(id: number): Promise<CommentablesTable>
 cms.comments.deleteComment(id: number): Promise<void>
 ```
 
+### The `commentable` trait
+A model with `traits: { commentable: true }` (singular; `commentables` is inert) gains instance methods
+keyed to the record's own id:
+
+```typescript
+await post.addComment({ body, author_name?, author_email?, user_id?, title? }, { status: 'pending' | 'approved' })
+await post.comments() / post.approvedComments() / post.pendingComments() / post.rejectedComments() // oldest first
+await post.commentCount()
+```
+
+Only those five fields are written, so a validated form body can go straight in; status and owner come
+from the trait. `author_name` / `author_email` are for guest commenters (no account); never render the
+email. Moderate without a dashboard with `buddy comments:list [--status] [--type]`,
+`comments:approve <id>`, `comments:reject <id>`, `comments:delete <id>`.
+
 ## Routes
 
 ### CMS Admin Routes
@@ -175,6 +190,26 @@ cms.comments.deleteComment(id: number): Promise<void>
 | GET | `/blog/feed.xml` | RSS 2.0 feed (20 recent) |
 | GET | `/blog/sitemap.xml` | XML sitemap for SEO |
 
+The site-wide `/sitemap.xml` merges the published posts in, so crawlers find them from the root sitemap too (see `stacks-server`, "Sitemap and robots.txt").
+
+## Post Bodies: Images, Grids, Zoom and Embeds
+
+Blog post HTML goes through `renderPostHtml` from `@stacksjs/cms/article`, built on ts-medium-editor's article renderer. The BunPress blog (`core/actions/src/blog.ts`) does this already; an stx-native blog calls it from its post view:
+
+```ts
+const { renderPostHtml, articleHead, articleScript } = require('@stacksjs/cms/article')
+post.html = renderPostHtml(markdownHtml) // then {!! articleHead() !!} in @push('head'), {!! articleScript() !!} in @push('scripts')
+```
+
+What authors get from plain markdown:
+
+- `![alt](/images/a.jpg "Caption")` alone in a paragraph becomes a figure with a caption.
+- Images in consecutive paragraphs become a grid: two side by side, three with the tallest on the left and two stacked on the right, four as 2x2, more in rows of three and two. Sizes are read from the files in `public/`, so columns are proportioned and nothing crops or shifts.
+- Lazy loading after the first image, click-to-zoom on every unlinked image.
+- A bare YouTube, Vimeo or `https://hq.training/a/<id>` link on its own line becomes an embed.
+
+Tune the look with custom properties (`--me-radius`, `--me-gap`, `--me-block-space`, `--me-caption-color`, `--me-zoom-backdrop`) on the post body. `imageSize(bytes)` and `publicImageResolver(dir)` are exported for other uses.
+
 ## Blog Configuration (config/blog.ts)
 
 ```typescript
@@ -183,10 +218,10 @@ cms.comments.deleteComment(id: number): Promise<void>
   title: 'Stacks Blog',
   description: 'The official Stacks.js blog',
   postsPerPage: 10,
-  enableComments: true,
-  enableRss: true,
-  enableSitemap: true,
-  enableSearch: true,
+  enableComments: true,   // declared, NOT yet honoured by the static builder
+  enableRss: true,        // generates feed.xml
+  enableSitemap: true,    // generates sitemap.xml
+  enableSearch: true,     // declared, NOT yet honoured by the static builder
   social: { twitter: '@stacksjs', github: 'stacksjs/stacks' },
   theme: { primaryColor: '#3451b2', logo: '/images/logos/logo-transparent.svg' },
 }

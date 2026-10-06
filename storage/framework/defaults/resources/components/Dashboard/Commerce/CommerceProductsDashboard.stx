@@ -3,9 +3,11 @@ import type {
   CommerceProductRecord,
   CommerceProductSummary,
   ProductOption,
+  ProductWritePayload,
 } from '../../../../app/Actions/Dashboard/Commerce/commerce-product-records'
 import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
+import { minorToInput } from '@stacksjs/commerce/money'
 
 interface ProductIndexResponse {
   records: CommerceProductRecord[]
@@ -13,20 +15,6 @@ interface ProductIndexResponse {
   categories: ProductOption[]
   manufacturers: ProductOption[]
   defaultCurrency: string
-}
-
-interface ProductWritePayload {
-  name: string
-  description: string
-  price: number
-  imageUrl: string
-  isAvailable: boolean
-  inventoryCount: number
-  preparationTime: number
-  allergens: string
-  nutritionalInfo: string
-  categoryId: number | null
-  manufacturerId: number | null
 }
 
 const emptySummary: CommerceProductSummary = {
@@ -135,7 +123,8 @@ function exportHref(): string {
     record.id,
     record.name,
     record.description,
-    String(record.price),
+    // Stored as integer minor units; the CSV carries the decimal a person reads.
+    minorToInput(record.price, defaultCurrency()),
     defaultCurrency(),
     record.isAvailable ? 'Available' : 'Unavailable',
     String(record.inventoryCount),
@@ -156,25 +145,13 @@ function exportHref(): string {
   return `data:text/csv;charset=utf-8,${encodeURIComponent(`\uFEFF${csv}`)}`
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
+effect(() => {
+  search()
+  categoryFilter()
+  availabilityFilter()
+  sort()
   page.set(1)
-}
-
-function updateCategory(event: Event): void {
-  categoryFilter.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
-
-function updateAvailability(event: Event): void {
-  availabilityFilter.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
-
-function updateSort(event: Event): void {
-  sort.set((event.target as HTMLSelectElement).value)
-  page.set(1)
-}
+})
 
 async function loadProducts(): Promise<void> {
   loading.set(true)
@@ -227,7 +204,7 @@ async function saveProduct(payload: ProductWritePayload): Promise<void> {
   saving.set(true)
   validationErrors.set({})
   try {
-    await dashboardApi(editing ? `/api/products/${current.id}` : '/api/products', {
+    await dashboardApi(editing ? `/api/dashboard/commerce/products/${current.id}` : '/api/dashboard/commerce/products', {
       method: editing ? 'PATCH' : 'POST',
       body: payload,
     })
@@ -267,7 +244,7 @@ async function deleteProduct(): Promise<void> {
     return
   deleting.set(true)
   try {
-    await dashboardApi(`/api/products/${current.id}`, { method: 'DELETE' })
+    await dashboardApi(`/api/dashboard/commerce/products/${current.id}`, { method: 'DELETE' })
     deletingRecord.set(null)
     pushToast('success', 'Product deleted', { detail: current.name })
     await loadProducts()
@@ -302,9 +279,9 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Manage native Product records, commerce availability, inventory, and relationships.</p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <button type="button" :disabled="loading()" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadProducts()"><span :class="'mr-2 h-4 w-4 ' + (loading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>Refresh</button>
-      <a :href="exportHref()" :download="'products-' + new Date().toISOString().slice(0, 10) + '.csv'" class="inline-flex items-center px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><span class="mr-2 h-4 w-4 i-hugeicons-download-04"></span>Export filtered</a>
-      <button type="button" class="inline-flex items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md" @click="openAdd()"><span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>Add product</button>
+      <Button variant="secondary" :loading="loading()" @click="loadProducts()"><span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
+      <Button tag="a" variant="secondary" :href="exportHref()" :download="'products-' + new Date().toISOString().slice(0, 10) + '.csv'"><span class="h-4 w-4 i-hugeicons-download-04"></span>Export filtered</Button>
+      <Button @click="openAdd()"><span class="h-4 w-4 i-hugeicons-add-01"></span>Add product</Button>
     </div>
   </header>
 
@@ -325,19 +302,19 @@ onMount(() => {
       <label class="relative sm:col-span-2">
         <span class="sr-only">Search products</span>
         <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-gray-400 pointer-events-none"><span class="h-4 w-4 i-hugeicons-search-01"></span></span>
-        <input :value="search()" type="search" placeholder="Search name, category, manufacturer, or allergen" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input x-model="search" type="search" placeholder="Search name, category, manufacturer, or allergen" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </label>
-      <label><span class="sr-only">Product category</span><select :value="categoryFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateCategory($event)"><option value="all">Any category</option><template :for="option in categories()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
-      <label><span class="sr-only">Product availability</span><select :value="availabilityFilter()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateAvailability($event)"><option value="all">Any availability</option><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="out-of-stock">Out of stock</option></select></label>
-      <label><span class="sr-only">Sort products</span><select :value="sort()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateSort($event)"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="price-high">Highest price</option><option value="price-low">Lowest price</option><option value="inventory-high">Highest inventory</option></select></label>
+      <label><span class="sr-only">Product category</span><select x-model="categoryFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="all">Any category</option><template :for="option in categories()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+      <label><span class="sr-only">Product availability</span><select x-model="availabilityFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="all">Any availability</option><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="out-of-stock">Out of stock</option></select></label>
+      <label><span class="sr-only">Sort products</span><select x-model="sort" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="price-high">Highest price</option><option value="price-low">Lowest price</option><option value="inventory-high">Highest inventory</option></select></label>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-gray-500 text-sm dark:text-neutral-400">{{ matchingLabel() }}</p>
       <div class="flex gap-2 items-center">
-        <button type="button" :disabled="page() <= 1" class="px-3 py-1.5 font-medium text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-40" @click="previousPage()">Previous</button>
+        <Button variant="secondary" size="sm" :disabled="page() <= 1" @click="previousPage()">Previous</Button>
         <span class="text-gray-500 text-sm dark:text-neutral-400">Page {{ Math.min(page(), pageCount()) }} of {{ pageCount() }}</span>
-        <button type="button" :disabled="page() >= pageCount()" class="px-3 py-1.5 font-medium text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-40" @click="nextPage()">Next</button>
+        <Button variant="secondary" size="sm" :disabled="page() >= pageCount()" @click="nextPage()">Next</Button>
       </div>
     </div>
 

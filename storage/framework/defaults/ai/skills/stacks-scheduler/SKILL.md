@@ -1,6 +1,6 @@
 ---
 name: stacks-scheduler
-description: Use when scheduling tasks in a Stacks application — defining scheduled tasks, cron-like scheduling, or task automation. Covers @stacksjs/scheduler, @stacksjs/cron, and app/Scheduler.ts.
+description: Use when scheduling tasks in a Stacks application - defining scheduled tasks, cron-like scheduling, or task automation. Covers @stacksjs/scheduler, @stacksjs/cron, and app/Scheduler.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -47,7 +47,7 @@ The `Schedule` class is the core scheduling API. The lowercase `schedule` export
 import { schedule } from '@stacksjs/scheduler'
 
 // Static factory methods — each returns UntimedSchedule
-schedule.job(name: string): UntimedSchedule      // Runs a job by name via runJob()
+schedule.job(name: JobName): UntimedSchedule     // Runs a job by name via runJob()
 schedule.action(name: string): UntimedSchedule    // Runs an action by name via runAction()
 schedule.command(cmd: string): UntimedSchedule    // Runs a shell command via runCommand()
 
@@ -89,11 +89,11 @@ Each sets an internal cron pattern. Once a timing method is called, the schedule
 setTimeZone(timezone: Timezone): this
 withErrorHandler(handler: CatchCallbackFn): this
 withMaxRuns(runs: number): this
-withProtection(callback?: (job: ScheduledJob) => void): this
+withProtection(callback?: (job: ScheduledJob) => void): this  // skip a tick while the last run is still going (this process); callback hears each skip
 withName(name: string): this
-withContext(context: any): this
-withInterval(seconds: number): this
-between(startAt: string | Date, stopAt: string | Date): this
+withContext(context: any): this          // passed to the task on each run: the callback's argument, or the job's `context`
+withInterval(seconds: number): this      // at least this many seconds between runs; sooner ticks are skipped
+between(startAt: string | Date, stopAt: string | Date): this  // only run inside the window; stops for good once it closes
 withoutOverlapping(expiresAfterMinutes?: number): this
 onOneServer(): this
 runInBackground(): this
@@ -132,7 +132,7 @@ When `withoutOverlapping()` or `onOneServer()` is called:
 
 ### Background Execution
 
-When `runInBackground()` is called, the task is spawned as a detached child process via `node:child_process.spawn`. The child is `unref()`'d so it does not keep the parent alive.
+When `runInBackground()` is called, each run starts `buddy schedule:run-one <name> --in-process` as a detached child in the project directory. That process registers the app's schedule the way `schedule:run` does and runs the one task there, taking any `withoutOverlapping()` / `onOneServer()` lock itself. The child is `unref()`'d so it does not keep the parent alive, and a non-zero exit is logged under the task's name. The task needs a name (`schedule.job/action/command` have one; a callback needs `.withName()`), or registration fails.
 
 ## Helper Functions
 
@@ -351,7 +351,7 @@ export default {
 - The `Queue` class in `schedule.ts` is just an empty subclass of `Schedule` (`export class Queue extends Schedule {}`) -- it adds no functionality
 - `withoutOverlapping()` uses file-based locks in `storage/framework/locks/` -- this only prevents overlap within a single machine, not across a cluster
 - `onOneServer()` also uses file-based locks (same as `withoutOverlapping`), so it does not actually coordinate across multiple servers
-- `runInBackground()` spawns a detached child process with `spawn(process.execPath, ['-e', ...])` -- the task function is `.toString()`'d and eval'd, so closures over external variables will not work
+- `runInBackground()` runs the task by name in a `buddy schedule:run-one <name> --in-process` child, so the task must be registered under that name by the app's scheduler file, and an unnamed callback is refused
 - There are TWO scheduler systems: `@stacksjs/scheduler` (fluent API in `schedule.ts`) and the queue-level scheduler in `@stacksjs/queue` (`queue/src/scheduler.ts`). The former runs tasks in-process; the latter dispatches to the queue
 - `sendAt()` throws on invalid cron expressions (it delegates to `parse()` which throws)
 - `timeout()` returns `-1` (not `0` or `Infinity`) when there is no upcoming run

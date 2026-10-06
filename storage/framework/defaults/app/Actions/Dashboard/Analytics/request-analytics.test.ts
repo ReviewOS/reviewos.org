@@ -1,18 +1,55 @@
 import { describe, expect, test } from 'bun:test'
-import { buildWebAnalytics, normalizeAnalyticsRange, normalizeAnalyticsScope } from './request-analytics'
+import {
+  buildWebAnalytics,
+  normalizeAnalyticsRange,
+  normalizeAnalyticsScope,
+  requestAnalyticsRow,
+} from './request-analytics'
 
 const now = new Date('2026-07-29T12:00:00.000Z')
 
 describe('request analytics', () => {
   test('normalizes supported ranges', () => {
     expect(normalizeAnalyticsRange('week')).toBe('week')
-    expect(normalizeAnalyticsRange('invalid')).toBe('month')
+    expect(normalizeAnalyticsRange(undefined)).toBe('month')
+    expect(() => normalizeAnalyticsRange('invalid')).toThrow('must be day, week, month, or year')
+    expect(() => normalizeAnalyticsRange(7)).toThrow('must be a string')
   })
 
   test('normalizes supported traffic scopes', () => {
     expect(normalizeAnalyticsScope('blog')).toBe('blog')
     expect(normalizeAnalyticsScope('commerce')).toBe('commerce')
-    expect(normalizeAnalyticsScope('unknown')).toBe('all')
+    expect(normalizeAnalyticsScope(undefined)).toBe('all')
+    expect(() => normalizeAnalyticsScope('unknown')).toThrow('must be all, blog, or commerce')
+  })
+
+  test('maps valid request records and rejects corrupted metrics', () => {
+    const values: Record<string, unknown> = {
+      method: 'GET',
+      path: '/docs',
+      status_code: 200,
+      duration_ms: 24,
+      ip_address: null,
+      user_agent: 'Test browser',
+      created_at: '2026-07-29T11:58:00.000Z',
+    }
+    const record = { get: (key: string) => values[key] }
+
+    expect(requestAnalyticsRow(record)).toEqual({
+      method: 'GET',
+      path: '/docs',
+      statusCode: 200,
+      durationMs: 24,
+      ipAddress: '',
+      userAgent: 'Test browser',
+      createdAt: '2026-07-29T11:58:00.000Z',
+    })
+
+    values.status_code = 'unknown'
+    expect(() => requestAnalyticsRow(record)).toThrow('status_code must be a finite number')
+    values.status_code = 200
+    values.created_at = 'not-a-date'
+    expect(() => requestAnalyticsRow(record)).toThrow('created_at must be a valid timestamp')
   })
 
   test('aggregates page traffic without exposing visitor identities', () => {
@@ -47,12 +84,12 @@ describe('request analytics', () => {
     ], 'day', now)
 
     expect(result.overview).toEqual({
-      realtime: 1,
-      people: 1,
-      views: 2,
-      avgTimeOnSite: '40 ms',
-      bounceRate: '33.3%',
-      eventCompletions: 2,
+      realtimeVisitors: 1,
+      uniqueVisitors: 1,
+      pageViews: 2,
+      averageResponseTime: '40 ms',
+      errorRate: '33.3%',
+      successfulRequests: 2,
     })
     expect(result.pages).toEqual([{
       path: '/docs',

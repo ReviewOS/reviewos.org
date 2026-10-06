@@ -1,4 +1,5 @@
 <script client>
+import { minorToInput, moneyInputError, parseMoneyInput } from '@stacksjs/commerce/money'
 interface ShippingResourceOption {
   id: number
   name: string
@@ -42,7 +43,7 @@ effect(() => {
   zoneId.set(current ? String(current.shipping_zone_id) : '')
   weightFrom.set(current ? String(current.weight_from) : '')
   weightTo.set(current ? String(current.weight_to) : '')
-  amount.set(current ? (current.rate / 100).toFixed(2) : '')
+  amount.set(current ? minorToInput(current.rate, 'USD') : '')
 })
 
 function submit(): void {
@@ -50,7 +51,6 @@ function submit(): void {
   const selectedZoneId = Number(zoneId())
   const from = Number(weightFrom())
   const to = Number(weightTo())
-  const rate = Number(amount())
 
   if (!Number.isInteger(selectedMethodId) || selectedMethodId < 1) {
     emit('invalid', 'Select a shipping method.')
@@ -68,31 +68,34 @@ function submit(): void {
     emit('invalid', 'Ending weight must be greater than or equal to the starting weight.')
     return
   }
-  if (!Number.isFinite(rate) || rate < 0) {
-    emit('invalid', 'Rate must be a non-negative amount.')
+  // Typed in dollars, stored as integer cents.
+  const rateError = moneyInputError(amount(), 'USD')
+  if (rateError) {
+    emit('invalid', `Rate: ${rateError}`)
     return
   }
 
   emit('submit', {
-    shipping_method_id: selectedMethodId,
-    shipping_zone_id: selectedZoneId,
-    weight_from: from,
-    weight_to: to,
-    rate: Math.round(rate * 100),
+    shippingMethodId: selectedMethodId,
+    shippingZoneId: selectedZoneId,
+    weightFrom: from,
+    weightTo: to,
+    rate: parseMoneyInput(amount(), 'USD'),
   })
 }
 </script>
 
-<div :if="open()" class="flex fixed inset-0 z-50 items-center justify-center p-4">
-  <button type="button" aria-label="Close shipping rate dialog" class="absolute inset-0 bg-black/45" @click="emit('close')"></button>
-  <section role="dialog" aria-modal="true" aria-labelledby="shipping-rate-dialog-title" class="overflow-y-auto relative max-h-[92dvh] max-w-lg w-full bg-white dark:bg-neutral-800 border border-gray-200 rounded-xl dark:border-neutral-700 shadow-xl">
-    <form @submit.prevent="submit()">
-      <div class="p-6">
-        <h2 id="shipping-rate-dialog-title" class="font-semibold text-gray-900 text-lg dark:text-white">{{ mode() === 'edit' ? 'Edit shipping rate' : 'Add shipping rate' }}</h2>
-        <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Connect a persisted method and zone to an exact weight band.</p>
-        <div :if="error()" class="mt-4 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
+<Modal
+  :isOpen="open()"
+  :title="mode() === 'edit' ? 'Edit shipping rate' : 'Add shipping rate'"
+  description="Connect a persisted method and zone to an exact weight band."
+  size="md"
+  @close="emit('close')"
+>
+    <form id="shipping-rate-form" @submit.prevent="submit()">
+        <div :if="error()" class="mb-5 p-3 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ error() }}</div>
 
-        <div class="mt-5 space-y-4">
+        <div class="space-y-4">
           <label class="block">
             <span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Shipping method</span>
             <select x-model="methodId" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700">
@@ -113,11 +116,11 @@ function submit(): void {
           </div>
           <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Rate</span><input x-model="amount" type="number" required min="0" step="0.01" inputmode="decimal" placeholder="5.99" class="mt-1 px-3 py-2 w-full tabular-nums text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
         </div>
-      </div>
-      <footer class="flex gap-2 justify-end px-6 py-4 bg-gray-50 dark:bg-neutral-900/50 border-gray-200 border-t dark:border-neutral-700">
-        <button type="button" :disabled="busy()" class="px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="emit('close')">Cancel</button>
-        <button type="submit" :disabled="busy()" class="inline-flex items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-50"><span :if="busy()" class="mr-2 h-4 w-4 animate-spin i-hugeicons-loading-03"></span>{{ mode() === 'edit' ? 'Save changes' : 'Add rate' }}</button>
-      </footer>
     </form>
-  </section>
-</div>
+  <template #footer>
+    <div class="flex gap-2 justify-end w-full">
+      <Button :disabled="busy()" variant="secondary" @click="emit('close')">Cancel</Button>
+      <Button type="submit" form="shipping-rate-form" :loading="busy()">{{ mode() === 'edit' ? 'Save changes' : 'Add rate' }}</Button>
+    </div>
+  </template>
+</Modal>

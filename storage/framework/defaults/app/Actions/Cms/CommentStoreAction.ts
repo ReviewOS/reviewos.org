@@ -1,7 +1,7 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { comments } from '@stacksjs/cms'
 import { response } from '@stacksjs/router'
-import { schema } from '@stacksjs/validation'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default new Action({
   name: 'Comment Store',
@@ -10,13 +10,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     await request.validate({
       title: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           title: 'Title is required',
         },
       },
       body: {
-        rule: schema.string(),
+        rule: schema.string().required(),
         message: {
           body: 'Body is required',
         },

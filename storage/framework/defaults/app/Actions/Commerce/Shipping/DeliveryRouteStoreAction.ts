@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 
 import { shippings } from '@stacksjs/commerce'
 
@@ -8,10 +8,19 @@ export default new Action({
   name: 'DeliveryRoute Store',
   description: 'DeliveryRoute Store ORM Action',
   method: 'POST',
+  model: DeliveryRoute,
   async handle(request: RequestInstance) {
+    await request.validate()
     const data = await request.all()
-    const model = await shippings.routes.store(data)
+    try {
+      const model = await shippings.routes.store(data)
 
-    return response.json(model)
+      return response.json(model)
+    }
+    catch (error) {
+      if (error instanceof shippings.routes.DeliveryRouteInputError)
+        return response.json({ message: error.message }, 422)
+      throw error
+    }
   },
 })

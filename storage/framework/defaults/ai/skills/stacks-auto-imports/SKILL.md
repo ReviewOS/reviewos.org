@@ -1,6 +1,6 @@
 ---
 name: stacks-auto-imports
-description: Use when working with the Stacks auto-import system — understanding how browser and server auto-imports work, configuring auto-imported functions/models/composables, the auto-import manifests, type generation, or how globals are injected. Covers the auto-import pipeline at storage/framework/auto-imports/.
+description: Use when working with the Stacks auto-import system - understanding how browser and server auto-imports work, configuring auto-imported functions/models/composables, the auto-import manifests, type generation, or how globals are injected. Covers the auto-import pipeline at storage/framework/auto-imports/.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -29,6 +29,12 @@ Automatically makes functions, models, composables, and utilities available glob
 2. Types are declared in `storage/framework/types/browser-auto-imports.d.ts`
 3. STX plugin (`bun-plugin-stx`) resolves imports at build time
 4. Available in STX `<script>` tags without explicit `import` statements
+
+Browser auto-import injection applies to the STX script entry being compiled.
+TypeScript modules imported by that script do not inherit its lexical bindings.
+Every imported module must explicitly import the functions, stores, and types it
+uses. A generated ambient declaration proves an identifier is available to an
+STX entry; it does not make that identifier global inside bundled dependencies.
 
 ### Server Context (Routes, Actions, Jobs)
 1. `storage/framework/server-auto-imports.json` defines server-side imports (100+ entries)
@@ -60,7 +66,7 @@ globalThis.toggleDark = toggleDark
 - **Custom Functions**: From `resources/functions/` (counter, dark mode, GPX, geo utilities)
 
 ### Server Auto-Imports (100+)
-- **All ORM Models**: User, Post, Author, Product, Order, Payment, Customer, etc. (60+ models)
+- **All ORM Models**: User, Post, Author, Product, Order, Payment, Customer, etc. (105 models)
 - **Request Models**: UserRequest, PostRequest, OrderRequest, etc.
 - **Actions**: Action types and helpers
 - **Schema**: validation schema builder
@@ -128,6 +134,7 @@ injectGlobalAutoImports()      // inject models/functions globally
 
 ## Gotchas
 - Browser auto-imports are resolved at BUILD TIME by bun-plugin-stx — not runtime
+- Imported browser modules must declare their own imports; STX entry auto-imports do not leak into module scope
 - Server auto-imports are injected into globalThis at RUNTIME
 - The browser-auto-imports.d.ts file is ~80KB — it's auto-generated, don't edit manually
 - Custom functions must be exported from both the function file AND the auto-imports barrel

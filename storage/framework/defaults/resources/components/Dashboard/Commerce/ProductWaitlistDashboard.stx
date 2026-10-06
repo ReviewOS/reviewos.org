@@ -1,6 +1,6 @@
 <script client>
 import type { ProductWaitlistOptions, ProductWaitlistRecord, ProductWaitlistSummary, ProductWaitlistWritePayload } from '../../../../app/Actions/Dashboard/Commerce/product-waitlist-records'
-import { dashboardApi } from '../../../../functions/dashboard-api'
+import { DashboardApiError, dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
 
 interface ProductWaitlistResponse {
@@ -22,6 +22,14 @@ const editingRecord = state<ProductWaitlistRecord | null>(null)
 const deleteRecord = state<ProductWaitlistRecord | null>(null)
 const isSaving = state(false)
 const isDeleting = state(false)
+const validationErrors = state<Record<string, string>>({})
+const metrics = derived(() => [
+  { label: 'Recorded', value: summary().total },
+  { label: 'Waiting', value: summary().waiting },
+  { label: 'Notified', value: summary().notified },
+  { label: 'Purchased', value: summary().purchased },
+  { label: 'Conversion', value: `${summary().conversionRate}%` },
+])
 
 function rows(): ProductWaitlistRecord[] {
   const query = search().trim().toLowerCase()
@@ -34,23 +42,17 @@ function rows(): ProductWaitlistRecord[] {
   })
 }
 
-function updateSearch(event: Event): void {
-  search.set((event.target as HTMLInputElement).value)
-}
-
-function updateStatus(event: Event): void {
-  status.set((event.target as HTMLSelectElement).value)
-}
-
 function openAddDialog(): void {
   entryDialogMode.set('add')
   editingRecord.set(null)
+  validationErrors.set({})
   entryDialogOpen.set(true)
 }
 
 function openEditDialog(record: ProductWaitlistRecord): void {
   entryDialogMode.set('edit')
   editingRecord.set(record)
+  validationErrors.set({})
   entryDialogOpen.set(true)
 }
 
@@ -59,6 +61,7 @@ function closeEntryDialog(): void {
     return
   entryDialogOpen.set(false)
   editingRecord.set(null)
+  validationErrors.set({})
 }
 
 function openDeleteDialog(record: ProductWaitlistRecord): void {
@@ -94,11 +97,12 @@ async function saveRecord(payload: ProductWaitlistWritePayload): Promise<void> {
   const current = editingRecord()
   const isEditing = entryDialogMode() === 'edit' && current !== null
   const path = isEditing
-    ? `/api/waitlist-products/${current.id}`
-    : '/api/waitlist-products'
+    ? `/api/dashboard/commerce/waitlist-products/${current.id}`
+    : '/api/dashboard/commerce/waitlist-products'
   const method = isEditing ? 'PATCH' : 'POST'
 
   isSaving.set(true)
+  validationErrors.set({})
   try {
     await dashboardApi(path, { method, body: payload })
     entryDialogOpen.set(false)
@@ -107,6 +111,8 @@ async function saveRecord(payload: ProductWaitlistWritePayload): Promise<void> {
     await loadRecords()
   }
   catch (error) {
+    if (error instanceof DashboardApiError)
+      validationErrors.set(error.fields ?? {})
     pushToast('error', 'Could not save waitlist entry', {
       detail: error instanceof Error ? error.message : String(error),
     })
@@ -123,7 +129,7 @@ async function deleteSelectedRecord(): Promise<void> {
 
   isDeleting.set(true)
   try {
-    await dashboardApi(`/api/waitlist-products/${current.id}`, { method: 'DELETE' })
+    await dashboardApi(`/api/dashboard/commerce/waitlist-products/${current.id}`, { method: 'DELETE' })
     deleteRecord.set(null)
     pushToast('success', 'Waitlist entry deleted')
     await loadRecords()
@@ -150,14 +156,14 @@ onMount(() => {
       <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Native WaitlistProduct records without simulated customers or activity.</p>
     </div>
     <div class="flex gap-2">
-      <button type="button" :disabled="isLoading()" class="inline-flex items-center self-start px-3 py-2 font-semibold text-gray-700 text-sm dark:text-neutral-200 bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700 disabled:opacity-50" @click="loadRecords">
-        <span :class="'mr-2 h-4 w-4 ' + (isLoading() ? 'animate-spin i-hugeicons-loading-03' : 'i-hugeicons-refresh')"></span>
+      <Button variant="secondary" :loading="isLoading()" @click="loadRecords">
+        <span :if="!isLoading()" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
-      </button>
-      <button type="button" :disabled="isLoading() || options().products.length === 0" class="inline-flex items-center self-start px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-50" @click="openAddDialog()">
-        <span class="mr-2 h-4 w-4 i-hugeicons-add-01"></span>
+      </Button>
+      <Button :disabled="isLoading() || options().products.length === 0" @click="openAddDialog()">
+        <span class="h-4 w-4 i-hugeicons-add-01"></span>
         Add entry
-      </button>
+      </Button>
     </div>
   </header>
 
@@ -167,13 +173,7 @@ onMount(() => {
   </div>
 
   <section class="grid gap-3 grid-cols-2 lg:grid-cols-5">
-    <template :for="item in [
-      { label: 'Recorded', value: summary().total },
-      { label: 'Waiting', value: summary().waiting },
-      { label: 'Notified', value: summary().notified },
-      { label: 'Purchased', value: summary().purchased },
-      { label: 'Conversion', value: summary().conversionRate + '%' }
-    ]">
+    <template :for="item in metrics()">
       <div class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
         <p class="text-gray-500 text-xs uppercase dark:text-neutral-400">{{ item.label }}</p>
         <p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ item.value }}</p>
@@ -189,7 +189,7 @@ onMount(() => {
       </div>
       <div class="flex gap-2">
         <label class="sr-only" for="waitlist-status">Status</label>
-        <select id="waitlist-status" :value="status()" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="updateStatus($event)">
+        <select id="waitlist-status" x-model="status" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
           <option value="all">All statuses</option>
           <option value="waiting">Waiting</option>
           <option value="notified">Notified</option>
@@ -197,7 +197,7 @@ onMount(() => {
           <option value="cancelled">Cancelled</option>
         </select>
         <label class="sr-only" for="waitlist-search">Search waitlist</label>
-        <input id="waitlist-search" :value="search()" type="search" placeholder="Search waitlist" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="updateSearch($event)" />
+        <input id="waitlist-search" x-model="search" type="search" placeholder="Search waitlist" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
       </div>
     </div>
 
@@ -211,6 +211,7 @@ onMount(() => {
   :record="editingRecord()"
   :options="options()"
   :busy="isSaving()"
+  :errors="validationErrors()"
   @submit="saveRecord"
   @close="closeEntryDialog()"
 />

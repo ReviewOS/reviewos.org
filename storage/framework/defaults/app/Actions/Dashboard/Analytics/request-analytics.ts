@@ -1,3 +1,4 @@
+import type { ReadableRecord } from '@stacksjs/orm'
 export type AnalyticsRange = 'day' | 'week' | 'month' | 'year'
 export type AnalyticsScope = 'all' | 'blog' | 'commerce'
 
@@ -10,6 +11,9 @@ export interface RequestAnalyticsRow {
   userAgent: string
   createdAt: string
 }
+
+/** The shared shape, kept under this name for the helpers below. */
+export type AnalyticsModelRecord = ReadableRecord
 
 interface TrafficBucket {
   date: string
@@ -30,17 +34,27 @@ const SCOPE_PREFIXES: Record<Exclude<AnalyticsScope, 'all'>, string[]> = {
 }
 
 export function normalizeAnalyticsRange(value: unknown): AnalyticsRange {
-  const range = String(value || '').toLowerCase()
-  return ['day', 'week', 'month', 'year'].includes(range)
-    ? range as AnalyticsRange
-    : 'month'
+  if (value === null || value === undefined || value === '')
+    return 'month'
+  if (typeof value !== 'string')
+    throw new TypeError('Analytics range must be a string.')
+
+  const range = value.trim().toLowerCase()
+  if (!['day', 'week', 'month', 'year'].includes(range))
+    throw new RangeError('Analytics range must be day, week, month, or year.')
+  return range as AnalyticsRange
 }
 
 export function normalizeAnalyticsScope(value: unknown): AnalyticsScope {
-  const scope = String(value || '').toLowerCase()
-  return ['blog', 'commerce'].includes(scope)
-    ? scope as AnalyticsScope
-    : 'all'
+  if (value === null || value === undefined || value === '')
+    return 'all'
+  if (typeof value !== 'string')
+    throw new TypeError('Analytics scope must be a string.')
+
+  const scope = value.trim().toLowerCase()
+  if (!['all', 'blog', 'commerce'].includes(scope))
+    throw new RangeError('Analytics scope must be all, blog, or commerce.')
+  return scope as AnalyticsScope
 }
 
 function timestamp(value: string): number {
@@ -50,6 +64,65 @@ function timestamp(value: string): number {
     ? `${value.replace(' ', 'T')}Z`
     : value
   return new Date(normalized).getTime()
+}
+
+function requiredRecordString(record: AnalyticsModelRecord, key: string): string {
+  const value = record.get(key)
+  if (typeof value !== 'string' || !value.trim())
+    throw new TypeError(`Request.${key} must be a non-empty string.`)
+  return value
+}
+
+function optionalRecordString(record: AnalyticsModelRecord, key: string): string {
+  const value = record.get(key)
+  if (value === null || value === undefined)
+    return ''
+  if (typeof value !== 'string')
+    throw new TypeError(`Request.${key} must be a string or null.`)
+  return value
+}
+
+function recordNumber(record: AnalyticsModelRecord, key: string): number {
+  const value = record.get(key)
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN
+  if (!Number.isFinite(parsed))
+    throw new TypeError(`Request.${key} must be a finite number.`)
+  return parsed
+}
+
+export function requestAnalyticsRow(record: AnalyticsModelRecord): RequestAnalyticsRow {
+  const method = requiredRecordString(record, 'method').toUpperCase()
+  if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'].includes(method))
+    throw new TypeError('Request.method contains an unsupported HTTP method.')
+
+  const statusCode = recordNumber(record, 'status_code')
+  if (!Number.isInteger(statusCode) || statusCode < 100 || statusCode > 599)
+    throw new TypeError('Request.status_code must be an integer from 100 to 599.')
+
+  const durationMs = recordNumber(record, 'duration_ms')
+  if (durationMs < 0)
+    throw new TypeError('Request.duration_ms cannot be negative.')
+
+  // Postgres and MySQL drivers return Date instances for timestamp columns;
+  // SQLite stores TEXT and returns strings.
+  const createdAtValue = record.get('created_at')
+  const createdAt = createdAtValue instanceof Date
+    ? createdAtValue.toISOString()
+    : requiredRecordString(record, 'created_at')
+  if (!Number.isFinite(timestamp(createdAt)))
+    throw new TypeError('Request.created_at must be a valid timestamp.')
+
+  return {
+    method,
+    path: requiredRecordString(record, 'path'),
+    statusCode,
+    durationMs,
+    ipAddress: optionalRecordString(record, 'ip_address'),
+    userAgent: optionalRecordString(record, 'user_agent'),
+    createdAt,
+  }
 }
 
 function pagePath(value: string): string {
@@ -201,12 +274,12 @@ export function buildWebAnalytics(
       end: now.toISOString(),
     },
     overview: {
-      realtime,
-      people: visitors.size,
-      views: pages.length,
-      avgTimeOnSite: averageDuration > 0 ? `${averageDuration} ms` : '-',
-      bounceRate: rows.length > 0 ? `${percentage(errors, rows.length)}%` : '0%',
-      eventCompletions: successful,
+      realtimeVisitors: realtime,
+      uniqueVisitors: visitors.size,
+      pageViews: pages.length,
+      averageResponseTime: averageDuration > 0 ? `${averageDuration} ms` : '-',
+      errorRate: rows.length > 0 ? `${percentage(errors, rows.length)}%` : 'N/A',
+      successfulRequests: successful,
     },
     traffic: trafficSeries(pages, range),
     pages: pageData,

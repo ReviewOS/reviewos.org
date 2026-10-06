@@ -52,8 +52,31 @@ auth/src/
 - `Auth.login(credentials: AuthCredentials, options?: TokenCreateOptions): Promise<{ user, token } | null>` — login and create token
 - `Auth.loginUsingId(userId: number, options?: TokenCreateOptions): Promise<{ user, token } | null>` — login by user ID
 - `Auth.logout(): Promise<void>` — revoke current token
+
+### Personal access tokens (Sanctum-shaped)
+
+`oauth_access_tokens` is polymorphic: `tokenable_type` holds the owner's TABLE
+name (`users`, `authors`) and `tokenable_id` its id there, so any model
+declaring `useAuth` can hold tokens - not only `User`.
+
+- `createToken(id, name, scopes, { tokenableType })` — mint one. Returns the
+  plaintext ONCE (`plainTextToken`); the table stores a hash and nothing can
+  recover it afterwards. `tokenableType` defaults to `users`.
+- `tokens(id, tokenableType?)` — list an owner's live tokens.
+- `tokenCan(scope)` / `tokenCanAll` / `tokenCanAny` / `tokenAbilities` — check
+  the current request's token.
+- `revokeToken`, `revokeTokenById`, `revokeAllTokens(id, type?)`,
+  `revokeOtherTokens(id, type?)` — revocation also revokes the paired refresh
+  token, which a raw row delete does not.
+- `setTrailActor(id)` — attribute writes in a queue job or CLI run that has no
+  request to read a user from.
+
+The `PersonalAccessToken` model maps the same table, so `owner.with('tokenable')`
+lists exactly what `createToken` minted. It deliberately generates no CRUD
+routes: minting and revoking both carry semantics a generic route does not.
 - `Auth.once(credentials: AuthCredentials): Promise<boolean>` — one-time auth without token
-- `Auth.requestToken(credentials, clientId, clientSecret): Promise<{ token } | null>` — OAuth token request
+- `Auth.requestUserTokenWithClient(credentials, clientId, clientSecret): Promise<{ token } | null>` authenticates both a legacy OAuth client and an end user password, then issues a user token. It is not the client credentials grant.
+- `Auth.requestToken(...)` is the deprecated compatibility alias for that same legacy exchange. New delegated integrations use the authorization-code provider.
 
 ### User State
 - `Auth.user(): Promise<UserModel | undefined>` — get authenticated user from bearer token
@@ -133,6 +156,49 @@ auth/src/
 - `createClient(options: CreateClientOptions): Promise<CreateClientResult>`
 - `revokeClient(clientId): Promise<void>`
 
+### OAuth Provider and PKCE
+
+The authorization server is opt-in through `config/auth.ts` under
+`oauthProvider`. It is separate from social sign-in, where Stacks is the OAuth
+client. The provider profile is Authorization Code with S256 PKCE and rotating
+refresh tokens. Confidential client credentials are opt-in through
+`oauthProvider.clientCredentials` and mint access-only tokens without refresh
+tokens. Protected resource-server introspection is separately opt-in through
+`oauthProvider.introspection`; it authenticates a confidential client and
+requires that client to share a configured resource audience with the token.
+It does not support implicit or password grants or OpenID Connect.
+
+When enabled, the default auth route bundle registers:
+
+- `GET` and `POST /oauth/authorize`
+- `POST /oauth/token`
+- `POST /oauth/revoke`
+- `GET /.well-known/oauth-authorization-server`
+- owner-managed clients under `/auth/oauth/clients`
+- user-managed connected applications under `/auth/oauth/connections`
+
+Set a canonical `issuer`, then register every scope and resource explicitly.
+Resource audiences are absolute URIs and redirect URIs use exact matching.
+The consent view is `auth/oauth/consent` by default and can be overridden with
+`oauthProvider.consent.view`. Use `oauthProvider.consent.resolveWorkspace` when
+the application must bind consent to current server-owned workspace authority.
+Use `oauthProvider.subjectEligibility` when account status is represented by
+application data that is not simply the presence of a user row. The callback
+is rechecked before consent approval, delegated code exchange and refresh, and
+by introspection; returning false revokes the affected grant and reports the
+token inactive.
+
+Provider actions return 404 while `oauthProvider.enabled` is false. The token
+and revocation endpoints use protocol credentials and intentionally skip
+browser CSRF. Authorization approval, client management, and disconnect remain
+authenticated and CSRF protected.
+
+- `resolveOAuthProviderConfig(options)` returns `null` unless explicitly enabled
+- `generatePkceVerifier()` creates a 256-bit RFC 7636 verifier
+- `createS256CodeChallenge(verifier)` derives its S256 challenge
+- `verifyS256CodeChallenge(verifier, challenge)` validates without a plain fallback
+- `isValidPkceVerifier(value)` checks the required 43 to 128 character syntax
+
 ## Two-Factor Authentication (authenticator.ts)
 
 - `generateTwoFactorSecret(): string`
@@ -199,7 +265,7 @@ Protected helpers: `allow(message?)`, `deny(message?, code?)`, `denyIf(condition
 - `Rbac.assignRole(user, roleName, guardName?): Promise<void>`
 - `Rbac.removeRole(user, roleName, guardName?): Promise<void>`
 - `Rbac.removeAllRoles(user): Promise<void>`
-- `Rbac.syncRoles(user, roleNames[], guardName?): Promise<void>`
+- `Rbac.syncRoles(user, roleNames[], guardName?): Promise<void>` - replaces assignments for that guard and preserves roles from other guards
 - `Rbac.hasRole(user, roleName, guardName?): Promise<boolean>`
 - `Rbac.hasAnyRole(user, roleNames[], guardName?): Promise<boolean>`
 - `Rbac.hasAllRoles(user, roleNames[], guardName?): Promise<boolean>`
@@ -236,9 +302,9 @@ interface RbacStore { findRoleByName, createRole, deleteRole, getAllRoles, findP
 - `SessionAuth.logout(sessionId): void`
 - `SessionAuth.user(sessionId): Promise<UserModel | undefined>`
 - `SessionAuth.check(sessionId): boolean`
-- `SessionAuth.refresh(sessionId, ttlMs?): boolean`
+- `SessionAuth.refresh(sessionId, ttlMs?): boolean`, rejects non-positive or non-finite TTLs without changing the session
 
-Internal: in-memory Map with 10k session limit, 5-minute eviction interval, timing-safe password comparison with dummy bcrypt hash.
+Internal: database-backed `sessions` rows with expiry, optional IP/User-Agent fingerprint checks, transactional logout and refresh, and timing-safe password comparison with a dummy bcrypt hash. Sessions survive process restarts and are shared by workers through the configured database.
 
 ## Email Verification (email-verification.ts)
 
@@ -330,13 +396,32 @@ await authUser.authorize('edit-post', post)  // throws if denied
   providers: { users: { driver: 'database', table: 'users' } },
   username: 'email',      // AUTH_USERNAME_FIELD env
   password: 'password',   // AUTH_PASSWORD_FIELD env
-  tokenExpiry: 30,         // days, AUTH_TOKEN_EXPIRY env
-  tokenRotation: 7,        // days, AUTH_TOKEN_ROTATION env
+  tokenExpiry: 60 * 60 * 1000, // milliseconds, 1 hour
+  refreshTokenExpiry: 30 * 24 * 60 * 60 * 1000, // milliseconds
+  browserSession: {
+    baselineLifetime: 7 * 24 * 60 * 60 * 1000, // absolute milliseconds
+    rememberedLifetime: 30 * 24 * 60 * 60 * 1000,
+    withRefreshToken: false, // fixed browser lifetime, no unused refresh token
+    logoutRedirect: '/login?logged_out=1', // local path for HTML logout only
+  },
   defaultAbilities: ['*'],
-  defaultTokenName: 'auth_token',
+  defaultTokenName: 'auth-token',
   passwordReset: { expire: 60, throttle: 60 }
 }
 ```
+
+`browserSession` applies to credentials issued by the default login,
+registration, and completed two-factor actions. Dedicated personal access
+token and OAuth issuance remain unchanged. The default login form sends
+`remember`; registration uses the baseline tier unless a custom client sends
+that field. A two-factor challenge preserves the choice without minting a
+session until verification succeeds. Cookie Max-Age comes from the lifetime
+returned by token issuance, so it cannot outlive the token. Cookie-authenticated
+writes use the CSRF flow and same-origin credentials.
+
+When migrating an app that copied framework auth actions, remove only the
+equivalent login, registration, two-factor, logout, and cookie-helper overrides.
+Retain application-specific onboarding and event hooks.
 
 ### config/hashing.ts
 ```typescript
@@ -363,15 +448,43 @@ await authUser.authorize('edit-post', post)  // throws if denied
 
 ## Middleware Aliases (app/Middleware.ts)
 
-Available middleware names: `maintenance`, `auth`, `guest`, `api`, `team`, `logger`, `abilities`, `can`, `throttle`, `local`, `development`, `staging`, `production`, `env.local`, `env.development`, `env.staging`, `env.production`, `role`, `permission`, `verified` (EnsureEmailIsVerified)
+Auth-relevant aliases: `auth`, `guest`, `verified` (EnsureEmailIsVerified),
+`abilities`, `can`, `role`, `permission`, `team`, `signed`, `throttle`. The
+environment aliases are `env`, `env:local`, `env:development` / `env:dev`,
+`env:staging`, `env:production` / `env:prod` — with a COLON, not a dot; an
+earlier version of this list wrote `env.local` and those never existed. See
+`stacks-middleware` for the full set and for the `!alias` and `alias:params`
+forms.
 
-## Application Gates Example (app/Gates.ts)
+## Application Gates (app/Gates.ts)
 
 ```typescript
-Gate.define('access-admin', (user) => user?.email?.endsWith('@stacksjs.org') ?? false)
-Gate.define('edit-settings', (user) => !!user)
-Gate.define('view-dashboard', (user) => !!user)
+import { defineGates } from '@stacksjs/auth'
+
+export default defineGates({
+  gates: {
+    'access-admin': user => user?.email?.endsWith('@stacksjs.com') ?? false,
+    'edit-settings': user => !!user,
+    'view-dashboard': user => !!user,
+  },
+  policies: {
+    Post: 'PostPolicy',
+  },
+})
 ```
+
+Registered at boot by `initializeAuthorization()`, from
+`injectGlobalAutoImports()` — the one place every entry point comes through, so
+HTTP, `buddy seed`, a scheduled job and a console command all get the same
+gates.
+
+Both halves of `policies` are checked: the key names a model the ORM exposes,
+the value a policy file under `app/Policies/` or the framework defaults. An
+explicit mapping WINS over the `<Model>Policy` naming convention, which is the
+reason to write one.
+
+`Gate.define(...)` still works for a gate registered at runtime; `defineGates`
+is the declarative form and the one the ability-name completions come from.
 
 ## Default API Routes
 
@@ -400,14 +513,17 @@ traits: {
 
 - Auth depends on `@stacksjs/ts-auth` for TOTP and passkey functions
 - Password hashing defaults to bcrypt with 12 rounds (config/hashing.ts)
-- Rate limiter uses in-memory Map, resets on server restart — not shared across workers
-- Session auth also uses in-memory Map with 10k limit — for SPA cookie auth
-- Token format is `tokenId|plainText` — the `|` separates the encrypted ID from the plain token
-- The `parseToken()` helper splits on `|` to extract both parts
+- Rate limiting uses a process-local memory store by default. Production deployments with multiple workers should configure the atomic Redis store or provide a custom atomic store.
+- Session auth is database-backed through the `sessions` table, so it survives server restarts and is shared across workers.
+- New personal and delegated access tokens are opaque 40-byte hex bearers hashed at rest. Legacy `jwt:encryptedId` bearers remain readable during migration.
+- Token validation hashes the bearer directly. Do not parse or expose token contents, and never log plaintext bearer values.
 - Bearer tokens come from the `Authorization: Bearer <token>` header
-- `Auth.user()` internally calls `getBearerToken()` → `parseToken()` → `getTokenFromId()` → validates hash
+- `Auth.user()` internally calls `getBearerToken()` and resolves the bearer through a hashed token lookup
 - RBAC has an internal cache (`userRoles`, `userPermissions`, `rolePermissions`) — call `Rbac.flushCache()` after direct DB changes
+- `syncRoles()` and `syncPermissions()` are guard-scoped replacements: they preserve assignments belonging to other guards
 - Gate `before` callbacks can short-circuit — return `true` to allow, `null` to continue checking
+- An ability with no gate and no policy method **denies**. That is the right default, and it means a gate that was never registered is indistinguishable from one that says no — which is how `initializeAuthorization()` went unnoticed while nothing called it
+- `allows()` and friends take `Ability`, which is open (`GateName | PolicyAbility | (string & {})`). A `/can/:ability` route passes an ability straight through, so narrowing it would reject correct code; the union is for completions
 - `withRbac()` and `withAuthorization()` return new objects with methods mixed in
 - The `RbacStore` interface must be implemented and set via `Rbac.setStore()` for RBAC to work
 - Password reset tokens expire after 60 minutes by default

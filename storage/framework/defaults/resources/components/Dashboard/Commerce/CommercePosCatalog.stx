@@ -1,6 +1,7 @@
 <script client>
 import type { CommercePosProduct } from '../../../../app/Actions/Dashboard/Commerce/commerce-pos'
 import type { ProductOption } from '../../../../app/Actions/Dashboard/Commerce/commerce-product-records'
+import { formatCurrency } from '@stacksjs/commerce/money'
 
 const products = useReactiveProp('products', [] as CommercePosProduct[])
 const categories = useReactiveProp('categories', [] as ProductOption[])
@@ -16,12 +17,7 @@ function initials(name: string): string {
 }
 
 function formatMoney(value: number): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency() }).format(value)
-  }
-  catch {
-    return `${value.toFixed(2)} ${currency()}`
-  }
+  return formatCurrency(value, currency())
 }
 
 function sellable(product: CommercePosProduct): boolean {
@@ -34,18 +30,18 @@ function sellable(product: CommercePosProduct): boolean {
     <label class="relative sm:col-span-2">
       <span class="sr-only">Search point of sale products</span>
       <span class="flex absolute inset-y-0 left-0 items-center pl-3 text-gray-400 pointer-events-none"><span class="h-4 w-4 i-hugeicons-search-01"></span></span>
-      <input :value="search()" type="search" placeholder="Search products, categories, or allergens" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="emit('search', $event)" />
+      <input x-model="search" type="search" placeholder="Search products, categories, or allergens" class="pl-9 pr-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @input="emit('search', $event.target.value)" />
     </label>
     <label>
       <span class="sr-only">Product category</span>
-      <select :value="category()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="emit('category', $event)">
+      <select x-model="category" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="emit('category', $event.target.value)">
         <option value="all">Any category</option>
         <template :for="option in categories()" :key="option.id"><option :value="option.id">{{ option.label }}</option></template>
       </select>
     </label>
     <label>
       <span class="sr-only">Product availability</span>
-      <select :value="availability()" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="emit('availability', $event)">
+      <select x-model="availability" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" @change="emit('availability', $event.target.value)">
         <option value="sellable">Sellable products</option>
         <option value="all">All products</option>
         <option value="unavailable">Unavailable or sold out</option>
@@ -77,7 +73,7 @@ function sellable(product: CommercePosProduct): boolean {
             <p class="font-semibold text-gray-900 dark:text-white">{{ formatMoney(product.price) }}</p>
             <p :class="'mt-1 text-xs ' + (product.inventoryCount > 0 ? 'text-gray-400 dark:text-neutral-500' : 'text-red-600 dark:text-red-400')">{{ product.inventoryCount.toLocaleString() }} in stock<span :if="product.preparationTime > 0"> · {{ product.preparationTime }} min</span></p>
           </div>
-          <button type="button" :disabled="!sellable(product)" :aria-label="'Add ' + product.name + ' to cart'" class="inline-flex flex-none items-center px-3 py-2 font-semibold text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-md disabled:opacity-40" @click="emit('add', product)"><span class="mr-1.5 h-4 w-4 i-hugeicons-add-01"></span>Add</button>
+          <Button size="sm" :disabled="!sellable(product)" :ariaLabel="'Add ' + product.name + ' to cart'" @click="emit('add', product)"><span class="h-4 w-4 i-hugeicons-add-01"></span>Add</Button>
         </div>
       </article>
     </template>

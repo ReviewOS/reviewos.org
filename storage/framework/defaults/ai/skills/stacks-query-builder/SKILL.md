@@ -1,6 +1,6 @@
 ---
 name: stacks-query-builder
-description: Use when building database queries in a Stacks application — constructing SQL queries, using the fluent query API, or configuring the query builder. Covers @stacksjs/query-builder which wraps bun-query-builder, and config/query-builder.ts.
+description: Use when building database queries in a Stacks application - constructing SQL queries, using the fluent query API, or configuring the query builder. Covers @stacksjs/query-builder which wraps bun-query-builder, and config/query-builder.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -62,6 +62,12 @@ const posts = await db.selectFrom('posts')
 const count = await db.selectFrom('users').count()
 const total = await db.selectFrom('orders').sum('amount')
 ```
+
+Production SQLite uses a compact deferred builder for the common
+`select().where().limit().execute()` chain when no query hooks or global
+soft-delete scope is active. Complex methods and arguments automatically replay
+onto the complete upstream builder. Use the normal API in either case; do not
+fork application code into a separate raw-query path for this optimization.
 
 ## Configuration (config/query-builder.ts)
 

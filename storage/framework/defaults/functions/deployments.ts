@@ -23,6 +23,33 @@ export interface DeploymentSummary {
   averageDuration: number | null
 }
 
+export interface DeployScript {
+  path: string
+  content: string
+  exists: boolean
+}
+
+export interface DeploymentTerminal {
+  path: string
+  output: string
+  exists: boolean
+}
+
+export interface DeploymentRollbackPlan {
+  revision: string
+  environment: string
+  site: string | null
+  release: string | null
+  target: string
+  output: string
+  warnings: string[]
+}
+
+export interface DeployScriptUpdate {
+  success: boolean
+  path: string
+}
+
 type DeploymentPayload = Record<string, unknown>
 
 function textValue(record: DeploymentPayload, camel: string, snake: string): string {
@@ -109,4 +136,27 @@ export async function fetchDeployments(): Promise<DeploymentRecord[]> {
 export async function fetchDeployment(id: string): Promise<DeploymentRecord | null> {
   const payload = await dashboardApi<unknown>(`/api/dashboard/deployments/${encodeURIComponent(id)}`)
   return normalizeDeploymentDetail(payload)
+}
+
+export async function fetchDeployScript(): Promise<DeployScript> {
+  return dashboardApi<DeployScript>('/api/dashboard/deployments/script')
+}
+
+export async function updateDeployScript(content: string): Promise<DeployScriptUpdate> {
+  return dashboardApi<DeployScriptUpdate>('/api/dashboard/deployments/script', {
+    method: 'PUT',
+    body: { content },
+  })
+}
+
+export async function fetchDeploymentTerminal(): Promise<DeploymentTerminal> {
+  return dashboardApi<DeploymentTerminal>('/api/dashboard/deployments/terminal')
+}
+
+export function previewDeploymentRollback(input: { environment: string, site?: string, release?: string }): Promise<{ success: boolean, plan: DeploymentRollbackPlan }> {
+  return dashboardApi('/api/dashboard/deployments/rollback/preview', { method: 'POST', body: input })
+}
+
+export function runDeploymentRollback(input: { environment: string, site?: string, release?: string, revision: string, confirmation: string }): Promise<{ success: boolean, message: string }> {
+  return dashboardApi('/api/dashboard/deployments/rollback', { method: 'POST', body: input })
 }

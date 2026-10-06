@@ -1,6 +1,6 @@
 ---
 name: stacks-orm
-description: Use when working with the Stacks ORM — defining models with defineModel(), model relationships (hasOne, hasMany, belongsTo, belongsToMany, morphOne, hasManyThrough), attributes, traits, factories, computed properties, query building, transactions, or the 50+ built-in models. Covers @stacksjs/orm, storage/framework/orm/, and storage/framework/defaults/app/Models/.
+description: Use when working with the Stacks ORM - defining models with defineModel(), model relationships (hasOne, hasMany, belongsTo, belongsToMany, morphOne, hasManyThrough), attributes, traits, factories, computed properties, query building, transactions, or the 105 built-in models. Covers @stacksjs/orm, storage/framework/orm/, and storage/framework/defaults/app/Models/.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -11,7 +11,7 @@ allowed-tools: Read Edit Write Bash Grep Glob
 ## Key Paths
 - Core ORM package: `storage/framework/core/orm/src/`
 - ORM implementation: `storage/framework/orm/`
-- Model definitions: `storage/framework/defaults/app/Models/` (50+ models)
+- Model definitions: `storage/framework/defaults/app/Models/` (105 models)
 - Application models: `app/Models/`
 - Default model templates: `storage/framework/defaults/app/Models/`
 - ORM type globals: `storage/framework/types/orm-globals.d.ts`
@@ -104,8 +104,8 @@ export default defineModel({
       required: true,
       unique: false,
       validation: {
-        rule: schema.string().maxLength(100),
-        message: { maxLength: 'Name is too long' }
+        rule: schema.string().max(100),
+        message: { max: 'Name is too long' }
       },
       factory: (faker) => faker.lorem.word()
     },
@@ -196,6 +196,12 @@ await createUser('Alice', 'alice@example.com') // auto-wrapped
 
 Both `transaction()` and `savepoint()` delegate to `db.transaction()` and `db.savepoint()` from `@stacksjs/database`.
 
+### Transaction executor boundary
+
+Every query that must commit or roll back together must use the callback handle (`tx` or `sp`), including validation reads, pivot writes, and the final readback. Do not mix `Model.find()`, `Model.create()`, instance `update()` / `delete()`, or instance relation calls into a raw query-builder transaction. The model executor is a separate execution surface and is not rebound to the callback handle. On SQLite it may use a separate connection, so it cannot observe an uncommitted row written through `tx`.
+
+`runInTransactionScope()` buffers supported side effects until commit, but it does not rebind model queries. For a transaction-backed custom action, use the model definition as the schema and relationship source of truth, then execute the complete persistence workflow through `tx`. Read the created or updated row through `tx` before returning so a readback failure also rolls back the mutation.
+
 ## Trait Methods (traits/)
 
 ### Taggable (when `traits.taggable: true`)
@@ -233,16 +239,11 @@ Table defaults to `{tableName}_likes`, FK defaults to `{singular}_id`.
 - `Model._likeable.unlike(id, userId): Promise<void>`
 - `Model._likeable.isLiked(id, userId): Promise<boolean>`
 
-### Billable (when `traits.billable: true`) -- Stripe integration
-All methods lazy-import `@stacksjs/payments`.
-- `createStripeUser(model, options)`, `updateStripeUser(model, options)`, `deleteStripeUser(model)`
-- `createOrGetStripeUser(model, options)`, `retrieveStripeUser(model)`
-- `defaultPaymentMethod(model)`, `setDefaultPaymentMethod(model, pmId)`, `addPaymentMethod(model, paymentMethodId)`, `paymentMethods(model, cardType?)`
-- `newSubscription(model, type, lookupKey, options)` -- returns `{ subscription, paymentIntent }`
-- `updateSubscription(model, type, lookupKey, options)`, `cancelSubscription(model, providerId, options)`
-- `activeSubscription(model)` -- queries `subscriptions` table for `provider_status = 'active'`, then retrieves from Stripe
-- `checkout(model, priceIds[], options)` -- supports `enableTax`, `allowPromotions` options
-- `createSetupIntent(model, options)`, `subscriptionHistory(model)`, `transactionHistory(model)`
+### Billable (when `traits.billable: true`) -- the configured payment driver
+All methods lazy-import `@stacksjs/payments`. Full reference: `stacks-payments`.
+- Provider-neutral (`config.payment.driver`): `paymentCustomer(model)`, `charge(model, money, paymentMethodId, options)`, `createPayment(model, money, options)`, `checkout(model, { mode, lines, successUrl, cancelUrl })`, `paymentMethods(model)`, `removePaymentMethod(model, providerId)`, `newSubscription(model, type, price)` -> `SubscriptionSummary`, `cancelSubscription(model, providerId, { atPeriodEnd })` (ownership-checked), `activeSubscription(model)` -> `{ subscription, providerSubscription }`
+- Stripe only (throw `PaymentUnsupportedError` under another driver): `createStripeUser`, `updateStripeUser`, `deleteStripeUser`, `createOrGetStripeUser`, `retrieveStripeUser`, `syncStripeCustomerDetails`, `setDefaultPaymentMethod`, `addPaymentMethod`, `updateSubscription`, `createSetupIntent`, `subscriptionHistory`, Connect methods
+- Local: `defaultPaymentMethod(model)`, `storeTransaction(model, productId, options)`, `transactionHistory(model)`
 
 ### Two-Factor Auth (when `traits.useAuth.useTwoFactor: true`)
 - `Model._twoFactor.generateTwoFactorForModel(model)` -- generates secret, calls `model.update()`

@@ -1,5 +1,5 @@
-import { defineModel } from '@stacksjs/orm'
-import { schema } from '@stacksjs/validation'
+import { defineModel, siteOwnership } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation/runtime'
 
 export default defineModel({
   name: 'Post',
@@ -7,13 +7,21 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  // Owned through the site, which belongs to a team, so the owner is the set of
+  // site ids the caller's team owns rather than a single id (stacksjs/stacks#2375).
+  ownership: siteOwnership(),
+
   traits: {
     useUuid: true,
     useTimestamps: true,
     useSearch: {
-      displayable: ['id', 'title', 'author', 'views', 'status', 'poster'],
-      searchable: ['title', 'author', 'body', 'excerpt'],
-      sortable: ['published_at', 'views', 'comments'],
+      displayable: ['id', 'title', 'slug', 'authorId', 'views', 'status', 'poster', 'focusKeyword', 'metaDescription', 'canonicalUrl'],
+      // `content`, not `body` - the column is `content`, and the old spelling
+      // silently indexed nothing. `comments` likewise was never a column, and
+      // nor was `author`: the column is `author_id`, which is worth showing and
+      // filtering on but is not free text to search.
+      searchable: ['title', 'slug', 'content', 'excerpt', 'focusKeyword', 'metaDescription'],
+      sortable: ['published_at', 'views'],
       filterable: ['status'],
     },
 
@@ -24,15 +32,19 @@ export default defineModel({
     // trait targets the real `commentables` table, activating it is correct.
     commentable: true,
     useApi: {
+      // Admin surface now: the table carries drafts, and a public read route
+      // is how drafts leak. Public visitors get published posts through the
+      // site's own routes/pages, which filter by status themselves.
+      middleware: ['auth'],
       uri: 'posts',
       routes: ['index', 'store', 'show', 'update', 'destroy'],
     },
   },
 
-  belongsTo: ['Author'],
+  belongsTo: ['Author', 'Site'],
   belongsToMany: {
     categories: {
-      model: 'Category',
+      model: 'Categorizable',
       table: 'categorizable_models',
       foreignKey: 'categorizable_id',
       relatedKey: 'category_id',
@@ -72,6 +84,20 @@ export default defineModel({
         },
       },
       factory: faker => faker.lorem.sentence(),
+    },
+
+    /**
+     * URL identity: `/news/{slug}` beats `/blog/{id}` for a public site.
+     * Nullable for pre-slug rows; the RSS/sitemap actions fall back to id.
+     */
+    slug: {
+      required: false,
+      order: 2,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+      factory: faker => faker.lorem.slug(),
     },
     poster: {
       required: false,
@@ -114,9 +140,45 @@ export default defineModel({
       factory: faker => faker.lorem.paragraph(),
     },
 
-    views: {
+    focusKeyword: {
       required: false,
       order: 7,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(100),
+        message: {
+          max: 'Focus keyword must have a maximum of 100 characters',
+        },
+      },
+    },
+
+    metaDescription: {
+      required: false,
+      order: 8,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(160),
+        message: {
+          max: 'Meta description must have a maximum of 160 characters',
+        },
+      },
+    },
+
+    canonicalUrl: {
+      required: false,
+      order: 9,
+      fillable: true,
+      validation: {
+        rule: schema.string().url(),
+        message: {
+          url: 'Canonical URL must be a valid URL',
+        },
+      },
+    },
+
+    views: {
+      required: false,
+      order: 10,
       fillable: true,
       default: 0,
       validation: {
@@ -130,7 +192,7 @@ export default defineModel({
 
     publishedAt: {
       required: false,
-      order: 8,
+      order: 11,
       fillable: true,
       validation: {
         rule: schema.timestamp(),
@@ -146,7 +208,7 @@ export default defineModel({
 
     status: {
       required: true,
-      order: 9,
+      order: 12,
       fillable: true,
       default: 'draft',
       validation: {
@@ -160,7 +222,7 @@ export default defineModel({
 
     isFeatured: {
       required: false,
-      order: 10,
+      order: 13,
       fillable: true,
       validation: {
         rule: schema.number(),

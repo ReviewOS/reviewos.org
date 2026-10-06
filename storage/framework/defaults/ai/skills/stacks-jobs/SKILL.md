@@ -1,6 +1,6 @@
 ---
 name: stacks-jobs
-description: Use when creating background job classes in app/Jobs/ — job structure, the handle method, job configuration (queue, tries, backoff, timeout, rate), dispatching patterns (dispatch, dispatchIf, dispatchAfter, dispatchNow), or the Every schedule constants. For the queue system internals (workers, batching, events, drivers, testing), see stacks-queue.
+description: Use when creating background job classes in app/Jobs/ - job structure, the handle method, job configuration (queue, tries, backoff, timeout, rate), dispatching patterns (dispatch, dispatchIf, dispatchAfter, dispatchNow), or the Every schedule constants. For the queue system internals (workers, batching, events, drivers, testing), see stacks-queue.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -82,6 +82,9 @@ await SendWelcomeEmail.dispatchNow({ email, name })
 ```typescript
 import { job } from '@stacksjs/queue'
 
+// Checked against `app/Jobs/` AND the framework defaults - the same three
+// directories `resolveJobFile` searches, so the jobs Stacks ships are
+// dispatchable and schedulable by name too.
 await job('SendWelcomeEmail', { email, name })
   .onQueue('emails')
   .delay(60)

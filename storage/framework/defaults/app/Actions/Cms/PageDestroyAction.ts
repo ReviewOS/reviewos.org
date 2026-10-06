@@ -1,4 +1,4 @@
-import { Action } from '@stacksjs/actions'
+import { Action } from '@stacksjs/actions/runtime'
 import { pages } from '@stacksjs/cms'
 import { response } from '@stacksjs/router'
 
@@ -7,7 +7,7 @@ export default new Action({
   description: 'Page Destroy ORM Action',
   method: 'DELETE',
   async handle(request: RequestInstance) {
-    const id = request.getParam('id')
+    const id = Number(request.getParam('id'))
 
     await pages.destroy(id)
 
