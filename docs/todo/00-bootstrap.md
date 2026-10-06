@@ -545,17 +545,55 @@ Each one is committed and pushed in the repository named.
       expected" for an entire session. A test expected to fail is indistinguishable from a test that
       is failing, which is precisely how a red CI stops being information.
 
-- [ ] **Thirteen search tests still skip in CI, silently.** `tests/e2e/search-action.test.ts` and
-      `search-page.test.ts` call `searchEngineReachable()` and skip when nothing answers, which is
-      right for a laptop and wrong for CI: there is no Typesense service in the `test` job, so the
-      thirteen tests that cover whether a private repository can leak through search have never run
-      there. They were red locally for two months and CI could not have told anybody.
+- [x] **Twenty-three search tests were not skipping in CI, they were passing.** The entry here said
+      thirteen tests skipped. Both numbers were wrong and the verb was the important one. Each test
+      in `search-page`, `search-action` and `search-push-reindex` opens with `if (!available)
+      return`, and a body that returns immediately is a **pass** - so with no node to talk to, all
+      twenty-three reported green having asserted nothing, three of them being the check on whether
+      a private repository leaks into a stranger's search results. "Skipped" at least sounds like
+      absent coverage. This looked like coverage.
 
-      Not added blind. Typesense configures itself from `TYPESENSE_API_KEY` and
-      `TYPESENSE_DATA_DIR`, which a service container can set, but a GitHub service needs a health
-      check and the image's shell contents are not something to guess at from here with no Docker to
-      try it against. The alternative worth considering with it: make the skip loud when `CI` is
-      set, so a missing engine fails the job instead of quietly removing the coverage.
+      `search` is a service in the `test` job now, `typesense/typesense:30.2`, pinned to the version
+      `deps.yaml` installs. Two things were checked rather than assumed, against the pantry build of
+      the same version:
+
+      - **It takes all its configuration from the environment.** A service container cannot override
+        an image's command the way `compose.yaml` does, so the `--data-dir` and `--api-key` it
+        passes are unavailable. `typesense-server` with no arguments reads `TYPESENSE_DATA_DIR` and
+        `TYPESENSE_API_KEY` and serves `/health`.
+      - **It refuses to start when its data directory does not exist.** "Data directory ... does not
+        exist", and it exits before listening. Nothing creates one inside a service container, so
+        the obvious `TYPESENSE_DATA_DIR: /tmp/typesense` would have failed the job before the first
+        step. It is `/tmp`, which is always there.
+
+      Readiness is a step on the runner rather than a `--health-cmd` on the service, because a
+      health check runs inside the service image and what that image ships is not checkable from
+      here - while curl on `ubuntu-latest` is a given. It dumps the container's log before failing.
+
+      And the skip is loud now: when the search node is the thing missing and `CI` is set, the
+      three suites rethrow instead of warning. Verified in all three directions - no node and `CI`
+      set fails the file, no node without `CI` still stands down with a warning, a node present
+      passes 23. The previous note called a health check unguessable "with no Docker to try it
+      against"; there were four working service containers in the same file and the thing that
+      actually needed trying was the server's own behaviour, which pantry had installed all along.
+
+- [x] **Two MySQL failures and two suites that stood down, all three from a timestamp.** The run on
+      `025514cf` was green on lint, typecheck and the Postgres leg, and failed on MySQL with
+      `p95_ms` reading 600001 against an expected 600000.
+
+      Not a dialect difference. `tests/e2e/insight.test.ts` called its `ago()` helper - which is
+      `Date.now()` minus an offset - three separate times for what the fixture means as one instant,
+      so whenever the clock ticked between two of them the measured wait was off by exactly the
+      tick. Postgres had been winning that race, not avoiding it. The instant is read once now and
+      the other two values derived from it.
+
+      The same run also lost `tests/e2e/reviewer-load.test.ts` and `pull-list-and-stack.test.ts`
+      entirely, each to one warning in the log: both wrote `created_at` as an ISO-8601 string, MySQL
+      refuses that for a `datetime` column, and the throw landed in the `beforeAll` catch that
+      exists to stand down when there is no database. `dbTimestamp` has existed for this since
+      August and says so in its own doc comment; these two predate it. Note that
+      `pull_request_reviewers.responded_at` next to one of them is a `varchar(255)` holding an ISO
+      string and is correct as it is: the schema decides which is which, not the column name.
 
 ## Known gaps, deferred deliberately
 

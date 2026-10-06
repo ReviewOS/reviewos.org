@@ -10,6 +10,7 @@
 // when the database is not there. It needs no git: the panel reads rows.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = {
   ownerId: 0,
@@ -75,7 +76,14 @@ async function openPullRequest(options: {
     .returning(['id'])
     .executeTakeFirst()
 
-  const asked = new Date(Date.now() - (options.askedDaysAgo ?? 0) * 86_400_000).toISOString()
+  /*
+   * `dbTimestamp`, because `created_at` on this table is a `datetime` and
+   * MySQL refuses an ISO-8601 literal for one - the throw went to the
+   * `beforeAll` catch and stood the whole file down on the MySQL leg.
+   * `responded_at` next to it is a `varchar(255)` holding an ISO string, so
+   * it stays as it is; the schema, not the name, decides which is which.
+   */
+  const asked = dbTimestamp(new Date(Date.now() - (options.askedDaysAgo ?? 0) * 86_400_000))
 
   await db.insertInto('pull_request_reviewers').values({
     pull_request_id: Number(row?.id),

@@ -64,6 +64,24 @@ async function seedRun(input: {
   waitSeconds?: number
   attempt?: number
 }): Promise<number> {
+  /*
+   * One instant, read once.
+   *
+   * `ago()` is `Date.now()` minus an offset, so calling it twice for what the
+   * fixture means as the same moment yields two moments a millisecond or two
+   * apart. The run's `started_at`, the job's `started_at` and the base
+   * `queued_at` is measured back from were three separate calls, and the
+   * assertion downstream is an exact equality on a wait of 600000ms - so
+   * whenever the clock ticked between two of them the suite failed by exactly
+   * the tick, which is what `p95_ms` reading 600001 on CI's MySQL leg was.
+   * Nothing dialect-specific about it: Postgres had been winning the race, not
+   * avoiding it.
+   */
+  const startedAt = ago(input.startedMinutesAgo)
+  const finishedAt = ago(input.startedMinutesAgo - input.runMinutes)
+  const wait = input.waitSeconds ?? 60
+  const queuedAt = new Date(Date.parse(startedAt) - wait * 1000).toISOString()
+
   const runId = await insert('workflow_runs', {
     workflow_version_id: created.versionId,
     repository_id: input.repositoryId,
@@ -73,11 +91,9 @@ async function seedRun(input: {
     event_ref: 'refs/heads/main',
     head_sha: unique('sha').padEnd(40, '0').slice(0, 40),
     definition_sha: 'b'.repeat(40),
-    started_at: ago(input.startedMinutesAgo),
-    finished_at: ago(input.startedMinutesAgo - input.runMinutes),
+    started_at: startedAt,
+    finished_at: finishedAt,
   })
-
-  const wait = input.waitSeconds ?? 60
 
   await insert('workflow_jobs', {
     workflow_run_id: runId,
@@ -87,9 +103,9 @@ async function seedRun(input: {
     state: input.jobState,
     attempt: input.attempt ?? 1,
     runner_id: String(created.runnerId),
-    queued_at: new Date(Date.parse(ago(input.startedMinutesAgo)) - wait * 1000).toISOString(),
-    started_at: ago(input.startedMinutesAgo),
-    finished_at: ago(input.startedMinutesAgo - input.runMinutes),
+    queued_at: queuedAt,
+    started_at: startedAt,
+    finished_at: finishedAt,
   })
 
   created.runIds.push(runId)

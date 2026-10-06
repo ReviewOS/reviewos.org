@@ -9,6 +9,7 @@
 // Needs a database and a socket. No git.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = {
   userId: 0,
@@ -89,8 +90,15 @@ beforeAll(async () => {
      * have no defined order between them, so a page boundary lands in the
      * middle of the group and one row is never returned. Five rows and a page
      * size of two puts a boundary inside the group twice over.
+     *
+     * `dbTimestamp` rather than `toISOString`, because `pull_requests.created_at`
+     * is a real `datetime` and MySQL rejects an ISO-8601 literal outright:
+     * "Incorrect datetime value: '2026-10-06T14:35:12.378Z'". The throw landed
+     * in the `beforeAll` catch below, so on the MySQL leg this whole file
+     * stood down with one warning in the log and never ran. It also makes the
+     * instant more exactly shared, since it truncates below the second.
      */
-    const sameInstant = new Date().toISOString()
+    const sameInstant = dbTimestamp()
 
     for (let index = 1; index <= 5; index += 1) {
       const row: any = await db

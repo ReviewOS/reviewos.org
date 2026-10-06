@@ -234,6 +234,42 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # Search, for the same reason as Postgres above and with a worse history.
+      #
+      # The three search files under tests/e2e gate on a reachable node, and
+      # every test in them opens with `if (!available) return` - so with no
+      # node they did not skip, they *passed*, all twenty-three of them, empty.
+      # Three are the check on whether a private repository leaks into somebody
+      # else's search results. That is the shape of coverage nobody can see is
+      # gone, and it was gone in CI for as long as this file has existed.
+      #
+      # Pinned to the version `deps.yaml` installs, so CI and a developer's
+      # pantry run the same engine.
+      #
+      # Configured entirely through the environment, because a service
+      # container cannot override an image's command the way `compose.yaml`
+      # does - its `--data-dir` and `--api-key` arguments are not available
+      # here. Checked against the pantry build of this same version rather
+      # than assumed: `typesense-server` with no arguments reads both of these
+      # and serves `/health`.
+      #
+      # `/tmp` rather than a directory of its own, and that is the one line
+      # here that is not cosmetic. Typesense *refuses to start* when its data
+      # directory does not exist - "Data directory ... does not exist", exit
+      # before listening - and nothing creates one inside a service container.
+      #
+      # 8108, the engine's own default, and not the 8208 that `config/deps.ts`
+      # and `.env.example` name. That port exists so two projects on one
+      # developer's machine do not fight over a port and a peering port; a
+      # runner holds one project and there is nothing here to collide with.
+      search:
+        image: typesense/typesense:30.2
+        env:
+          TYPESENSE_DATA_DIR: /tmp
+          TYPESENSE_API_KEY: ci-typesense-key-not-a-real-one
+        ports:
+          - 8108:8108
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -294,6 +330,28 @@ jobs:
           fi
           ./buddy migrate
 
+      # Is the search node up before anything asks it a question?
+      #
+      # On the runner with curl, rather than as a `--health-cmd` on the service
+      # above: a health check runs *inside* the service image, and what that
+      # image ships is not something this repository can verify, while curl on
+      # `ubuntu-latest` is a given. GitHub starts the steps immediately for a
+      # service that declares no health check, so without this the suite races
+      # Typesense's first boot and the search files fail on a refused
+      # connection - which would read exactly like the service being broken.
+      - name: Wait for the search node
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -sf -m 2 http://127.0.0.1:8108/health | grep -q '"ok":true'; then
+              echo "search node answered after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::no search node on 127.0.0.1:8108 after 30s; the search suites need one and no longer skip without it"
+          docker logs "${{ job.services.search.id }}" 2>&1 | tail -40 || true
+          exit 1
+
       - name: Test Suite
         env:
           AWS_DYNAMODB_ENDPOINT: http://localhost:8000
@@ -339,6 +397,19 @@ jobs:
           # not to regenerate the document: a document describing routes this
           # instance does not serve is worse than a failing test.
           STACKS_DEFAULT_ROUTES: none
+          # The search node above.
+          #
+          # `config/search-engine.ts` falls back to 127.0.0.1:8108 for the
+          # host, port and protocol, so only the key strictly has to be here -
+          # that one deliberately has no default, because "a search node
+          # reachable with a guessable key answers anybody's query about
+          # private repositories". All four are written out anyway: a default
+          # that happens to be right is the thing that made the rest of this
+          # block necessary.
+          TYPESENSE_HOST: 127.0.0.1
+          TYPESENSE_PORT: '8108'
+          TYPESENSE_PROTOCOL: http
+          TYPESENSE_API_KEY: ci-typesense-key-not-a-real-one
           # A mail driver that cannot deliver, which is what the digest suite
           # says it assumes: "there is no mail server in the test environment,
           # so this is the failure path by construction". It was not by

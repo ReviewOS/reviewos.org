@@ -128,8 +128,13 @@ services:
   # Optional in the sense that the rest of the instance works without it - a
   # repository you cannot search is still a repository you can clone - but the
   # search page is empty until this is up and indexed.
+  #
+  # Pinned to the version `deps.yaml` installs. This said 27.1 while pantry
+  # gave a developer 30.2, which is the drift this file's own header promises
+  # not to have: "when the two disagree, pantry is right and this file has a
+  # bug".
   search:
-    image: typesense/typesense:27.1
+    image: typesense/typesense:30.2
     restart: unless-stopped
     command: ['--data-dir', '/data', '--api-key', '${TYPESENSE_API_KEY:-please-change-me}']
     volumes:

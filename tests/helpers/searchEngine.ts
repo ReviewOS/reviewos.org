@@ -22,6 +22,21 @@
  * A node that is up but refuses the key is deliberately **not** skipped. That
  * is a misconfiguration rather than a missing service, and it should fail where
  * somebody can see it.
+ *
+ * ## And in CI, a missing node is not skipped either
+ *
+ * Standing down quietly is right for a laptop and wrong for CI, and the three
+ * callers of this make the difference stark: each test in them opens with
+ * `if (!available) return`, and a test whose body returns immediately is a
+ * **pass**. So with no node reachable the twenty-three tests across
+ * `search-page`, `search-action` and `search-push-reindex` did not report as
+ * skipped - they reported green, having asserted nothing. Three of them are
+ * the check that a private repository does not surface in a stranger's search
+ * results.
+ *
+ * CI has a node now: the `search` service in `.github/workflows/ci.yml`. If it
+ * ever does not, each caller rethrows instead of warning, because the one
+ * thing worse than missing coverage is missing coverage that looks present.
  */
 export async function searchEngineReachable(): Promise<boolean> {
   try {

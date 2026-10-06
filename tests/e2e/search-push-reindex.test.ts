@@ -13,6 +13,8 @@ import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
 let available = false
+/** Set only when the search node is the thing that is missing. See the catch below. */
+let searchNodeMissing = false
 let db: any
 let indexJob: any
 
@@ -57,12 +59,23 @@ beforeAll(async () => {
     // Same rule as the database: a machine with no search node skips rather
     // than failing with a stack trace out of the driver.
     const { searchEngineReachable } = await import('../helpers/searchEngine')
-    if (!await searchEngineReachable())
+    if (!await searchEngineReachable()) {
+      searchNodeMissing = true
       throw new Error('no search engine is running - `./buddy setup` starts one')
+    }
 
     available = true
   }
   catch (error) {
+    /*
+     * Loud here rather than quiet, because quiet is indistinguishable from
+     * passing: every test below opens with `if (!available) return`, and an
+     * empty body is a pass. CI runs a `search` service for exactly this
+     * suite - see the note in tests/helpers/searchEngine.ts.
+     */
+    if (searchNodeMissing && process.env.CI)
+      throw error
+
     console.warn(`[search-push] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
     return
