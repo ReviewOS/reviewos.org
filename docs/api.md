@@ -443,7 +443,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `POST /api/mcp`
 
-_Inputs are not declared on `Mcp/McpAction`, so they are not listed here._
+_Inputs are not declared on `Actions/Mcp/McpAction`, so they are not listed here._
 
 | Status | Means |
 |---|---|

@@ -174,7 +174,7 @@ route.get('/search', 'Actions/Search/SearchAction')
  * accepts no ambient credential at all. Left on, it answers a client that
  * forgot its token with a 403 about a cookie it was never going to send.
  */
-route.post('/mcp', 'Mcp/McpAction').skipCsrf()
+route.post('/mcp', 'Actions/Mcp/McpAction').skipCsrf()
 
 // Signing in, out, and up. These override the framework defaults, which answer
 // with JSON and set no cookie - right for an API client reading access_token,
@@ -999,9 +999,9 @@ route.post('/repos/workflows/manage', 'Actions/Workflow/ManageWorkflowAction').m
  * `{resource}` is the last segment, so one action serves all three and the
  * unsupported ones answer with the list rather than with nothing.
  */
-route.post('/gh/repos/{owner}/{repo}/statuses/{sha}', 'Api/GitHubCompatAction').skipCsrf()
-route.post('/gh/repos/{owner}/{repo}/issues/{number}/comments', 'Api/GitHubCompatAction').skipCsrf()
-route.post('/gh/repos/{owner}/{repo}/{resource}', 'Api/GitHubCompatAction').skipCsrf()
+route.post('/gh/repos/{owner}/{repo}/statuses/{sha}', 'Actions/Api/GitHubCompatAction').skipCsrf()
+route.post('/gh/repos/{owner}/{repo}/issues/{number}/comments', 'Actions/Api/GitHubCompatAction').skipCsrf()
+route.post('/gh/repos/{owner}/{repo}/{resource}', 'Actions/Api/GitHubCompatAction').skipCsrf()
 /*
  * Opening a gate: a `reviewos.block:` job waiting for a person.
  *

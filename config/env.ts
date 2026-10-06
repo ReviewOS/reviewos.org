@@ -225,6 +225,70 @@ export default {
     default: '',
   },
 
+  /*
+   * This instance's own variables.
+   *
+   * Declared here rather than anywhere else because this is the only place that
+   * types them: `storage/framework/types/env.d.ts` reads this schema and
+   * augments `StacksEnv` from it. A variable read through `env` and missing from
+   * here is a type error, which is the point - it used to be whatever the `.env`
+   * on the generating machine happened to hold.
+   */
+  AUTH_IDLE_TIMEOUT: {
+    validation: schema.number(),
+    default: 0,
+  },
+
+  CACHE_DRIVER: {
+    validation: schema.enum(['memory', 'redis']),
+    default: 'memory',
+  },
+
+  REDIS_USERNAME: {
+    validation: schema.string(),
+    default: '',
+  },
+
+  REDIS_TLS: {
+    validation: schema.boolean(),
+    default: false,
+  },
+
+  GITHUB_TOKEN: {
+    validation: schema.string(),
+    default: '',
+  },
+
+  PUBLIC_DIFF_ENABLED: {
+    validation: schema.boolean(),
+    default: false,
+  },
+
+  PUBLIC_DIFF_RATE: {
+    validation: schema.number(),
+    default: 30,
+  },
+
+  TYPESENSE_HOST: {
+    validation: schema.string(),
+    default: '127.0.0.1',
+  },
+
+  TYPESENSE_PORT: {
+    validation: schema.number(),
+    default: 8108,
+  },
+
+  TYPESENSE_PROTOCOL: {
+    validation: schema.enum(['http', 'https']),
+    default: 'http',
+  },
+
+  TYPESENSE_API_KEY: {
+    validation: schema.string(),
+    default: '',
+  },
+
   FRONTEND_APP_ENV: {
     validation: schema.enum(['development', 'staging', 'production']),
     default: 'development',

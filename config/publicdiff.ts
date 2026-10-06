@@ -53,6 +53,6 @@ export interface PublicDiffConfig {
 }
 
 export default {
-  enabled: env.PUBLIC_DIFF_ENABLED === 'true',
+  enabled: env.PUBLIC_DIFF_ENABLED === true,
   requestsPerWindow: Number(env.PUBLIC_DIFF_RATE ?? 30),
 } satisfies PublicDiffConfig

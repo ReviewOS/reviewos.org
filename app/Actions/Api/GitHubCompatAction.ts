@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
-import { RATE_LIMIT_HEADERS } from './documented'
+import { RATE_LIMIT_HEADERS } from '../../Api/documented'
 
 /**
  * A small GitHub-shaped surface at `GITHUB_API_URL`, for the actions people

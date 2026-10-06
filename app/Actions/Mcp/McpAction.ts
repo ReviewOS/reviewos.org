@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { dispatch, fail, RPC, type ApiCaller } from './server'
+import { dispatch, fail, RPC, type ApiCaller } from '../../Mcp/server'
 
 /**
  * The MCP endpoint.

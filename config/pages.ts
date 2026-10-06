@@ -67,6 +67,6 @@ export interface PagesConfig {
 
 export default {
   domain: String(env.PAGES_DOMAIN ?? '').trim().toLowerCase(),
-  customDomains: env.PAGES_CUSTOM_DOMAINS !== 'false',
+  customDomains: env.PAGES_CUSTOM_DOMAINS !== false,
   maxAge: Number(env.PAGES_MAX_AGE ?? 60),
 } satisfies PagesConfig

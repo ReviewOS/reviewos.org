@@ -171,39 +171,73 @@ Each one is committed and pushed in the repository named.
       `repair_settings` table a local database is simply behind on, and the third is the Bun
       backpressure defect [phase 16](./16-hardening-scale.md) pins on purpose.
 
-- [ ] **stx** - **`0.2.372` cannot be installed by anybody.** It depends on `@stacksjs/desktop` at
-      exactly `0.2.372`, and that package was never published past `0.2.371`, so resolution fails
-      outright. The whole stx family pins its siblings exactly, so the four of them are held at
-      `0.2.371` without a caret: `^0.2.371` floats straight back into the broken release. Needs the
-      missing `desktop` publish upstream, and then the pins become ranges again.
+- [x] **stx** - `0.2.372` could not be installed by anybody: it depended on `@stacksjs/desktop` at
+      exactly `0.2.372`, and that package was never published past `0.2.371`, so resolution failed
+      outright. Worked around by pinning the whole stx family exactly, since `^0.2.371` floats
+      straight back into it. **Resolved upstream**: `desktop` is published through `0.2.378` and the
+      family is a caret range again.
 
-- [ ] **stacks** - **the env type generator ignores `config/env.ts`, and `StacksEnv` is closed now.**
-      Those two changes are only a problem together. `StacksEnv` used to carry a `[key: string]`
-      catch-all, so an undeclared variable read as `any` and nobody noticed that the generator was
-      not reading the schema. It is `interface StacksEnv extends FrameworkEnv {}` as of 0.75, and
-      the generator still emits only what it finds in the `.env` files: `PAGES_CUSTOM_DOMAINS` comes
-      out `string` where `config/env.ts` declares `schema.boolean()`, and `PAGES_MAX_AGE`, declared
-      the same way, does not come out at all. So the documented mechanism types nothing, and the
-      seven reads below are type errors with no supported way to fix them here. The skill
-      (`stacks-env`) explicitly forbids writing a `declare module '@stacksjs/env'` block, because a
-      second augmentation lets a key be typed without being validated, which is the failure
-      `config/env.ts` exists to prevent. So this waits for the generator rather than getting worked
-      around: `AUTH_IDLE_TIMEOUT`, `CACHE_DRIVER`, `REDIS_USERNAME`, `REDIS_TLS`, `GITHUB_TOKEN`
-      twice, and `PAGES_MAX_AGE`.
+- [x] **Not the framework: a stale `env.d.ts`, and eleven variables never declared.** Filed as
+      nothing, because reading the contract showed the fault was here. Seven `StacksEnv` type errors
+      looked like the generator ignoring `config/env.ts`, and `StacksEnv` really did lose its
+      `[key: string]` catch-all. But `storage/framework/types/env.d.ts` is **derived, not
+      generated**, as of 0.75: the shipped version is thirteen lines that read the schema,
+      `interface StacksEnv extends InferEnv<typeof import('../../../config/env')['default']>`, and
+      the `.env`-scraping generator that wrote the old one is the thing the framework moved away
+      from. This repository was still holding the scraped 0.70-era file, which is why
+      `PAGES_CUSTOM_DOMAINS` typed as `string` where the schema says `schema.boolean()`, and why
+      `PAGES_MAX_AGE` was absent while variables that happened to be in the local `.env` were
+      present.
 
-- [ ] **stacks** - **`ActionPath` only knows `app/Actions/**`, and the resolver knows more than
-      that.** `route.post('/mcp', 'Mcp/McpAction')` runs, and `tests/e2e/github-compat.test.ts`
-      covers the sibling case, but neither name is in the generated actions registry, because this
-      application keeps `app/Mcp/` and `app/Api/` beside `app/Actions/` rather than under it. Four
-      errors in `routes/api.ts`, all of them a type describing less than the runtime does.
+      Taking the derived form made the schema's types flow immediately, and turned seven errors into
+      a longer and more honest list: eleven variables this instance reads through `env` and never
+      declared anywhere. `AUTH_IDLE_TIMEOUT`, `CACHE_DRIVER`, `REDIS_USERNAME`, `REDIS_TLS`,
+      `GITHUB_TOKEN`, `PUBLIC_DIFF_ENABLED`, `PUBLIC_DIFF_RATE` and the four `TYPESENSE_*` are in
+      `config/env.ts` now with validators and defaults, which is the only thing that types them.
+      Three reads changed with them: a variable declared `schema.boolean()` arrives as a boolean, so
+      comparing it against `'true'` or `'false'` was the old scraped string type showing through.
 
-- [ ] **stacks** - **the shipped `storage/framework/defaults` do not typecheck against the shipped
-      packages.** `PruneModelsJob.ts` imports `'../../orm/src/utils/prunable'`, which is not there,
-      and `PruneQueryLogsJob.ts` calls `QueryController.pruneQueryLogs`, which the class does not
-      have. Two errors in files this repository only reads. Seven of the remaining lint errors are
-      the same shape: unused imports in `storage/framework/defaults`, `storage/framework/server` and
-      a generated `auto-imports.d.ts`, all surfaced by pickier 0.1.67 enforcing
-      `no-unused-imports`, and all in files it would be wrong to edit here.
+      The lesson is the same one the stale declarations taught twice before it. A generated or
+      derived file left behind by an upgrade does not report itself; it reports a bug somewhere
+      else.
+
+- [x] **Not the framework either: two actions on the wrong side of our own convention.** Four
+      errors in `routes/api.ts`, where `'Mcp/McpAction'` and `'Api/GitHubCompatAction'` were not
+      assignable to `StacksHandler`, while `tests/e2e/mcp.test.ts` and
+      `tests/e2e/github-compat.test.ts` both passed against them. A type describing less than the
+      runtime, which looked like a framework gap: `resolveStringHandlerUncached` falls through to
+      `appPath(`${modulePath}.ts`)` for any path without `Actions` in it, so `app/Mcp/McpAction.ts`
+      resolves, while `ActionPath` is the registry, and the registry is the actions barrel, and the
+      barrel scans `app/Actions/**`.
+
+      But the convention this project already follows is the one in
+      [AGENTS.md](../../AGENTS.md): an action lives in `app/Actions/<Domain>/`, and `app/<Domain>/`
+      holds the support modules around it. `app/Actions/Api/` already had six actions beside the
+      eleven support modules in `app/Api/`, and `routes/wellknown.ts` already named its sibling
+      `'Actions/Api/JwksAction'`, with the prefix. These two were simply in the wrong directory.
+      Moved to `app/Actions/Api/GitHubCompatAction.ts` and `app/Actions/Mcp/McpAction.ts`, named
+      with the prefix, and both e2e suites still pass. `docs/api.md` is regenerated, since the
+      action name is rendered into it.
+
+- [ ] **`storage/framework/defaults` is a vendored copy and ours is badly stale.** Two type
+      errors and three lint errors come from it, and the published package has none of them:
+      shipped `PruneModelsJob` does `await import('@stacksjs/orm')` where ours names a relative
+      `'../../orm/src/utils/prunable'` that does not exist, and shipped `PruneQueryLogsJob` calls
+      `new QueryController().pruneQueryLogs()`, with a comment saying it is an instance method,
+      against a `QueryController` that has it. So this is not an upstream defect, which is what it
+      was first written up as.
+
+      It is not two files, though. `app/` alone differs in **858 files** against
+      `@stacksjs/defaults@0.75.81`, 610 modified and 248 present on only one side, 914 shipped
+      against 726 here. That matters beyond the errors, because resolution falls back from `app/` to
+      this tree, so a stale copy is stale *behaviour* for anything the application has not
+      overridden.
+
+      `buddy upgrade` owns the sync and is the reason it has not happened: the same command rewrites
+      `workspace:*` to a pinned range in the workspace packages, which stops them resolving locally.
+      Syncing the tree by hand avoids that but is a large change through a read-only reference
+      directory, and wants its own commit and its own verification rather than riding along with
+      something else.
 
 - [ ] **stacks** - `buddy upgrade` rewrites `workspace:*` to a pinned range in the workspace
       packages under `storage/framework`. Those are workspace members, and a version range stops

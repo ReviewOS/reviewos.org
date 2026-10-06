@@ -69,7 +69,7 @@ export default {
       username: String(env.REDIS_USERNAME ?? ''),
       password: String(env.REDIS_PASSWORD ?? ''),
       database: Number(env.REDIS_DB ?? 0) || 0,
-      tls: String(env.REDIS_TLS ?? '') === 'true',
+      tls: env.REDIS_TLS === true,
     },
 
     /**
