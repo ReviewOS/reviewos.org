@@ -8,7 +8,7 @@ import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { allowedWhileArchived, decideSettings } from './settings'
-import { coerced } from '../inputs'
+import { coerced, readFlag } from '../inputs'
 
 /**
  * Change a repository's settings.
@@ -161,24 +161,3 @@ export default new Action({
   },
 })
 
-/**
- * A checkbox, as a form sends it.
- *
- * Absent means "leave it alone", which is not the same as false - and an HTML
- * checkbox sends nothing at all when it is unticked, so the caller has to say
- * which it means with a hidden field. Anything unrecognised is absent.
- */
-function readFlag(value: unknown): boolean | undefined {
-  if (value === undefined || value === null || value === '')
-    return undefined
-
-  const text = String(value).toLowerCase()
-
-  if (text === 'true' || text === '1' || text === 'on' || text === 'yes')
-    return true
-
-  if (text === 'false' || text === '0' || text === 'off' || text === 'no')
-    return false
-
-  return undefined
-}

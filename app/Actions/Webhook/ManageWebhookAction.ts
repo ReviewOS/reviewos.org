@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { pingPayload, WEBHOOK_EVENTS } from '../../Webhooks/payloads'
 import { inspectUrl } from './ssrf'
+import { readFlag } from '../inputs'
 
 /**
  * Create, update, or delete a repository's webhook.
@@ -137,7 +138,7 @@ export default new Action({
       return response.json({ error: 'Events must be * or a list this product sends' }, 422)
 
     const contentType = String(request.get('content_type') ?? 'application/json')
-    const active = request.get('active') === undefined ? true : readFlag(request.get('active'))
+    const active = request.get('active') === undefined ? true : (readFlag(request.get('active')) ?? false)
 
     if (operation === 'update') {
       const id = Number(request.get('id'))
@@ -253,9 +254,3 @@ function readEvents(value: unknown): string | null {
   return [...new Set(list)].join(',')
 }
 
-/** A checkbox, as a form sends it. */
-function readFlag(value: unknown): boolean {
-  const text = String(value ?? '').toLowerCase()
-
-  return text === 'true' || text === '1' || text === 'on' || text === 'yes'
-}

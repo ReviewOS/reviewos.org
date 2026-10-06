@@ -5,7 +5,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { decideRelease, DRAFT, isUsableTagName, looksLikePrerelease, PUBLISHED } from './releases'
 import { dbTimestamp } from '../Support/sql'
-import { coerced } from '../inputs'
+import { coerced, readFlag } from '../inputs'
 
 /**
  * Publish, edit or delete a release.
@@ -104,7 +104,7 @@ export default new Action({
     if (!resolved.ok && operation === 'create')
       return response.json({ error: `This repository has no tag called ${tag}` }, 422)
 
-    const isDraft = readFlag(request.get('is_draft'))
+    const isDraft = (readFlag(request.get('is_draft')) ?? false)
     const prerelease = request.get('is_prerelease')
 
     const decision = decideRelease({
@@ -114,7 +114,7 @@ export default new Action({
       is_draft: isDraft,
       // Offered as a default rather than as a rule: the flag decides, and the
       // tag's own suffix is a good guess at what somebody meant by `-rc.1`.
-      is_prerelease: prerelease === undefined ? looksLikePrerelease(tag) : readFlag(prerelease),
+      is_prerelease: prerelease === undefined ? looksLikePrerelease(tag) : (readFlag(prerelease) ?? false),
     }, dbTimestamp(), existing ? { status: String(existing.status ?? DRAFT), published_at: existing.published_at ?? null } : undefined)
 
     if (!decision.ok)
@@ -180,9 +180,3 @@ export default new Action({
   },
 })
 
-/** A checkbox, as a form sends it. Anything unrecognised is false. */
-function readFlag(value: unknown): boolean {
-  const text = String(value ?? '').toLowerCase()
-
-  return text === 'true' || text === '1' || text === 'on' || text === 'yes'
-}

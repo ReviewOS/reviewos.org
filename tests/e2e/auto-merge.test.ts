@@ -364,7 +364,17 @@ describe('submitting a whole review at once', () => {
     reviewablePullId = Number(row?.id)
   })
 
-  /** JSON rather than the form encoding above, because `comments` is an array. */
+  /**
+   * JSON rather than the form encoding above, because `comments` is an array.
+   *
+   * So `number` is a number here and a string in the form calls above, and that
+   * is not an inconsistency. A form value is always text and the framework
+   * coerces it to the declared type; a JSON value arrives with a type of its
+   * own and is taken as sent. Sending `"2"` here asks an endpoint that declares
+   * `schema.number()` to accept a string, which it correctly refuses - these
+   * read `'2'` until the action grew a `validations` block in e3374927, and two
+   * of the tests below went on passing because they expect 422 anyway.
+   */
   async function postJson(path: string, token: string, body: Record<string, unknown>) {
     const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: 'POST',
@@ -380,7 +390,7 @@ describe('submitting a whole review at once', () => {
       return
 
     const submitted = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
-      number: '2',
+      number: 2,
       state: 'commented',
       body: 'a few things',
       comments: [
@@ -419,7 +429,7 @@ describe('submitting a whole review at once', () => {
       .execute()
 
     const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
-      number: '2',
+      number: 2,
       state: 'commented',
       body: 'mixed',
       comments: [
@@ -451,7 +461,7 @@ describe('submitting a whole review at once', () => {
      * next attempt, and an agent doing that is an agent in a loop.
      */
     const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
-      number: '2',
+      number: 2,
       state: 'commented',
       body: 'x',
       comments: [
@@ -473,7 +483,7 @@ describe('submitting a whole review at once', () => {
     // The existing path must keep working: the browser publishes drafts written
     // earlier and sends no `comments` at all.
     const submitted = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
-      number: '2',
+      number: 2,
       state: 'commented',
       body: 'just a note',
     })
@@ -487,7 +497,7 @@ describe('submitting a whole review at once', () => {
       return
 
     const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
-      number: '2',
+      number: 2,
       state: 'commented',
       body: '',
       comments: [],

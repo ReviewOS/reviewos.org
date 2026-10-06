@@ -292,6 +292,20 @@ describe('browsing into a directory', () => {
     const html = await page(`/${created.handle}/${created.name}/tree/main/app/nested/deeper.ts`)
 
     expect(html).not.toContain('deeper.ts.html')
-    expect(html).toContain('export const deeper')
+
+    /*
+     * Asserted against the text, not the markup.
+     *
+     * The blob is syntax highlighted, so the line arrives as
+     * `<span class="t-keyword">export</span><span class="t-text"> </span>...`
+     * and the source never appears as one contiguous string. This read
+     * `toContain('export const deeper')` from before the view highlighted
+     * anything, which made a passing test into a failing one without the page
+     * changing. What it is actually about is the catch-all handing over the
+     * path it was asked for, so it checks the text the reader sees.
+     */
+    const text = html.replace(/<[^>]*>/g, '')
+
+    expect(text).toContain('export const deeper')
   })
 })

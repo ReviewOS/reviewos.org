@@ -40,3 +40,42 @@ export const coerced = schema.custom(
   // "this rejects some values" would be worse than none.
   'accepted as sent, and checked where it is used',
 )
+
+/**
+ * A form flag, read the way a browser sends one.
+ *
+ * `undefined` for absent or unrecognised, so a caller that needs to tell "not
+ * sent" from "sent false" can; the ones that do not write `?? false` at the
+ * call site.
+ *
+ * **The last value wins when the field arrives more than once, which is the
+ * whole reason this is here.** A checkbox sends nothing at all when it is
+ * unticked, so the markup pairs it with a hidden field: a hidden `false`
+ * followed by a checkbox `true`. Ticking the box therefore sends
+ * `x=false&x=true`, the router surfaces both as `['false', 'true']`, and
+ * `String(['false','true'])` is `'false,true'` - which matches none of the
+ * spellings below and read as absent.
+ *
+ * Six copies of this function across six actions had that bug, and the symptom
+ * was never an error: the flag was dropped, the handler found nothing to
+ * change, and the form answered 422 "Nothing to change" to somebody who had
+ * just ticked a box. Branch protection and the merge-strategy settings were
+ * both unsettable from the interface. One copy here instead, because the fix
+ * had to be made in six places to be made at all.
+ */
+export function readFlag(value: unknown): boolean | undefined {
+  const last = Array.isArray(value) ? value[value.length - 1] : value
+
+  if (last === undefined || last === null || last === '')
+    return undefined
+
+  const text = String(last).toLowerCase()
+
+  if (text === 'true' || text === '1' || text === 'on' || text === 'yes')
+    return true
+
+  if (text === 'false' || text === '0' || text === 'off' || text === 'no')
+    return false
+
+  return undefined
+}

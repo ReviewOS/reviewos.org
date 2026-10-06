@@ -13,7 +13,7 @@ import { repositoryPath } from '../Git/storage'
 import { writeInitialCommit } from './initialCommit'
 import { scaffoldFiles } from './scaffold'
 import { recordSize } from './size'
-import { coerced } from '../inputs'
+import { coerced, readFlag } from '../inputs'
 
 /**
  * Create a repository: the row and the bare repository on disk.
@@ -172,7 +172,7 @@ export default new Action({
     const scaffold = scaffoldFiles({
       repository: name,
       description: String(request.get('description') ?? ''),
-      readme: readFlag(request.get('readme')),
+      readme: (readFlag(request.get('readme')) ?? false),
       gitignore: request.get('gitignore'),
       license: request.get('license'),
       holder: String(request.get('license_holder') ?? '') || owner.handle,
@@ -226,14 +226,3 @@ export default new Action({
   },
 })
 
-/**
- * A checkbox, as a form sends it.
- *
- * Absent is false here rather than "leave alone", because there is nothing yet
- * to leave alone: a repository being created either gets a README or does not.
- */
-function readFlag(value: unknown): boolean {
-  const text = String(value ?? '').toLowerCase()
-
-  return text === 'true' || text === '1' || text === 'on' || text === 'yes'
-}

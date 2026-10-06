@@ -459,6 +459,60 @@ Each one is committed and pushed in the repository named.
       defaults only when it has none. The model-API surface having the opposite default is the
       inconsistency.
 
+- [x] **The end-to-end suite is green: 1,584 tests, 0 failures.** It had 21, which had been there
+      since August and were found only because this was the first time the whole suite was run
+      rather than `tests/unit`. **CI does not run `tests/e2e`**, which is why nothing reported them,
+      and that is the finding behind the other four.
+
+      **Thirteen were a stale search index, not code.** Every query answered 503, from
+      `Could not find a field named 'pushed_at' in the schema for sorting`: the Typesense
+      collections predated that field, and `repositories` held 897 documents against the 8 the
+      database has. `./buddy search:reindex <Model>` for each searchable model rebuilt the schemas.
+      Worth knowing as an operational step rather than a fix - a reseed does not rebuild the index,
+      and the symptom is a search page that answers nothing.
+
+      **Three were a real product bug, and the worst thing found this week.** Branch protection and
+      the merge-strategy settings could not be saved from the interface at all. The markup pairs a
+      checkbox with a hidden field, which is the only way HTML can send a false, so a ticked box
+      arrives as `x=false&x=true` and the router correctly surfaces `['false', 'true']`. Six copies
+      of `readFlag` across six actions did `String(value)` on that, got `'false,true'`, matched
+      none of their spellings, and returned undefined - which the handlers read as "not sent" and
+      answered `422 Nothing to change` to somebody who had just ticked a box. One copy now, in
+      `app/Actions/inputs.ts`, taking the last value. The fix had to be made in six places to be
+      made at all, which is the argument for it living in one.
+
+      **Three were a test that stopped being true.** `auto-merge` posts JSON with `number: '2'`, a
+      string, to an action that declares `schema.number()`. The framework coerces a query or form
+      value, because those are always text, and takes a JSON value as sent, because it has a type of
+      its own - so the browser form works and the JSON string does not. The test was written on
+      2026-08-07 against an action with no `validations` block at all; `e3374927` added one the next
+      day. Two sibling tests went on passing because they expect 422 anyway, for the wrong reason.
+
+      **One was eight repositories owned by nobody.** `Repository.owner_id` had
+      `factory: faker.number.int({ min: 1, max: 4 })`, the same invented-id bug as
+      `RepositoryMirror`, and organizations are numbered 21 to 24 here. The owner is polymorphic, so
+      a `belongsTo` is not the fix: it would generate a foreign key on a column that also names
+      organizations. `database/seeders/RepositoryOwners.ts` repairs orphans after the model pass
+      instead, which is the one place that can see both tables. `app/Ops/admin.ts` falls back to the
+      raw id when a handle is missing, deliberately, so the only visible symptom was `4` where every
+      other row showed a handle.
+
+      **One was an assertion that predated syntax highlighting.** `browse-tree` looked for
+      `export const deeper` in the HTML of a highlighted blob, where it arrives as
+      `<span class="t-keyword">export</span>...` and never appears contiguously. The view was right
+      the whole time. It asserts the text now, with the tags stripped, which is what the test was
+      about.
+
+      One thing checked and found **not** to be a bug, recorded because the first read said
+      otherwise: 123 fields across the actions declare `schema.number()` or `schema.boolean()` for a
+      value their handler coerces, which looks like the mirror image of the 40 fields
+      `app/Actions/inputs.ts` was written for. It is not. Those arrive from a query string or a
+      form, both of which the framework coerces to the declared type, and
+      `tests/e2e/fine-grained-token-api.test.ts` proves it by passing `number=1` as text to an
+      action declaring `schema.number()` and asserting 200. The `coerced` rule is still the more
+      honest declaration for a field a handler coerces, but nothing is broken and a 123-field sweep
+      would be churn.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were

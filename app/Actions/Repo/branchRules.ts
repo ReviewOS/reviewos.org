@@ -8,6 +8,10 @@
  * action does the database work against answers it did not have to work out.
  */
 
+// `readFlag` rather than a seventh copy of it: a flag can arrive twice from a
+// form, and reading only the first value is what made a ticked box unsettable.
+import { readFlag } from '../inputs'
+
 /** Everything a rule can say, as a caller sends it. */
 export interface RulePatch {
   pattern?: unknown
@@ -133,14 +137,14 @@ export function decideRule(patch: RulePatch): RuleDecision {
     rule: {
       pattern,
       required_approvals: approvals,
-      dismiss_stale_reviews: readFlag(patch.dismiss_stale_reviews),
-      require_conversation_resolution: readFlag(patch.require_conversation_resolution),
+      dismiss_stale_reviews: (readFlag(patch.dismiss_stale_reviews) ?? false),
+      require_conversation_resolution: (readFlag(patch.require_conversation_resolution) ?? false),
       required_checks: JSON.stringify(checks.names),
-      allow_force_push: readFlag(patch.allow_force_push),
-      allow_deletion: readFlag(patch.allow_deletion),
-      require_linear_history: readFlag(patch.require_linear_history),
-      require_human_approval_for_agents: readFlag(patch.require_human_approval_for_agents),
-      require_up_to_date: readFlag(patch.require_up_to_date),
+      allow_force_push: (readFlag(patch.allow_force_push) ?? false),
+      allow_deletion: (readFlag(patch.allow_deletion) ?? false),
+      require_linear_history: (readFlag(patch.require_linear_history) ?? false),
+      require_human_approval_for_agents: (readFlag(patch.require_human_approval_for_agents) ?? false),
+      require_up_to_date: (readFlag(patch.require_up_to_date) ?? false),
       /*
        * The one flag that is not `readFlag`, because its absent value is not
        * false.
@@ -154,7 +158,7 @@ export function decideRule(patch: RulePatch): RuleDecision {
        * The form posts a hidden `0` alongside the checkbox so an unticked box
        * still arrives, which is what makes turning it off possible at all.
        */
-      enforce_admins: patch.enforce_admins === undefined ? true : readFlag(patch.enforce_admins),
+      enforce_admins: patch.enforce_admins === undefined ? true : (readFlag(patch.enforce_admins) ?? false),
       push_restrictions: writeRestrictions(restrictions.value),
     },
   }
@@ -331,21 +335,6 @@ function clean(names: string[]): string[] {
     .filter(name => name && !seen.has(name) && seen.add(name) !== undefined)
 }
 
-/**
- * A checkbox, as a form sends it.
- *
- * Unlike the repository settings' version this treats absent as **false**
- * rather than "leave it alone", and the difference is the same one `readChecks`
- * turns on: an unticked HTML checkbox sends nothing at all, and a rule that
- * kept its old value for every box somebody just cleared would be impossible to
- * turn off from the page that displays it.
- */
-function readFlag(value: unknown): boolean {
-  if (value === undefined || value === null || value === '')
-    return false
-
-  return ['1', 'true', 'on', 'yes'].includes(String(value).toLowerCase())
-}
 
 /**
  * A rule's settings, without the bookkeeping.

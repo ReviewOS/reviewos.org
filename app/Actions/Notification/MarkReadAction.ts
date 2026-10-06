@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { dbTimestamp } from '../Support/sql'
-import { coerced } from '../inputs'
+import { coerced, readFlag } from '../inputs'
 
 /**
  * Mark notifications read: one, several, or the whole filtered view.
@@ -50,7 +50,7 @@ export default new Action({
     // `read_at` is a real datetime column; see `dbTimestamp` for why an ISO
     // string is not a datetime literal.
     const now = dbTimestamp()
-    const all = readFlag(request.get('mark_all'))
+    const all = (readFlag(request.get('mark_all')) ?? false)
     const ids = readIds(request.get('ids') ?? request.get('id'))
 
     if (!all && ids.length === 0)
@@ -138,12 +138,6 @@ export default new Action({
   },
 })
 
-/** A checkbox, as a form sends it. */
-function readFlag(value: unknown): boolean {
-  const text = String(value ?? '').toLowerCase()
-
-  return text === 'true' || text === '1' || text === 'on' || text === 'yes'
-}
 
 /** One id, a list of them, or a comma-separated field. Anything else is dropped. */
 function readIds(value: unknown): number[] {
