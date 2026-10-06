@@ -185,11 +185,49 @@ chmod 0755 "$TREE/sbin/reviewos-agent"
 
 ROOTFS="$OUT/rootfs-$ALPINE_VERSION-$ARCH.ext4"
 
-rm -f "$ROOTFS"
-mke2fs -q -t ext4 -d "$TREE" -b 4096 -L reviewos-guest "$ROOTFS" 16384
+# ---------------------------------------------------------------------------
+# And the same inputs have to produce the same image
+#
+# Two CI runs of this script over identical pinned downloads produced two
+# different image digests. Nothing had changed: mke2fs stamps a random
+# filesystem UUID, a random directory hash seed and the current time into the
+# superblock, so every build is a new image by content.
+#
+# For a disk that is merely mounted that is invisible. Here the digest *is* the
+# claim - `config/ci-execution.ts` refuses to run without one because "a run has
+# to be able to record what executed it" - and a digest that changes when
+# nothing did cannot be checked against a published one. An operator who built
+# this image twice could not tell a tampered copy from a second build.
+#
+# So all three are pinned. `SOURCE_DATE_EPOCH` is the one e2fsprogs reads for
+# its timestamps; the UUID and the hash seed are fixed values rather than
+# derived ones, because deriving them from the content they end up inside is a
+# problem with no fixed point.
+# ---------------------------------------------------------------------------
 
-KERNEL_DIGEST=$(sha256sum "$KERNEL" | cut -d' ' -f1)
-IMAGE_DIGEST=$(sha256sum "$ROOTFS" | cut -d' ' -f1)
+GUEST_UUID="6f8c1b2e-0d4a-4a3f-9c21-5e7b8d0a1f33"
+
+rm -f "$ROOTFS"
+SOURCE_DATE_EPOCH=0 mke2fs -q -t ext4 \
+  -d "$TREE" \
+  -b 4096 \
+  -L reviewos-guest \
+  -U "$GUEST_UUID" \
+  -E hash_seed="$GUEST_UUID" \
+  "$ROOTFS" 16384
+
+# ---------------------------------------------------------------------------
+# `sha256:` is part of the digest, not decoration
+#
+# `measureFile()` in `vmImage.ts` returns `sha256:<hex>`, and `verifyPinned`
+# compares the whole string. Emitting the bare hex produced the best error
+# message of this exercise: "the guest image ... is
+# `sha256:01c74106...`, not the `01c74106...` this runner was told to boot",
+# with the two hashes identical and the prefix the entire difference.
+# ---------------------------------------------------------------------------
+
+KERNEL_DIGEST="sha256:$(sha256sum "$KERNEL" | cut -d' ' -f1)"
+IMAGE_DIGEST="sha256:$(sha256sum "$ROOTFS" | cut -d' ' -f1)"
 
 say "kernel $KERNEL"
 say "  sha256 $KERNEL_DIGEST"

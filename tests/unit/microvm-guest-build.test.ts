@@ -16,6 +16,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_INIT } from '../../app/Actions/Runner/microvm'
+import { measureFile } from '../../app/Actions/Runner/vmImage'
 import { guestAgent } from '../../app/Actions/Runner/microvmProtocol'
 
 const script = await Bun.file('scripts/microvm/build-guest.sh').text()
@@ -51,6 +52,38 @@ describe('the guest build script', () => {
      */
     expect(script).toContain('write-agent.ts')
     expect(script).not.toContain('#!/bin/sh\n# The ReviewOS guest agent')
+  })
+
+  test('emits digests in the shape the verifier actually compares', async () => {
+    /*
+     * `verifyPinned` compares against `measureFile`, which returns
+     * `sha256:<hex>` and compares the whole string. Emitting the bare hex
+     * produced the best error message of this exercise - "the guest image ... is
+     * `sha256:01c74106...`, not the `01c74106...` this runner was told to boot" -
+     * with the two hashes identical and the prefix the entire difference.
+     *
+     * Measured from a real file rather than asserted as a literal, so a change
+     * to that format is caught here instead of at boot.
+     */
+    const real = await measureFile('package.json')
+
+    expect(real).toStartWith('sha256:')
+    expect(script).toContain('KERNEL_DIGEST="sha256:$(')
+    expect(script).toContain('IMAGE_DIGEST="sha256:$(')
+  })
+
+  test('builds the same image twice from the same inputs', () => {
+    /*
+     * Two CI runs over identical pinned downloads produced two different image
+     * digests, because mke2fs stamps a random UUID, a random directory hash
+     * seed and the current time into the superblock. On an ordinary disk that
+     * is invisible; here the digest is the claim the whole mode rests on, and
+     * one that changes when nothing did cannot be checked against a published
+     * one.
+     */
+    expect(script).toContain('SOURCE_DATE_EPOCH=0')
+    expect(script).toContain('-U "$GUEST_UUID"')
+    expect(script).toContain('-E hash_seed="$GUEST_UUID"')
   })
 
   test('every pinned digest is a whole sha256', () => {
