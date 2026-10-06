@@ -1784,7 +1784,7 @@ gate, in order.
       is the shape `keys-gpg.test.ts` uses. A test nobody can run is worse than one that says why it
       did not.
 
-- [ ] **Run the egress suite somewhere, because right now it runs nowhere.** The five tests above are
+- [x] **Run the egress suite somewhere, because right now it runs nowhere.** The five tests above are
       the only suite left in a green CI run that passes while asserting nothing: `[microvm-egress]
       skipping: no firecracker, REVIEWOS_GUEST_KERNEL is not set, ...` and then five green ticks.
       That is the exact shape that hid the search coverage for two months, and it is worse here,
@@ -1829,11 +1829,44 @@ gate, in order.
       steps in `test`, so a hypervisor is not on the critical path of 6,569 tests that do not need
       one, and `deploy` does not depend on it while it is new.
 
-      **Still unticked because it has not been seen to pass.** Everything above is checked as far as
-      a laptop can check it - the four digests were computed from real downloads, the kernel config
-      was read for `CONFIG_DEVTMPFS_MOUNT` rather than assumed, the agent round-trips byte-identical
-      - but no machine available here can run an ext4 build or boot a guest, so the first real
-      evidence is the CI run itself.
+      **It boots, on x86_64, and all five pass**: `5 pass, 0 fail` in 578s, which is the first time
+      this design has run on anything other than the aarch64 it was built on. Three CI rounds got
+      there and each one was a real defect rather than a flake:
+
+      1. **`mke2fs -q` is quieter, not silent.** It still announces "Creating filesystem with 16384
+         4k blocks", which landed on the stream `--env` was meant to have to itself and was eval'd:
+         `Creating: command not found`. The script moves its own stdout to stderr now and hands the
+         env block fd 3, so that stream carries the environment or nothing.
+      2. **No scratch directory.** `scratchDirectory()` defaults to `/var/lib/reviewos/microvm`,
+         which is right for a deployed runner and is not a directory a GitHub runner has - and it is
+         where the payload disk and the machine configuration are written, so every probe failed
+         before Firecracker started.
+      3. **The digest prefix.** `measureFile()` returns `sha256:<hex>` and `verifyPinned` compares
+         the whole string, while the build emitted bare hex - so the runner refused an image it had
+         measured correctly, reporting two identical hashes as a mismatch.
+
+      Rounds 2 and 3 cost more than they should have, because `expect(outcome.state).toBe('succeeded')`
+      reports `Received: "failed"` and discards `outcome.reason`, and every pre-boot failure produces
+      that same word. All five tests report the outcome as a sentence now.
+
+      **And the image is reproducible, which it was not.** Two runs over identical pinned downloads
+      produced two different digests, because mke2fs stamps a random UUID, a random directory hash
+      seed and the current time into the superblock. Invisible on an ordinary disk; here the digest
+      is the claim the mode rests on, and one that changes when nothing did cannot be checked against
+      a published one. All three are pinned.
+
+- [ ] **Each machine runs for its whole wall clock instead of ending when the job does.** The three
+      booting tests took 196s, 190s and 190s against a `timeout_minutes: 3`, so every one of them
+      was killed by the clock rather than finishing. The job itself succeeds - the host parses
+      `FINISHED` and every step's frame - so this is invisible in the result and is the difference
+      between a 30-second suite and a 10-minute one, and on a real instance between a job that ends
+      and a job that holds a machine for its entire timeout.
+
+      The agent's last line is `poweroff -f`, and `bootArgs()` passes `reboot=k` - the flag that
+      makes a *reboot* exit a Firecracker machine. Worth trying `reboot -f` against it, since the
+      boot arguments were already written for the other verb. `microvmSupervisor.ts` reads the
+      console until the stream closes and then awaits the child, with no early exit on `FINISHED`,
+      so a guest that does not stop is a host that waits.
 
 ## Workflow developer experience
 
