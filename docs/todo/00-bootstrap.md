@@ -273,6 +273,29 @@ Each one is committed and pushed in the repository named.
       `@stacksjs/defaults/project/storage/framework/types` instead, which is the same source the
       upgrade's own types step uses.
 
+- [x] **stacks** - **`buddy typecheck` finishes its work and then never exits.** Filed as
+      stacksjs/stacks#2868. It typechecks in about two seconds, logs "Finished running typecheck",
+      and the process stays up: still running at 2m16s, and killing the invoking shell leaves it
+      reparented to PID 1 and alive at 17m. Anything reading it through a pipe therefore never sees
+      EOF, so `./buddy typecheck | tail` prints nothing at all and runs until killed.
+
+      `@stacksjs/actions/dist/typecheck.js` is three imports and one `await runCommands(...)` with
+      no exit after it. Every other action in that package that calls `runCommands` ends with an
+      explicit `process.exit`, and this is the only one that does not - which reads less like a
+      convention than like the same workaround applied one file at a time, with this file missed.
+
+      `.github/workflows/ci.yml` has been calling `tsc` directly since 2026-08-19 for exactly this,
+      and its note guessed the wrapper was surviving locally because of a warm cache. It was not;
+      it hangs here identically. The `typecheck` and `test:types` scripts in `package.json` now run
+      the same direct command, which is also what the framework's own `buddy upgrade` writes. Both
+      finish in about two seconds and, unlike before, end.
+
+      Worth knowing when reading an earlier claim of mine here: the first measurement of this was
+      `./buddy typecheck | tail -15`, reported as "no output in 2m44s". The no-output half was the
+      pipe, not the command. It was the right conclusion from the wrong evidence, and the real
+      behaviour is worse than the reported one, since the work does finish and only the process
+      does not.
+
 - [x] **stacks** - **`buddy migrate --diff` says the models match a database that `buddy migrate`
       says is missing tables.** Filed as stacksjs/stacks#2860. Found on this machine, where the
       ledger had fallen behind after the corpus was rebuilt upstream: 82 rows against 304 migration
