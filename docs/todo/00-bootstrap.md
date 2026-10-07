@@ -265,13 +265,33 @@ Each one is committed and pushed in the repository named.
       describe a surface nobody can call.
 
 
-- [ ] **stacks** - `buddy upgrade` rewrites `workspace:*` to a pinned range in the workspace
+- [x] **stacks** - `buddy upgrade` rewrites `workspace:*` to a pinned range in the workspace
       packages under `storage/framework`. Those are workspace members, and a version range stops
       them resolving locally, so the one command that delivers the scaffolded declarations also
       does that. The declarations this app was missing (`model-events`, `registries`, `gates`,
       `models`, `request-context`, `authenticated-user`) were copied from
       `@stacksjs/defaults/project/storage/framework/types` instead, which is the same source the
       upgrade's own types step uses.
+
+      **Filed as stacksjs/stacks#2880**, still reproducing on 0.75.89. It is one line in
+      `resolveManifestSpec`: `if (spec.startsWith('workspace:')) return \`^${target}\``, applied by
+      `reconcileVendoredManifests` to every manifest under `storage/framework` - 33 declarations
+      across 7 of them here.
+
+      Demonstrated by calling the published function rather than reading `dist` and inferring,
+      which is the mistake that made the #2868 report wrong:
+
+      ```
+      workspace:*        -> "^0.75.89"
+      file:../router     -> null
+      ^0.75.81           -> "^0.75.89"
+      next               -> null
+      ```
+
+      `workspace:` is the only non-numeric spec that gets rewritten, and the comment directly below
+      that line says a git url, a `file:` link and a tag are left alone because "it was set
+      deliberately and guessing at it would be worse". `workspace:*` is in that category and was
+      set by `buddy new`.
 
 - [x] **stacks** - **`buddy typecheck` finishes its work and then never exits.** Filed as
       stacksjs/stacks#2868. It typechecks in about two seconds, logs "Finished running typecheck",
