@@ -33,7 +33,22 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
-    useSeeder: { count: 80 },
+    /*
+     * No `useSeeder`, and `database/seeders/Reactions.ts` instead.
+     *
+     * It asked for 80 and produced none, on every run, because `subject_id` is
+     * polymorphic: a factory is handed `faker` and its own row's values, never
+     * a database, so there is nothing it can return for a column that indexes
+     * whichever of three tables `subject_type` names. It returned `null`, the
+     * column is `not null`, and each run reported a failed model with the real
+     * error buried in a truncated query log.
+     *
+     * A `belongsTo` would resolve it and would generate a foreign key, which on
+     * a polymorphic column forbids two thirds of the values it exists to hold.
+     * The seeder is the one place that can see all three subject tables, and it
+     * also has to walk the unique index below rather than draw from it at
+     * random.
+     */
   },
 
   belongsTo: [{ model: 'User', foreignKey: 'user_id' }],
