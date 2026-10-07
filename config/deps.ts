@@ -14,10 +14,34 @@ export const config: PantryConfig = {
    * These are binary tools and system packages required for development
    */
   dependencies: {
-    // The floor stx requires, and what pantry installs. It had been held at
-    // ^1.3.11 because ts-pantry's generated version union is a snapshot and
-    // that was as far as it went; 0.11.19's snapshot reaches 1.3.19.
-    bun: '^1.3.14',
+    /*
+     * Exact, not a range, and that is the whole point of this line.
+     *
+     * It was `^1.3.14`, which permits everything from there through 1.4.x - and
+     * on 2026-10-06 the two legs of a single CI run drew 1.3.11 and 1.4.2.
+     * Different runtimes, same commit, and one of them below the floor this
+     * range declares. The suite's results moved with it: the Bun stdout
+     * backpressure canary asserts the *fixed* behaviour, so it passed on 1.4.2
+     * and failed on 1.3.11, and a red run read like a code problem.
+     *
+     * A caret range is right for a library and wrong for the runtime executing
+     * the tests. Two machines on different patch versions are not running the
+     * same suite, which is the hole a lockfile exists to close and this file had
+     * left open for the one dependency everything else runs on.
+     *
+     * 1.4.2 because it is the current release, and because the backpressure
+     * fix is in it: that was verified as "1.4.3" earlier, which is not a
+     * published version at all - it is what a canary build on one developer's
+     * PATH reports. The real evidence is CI, where the test passes on 1.4.2 and
+     * fails on 1.3.11.
+     *
+     * The GitHub workflows pin it separately and must agree. The pantry action
+     * does not read this file: with no `packages` input it logs "Installing
+     * bun.sh@latest via pantry SDK (defaulted to latest)", which is where the
+     * drift actually came from. `tests/unit/ci-bun-pin.test.ts` holds the two
+     * in step.
+     */
+    bun: '1.4.2',
     git: '^2.47.0',
     // Commit signature verification. git can tell you a commit carries a
     // signature without it, but not whether the signature is good - that is

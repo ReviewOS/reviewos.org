@@ -161,6 +161,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@3c723aa5d6c8d4572cf2cc8c81356e34b8fea9b9 # v0.11
         with:
+          packages: bun.sh@1.4.2
           version: '0.11.0'
           install: 'false'
 
@@ -226,6 +227,7 @@ jobs:
       - name: Publish GitHub release and deliver package
         uses: pantry-pm/pantry/packages/action@3c723aa5d6c8d4572cf2cc8c81356e34b8fea9b9 # v0.11
         with:
+          packages: bun.sh@1.4.2
           version: '0.11.0'
           install: 'false'
           release: 'true'

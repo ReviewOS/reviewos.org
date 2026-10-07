@@ -53,6 +53,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 

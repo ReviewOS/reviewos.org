@@ -40,6 +40,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -95,6 +96,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -277,6 +279,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -298,6 +301,28 @@ jobs:
           version=$(sed -n 's/.*"lockfileVersion"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' bun.lock | head -1)
           if [ "$version" != "1" ]; then
             echo "::error::bun.lock is lockfileVersion $version but CI's Bun reads 1. Regenerate with the pinned Bun: ./pantry/.bin/bun install --lockfile-only"
+            exit 1
+          fi
+
+      # Which Bun is actually here, as opposed to which one was asked for.
+      #
+      # `config/deps.ts` and every pantry step name 1.4.2, and
+      # `tests/unit/ci-bun-pin.test.ts` keeps those two in step - but both are
+      # declarations, and the thing that went wrong was the gap between a
+      # declaration and what the runner installed. On 2026-10-06 two legs of
+      # one run executed this suite on 1.3.11 and 1.4.2, and the only reason
+      # anybody noticed is that a version-sensitive test happened to be in it.
+      #
+      # So the version is asserted where it can be observed. A job running the
+      # wrong runtime says so in one line instead of reporting whatever that
+      # runtime makes of 6,569 tests.
+      - name: The Bun this job actually got
+        run: |
+          want=1.4.2
+          got=$(bun --version)
+          echo "bun $got"
+          if [ "$got" != "$want" ]; then
+            echo "::error::this job is running Bun $got, not the pinned $want. The pantry step asked for bun.sh@$want; see config/deps.ts."
             exit 1
           fi
 
@@ -478,6 +503,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -488,6 +514,28 @@ jobs:
           key: node-modules-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             node-modules-
+
+      # Which Bun is actually here, as opposed to which one was asked for.
+      #
+      # `config/deps.ts` and every pantry step name 1.4.2, and
+      # `tests/unit/ci-bun-pin.test.ts` keeps those two in step - but both are
+      # declarations, and the thing that went wrong was the gap between a
+      # declaration and what the runner installed. On 2026-10-06 two legs of
+      # one run executed this suite on 1.3.11 and 1.4.2, and the only reason
+      # anybody noticed is that a version-sensitive test happened to be in it.
+      #
+      # So the version is asserted where it can be observed. A job running the
+      # wrong runtime says so in one line instead of reporting whatever that
+      # runtime makes of 6,569 tests.
+      - name: The Bun this job actually got
+        run: |
+          want=1.4.2
+          got=$(bun --version)
+          echo "bun $got"
+          if [ "$got" != "$want" ]; then
+            echo "::error::this job is running Bun $got, not the pinned $want. The pantry step asked for bun.sh@$want; see config/deps.ts."
+            exit 1
+          fi
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile
@@ -581,6 +629,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -646,6 +695,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -771,6 +821,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
@@ -921,6 +972,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
+          packages: bun.sh@1.4.2
           version: '0.10.50'
           install: 'false'
 
