@@ -1855,18 +1855,31 @@ gate, in order.
       is the claim the mode rests on, and one that changes when nothing did cannot be checked against
       a published one. All three are pinned.
 
-- [ ] **Each machine runs for its whole wall clock instead of ending when the job does.** The three
-      booting tests took 196s, 190s and 190s against a `timeout_minutes: 3`, so every one of them
-      was killed by the clock rather than finishing. The job itself succeeds - the host parses
-      `FINISHED` and every step's frame - so this is invisible in the result and is the difference
-      between a 30-second suite and a 10-minute one, and on a real instance between a job that ends
-      and a job that holds a machine for its entire timeout.
+- [x] **Each machine ran for its whole wall clock instead of ending when the job did.** The three
+      booting tests took 196s, 190s and 190s against a `timeout_minutes: 3`, every one of them
+      killed by the clock rather than finishing, and the job succeeded anyway - so the result said
+      nothing about it.
 
-      The agent's last line is `poweroff -f`, and `bootArgs()` passes `reboot=k` - the flag that
-      makes a *reboot* exit a Firecracker machine. Worth trying `reboot -f` against it, since the
-      boot arguments were already written for the other verb. `microvmSupervisor.ts` reads the
-      console until the stream closes and then awaits the child, with no early exit on `FINISHED`,
-      so a guest that does not stop is a host that waits.
+      Two causes, and only one of them is the obvious one.
+
+      **The agent used the wrong verb.** It ended with `poweroff -f`. Firecracker implements no
+      guest power management, so that stops the guest OS and leaves the hypervisor process running
+      (firecracker-microvm/firecracker#598 is this exactly). `reboot` is the one that works, because
+      Linux with `reboot=k` resets through the i8042 keyboard controller and Firecracker emulates
+      that controller for this single purpose. `bootArgs()` has passed `reboot=k` all along: the
+      boot arguments were written for the verb the agent did not use.
+
+      **And the host waited for the guest's cooperation**, which the rest of this design is built
+      on not doing. Fixing the verb fixes a *cooperative* guest; a job that simply never reboots
+      would still hold a machine, a tap device and a filter table for the full timeout, with a
+      successful run as the only trace. The console reader stops the machine on `FINISHED` now,
+      which is unforgeable for the same reason the step reports are - a step printing that line
+      prints it inside a counted frame.
+
+      `tests/unit/runner-microvm-run.test.ts` boots a fake hypervisor that reports a complete job
+      and then refuses to exit, and asserts the supervisor does not wait. No KVM and no guest: what
+      is under test is the host's reaction to the frame. Verified by disabling the fix, which turns
+      an 0.8-second file into a 45-second one.
 
 ## Workflow developer experience
 

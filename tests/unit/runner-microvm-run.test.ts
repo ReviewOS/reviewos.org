@@ -615,3 +615,108 @@ describe('a runner whose image is not the one it was told to boot', () => {
     )
   })
 })
+
+describe('a guest that will not stop itself', () => {
+  test('is taken away when it reports finished, not when the clock runs out', async () => {
+    /*
+     * The property: the host does not wait for the guest's cooperation to end
+     * the machine.
+     *
+     * The agent's last line is `reboot -f`, which does stop a Firecracker
+     * machine - `poweroff` does not, because Firecracker implements no guest
+     * power management, and that cost three egress tests 190 seconds each
+     * against a three-minute timeout while still reporting success. But fixing
+     * the verb only fixes a cooperative guest. The guest is a stranger's code,
+     * and one that simply never reboots would hold a machine, a tap device and
+     * a filter table for the whole timeout with a successful job as the only
+     * trace.
+     *
+     * So this boots a fake hypervisor that reports a complete job and then
+     * refuses to exit, and asserts the supervisor does not wait for it. No KVM
+     * and no guest involved: what is under test is the host's reaction to the
+     * frame.
+     */
+    const { superviseJob } = await import('../../app/Actions/Runner/microvmSupervisor')
+    const { machineSpec } = await import('../../app/Actions/Runner/microvm')
+
+    const scratch = `${process.env.TMPDIR ?? '/tmp'}/rvos-stop-${Bun.randomUUIDv7()}`
+    await Bun.$`mkdir -p ${scratch}`.quiet()
+
+    const noncePath = `${scratch}/nonce`
+    const fake = `${scratch}/firecracker`
+
+    /*
+     * The nonce is generated inside the supervisor and never leaves it except
+     * onto the payload disk, which is exactly where this reads it from: the
+     * stubbed `privileged` below captures the `mkfs` script, and the frames a
+     * real agent would emit are unforgeable without that token.
+     */
+    await Bun.write(fake, `#!/bin/sh
+nonce=$(cat ${noncePath})
+printf '\\001RVOS %s BEGIN 0\\n' "$nonce"
+printf '\\001RVOS %s DATA 3\\n' "$nonce"
+printf 'ok\\n'
+printf '\\001RVOS %s END 0 0\\n' "$nonce"
+printf '\\001RVOS %s FINISHED\\n' "$nonce"
+# And now it does what a guest with no interest in ending does.
+sleep 45
+`)
+    await Bun.$`chmod 0755 ${fake}`.quiet()
+
+    const started = Bun.nanoseconds()
+
+    const outcome = await superviseJob({
+      spec: machineSpec({
+        jobId: 77,
+        imagePath: '/i',
+        imageDigest: `sha256:${'a'.repeat(64)}`,
+        kernelPath: '/k',
+        overlayPath: `${scratch}/job-77.ext4`,
+        policy: { mode: 'deny', rules: [], privateAllowed: false },
+        // 60 is the floor `machineSpec` clamps to, so there is no shorter
+        // wall clock to ask for. The fake's sleep is deliberately below it,
+        // which bounds a regression at 45 seconds instead of 60.
+        wallSeconds: 60,
+      }),
+      steps: [{ run: 'echo ok' }],
+      host: {
+        firecracker: fake,
+        scratch,
+        hostAddress: '172.20.0.1',
+        guestAddress: '172.20.0.2',
+        privileged: async (argv) => {
+          /*
+           * The overlay script carries the nonce, and it arrives as `sh -c
+           * <script>` rather than on stdin - `makeOverlay` builds one argv
+           * while the ruleset load is the one that uses `input`. Reading the
+           * wrong parameter here produced a test that failed for the reason it
+           * was written to catch, which is the worst way for a test to be
+           * wrong.
+           */
+          const script = argv[0] === 'sh' ? String(argv[2] ?? '') : ''
+          // Single-quoted, because `shellQuote` wraps every value it writes.
+          const found = /printf '%s' '([0-9a-f]{32})' > "\$M\/nonce"/.exec(script)?.[1]
+
+          if (found)
+            await Bun.write(noncePath, found)
+
+          return { ok: true, output: '' }
+        },
+      },
+    })
+
+    const seconds = (Bun.nanoseconds() - started) / 1e9
+
+    expect(outcome.ok).toBe(true)
+    expect(outcome.steps.map(step => step.output)).toEqual(['ok\n'])
+
+    /*
+     * The assertion that is actually about the fix. The fake sleeps for 45
+     * seconds, so before this change the only possible answer was 45 - and had
+     * the sleep outlasted the 60-second floor, 60.
+     */
+    expect(seconds).toBeLessThan(15)
+
+    await Bun.$`rm -rf ${scratch}`.quiet().nothrow()
+  }, 60_000)
+})

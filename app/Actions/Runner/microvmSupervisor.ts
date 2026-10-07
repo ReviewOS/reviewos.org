@@ -278,7 +278,24 @@ async function boot(input: {
    */
   const wants = `\x01RVOS ${input.nonce} WANT-SECRETS`
 
+  /*
+   * And the frame that means the job is over.
+   *
+   * The agent ends with `reboot -f`, which does stop a Firecracker machine -
+   * but waiting for it would be trusting the guest to end its own machine, and
+   * the guest is a stranger's code. A job that simply never reboots holds a
+   * machine, a tap device and a filter table for its entire timeout, and the
+   * only cost signal is a slow runner.
+   *
+   * So the host stops it. `FINISHED` is the last thing the agent writes, after
+   * every step's frame, so there is nothing still to read when this fires - and
+   * the nonce is what makes it unforgeable, exactly as it does for the step
+   * reports: a step printing this line is printing data inside a counted frame.
+   */
+  const done = `\x01RVOS ${input.nonce} FINISHED`
+
   let answered = false
+  let reported = false
 
   /*
    * Masked as a *stream*, not per chunk. `redactSecrets` says outright that a
@@ -325,6 +342,15 @@ async function boot(input: {
       // than a blank panel and then everything at once.
       if (input.onOutput)
         await input.onOutput(masker.push(piece)).catch(() => {})
+
+      /*
+       * Taken away the moment it says it is done, rather than when it gets
+       * round to rebooting or when the clock runs out.
+       */
+      if (!reported && text.includes(done)) {
+        reported = true
+        child.kill()
+      }
     }
 
     if (input.onOutput) {
@@ -339,6 +365,9 @@ async function boot(input: {
   finally {
     clearTimeout(timer)
   }
+
+  if (reported)
+    return { console: text }
 
   return { console: text, reason: timedOut ? `the machine was killed after ${input.wallSeconds} seconds` : 'the machine stopped without the agent reporting' }
 }

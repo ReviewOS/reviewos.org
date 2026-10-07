@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { DEFAULT_INIT } from '../../app/Actions/Runner/microvm'
+import { bootArgs, DEFAULT_INIT } from '../../app/Actions/Runner/microvm'
 import { measureFile } from '../../app/Actions/Runner/vmImage'
 import { guestAgent } from '../../app/Actions/Runner/microvmProtocol'
 
@@ -151,7 +151,27 @@ describe('the agent it installs', () => {
      */
     const agent = guestAgent()
 
-    for (const program of ['mount', 'stty', 'ip ', 'base64', 'poweroff', 'wc ', 'head ', 'cat ', 'rm '])
+    for (const program of ['mount', 'stty', 'ip ', 'base64', 'reboot', 'wc ', 'head ', 'cat ', 'rm '])
       expect(agent).toContain(program)
+  })
+
+  test('ends the machine with the verb Firecracker acts on', () => {
+    /*
+     * Firecracker implements no guest power management, so `poweroff` stops the
+     * guest OS and leaves the hypervisor running - upstream
+     * firecracker-microvm/firecracker#598. The machine then sits until the
+     * host's wall clock kills it, which is what made three egress tests take
+     * 190 seconds each for thirty seconds of work while still reporting
+     * success.
+     *
+     * `reboot` is the one that works, because `bootArgs()` passes `reboot=k`
+     * and Firecracker emulates the i8042 controller for exactly this reset.
+     * Asserted together, since either one alone is the bug.
+     */
+    const agent = guestAgent()
+
+    expect(agent).toContain('reboot -f')
+    expect(agent).not.toContain('poweroff -f')
+    expect(bootArgs()).toContain('reboot=k')
   })
 })

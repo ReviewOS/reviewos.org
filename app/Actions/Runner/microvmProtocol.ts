@@ -368,6 +368,20 @@ done
 
 say "FINISHED"
 sync
-poweroff -f
+
+# \`reboot\`, not \`poweroff\`, and this is not a stylistic choice.
+#
+# Firecracker implements no guest power management, so \`poweroff\` stops the
+# guest OS and leaves the hypervisor process running - upstream
+# firecracker-microvm/firecracker#598 is exactly this. The machine then sits
+# there until the host's wall clock kills it, which it did: three tests that
+# needed thirty seconds of work each took 190 seconds against a three-minute
+# timeout, and the job still reported success, so nothing pointed at it.
+#
+# \`reboot\` works because \`bootArgs()\` passes \`reboot=k\`, which tells Linux to
+# reset through the i8042 keyboard controller. Firecracker emulates that
+# controller for this one purpose and exits when it sees the reset. The boot
+# arguments were written for this verb before the agent used it.
+reboot -f
 `
 }
