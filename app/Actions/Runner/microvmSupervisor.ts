@@ -346,10 +346,22 @@ async function boot(input: {
       /*
        * Taken away the moment it says it is done, rather than when it gets
        * round to rebooting or when the clock runs out.
+       *
+       * `break` as well as `kill`, and the `break` is the half that works.
+       * Killing the process does not end this iterator on every Bun: on 1.4.2
+       * the loop went on awaiting a stdout that nobody would write to again
+       * and the machine ran to its wall clock anyway, while on a 1.4.3 canary
+       * the kill closed the stream and the loop ended. Leaving the stream for
+       * the hypervisor to close is depending on a runtime detail; leaving the
+       * loop is not.
+       *
+       * Nothing is lost by stopping here. `FINISHED` is the last thing the
+       * agent writes, after every step's frame.
        */
       if (!reported && text.includes(done)) {
         reported = true
         child.kill()
+        break
       }
     }
 

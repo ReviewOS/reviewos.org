@@ -1881,6 +1881,15 @@ gate, in order.
       is under test is the host's reaction to the frame. Verified by disabling the fix, which turns
       an 0.8-second file into a 45-second one.
 
+      That test then caught the first version of the fix being wrong, and only because the Bun
+      version had just been pinned. Killing the hypervisor does not end the stdout iterator on
+      every Bun: on 1.4.2 the loop went on awaiting a stream nobody would write to again and the
+      machine ran to its wall clock regardless, while on a 1.4.3 canary the kill closed the stream
+      and it worked. So the host left the *loop* rather than waiting for the hypervisor to close
+      the stream, since the latter is depending on a runtime detail. The CI speedup had come from
+      the agent's verb alone, and the host-side guarantee - the one that does not need the guest's
+      cooperation - was not being delivered on the version CI actually runs.
+
 ## Workflow developer experience
 
 - [x] Setup or install step can produce a cache snapshot consumed by later steps without giving
