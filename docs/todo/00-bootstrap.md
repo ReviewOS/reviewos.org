@@ -279,6 +279,21 @@ Each one is committed and pushed in the repository named.
       reparented to PID 1 and alive at 17m. Anything reading it through a pipe therefore never sees
       EOF, so `./buddy typecheck | tail` prints nothing at all and runs until killed.
 
+      **The diagnosis in this entry was wrong, and the fix is `230e0078c8`.** It is not
+      `runCommands`, which returns with zero active handles against the published packages. It is
+      `process.on('beforeExit')` in `core/logging`: the listener calls `log.flush()`, and a
+      `beforeExit` listener that schedules real event-loop work gets `beforeExit` emitted again
+      when the loop next empties, so the pair never settles. `process.once` fixes it. All 144
+      buddy commands that fall off the end were exposed, not one; every command ending in an
+      explicit `process.exit` was immune by accident, because `process.exit` does not emit
+      `beforeExit`.
+
+      The claim below that `typecheck.js` is the only action without an exit is also wrong, and
+      wrong for an instructive reason: the grep ran over `node_modules/.../dist/`, where a bundled
+      entry inlines an imported module's `process.exit` and so appears to have one. In source it is
+      six files. Kept here rather than deleted, because a `dist` grep reading as source is a
+      mistake worth being able to recognise again.
+
       `@stacksjs/actions/dist/typecheck.js` is three imports and one `await runCommands(...)` with
       no exit after it. Every other action in that package that calls `runCommands` ends with an
       explicit `process.exit`, and this is the only one that does not - which reads less like a
@@ -453,7 +468,7 @@ Each one is committed and pushed in the repository named.
       stops its routes registering and not its actions resolving, so anything here can still point
       a route at a framework action it never copied.
 
-- [ ] **Model APIs cannot be made opt-in from this repository.** The other half of the question, and
+- [x] **Model APIs are opt-in now, and this instance takes none of the framework's.** The other half of the question, and
       it needs the framework. `@stacksjs/orm/routes` iterates every model in the auto-imports
       barrel and registers REST routes for any with a `useApi` trait, and the only things it reads
       are `config/qb.ts`, `config/security.ts` for `api.rowScoping`, and
@@ -474,13 +489,29 @@ Each one is committed and pushed in the repository named.
       something else entirely. See the domain-vocabulary table in [AGENTS.md](../../AGENTS.md) for
       why that matters here more than it would elsewhere.
 
-      Filed as stacksjs/stacks#2866. The shape asked for is the one `STACKS_DEFAULT_ROUTES` already
-      proves works: let an application say which models publish an API, with the default being what
-      apps get today so nothing changes on upgrade. A `own` selection, meaning only the models in
-      `app/Models`, has a precedent worth pointing at - the seeder already behaves that way, since
-      `loadAllModels` returns user models alone when the application has any and reaches for the
-      defaults only when it has none. The model-API surface having the opposite default is the
-      inconsistency.
+      Filed as stacksjs/stacks#2866 and **fixed upstream in `9977c5233`**, shipped in 0.75.89.
+      `security.api.models` in `config/security.ts` takes `'all'` (the default, so nothing changes
+      on upgrade), `'own'`, `'none'` or a list of names, with `STACKS_MODEL_APIS` overriding it -
+      the config-then-env pairing `api.rowScoping` already had. It narrows and never adds: a named
+      model still needs its own `useApi` trait.
+
+      This instance takes `'own'`, and the surface it leaves is smaller than the 178 asked about:
+
+      | | before | after |
+      |---|---|---|
+      | mounted routes | 714 | **259** |
+      | documented paths | 447 | **233** |
+      | component schemas | 78 | **3** |
+
+      455 rather than 178, because `'own'` drops every framework-model API rather than only the
+      ones over tables that do not exist. Checked before accepting it: everything removed is
+      commerce, CMS or marketing, and nothing in `app/`, `routes/`, `resources/` or `tests/`
+      addresses any of it. The one apparent hit, `/api/labels`, is a mock of *GitHub's* API inside
+      `import-github.test.ts`.
+
+      The three schemas left are the three `app/Models` that carry `useApi` - `Notification`,
+      `NotificationDelivery` and `Release` - which is the generator applying the same selection to
+      the document rather than a document that lost something.
 
 - [x] **The end-to-end suite is green: 1,584 tests, 0 failures.** It had 21, which had been there
       since August and were found only because this was the first time the whole suite was run
