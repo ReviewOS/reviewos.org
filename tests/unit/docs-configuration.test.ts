@@ -182,3 +182,33 @@ describe('the committed page', () => {
     expect(guide).toContain('| `TYPESENSE_HOST`')
   })
 })
+
+describe('the real .env.example, against the config that starts the service', () => {
+  test('names the Typesense port `config/deps.ts` actually binds', async () => {
+    /*
+     * `config/deps.ts` starts the search engine with `--port 8208` and says
+     * why in as many words: pantry runs one instance per project, every
+     * project asks for the same default 8108, so whichever starts second
+     * fails to bind - and a health check probing the default port gets the
+     * *other* project's answer and reports success. Naming a port is what
+     * makes this instance this project's.
+     *
+     * Its comment also says "Both have to agree; there is no third place
+     * deriving one from the other", which is an invitation for them to drift.
+     * This is that third place.
+     *
+     * Found drifted: a developer's `.env` said 8108, so this project was
+     * querying the *global* pantry node - the collision 8208 exists to
+     * prevent, reached by following `.env.example` and then editing it.
+     */
+    const deps = await Bun.file('config/deps.ts').text()
+    const example = await Bun.file('.env.example').text()
+
+    const started = /"--port",\s*"(\d+)"/.exec(deps)?.[1]
+    const declared = /^TYPESENSE_PORT=(\d+)$/m.exec(example)?.[1]
+
+    expect(started).toBeDefined()
+    expect(declared).toBeDefined()
+    expect(declared).toBe(started)
+  })
+})

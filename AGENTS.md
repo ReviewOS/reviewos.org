@@ -63,6 +63,16 @@ hand-edit `deps.yaml`; change `config/deps.ts` or `.env` and re-run setup.
 The database name, and the `postgres` role, come from `.env`. Pantry's cluster has exactly one role,
 so `DB_USERNAME=postgres` is not a placeholder.
 
+**Search is Typesense, also managed by pantry, and it runs on 8208 rather than its default 8108.**
+That port is not cosmetic: pantry runs one instance per project and every project asks for 8108, so
+whichever starts second fails to bind - and a health check probing the default port gets the *other*
+project's answer and reports success. `config/deps.ts` names the port, `.env.example` matches it, and
+`tests/unit/docs-configuration.test.ts` now keeps the two in step, because nothing derives one from
+the other. A `.env` left on 8108 points this project at whatever else is listening there, which is
+the collision the named port exists to prevent. After any reseed the index is stale: run
+`./buddy search:reindex <Model>` for Repository, Issue, PullRequest, Organization, Release and User,
+or every search answers 503 from a collection whose schema predates a sorted field.
+
 ### Working on the framework from here
 
 The `@stacksjs/*` packages in `node_modules` are symlinks into a local Stacks checkout
@@ -218,7 +228,7 @@ Read the skill before building. The full list lives in `storage/framework/defaul
 | Caching (memory/Redis, cache-aside) | `stacks-cache` |
 | File storage / uploads (local/S3) | `stacks-storage` |
 | Realtime / WebSockets / channels | `stacks-realtime` |
-| Full-text search (Meilisearch/Algolia, `useSearch` trait) | `stacks-search-engine` |
+| Full-text search (**Typesense** here, `useSearch` trait) | `stacks-search-engine` |
 | Validation, error handling (Result type, error pages) | `stacks-validation`, `stacks-error-handling` |
 | Env vars, config helpers, logging | `stacks-env`, `stacks-config`, `stacks-logging` |
 | AI (Anthropic/OpenAI/Bedrock/Ollama), RAG, embeddings, MCP | `stacks-ai` |
