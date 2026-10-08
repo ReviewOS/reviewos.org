@@ -619,6 +619,35 @@ Each one is committed and pushed in the repository named.
       expected" for an entire session. A test expected to fail is indistinguishable from a test that
       is failing, which is precisely how a red CI stops being information.
 
+- [x] **A suite that stands down now fails CI, and the switch for it had been there all along.**
+      `tests/setup.ts` collects every `[name] skipping:` warning, repeats it after the summary, and
+      turns it into a failure under `TESTS_REQUIRE_ALL=1`. Its comment says that is "what a machine
+      with a database - CI, or this one - should run". It was set in no workflow, no script and no
+      env file.
+
+      So **1,500 guarded assertions across 169 test files** could report green having asserted
+      nothing. Not hypothetically: the same comment records the defect it already caught once, where
+      the `checks` token scope was missing from the model, its suite could not create a token, and it
+      reported green until somebody read the warning.
+
+      It had never been switched on because it was all-or-nothing, and one suite legitimately cannot
+      run in the `test` job: `microvm-egress` needs KVM, a hypervisor and a built guest. So
+      `TESTS_ALLOW_SKIP` names the exceptions, and naming is the point - an allowlist entry is a
+      sentence in a reviewed file that claims *this job cannot run that one*, where a missing
+      `TESTS_REQUIRE_ALL` claimed nothing at all. The `microvm` job sets the switch with no
+      allowlist, because running that suite is the only reason it exists.
+
+      Verified in all three states, exit codes included: unset passes with the warning, required and
+      unlisted fails with the reason, required and listed passes and says "(allowed by
+      TESTS_ALLOW_SKIP)". Then the whole suite as CI runs it - 6,585 tests, 0 fail, one suite
+      standing down and it the allowlisted one.
+
+      **And it let three copies of a workaround be deleted.** The search suites each carried a
+      rethrow keyed on `CI`, added the day before this, to stop exactly this failure in exactly
+      those three files. One mechanism covers every self-gating suite instead, and covers a
+      developer who asks for it locally rather than only CI, so the bespoke gates are gone and the
+      callers are back to warning and standing down.
+
 - [x] **Twenty-three search tests were not skipping in CI, they were passing.** The entry here said
       thirteen tests skipped. Both numbers were wrong and the verb was the important one. Each test
       in `search-page`, `search-action` and `search-push-reindex` opens with `if (!available)

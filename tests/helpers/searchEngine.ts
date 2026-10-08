@@ -35,8 +35,14 @@
  * results.
  *
  * CI has a node now: the `search` service in `.github/workflows/ci.yml`. If it
- * ever does not, each caller rethrows instead of warning, because the one
- * thing worse than missing coverage is missing coverage that looks present.
+ * ever does not, the run fails rather than passing quietly - the one thing
+ * worse than missing coverage is missing coverage that looks present.
+ *
+ * That used to be three copies of the same rethrow, one per caller, keyed on
+ * `CI`. It is `TESTS_REQUIRE_ALL` in `tests/setup.ts` now, which covers every
+ * suite that gates itself on anything rather than only these three, and covers
+ * a developer who asks for it locally rather than only CI. The callers are back
+ * to warning and standing down, which is all they ever needed to do.
  */
 export async function searchEngineReachable(): Promise<boolean> {
   try {

@@ -114,6 +114,34 @@ applyRuntimeDirectoryEnv()
 const skipped: string[] = []
 const warn = console.warn.bind(console)
 
+/**
+ * Suites this machine is allowed not to run, by the `[name]` they announce.
+ *
+ * `TESTS_REQUIRE_ALL=1` alone is all-or-nothing, which is why it had never been
+ * switched on anywhere: one suite that legitimately cannot run makes it
+ * unusable, and `microvm-egress` is exactly that - it needs KVM, a hypervisor
+ * and a built guest, which the `test` job has none of and is not pretending to.
+ * So the job that cannot provide for a suite names it, and everything else is
+ * required.
+ *
+ * Naming is the point. An allowlist entry is a sentence somebody wrote, in a
+ * file somebody reviews, and it reads as a claim: this job cannot run that one.
+ * A missing `TESTS_REQUIRE_ALL` is no such claim - it is 1,500 guarded
+ * assertions across 169 files that may or may not have run, and the difference
+ * is invisible in a green summary.
+ */
+const allowed = new Set(
+  String(Bun.env.TESTS_ALLOW_SKIP ?? '')
+    .split(',')
+    .map(one => one.trim())
+    .filter(Boolean),
+)
+
+/** The `[name]` a suite announces itself as. */
+function tagOf(line: string): string {
+  return /^\[([^\]]+)\]/.exec(line)?.[1] ?? ''
+}
+
 console.warn = (...args: unknown[]) => {
   const first = String(args[0] ?? '')
 
@@ -139,10 +167,12 @@ afterAll(() => {
   warn(`\n${lines.length} suite(s) skipped themselves and passed without asserting anything:`)
 
   for (const line of lines)
-    warn(`  ${line}`)
+    warn(`  ${line}${allowed.has(tagOf(line)) ? ' (allowed by TESTS_ALLOW_SKIP)' : ''}`)
+
+  const demanded = lines.filter(line => !allowed.has(tagOf(line)))
 
   // Thrown rather than an exit code, so it lands in the summary as a failure
   // with the reason attached.
-  if (Bun.env.TESTS_REQUIRE_ALL === '1')
-    throw new Error(`TESTS_REQUIRE_ALL=1 and a suite skipped itself: ${lines.join(' / ')}`)
+  if (Bun.env.TESTS_REQUIRE_ALL === '1' && demanded.length > 0)
+    throw new Error(`TESTS_REQUIRE_ALL=1 and a suite skipped itself: ${demanded.join(' / ')}`)
 })

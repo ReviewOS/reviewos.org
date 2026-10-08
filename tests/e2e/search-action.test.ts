@@ -14,8 +14,6 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, publicIssueId: 0, privateIssueId: 0, publicPullId: 0, privatePullId: 0, handle: '', term: '' }
 
 let available = false
-/** Set only when the search node is the thing that is missing. See the catch below. */
-let searchNodeMissing = false
 let db: any
 let server: any
 let port = 0
@@ -50,23 +48,12 @@ beforeAll(async () => {
     // Like the database above: a machine with no search node skips rather than
     // failing with a stack trace out of the driver.
     const { searchEngineReachable } = await import('../helpers/searchEngine')
-    if (!await searchEngineReachable()) {
-      searchNodeMissing = true
+    if (!await searchEngineReachable())
       throw new Error('no search engine is running - `./buddy setup` starts one')
-    }
 
     available = true
   }
   catch (error) {
-    /*
-     * Loud here rather than quiet, because quiet is indistinguishable from
-     * passing: every test below opens with `if (!available) return`, and an
-     * empty body is a pass. CI runs a `search` service for exactly this
-     * suite - see the note in tests/helpers/searchEngine.ts.
-     */
-    if (searchNodeMissing && process.env.CI)
-      throw error
-
     console.warn(`[search-action] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
     return

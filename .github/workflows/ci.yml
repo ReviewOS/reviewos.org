@@ -422,6 +422,23 @@ jobs:
           # not to regenerate the document: a document describing routes this
           # instance does not serve is worse than a failing test.
           STACKS_DEFAULT_ROUTES: none
+          # Every suite must actually run, except the one this job cannot
+          # provide for.
+          #
+          # Most e2e suites here open with a `try` that resolves the database
+          # and boots the router, set `available = false` when it fails, and
+          # then every test returns immediately - which counts as a pass. Right
+          # for a laptop with no Postgres, and silent in CI, where 1,500 guarded
+          # assertions across 169 files would report green having asserted
+          # nothing. `tests/setup.ts` has had the switch for this since it was
+          # written, with a comment saying CI should run it, and it was set
+          # nowhere.
+          #
+          # `microvm-egress` is named because it needs KVM, a hypervisor and a
+          # built guest, which this job has none of - the `microvm` job runs it
+          # instead, and is not allowed to skip it.
+          TESTS_REQUIRE_ALL: '1'
+          TESTS_ALLOW_SKIP: microvm-egress
           # The search node above.
           #
           # `config/search-engine.ts` falls back to 127.0.0.1:8108 for the
@@ -599,6 +616,8 @@ jobs:
           # close, and the job closing it had the same one inside. Unset
           # elsewhere, because a laptop with no KVM is right to skip.
           REVIEWOS_EXPECT_MICROVM: '1'
+          # And no allowlist, because this job exists to run that suite.
+          TESTS_REQUIRE_ALL: '1'
         run: |
           mkdir -p "${{ runner.temp }}/microvm"
           bun test tests/e2e/microvm-egress.test.ts
