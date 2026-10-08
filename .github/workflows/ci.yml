@@ -589,6 +589,16 @@ jobs:
           # has - so every probe failed before booting anything, with the disk
           # it could not create as the reason.
           REVIEWOS_MICROVM_SCRATCH: ${{ runner.temp }}/microvm
+          # This job exists to run these five tests, so it is not allowed to
+          # pass them by standing down.
+          #
+          # Every test in the suite opens with `if (!ready) return`, and an
+          # empty body is a pass - so a job whose Firecracker install, udev rule
+          # or guest build quietly stopped working would report five green tests
+          # and say nothing. That is the hole this suite was brought into CI to
+          # close, and the job closing it had the same one inside. Unset
+          # elsewhere, because a laptop with no KVM is right to skip.
+          REVIEWOS_EXPECT_MICROVM: '1'
         run: |
           mkdir -p "${{ runner.temp }}/microvm"
           bun test tests/e2e/microvm-egress.test.ts

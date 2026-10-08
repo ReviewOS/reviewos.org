@@ -1829,6 +1829,14 @@ gate, in order.
       steps in `test`, so a hypervisor is not on the critical path of 6,569 tests that do not need
       one, and `deploy` does not depend on it while it is new.
 
+      **That job sets `REVIEWOS_EXPECT_MICROVM`, because it had the same hole it was built to
+      close.** Every test here opens with `if (!ready) return`, so if the Firecracker install, the
+      udev rule or the guest build ever quietly stopped working, the suite would stand down and the
+      job would report five green tests having asserted nothing - which is precisely the shape that
+      kept these five from running for months. With the variable set the suite throws and names
+      what is missing; unset, a laptop with no KVM still skips, which is the right answer there.
+      Checked both ways.
+
       **It boots, on x86_64, and all five pass**: `5 pass, 0 fail` in 578s, which is the first time
       this design has run on anything other than the aarch64 it was built on. Three CI rounds got
       there and each one was a real defect rather than a flake:

@@ -41,6 +41,29 @@ async function run(argv: string[], input?: string) {
   return { ok: (await child.exited) === 0, output: `${out}${err}` }
 }
 
+/**
+ * Is a machine that cannot run these allowed to pass them?
+ *
+ * On a laptop, yes: KVM is a Linux facility and this suite needs a hypervisor,
+ * a guest kernel and a guest image, which is most machines' answer of no.
+ *
+ * In the `microvm` job, no - and that job is the reason this exists. It
+ * installs Firecracker, opens `/dev/kvm` and builds the guest precisely so
+ * these five can run, and every test here opens with `if (!ready) return`, so
+ * an empty body is a *pass*. A job whose setup silently stopped working would
+ * report five green tests and tell nobody, which is the hole this whole suite
+ * was brought into CI to close - and the hole it still had on the inside.
+ */
+const required = Boolean(process.env.REVIEWOS_EXPECT_MICROVM)
+
+/** Loud where it is meant to run, quiet where it cannot. */
+function standDown(reason: string): void {
+  if (required)
+    throw new Error(`this job set REVIEWOS_EXPECT_MICROVM and cannot run the egress suite: ${reason}`)
+
+  console.warn(`[microvm-egress] skipping: ${reason}`)
+}
+
 beforeAll(async () => {
   const missing: string[] = []
 
@@ -57,7 +80,7 @@ beforeAll(async () => {
 
   if (missing.length > 0) {
     why = missing.join(', ')
-    console.warn(`[microvm-egress] skipping: ${why}`)
+    standDown(why)
 
     return
   }
@@ -66,7 +89,7 @@ beforeAll(async () => {
 
   if (!built.ok) {
     why = `the fixture could not be built: ${built.output.slice(0, 200)}`
-    console.warn(`[microvm-egress] skipping: ${why}`)
+    standDown(why)
 
     return
   }
