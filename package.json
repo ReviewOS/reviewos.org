@@ -67,7 +67,7 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
+    "@anthropic-ai/sdk": "^0.133.0",
     "@stacksjs/actions": "^0.75.89",
     "@stacksjs/api": "^0.75.89",
     "@stacksjs/buddy": "^0.75.89",
