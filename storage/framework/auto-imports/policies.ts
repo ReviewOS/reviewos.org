@@ -5,5 +5,5 @@
 // resolves. Values are paths rather than import thunks on purpose: thunks
 // would make every compilation that touches a name resolve every module.
 export const policies = {
-  'PostPolicy': '../defaults/app/Policies/PostPolicy.ts',
+  'PostPolicy': '../../../node_modules/@stacksjs/defaults/app/Policies/PostPolicy.ts',
 } as const

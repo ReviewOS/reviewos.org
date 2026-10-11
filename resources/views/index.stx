@@ -14,6 +14,7 @@
 import { SOURCE_CLONE_URL, SOURCE_PATH } from '../functions/site'
 import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, SITE_DESCRIPTION, SITE_URL, socialCard } from '../functions/meta'
 import { featured } from '../../app/Actions/Explore/featured'
+import { landingPhases } from '../../app/Docs/roadmap'
 
 /*
  * The repositories shown below the argument.
@@ -116,18 +117,20 @@ const capabilities = [
   },
 ]
 
-// The core path and the two tracks immediately after it. Counts mirror
-// docs/todo/index.md; the full roadmap continues there.
-const phases = [
-  { number: '00', name: 'Bootstrap', state: 'done' },
-  { number: '01', name: 'Foundation', state: 'done' },
-  { number: '02', name: 'Git hosting', state: 'done' },
-  { number: '03', name: 'Issues', state: 'done' },
-  { number: '04', name: 'Pull requests and reviews', state: 'done' },
-  { number: '05', name: 'Notifications and webhooks', state: 'done' },
-  { number: '06', name: 'Search and explore', state: 'next', status: '20/21 complete' },
-  { number: '07', name: 'Marketing and docs', state: 'next', status: '21/45 complete' },
-]
+/*
+ * Read from `docs/todo/index.md`, not mirrored here.
+ *
+ * This list was hand-written under a comment saying "Counts mirror
+ * docs/todo/index.md", and it had drifted the embarrassing way: the page
+ * advertised `06 Search and explore - 20/21` and `07 Marketing and docs -
+ * 21/45` while the roadmap had both complete, at 21/21 and 58/58. A public
+ * page underselling finished work is the one direction of drift nobody
+ * reports, because it reads as modesty rather than as a bug.
+ *
+ * One awaited call, like `featured()` above, because that is what stx carries
+ * into the template - see the note on `landingPhases`.
+ */
+const phases = await landingPhases()
 
 const nots = [
   { title: 'A package registry', text: 'Not until the forge itself is good.' },
@@ -1057,8 +1060,9 @@ const nots = [
         <p class="eyebrow">Where it is</p>
         <h2 class="section-title">The core forge is here</h2>
         <p class="section-lede">
-          Repositories, issues, pull requests, reviews, notifications, and webhooks are implemented.
-          Search, discovery, and the public site are the current open tracks.
+          Repositories, issues, pull requests, reviews, notifications, and webhooks are implemented,
+          and so are search, discovery and this site. Checks and pipelines are the current open
+          tracks.
         </p>
 
         <div class="phases">

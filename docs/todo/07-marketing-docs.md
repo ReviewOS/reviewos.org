@@ -269,3 +269,33 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       cannot be enumerated at build time - a repository, a pull request, an issue, a profile. The
       page declares `og:image` with its type, width, height and alt text, because a card missing its
       dimensions renders as a broken square on the platforms that will not fetch it to find out.
+
+- [x] **The landing page advertised progress figures that disagreed with the roadmap.** It showed
+      `06 Search and explore - 20/21` and `07 Marketing and docs - 21/45` while
+      `docs/todo/index.md` had both complete, at 21/21 and 58/58, and the prose beneath still called
+      search, discovery and this site "the current open tracks". A public page underselling finished
+      work is the one direction of drift nobody reports, because it reads as modesty.
+
+      The list was hand-written under a comment saying "Counts mirror docs/todo/index.md", which is
+      the same arrangement that had already drifted for the Typesense port and for AGENTS.md's
+      search engine. So `app/Docs/roadmap.ts` reads the table instead - the move
+      `app/Docs/configuration.ts` already makes for `.env.example`. The core path is always shown
+      because the page's argument rests on it; phases after it appear only while unfinished, so the
+      section can neither claim the work is done while a phase is open nor list eleven finished
+      phases to say so. It renders 00 to 07 as Done, then `09 Checks and CI 121/122` and
+      `15 Pipelines 188/189`.
+
+      **Two things worth recording from doing it.** The first attempt put the derivation in the
+      view as `[...core, ...open].map(...)`, and that value did not reach the template at all:
+      `@foreach` reported "phases is not iterable" into an HTML comment, which is the silent
+      failure AGENTS.md warns about and which nobody reads. `STX_DEBUG=1` named it in one line. A
+      single awaited call does arrive - the shape `featured()` already used ten lines above it - so
+      the selection moved into `shapeLandingPhases` and the view is one line. The precise cause was
+      not isolated beyond "that form did not carry, this one does".
+
+      The second: the first test asserted the page's counts matched the roadmap's by comparing
+      `landingPhases()` with `roadmapPhases()`. Both read the same file, so they cannot disagree -
+      it passed with the roadmap deliberately mutated to 100/122. The shaping is tested against a
+      fixture now, verified by mutating the fixture and watching it fail. That is the second
+      test-that-cannot-fail written in this codebase today, and both had the same shape: asserting a
+      thing against itself.
