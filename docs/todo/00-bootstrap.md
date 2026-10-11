@@ -619,6 +619,39 @@ Each one is committed and pushed in the repository named.
       expected" for an entire session. A test expected to fail is indistinguishable from a test that
       is failing, which is precisely how a red CI stops being information.
 
+- [x] **Seeded repositories had no git in them, so the product's own surface could not be opened.**
+      `buddy seed` wrote 75 repository rows and not one commit - no seeder touched `storage/repos`
+      at all. Every repository page loaded, and every `tree/` and `commits/` under it answered 404,
+      so on a fresh checkout the code browser, the diff and the review screen could not be reached
+      without creating a repository by hand. For a forge built around review, that is demo data
+      which proves the schema and nothing else.
+
+      `database/seeders/RepositoryGit.ts` builds them through `app/Actions/Git/` rather than
+      spawning plumbing itself, which AGENTS.md requires and which also inherits the concurrency
+      slots, the ref guards and the safe-path checks: `initBare` for the repository, `createCommit`
+      for each commit, the same path `app/Actions/Profile/seed.ts` already uses to write a profile
+      README into a bare repository with no clone and no worktree.
+
+      Two commits on the default branch, then a branch per pull request with its own commit, and
+      each pull request's row repointed at the shas that now exist - the same repair
+      `RepositoryOwners` does for polymorphic owners, since the factory invented `head_sha` as a
+      repeated digit naming no object. 171 of 171 pull requests resolve a diff now; before, none
+      did.
+
+      **Three things it got wrong first, each found by measuring rather than by reading it back.**
+      Pull requests in one repository shared a `head_branch`, so the second `createCommit` hit the
+      ref guard and that row silently kept its invented sha while the first looked fine; the branch
+      carries the number now. The skip was per repository, so a repository built on an earlier run
+      never had its remaining pull requests wired - building history and wiring changes are
+      separate questions and only the first is answered by the repository existing. And the cap on
+      how many to build counted *this run's* builds, so a second run built 24 more rather than
+      converging, while the repositories it skipped kept rendering empty reviews. It builds all of
+      them now, in about 35 seconds, and a second run builds nothing.
+
+      Verified through the running app rather than the database: both pull requests on a seeded
+      repository report "1 changed file", the commits page lists the history, and
+      `tree/main/src/index.ts` serves 200.
+
 - [x] **A suite that stands down now fails CI, and the switch for it had been there all along.**
       `tests/setup.ts` collects every `[name] skipping:` warning, repeats it after the summary, and
       turns it into a failure under `TESTS_REQUIRE_ALL=1`. Its comment says that is "what a machine
