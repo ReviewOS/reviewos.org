@@ -67,6 +67,35 @@ function readme(name: string): string {
   return `# ${name}\n\nSeeded by \`database/seeders/RepositoryGit.ts\` so this repository has a\nhistory to browse and a change to review.\n`
 }
 
+/** The three-line file every `greet.ts` review thread is anchored to. */
+function greeter(parameter = 'who'): string {
+  return `export function greet(${parameter}: string): string {\n  return \`Hello, \${${parameter}}\`\n}\n`
+}
+
+/**
+ * A source file long enough to hold the line a thread points at.
+ *
+ * The review-thread factory invents paths like `src/sensor.ts` and lines as
+ * high as 398, so a repository holding only a README and a three-line greeter
+ * could never anchor them: the file is absent, and the line is past the end of
+ * everything else. Generating the file the fixture already names is cheaper
+ * than teaching the fixture to name a file that exists, and it has the side
+ * effect of making the repository worth browsing - a tree with one file in it
+ * demonstrates nothing about a code browser.
+ */
+function sourceFile(path: string, lines: number): string {
+  const subject = path.replace(/^src\//, '').replace(/\.ts$/, '')
+  const body: string[] = [
+    `/** Seeded ${subject} helpers, long enough to anchor a review thread. */`,
+    '',
+  ]
+
+  for (let n = body.length + 1; n <= lines; n += 1)
+    body.push(`export const ${subject}${n} = ${n}`)
+
+  return `${body.join('\n')}\n`
+}
+
 export default class RepositoryGit extends Seeder {
   /** After the model pass and after owners are repaired, since the path needs a handle. */
   static order = 12
@@ -87,6 +116,14 @@ export default class RepositoryGit extends Seeder {
       for (const row of await db.selectFrom(table).select(['id', 'handle']).limit(500).execute())
         handles[kind].set(Number(row.id), String(row.handle))
     }
+
+    /*
+     * Which files each repository's review threads expect, and how far down.
+     *
+     * Read once rather than per repository: the whole table is a few dozen
+     * rows, and the alternative is a query inside the build loop.
+     */
+    const anchors = await this.threadAnchors()
 
     // Repositories carrying pull requests first: those are the pages where a
     // missing diff is most visible.
@@ -149,13 +186,24 @@ export default class RepositoryGit extends Seeder {
       if (!first.ok)
         continue
 
+      /*
+       * `greet.ts` at the root, plus whatever `src/*.ts` this repository's
+       * review threads point at - not `src/index.ts`, which was a file of my
+       * own invention that nothing referenced. Eleven threads anchor to
+       * `greet.ts` line 3, which is the last line of the greeter below.
+       */
+      const sources: Record<string, string> = { 'greet.ts': greeter() }
+
+      for (const [anchorPath, deepest] of anchors.get(Number(repository.id)) ?? [])
+        sources[anchorPath] = sourceFile(anchorPath, Math.max(deepest, 8))
+
       const second = await createCommit(resolved.path, {
         branch,
         parentSha: first.sha,
         expectedBranchSha: first.sha,
-        message: 'Add the greeting it describes',
+        message: 'Add the greeting and the modules the reviews discuss',
         author: AUTHOR,
-        files: { 'src/index.ts': `export function greet(who: string): string {\n  return \`Hello, \${who}\`\n}\n` },
+        files: sources,
       })
 
       if (!second.ok)
@@ -168,6 +216,40 @@ export default class RepositoryGit extends Seeder {
 
     if (built > 0)
       console.error(`[seed] built ${built} repositories with history under storage/repos`)
+  }
+
+  /**
+   * Which files each repository's review threads expect, and the deepest line.
+   *
+   * A thread carries a path and a line and nothing that ties it to a
+   * repository, so the repository comes through its pull request. The deepest
+   * line is what decides how long the generated file has to be: a thread on
+   * line 398 of a 40-line file anchors to nothing.
+   */
+  private async threadAnchors(): Promise<Map<number, Map<string, number>>> {
+    const pulls = new Map(
+      (await db.selectFrom('pull_requests').select(['id', 'repository_id']).execute())
+        .map(row => [Number(row.id), Number(row.repository_id)]),
+    )
+
+    const anchors = new Map<number, Map<string, number>>()
+
+    for (const thread of await db.selectFrom('review_threads').select(['pull_request_id', 'path', 'line']).execute()) {
+      const repositoryId = pulls.get(Number(thread.pull_request_id))
+      const path = String(thread.path ?? '').trim()
+
+      // `greet.ts` and `README.md` are written for every repository anyway;
+      // only the invented `src/*.ts` paths need generating.
+      if (!repositoryId || !path.startsWith('src/'))
+        continue
+
+      const forRepository = anchors.get(repositoryId) ?? new Map<string, number>()
+
+      forRepository.set(path, Math.max(forRepository.get(path) ?? 0, Number(thread.line ?? 1)))
+      anchors.set(repositoryId, forRepository)
+    }
+
+    return anchors
   }
 
   /**
@@ -221,11 +303,9 @@ export default class RepositoryGit extends Seeder {
           expectedBranchSha: null,
           message: `Rename the greeting's parameter (#${pull.number})`,
           author: AUTHOR,
-          files: {
-            // Varied by number, so two changes in one repository are not the
-            // same diff twice over.
-            'src/index.ts': `export function greet(who${pull.number}: string): string {\n  return \`Hello, \${who${pull.number}}\`\n}\n`,
-          },
+          // Varied by number, so two changes in one repository are not the
+          // same diff twice over, and on the file the threads are anchored to.
+          files: { 'greet.ts': greeter(`who${pull.number}`) },
         })
 
       if (!commit.ok)
@@ -235,6 +315,21 @@ export default class RepositoryGit extends Seeder {
         .updateTable('pull_requests')
         .set({ base_branch: base, base_sha: baseSha, head_branch: head, head_sha: commit.sha })
         .where('id', '=', pull.id)
+        .execute()
+
+      /*
+       * And the threads on it, which are the point of the whole exercise.
+       *
+       * A review thread anchors to a path, a line, a side and the commit it
+       * was written against - that last one is what lets a rebase move it
+       * instead of losing it. The factory left `original_commit_sha` null or
+       * set to a repeated digit, so every thread was anchored to a commit that
+       * does not exist, on a file that did not either. Both are real now.
+       */
+      await db
+        .updateTable('review_threads')
+        .set({ original_commit_sha: commit.sha })
+        .where('pull_request_id', '=', pull.id)
         .execute()
     }
   }

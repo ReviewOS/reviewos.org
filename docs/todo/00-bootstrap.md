@@ -619,6 +619,45 @@ Each one is committed and pushed in the repository named.
       expected" for an entire session. A test expected to fail is indistinguishable from a test that
       is failing, which is precisely how a red CI stops being information.
 
+- [x] **Review threads anchored to nothing, and the fix was a near-miss rather than a rewrite.**
+      61 threads carried a path, a line and a side, and `original_commit_sha` was null or a
+      repeated digit - so the product's primary object pointed at a commit that did not exist, on a
+      file that did not either. The thread factory already names `README.md`, `greet.ts` line 3, and
+      `src/<noun>.ts` at lines as deep as 398; the first version of `RepositoryGit` wrote
+      `src/index.ts`, a file of my own invention that nothing referenced.
+
+      So the seeder writes the files its own fixtures name: `greet.ts` whose third line is the one
+      eleven threads point at, and a generated `src/<noun>.ts` per referenced path, long enough to
+      hold the deepest line. Every thread is then repointed at the commit it was written against.
+      **61 of 61 anchored, from 0.** It also makes the repositories worth browsing, since a tree
+      with one file in it demonstrates nothing about a code browser.
+
+- [x] **A stack, so the feature the product leads with can be opened.** `stack` has its own row in
+      AGENTS.md's domain vocabulary, the landing page argues for it, and
+      `resources/functions/stack.ts` carries the ordering, orphan detection and landable-prefix
+      rules. None of it was reachable: every seeded change branched off the default branch, so the
+      instance had 185 pull requests and not one stack.
+
+      `database/seeders/StackedChange.ts` builds its own repository with three dependent changes -
+      chained branches, chained bases, and the `stack_parent_id` links `buildStack` walks. Its own
+      repository rather than retrofitting three existing changes, which would have rewritten rows
+      that were just made consistent to produce a stack nobody could find.
+
+      Verified in the running app: each change reports exactly "1 changed file", which is the claim
+      that each shows only its own work, and every member's page lists the others with their
+      numbers and states.
+
+- [ ] **Seeded handles contain spaces, so four organizations can own nothing.** Found while the
+      stack seeder silently did nothing: it took the first user, whose handle is `helenjames 1`,
+      and `repositoryPath` rejected it as `invalid-characters`.
+
+      Collision suffixing appends ` N` to a duplicate handle, which produces a string that can
+      never be a URL segment or a directory under `storage/repos`. **Ten of 348 users and all four
+      organizations** are in that state, so no organization on a seeded instance can own a
+      repository at all, and its profile page is at a URL nobody can type. The seeder works around
+      it by picking the first owner whose handle is path-safe; the suffixing is the thing to fix,
+      and a handle is exactly the kind of value that should be validated where it is generated.
+
 - [x] **Seeded repositories had no git in them, so the product's own surface could not be opened.**
       `buddy seed` wrote 75 repository rows and not one commit - no seeder touched `storage/repos`
       at all. Every repository page loaded, and every `tree/` and `commits/` under it answered 404,
