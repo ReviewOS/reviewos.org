@@ -33,7 +33,20 @@ export default defineModel({
     // Created only. An entry is never edited, so an `updated_at` would be a
     // column that is always equal to `created_at` and occasionally lies.
     useTimestamps: true,
-    useSeeder: { count: 40 },
+    /*
+     * No `useSeeder`, and `database/seeders/TimelineEntries.ts` instead.
+     *
+     * It was `{ count: 40 }` and it produced nothing, on every run since the
+     * model was written. `subject_id` is polymorphic and `not null`, a factory
+     * cannot reach a database to find a real id, so it returned `null` and the
+     * batch failed with a not-null violation - leaving this table empty and
+     * every issue and pull request without the history below its description.
+     *
+     * The seeder has the same reasoning as `Reactions.ts`: a wrong id is a row
+     * that can be repaired afterwards, a null is an error that never becomes
+     * one, so the only thing that writes this table is something holding the
+     * subjects.
+     */
   },
 
   // Only the actor. `subject_id` is polymorphic - it names an issue or a pull

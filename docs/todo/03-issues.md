@@ -157,6 +157,21 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 
 ## Timeline
 
+- [x] `timeline_entries` has rows. `useSeeder` on the model produced none, on every run since it
+      was written: `subject_id` is polymorphic and `not null`, a factory is handed `faker` and its
+      own row's values rather than a database, so it returned `null` and the whole batch failed on
+      the not-null constraint. The table was therefore always empty and no issue or pull request
+      had ever shown a history below its description. `database/seeders/TimelineEntries.ts` builds
+      the entries from the subject's own row and from that repository's own labels and milestones,
+      so `labeled` names a label that exists - the third instance of this one bug, after `Reaction`
+      and `repositories.owner_id`, and the reasoning against a `belongsTo` is the same: a foreign
+      key on a polymorphic column forbids half the values the column exists to hold.
+- [x] And a trap worth naming, because it failed silently and the seeder reported success: a
+      multi-row insert builds one statement, so its column list comes from the **first** row, and a
+      key the first row lacks is dropped from the statement rather than inserted as null on the
+      rows that have it. The first entry was a `labeled` one, so all forty rows went in without
+      `previous_text` or `reference_number` - five cross references rendered as "referenced this in
+      a commit" instead of naming the change. Every row now carries every key.
 - [x] `app/Models/TimelineEntry.ts` recording state changes, label changes, assignments, milestone
       changes and renames, merged with the comments into one sequence ordered by time. A comment and
       the label somebody added while writing it belong next to each other; two lists side by side

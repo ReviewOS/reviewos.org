@@ -135,7 +135,22 @@ export default defineModel({
       fillable: true,
       default: 'public',
       validation: { rule: schema.enum(['public', 'private', 'internal']) },
-      factory: faker => faker.helpers.arrayElement(['public', 'private']),
+      /*
+       * Public, with `RepositoryOwners` making a few of them private.
+       *
+       * This was `arrayElement(['public', 'private'])`, and over eight rows a
+       * coin flip is not a spread: one seed landed seven private, which left
+       * every issue in the database behind a permission check, so an anonymous
+       * visitor to a freshly seeded instance saw two repositories and not one
+       * issue, pull request or review. The next landed nine public and no
+       * private one at all, so nothing exercised the permission path. Neither
+       * is broken - a private repository correctly answers 404 to a stranger -
+       * which is what makes it hard to notice.
+       *
+       * Eight rows are too few for a proportion to come out as one, so the mix
+       * is decided where the rows can be counted rather than per row.
+       */
+      factory: () => 'public',
     },
 
     default_branch: {

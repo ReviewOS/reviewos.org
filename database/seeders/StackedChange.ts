@@ -123,6 +123,15 @@ export default class StackedChange extends Seeder {
         owner_id: owner.id,
         visibility: 'public',
         default_branch: BASE,
+        /*
+         * The path on disk, because this column is read and not merely stored:
+         * `app/Actions/Git/hooks.ts` looks a repository **up** by it, so a push
+         * to a repository with no `disk_path` finds nothing, and
+         * `DiffConflictsAction` hands it to git directly. Left out here, it
+         * defaulted to empty - the one repository in a fresh seed whose path
+         * was wrong, while `RepositoryGit` set the other eight.
+         */
+        disk_path: resolved.relative,
       })
       .returning(['id'])
       .executeTakeFirst())?.id

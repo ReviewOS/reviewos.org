@@ -50,6 +50,40 @@ function unique(prefix: string): string {
 }
 
 /**
+ * The ssh client options every test here needs, in one place.
+ *
+ * `IdentityAgent=none` matters as much as `-i`: without it the client offers
+ * whatever is in the developer's own agent, and a test that should be refused
+ * passes because a different key was accepted.
+ *
+ * `-F /dev/null` is the other half of that isolation. Everything the client
+ * needs is passed explicitly here, so reading `~/.ssh/config` can only add the
+ * developer's own opinions, and one of them is enough to take the suite down:
+ * `UseKeychain` is an Apple extension, the ssh on this PATH is not Apple's,
+ * and an unknown option is fatal rather than ignored. All eleven tests in this
+ * file failed on one machine with "Bad configuration option: usekeychain"
+ * before the client had opened a connection, while CI stayed green because CI
+ * has no such file. A suite that passes or fails on a developer's dotfiles
+ * teaches people to disregard it.
+ *
+ * One list rather than two, because there were two: this was spelled out again
+ * inside `refuses a shell`, which spawns ssh directly rather than through git,
+ * and it was the one invocation the first fix missed.
+ */
+function sshOptions(key: string): string[] {
+  return [
+    '-F', '/dev/null',
+    '-i', key,
+    '-o', 'IdentitiesOnly=yes',
+    '-o', 'IdentityAgent=none',
+    '-o', 'StrictHostKeyChecking=no',
+    '-o', 'UserKnownHostsFile=/dev/null',
+    '-o', 'BatchMode=yes',
+    '-o', 'LogLevel=ERROR',
+  ]
+}
+
+/**
  * Run git, without blocking the event loop.
  *
  * The daemon under test is running *in this process*, so a synchronous child
@@ -68,19 +102,8 @@ async function git(cwd: string, key: string, ...args: string[]): Promise<{ ok: b
       GIT_COMMITTER_NAME: 'E2E',
       GIT_COMMITTER_EMAIL: 'e2e@example.com',
       GIT_TERMINAL_PROMPT: '0',
-      // `IdentityAgent=none` matters as much as `-i`: without it the client
-      // offers whatever is in the developer's own agent, and a test that should
-      // be refused passes because a different key was accepted.
-      GIT_SSH_COMMAND: [
-        'ssh',
-        '-i', key,
-        '-o', 'IdentitiesOnly=yes',
-        '-o', 'IdentityAgent=none',
-        '-o', 'StrictHostKeyChecking=no',
-        '-o', 'UserKnownHostsFile=/dev/null',
-        '-o', 'BatchMode=yes',
-        '-o', 'LogLevel=ERROR',
-      ].join(' '),
+      // See `sshOptions` for why each of these is here.
+      GIT_SSH_COMMAND: ['ssh', ...sshOptions(key)].join(' '),
     },
   })
 
@@ -480,14 +503,8 @@ describe('git over ssh', () => {
 
     const child = Bun.spawn([
       'ssh',
-      '-i', clientKey,
+      ...sshOptions(clientKey),
       '-p', String(port),
-      '-o', 'IdentitiesOnly=yes',
-      '-o', 'IdentityAgent=none',
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
-      '-o', 'BatchMode=yes',
-      '-o', 'LogLevel=ERROR',
       'git@127.0.0.1',
       'whoami',
     ], { stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' })

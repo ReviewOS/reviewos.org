@@ -1,0 +1,36 @@
+{{--
+  A repository's root, at an explicit ref.
+
+  The sibling route is `[ref]/[...path]`, and a single dynamic segment matches
+  exactly one segment, so `/tree/main` was not a route at all and answered 404.
+  That is not a URL nobody types: it is what `branches.stx`, `tags.stx`,
+  `releases.stx` and the markdown link rewriter all build, so every branch name
+  in the branch list, every tag and every release linked to a page that did not
+  exist.
+
+  Two files rather than one catch-all, deliberately. A catch-all works - the
+  router matches a single segment with one, and `RepoBrowser` rejoins whatever
+  it is handed and re-splits it against the real ref list, so where the URL was
+  divided never mattered to it. What it costs is the page's name: with the ref
+  and the path in one segment the view can no longer tell them apart, and
+  `tests/e2e/browse-tree.test.ts` asserts a file page is called `app · owner/repo`
+  rather than `main/app · owner/repo`. Recovering the split here would mean
+  resolving the repository and shelling out to git a second time per request,
+  for a tab label. A ref with no path has no path to name, so this file needs
+  neither.
+
+  There is no file to window here either, so no `?from=` and no client script:
+  a blob needs a path, and a URL with a path is the other route.
+--}}
+@layout('app')
+
+@section('title', `${params.owner}/${params.repository}`)
+@section('description', `Browse the source of ${params.owner}/${params.repository} at any branch, tag, or commit.`)
+
+@section('content')
+  <RepoBrowser
+    owner="{{ params.owner }}"
+    repository="{{ params.repository }}"
+    refName="{{ params.ref }}"
+    path="" />
+@endsection

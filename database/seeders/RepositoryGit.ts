@@ -96,6 +96,35 @@ function sourceFile(path: string, lines: number): string {
   return `${body.join('\n')}\n`
 }
 
+/**
+ * The branch name for a pull request, derived so that deriving it twice is a
+ * no-op.
+ *
+ * This read `${stored}-${number}` off the row, and the same loop then wrote
+ * the result back to that column - so every reseed appended the number again.
+ * Nine runs turned `feature/card` into
+ * `feature/card-45-45-45-45-45-45-45-45-45`, on 202 of 242 pull requests, and
+ * left eight dead branches per change behind on disk for the branch list to
+ * show. The guard that should have caught it on run two could not: it compared
+ * against `pull.head_sha`, which the query did not select, so it was comparing
+ * every sha against the string "undefined".
+ *
+ * A seeder is re-run by definition - that is what `useSeeder` means - so a
+ * value it computes from a column it also writes has to be a fixed point.
+ * Stripping the suffix before appending it makes this one: a name that already
+ * ends in `-<number>` is already correct and comes back unchanged, whatever
+ * state an earlier run left the row in.
+ */
+export function headBranchFor(stored: string, number: number): string {
+  const suffix = `-${number}`
+  let base = stored
+
+  while (base.endsWith(suffix))
+    base = base.slice(0, -suffix.length)
+
+  return `${base || 'change'}${suffix}`
+}
+
 export default class RepositoryGit extends Seeder {
   /** After the model pass and after owners are repaired, since the path needs a handle. */
   static order = 12
@@ -104,7 +133,7 @@ export default class RepositoryGit extends Seeder {
   async run(): Promise<void> {
     const repositories = await db
       .selectFrom('repositories')
-      .select(['id', 'name', 'owner_type', 'owner_id', 'default_branch'])
+      .select(['id', 'name', 'owner_type', 'owner_id', 'default_branch', 'disk_path'])
       .execute()
 
     if (repositories.length === 0)
@@ -150,6 +179,30 @@ export default class RepositoryGit extends Seeder {
 
       if (!resolved.ok || !resolved.path)
         continue
+
+      /*
+       * The row's own `disk_path`, pointed at the directory this seeder builds.
+       *
+       * The model factory invents one - `<some other handle>/<some other
+       * name>.git` - and 54 of 106 repositories were carrying a path that
+       * named a *different* repository. That is not cosmetic, because the
+       * column is read rather than merely stored: `app/Actions/Git/hooks.ts`
+       * looks a repository **up** by it, so a push could not find the
+       * repository it had just been pushed to, and `DiffConflictsAction` hands
+       * it straight to git, so the conflict view on a seeded pull request
+       * resolved nothing.
+       *
+       * Set here because this is the first place that knows both halves: the
+       * owner's handle, which only exists after `OwnerHandles` has repaired it,
+       * and the directory, which this seeder is about to create.
+       */
+      if (String(repository.disk_path ?? '') !== resolved.relative) {
+        await db
+          .updateTable('repositories')
+          .set({ disk_path: resolved.relative })
+          .where('id', '=', repository.id)
+          .execute()
+      }
 
       /*
        * History is built once; the pull requests are wired every run.
@@ -264,7 +317,7 @@ export default class RepositoryGit extends Seeder {
   private async openChanges(repositoryId: number, path: string, base: string, baseSha: string): Promise<void> {
     const pulls = await db
       .selectFrom('pull_requests')
-      .select(['id', 'number', 'head_branch'])
+      .select(['id', 'number', 'head_branch', 'head_sha'])
       .where('repository_id', '=', repositoryId)
       /*
        * Every one of them, not the first few.
@@ -285,8 +338,11 @@ export default class RepositoryGit extends Seeder {
        * branch already existed - and that row kept its invented sha while the
        * first looked fine. The number is what makes it unique, and it is also
        * what a reader sees on the page.
+       *
+       * Through `headBranchFor`, because the name is derived from a column
+       * this loop also writes: see the note on that function.
        */
-      const head = `${String(pull.head_branch || 'change')}-${pull.number}`
+      const head = headBranchFor(String(pull.head_branch || 'change'), Number(pull.number))
       const already = await branchSha(path, head)
 
       // Wired on an earlier run. Nothing to redo, and nothing to overwrite.

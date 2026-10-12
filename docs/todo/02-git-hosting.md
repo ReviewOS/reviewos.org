@@ -10,6 +10,32 @@ known to exactly one place.
 ## Storage
 
 - [x] Bare repositories at `storage/repos/{owner}/{repository}.git`
+- [x] `repositories.disk_path` names the directory that exists. The model factory invents one, and
+      54 of 106 rows were carrying a path that named a **different** repository. Not cosmetic,
+      because the column is read rather than merely stored: `app/Actions/Git/hooks.ts` looks a
+      repository *up* by it, so a push could not find the repository it had just been pushed to,
+      and `DiffConflictsAction` hands it straight to git. Both seeders that create repositories set
+      it now, from the resolver rather than from faker.
+- [x] The seeded branch names stopped compounding. `RepositoryGit` derived a pull request's branch
+      as `${stored}-${number}` from the column the same loop then wrote it to, so every reseed
+      appended the number again: nine runs turned `feature/card` into
+      `feature/card-45-45-45-45-45-45-45-45-45` on 202 of 242 changes, and left eight dead branches
+      per change behind for the branch list to show - 1044 refs where there should have been 35.
+      The guard that should have caught it on run two compared against a `head_sha` the query did
+      not select, so it was comparing every sha against the string "undefined". A seeder is re-run
+      by definition, so a value it computes from a column it also writes has to be a fixed point;
+      `headBranchFor` strips the suffix before appending it, and `tests/unit/seed-head-branch.test.ts`
+      holds that property.
+- [x] A seeded instance is browsable without signing in. `visibility` was a 50/50 coin flip per row
+      and over eight rows that is not a spread: one seed came out seven private, which put every
+      issue in the database behind a permission check and left an anonymous visitor with two
+      repositories and not one issue, pull request or review. Weighting it towards public then came
+      out nine public and nothing to exercise the permission path. Neither is broken - a private
+      repository correctly answers 404 to a stranger - which is what made it invisible. The model
+      writes `public` and `RepositoryOwners` makes every third repository private, keyed on the
+      row's own id so a repository's visibility is decided once: keying on position drifted, because
+      `StackedChange` adds a repository later and the stack demonstration quietly went private on
+      the second seed.
 - [x] One helper that resolves an owner and repository name to an absolute path, rejecting `..`,
       absolute paths, and anything that escapes the root (`app/Actions/Git/storage.ts`). Every other
       caller uses it, and the resolved path is checked against the root a second time, so if the
@@ -610,6 +636,17 @@ the one moment where rejecting is still possible.
       it expects, because a transport that serves the wrong repository looks perfect from the
       client's side. A stranger's registered key can read the public repository and cannot push to
       it, cannot see the private one, and an unregistered key cannot connect at all
+  - [x] And that suite now runs with `ssh -F /dev/null`. It already isolated the agent and the
+        known-hosts file, with a comment saying why, but still read `~/.ssh/config` - so all eleven
+        tests failed on one machine with "Bad configuration option: usekeychain" before the client
+        had opened a connection. `UseKeychain` is an Apple extension, the ssh on that PATH is not
+        Apple's, and an unknown option is fatal rather than ignored. CI stayed green throughout,
+        because CI has no such file, which is the worst version of this: a suite that passes or
+        fails on a developer's dotfiles teaches people to disregard it. Everything the client needs
+        is already passed explicitly, so the config file could only ever add somebody's opinions.
+        The options live in one `sshOptions` helper now, because they were written out twice and
+        the first fix reached only one of them: `refuses a shell` spawns ssh directly rather than
+        through git, so it was still failing on the config after the other ten were green
 - [x] Git LFS, through **[ts-git-lfs](https://github.com/stacksjs/ts-git-lfs)** - a package of its own,
       because pointer files and the batch API are a specification anybody implementing LFS needs and
       not something a forge should own. What is wired here is the three things it will not decide
@@ -695,6 +732,22 @@ the one moment where rejecting is still possible.
 
 - [x] `resources/components/RepoBrowser.stx`: tree, file and README in one component, so the root
       route and the deep-path route cannot drift apart
+- [x] `/{owner}/{repository}/tree/{ref}` renders the root listing. The route was `[ref]/[...path]`
+      and a single dynamic segment matches exactly one segment, so a bare ref was not a route at
+      all and answered 404 - which is the URL the branch list, the tag list, the release list and
+      the markdown link rewriter all build, so every branch name on `/branches` linked to a page
+      that did not exist. `tree/[ref].stx` sits beside the deep route and hands the ref to
+      `RepoBrowser` with no path.
+- [x] And the reason it is two routes rather than the one catch-all `commits/[...ref].stx` uses,
+      since this route's own comments assumed it was a catch-all. A catch-all does work: the router
+      matches a single segment with one, and `RepoBrowser` rejoins whatever it is handed and
+      re-splits it against the real ref list, so where the URL was divided never mattered to it.
+      What it costs is the page's name. With the ref and the path in one segment the view cannot
+      tell them apart, and `tests/e2e/browse-tree.test.ts` asserts a file page is called
+      `app · owner/repo` rather than `main/app · owner/repo`; recovering the split in the view
+      would mean resolving the repository and shelling out to git a second time per request, for a
+      tab label. The catch-all was written and the suite caught it, which is the test doing exactly
+      what it was written for.
 - [x] `resources/functions/browse.ts`: ls-tree parsing, sorting, breadcrumbs, README detection,
       sizes - all pure and tested away from git
 - [x] `app/Actions/Browse/load.ts`: `listTree`, `readBlob`, `lastCommit`, `branchNames`
