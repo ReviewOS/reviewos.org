@@ -68,7 +68,26 @@ export default defineModel({
           max: 'A handle can be at most 39 characters',
         },
       },
-      factory: faker => faker.internet.username().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 39) || 'user',
+      /*
+       * Unique by construction, because a colliding handle is corrupted rather
+       * than retried.
+       *
+       * The seeder disambiguates a duplicate unique string by appending a
+       * space and a counter - `helenjames 1` - and a handle with a space in it
+       * can never be a URL segment or a directory under `storage/repos`. Ten
+       * users and every organization were in that state, so no organization
+       * could own a repository at all.
+       *
+       * The framework's separator is the bug and is filed upstream; a handle
+       * factory that collides in the first place is this model's. A short
+       * suffix in the handle's own alphabet makes a collision vanishingly
+       * unlikely and leaves the value readable.
+       */
+      factory: (faker) => {
+        const base = faker.internet.username().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'user'
+
+        return `${base}-${faker.string.alphanumeric({ length: 5, casing: 'lower' })}`
+      },
     },
 
     name: {

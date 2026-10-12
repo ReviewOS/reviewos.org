@@ -80,19 +80,34 @@ export default class StackedChange extends Seeder {
     if (!owner?.handle)
       return
 
-    const handle = String(owner.handle)
+    /*
+     * An existing one is found by name alone, not by owner.
+     *
+     * Keyed on `(owner, name)` this created a *second* stack the moment the
+     * chosen owner changed - which happened as soon as `OwnerHandles` repaired
+     * the handles, since the first path-safe user is a different person
+     * afterwards. Two `stacked-change` repositories, three changes each, from
+     * a seeder whose whole second half is about being re-runnable.
+     */
+    const existing = await db
+      .selectFrom('repositories')
+      .select(['id', 'owner_id', 'owner_type'])
+      .where('name', '=', REPOSITORY)
+      .executeTakeFirst()
+
+    const holder = existing
+      ? await db
+        .selectFrom(String(existing.owner_type) === 'organization' ? 'organizations' : 'users')
+        .select(['handle'])
+        .where('id', '=', existing.owner_id)
+        .executeTakeFirst()
+      : owner
+
+    const handle = String(holder?.handle ?? owner.handle)
     const resolved = repositoryPath(handle, REPOSITORY)
 
     if (!resolved.ok || !resolved.path)
       return
-
-    const existing = await db
-      .selectFrom('repositories')
-      .select(['id'])
-      .where('owner_type', '=', 'user')
-      .where('owner_id', '=', owner.id)
-      .where('name', '=', REPOSITORY)
-      .executeTakeFirst()
 
     // Already here. Re-seeding must not append a second stack to a repository
     // that has one, and must never rewrite a branch somebody has pushed to.

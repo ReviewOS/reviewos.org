@@ -37,7 +37,16 @@ export default defineModel({
         rule: schema.string().required().min(1).max(39),
         message: { required: 'A handle is required' },
       },
-      factory: faker => faker.company.name().toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 39),
+      /*
+       * Unique by construction. See the note on `User.handle`: a duplicate is
+       * disambiguated with a space, which produces a handle no URL and no path
+       * can hold, and all four seeded organizations were in that state.
+       */
+      factory: (faker) => {
+        const base = faker.company.name().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'org'
+
+        return `${base}-${faker.string.alphanumeric({ length: 5, casing: 'lower' })}`
+      },
     },
 
     name: {

@@ -647,16 +647,33 @@ Each one is committed and pushed in the repository named.
       that each shows only its own work, and every member's page lists the others with their
       numbers and states.
 
-- [ ] **Seeded handles contain spaces, so four organizations can own nothing.** Found while the
-      stack seeder silently did nothing: it took the first user, whose handle is `helenjames 1`,
-      and `repositoryPath` rejected it as `invalid-characters`.
+- [x] **Seeded handles contained spaces, so four organizations could own nothing.** Found while the
+      stack seeder silently did nothing: it took the first user, whose handle was `helenjames 1`,
+      and `repositoryPath` refused it as `invalid-characters`.
 
-      Collision suffixing appends ` N` to a duplicate handle, which produces a string that can
-      never be a URL segment or a directory under `storage/repos`. **Ten of 348 users and all four
-      organizations** are in that state, so no organization on a seeded instance can own a
-      repository at all, and its profile page is at a URL nobody can type. The seeder works around
-      it by picking the first owner whose handle is path-safe; the suffixing is the thing to fix,
-      and a handle is exactly the kind of value that should be validated where it is generated.
+      Two defects, and only one of them was ours.
+
+      **Upstream**, filed as stacksjs/stacks#2893: `claimUniqueValues` disambiguates a duplicate
+      value in a unique column with `` `${value} ${suffix}` ``. For a number that is fine; for a
+      string it writes U+0020 into a value whose whole job may be to survive a URL, a path, a DNS
+      label or an email. Ten of 348 users and **all four** organizations were in that state, so no
+      organization could own a repository and twelve repositories could not be built. Nothing
+      errored: the seed reported success and the damage surfaced only when something turned a
+      handle into a path.
+
+      **Ours**: a factory that collides at all. `User.handle` and `Organization.handle` slugified a
+      faker value with no uniqueness, so across hundreds of rows duplicates were certain. Both
+      carry their own short suffix now, in the handle's own alphabet, so the framework's path is
+      never reached.
+
+      `database/seeders/OwnerHandles.ts` repairs instances that already have the damage, deriving
+      the new value from the old - `helenjames 1` becomes `helenjames-1` rather than a new random
+      string, so a handle somebody linked to stays recognisable. 14 repaired, 0 unusable
+      afterwards, and the next run built the 12 repositories whose owners had been unusable.
+
+      One more bug of my own on the way: `StackedChange` keyed its "already built" check on
+      `(owner, name)`, so repairing the handles changed which owner it picked and it created a
+      *second* stack. It keys on the repository now, which is the thing that should be unique.
 
 - [x] **Seeded repositories had no git in them, so the product's own surface could not be opened.**
       `buddy seed` wrote 75 repository rows and not one commit - no seeder touched `storage/repos`
