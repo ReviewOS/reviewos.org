@@ -1,25 +1,16 @@
 {
-  // Framework-provided defaults for YOUR application code: `app/`, `config/`,
-  // `resources/` and `routes/`. The project's root `tsconfig.json` extends this
-  // file, so everything set here applies unless the root overrides it.
-  //
-  // Framework internals are checked separately, by `tsconfig.framework.json`.
+  // Framework-provided defaults for application code when Stacks is installed
+  // from npm. Published @stacksjs packages resolve through their package
+  // exports, while application aliases continue to point into this project.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    // App code runs on both the server and in the browser (stx templates,
-    // stores, composables), so DOM types sit on top of the base `esnext` lib.
     "lib": ["esnext", "dom"],
     "rootDir": "../..",
-    // Kept inside the framework's own cache rather than `node_modules/.cache`,
-    // so the incremental build survives a `bun install` and never lands in a
-    // hoisted or symlinked `node_modules` shared with another project.
-    "tsBuildInfoFile": "./.cache/typescript/app.tsbuildinfo",
+    // Not incremental, for the reason spelled out in tsconfig.app.json: the
+    // cache reports a false green after the auto-import barrels are
+    // regenerated. stacksjs/stacks#2405.
+    "incremental": false,
     "paths": {
-      "@stacksjs/actions/*": ["./core/actions/src/*"],
-      "@stacksjs/*": ["./core/*/src"],
-      "stacks/*": ["./core/*/src"],
-      "buddy": ["./core/buddy/src/index.ts"],
-      "buddy/*": ["./core/buddy/src/*"],
       "Actions/*": ["../../app/Actions/*"],
       "Commands/*": ["../../app/Commands/*"],
       "Jobs/*": ["../../app/Jobs/*"],
@@ -30,11 +21,16 @@
       "@/*": ["../../resources/*"]
     }
   },
-  // Only the four directories you author, plus the generated framework
-  // declarations (auto-imports, ORM globals, model attributes) they rely on.
-  // Keeping this list tight is the single biggest lever on check time.
   "include": [
     "./types/**/*.d.ts",
+    // The generated table shapes, from `buddy generate:db-types`. Without this
+    // the augmentation is written and never loaded, so `db.selectFrom('users')`
+    // answers the framework's default `users` - or an unknown-valued record -
+    // and an application's own columns are invisible to the compiler.
+    //
+    // Kept in step with tsconfig.app.json deliberately: this is the copy a
+    // package-based app receives, and the two drifting is how the fix landed
+    // in the vendored layout and reached no application.
     "../../database/types.d.ts",
     "../../app/**/*.ts",
     "../../config/**/*.ts",

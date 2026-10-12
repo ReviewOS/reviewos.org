@@ -12,18 +12,20 @@ Full Stripe integration via the Payment facade. Uses Stripe API version `2026-01
 
 ## Payment Drivers (provider-neutral)
 
-`paymentDriver()` (also `Payment.driver()`) returns the driver `config.payment.driver` selects: `stripe` (default) or `adyen`, or one added with `registerPaymentDriver(name, factory)`. Source: `storage/framework/core/payments/src/driver/`.
+`paymentDriver()` (also `Payment.driver()`) returns the driver `config.payment.driver` selects: `stripe` (default), `adyen`, `paddle` or `lemonsqueezy`, or one added with `registerPaymentDriver(name, factory)`. Source: `storage/framework/core/payments/src/driver/`.
 
 - Money is `{ amount, currency }` in minor units; `assertMoney` refuses floats before a request leaves.
 - Methods: `customer`, `charge(payer, money, paymentMethodId)`, `createPayment` (browser completes: `clientConfirmation` is a Stripe client secret or an Adyen session), `refund`, `checkout(payer, { mode, lines, successUrl, ... })`, `paymentMethods`, `removePaymentMethod`, `subscribe`, `cancelSubscription`, `subscriptions`, `verifyWebhook({ payload, headers })` -> `PaymentEvent[]`, `acknowledgeWebhook()`.
 - `checkout` copies `reference` and `metadata` onto the payment / subscription / setup intent it creates (Stripe: `payment_intent_data`, `subscription_data`, `setup_intent_data`), so their webhooks can be attributed. `allowPromotionCodes` and `automaticTax` are Stripe only; Adyen refuses them.
-- Unsupported operations throw `PaymentUnsupportedError` (driver + operation). Adyen has no catalog, subscriptions, invoices, coupons or portal.
+- Unsupported operations throw `PaymentUnsupportedError` (driver + operation). Adyen has no catalog, subscriptions, invoices, coupons or portal; Paddle has no server-side charge, server-side subscribe, setup checkout, promotion-code or trial option on a checkout, or separate cancel URL.
+- Paddle (`driver: 'paddle'`, Billing API v1, merchant of record): customers found or created by email; every payment is a transaction completed in Paddle.js (`clientConfirmation: { provider: 'paddle', transactionId, successUrl? }`), so `charge` and `subscribe` are unsupported and subscriptions start at `checkout` in `subscription` mode with catalog prices; refunds are adjustments Paddle reviews (`pending`, settled by `adjustment.updated`; a refund's event id is the adjustment's, so a created-and-updated approval counts once); webhooks `Paddle-Signature` = HMAC-SHA256 hex of `<ts>:<raw body>` under the secret, 5 s tolerance. Paddle has no hosted page: `GET /payments/checkout` (mounted while the driver is `paddle`) is the default payment link page, reading `stacks_success_url` from the transaction for Paddle.js. Env: `PADDLE_API_KEY`, `PADDLE_ENVIRONMENT`, `PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_TAX_CATEGORY`.
+- Lemon Squeezy (`driver: 'lemonsqueezy'`, API v1, merchant of record): customers found or created by email in the store; `checkout` sells exactly one variant (a `price` line is a variant id; a line priced here sells as `LEMONSQUEEZY_VARIANT_ID` at a custom price in the store's currency); `charge`, `createPayment`, `subscribe` and payment methods are unsupported; refunds are immediate against the order; `cancelSubscription` needs `{ atPeriodEnd: true }`; webhooks `X-Signature` = HMAC-SHA256 hex of the raw body, event id = digest of the bytes, `order_refunded` carries `refundedTotal` (the order's running total), which commerce applies as a difference. Env: `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET`, `LEMONSQUEEZY_VARIANT_ID`, `LEMONSQUEEZY_TEST_MODE`.
 - Adyen: Checkout API v72, `X-API-Key`; shopper reference `user-<id>` (no PII); full refunds go to `/reversals`; webhooks verified per item with HMAC-SHA256 over 8 colon-joined fields under the hex key, acknowledged with 202.
 - `PaymentEvent` carries `provider` and `id` (together, the retry key), `reference` (the payment; for a refund, the payment refunded), `amount` (for a refund, that one refund - Stripe's cumulative `amount_refunded` is turned into a delta from `previous_attributes`) and `reason`. Adyen's id is `eventCode:pspReference:success`, since Adyen may resend a pair with the outcome changed.
 - The Stripe driver delegates to the existing billable modules, so idempotency keys and `stripe_id` handling are unchanged.
 - Webhook route: the `payments` default route bundle (mounted with the `commerce` feature) serves `POST /webhooks/payments` through `orders.receivePaymentWebhook(request)`: 401 `missing-config` while the driver's secret is unset (`WebhookNotConfiguredError`), 400 `invalid-signature` (`WebhookSignatureError`), otherwise applies the events and answers with `acknowledgeWebhook()`.
 - Commerce: `orders.handleCommercePaymentEvent(event)` from `@stacksjs/commerce` applies `payment.succeeded` / `payment.failed` (reason into `payments.failure_reason`) / `refund.succeeded` (added to `refund_amount`; `refunded` + order REFUNDED only when it covers the payment, else `partiallyRefunded`) to the order, deduplicated in `payment_webhook_events` (the `PaymentWebhookEvent` model) in the same transaction.
-- Everything below this section is Stripe's own API and returns Stripe objects.
+- The Payment facade's neutral functions go through this driver; its Stripe-only functions and everything Stripe-level below return Stripe objects.
 
 ## Key Paths
 - Core package: `storage/framework/core/payments/src/`
@@ -44,87 +46,91 @@ Full Stripe integration via the Payment facade. Uses Stripe API version `2026-01
 
 ## Payment Facade
 
-The `Payment` object aggregates all payment operations. Every method is also available as a standalone export.
+The `Payment` object aggregates the payment operations; every function is also a standalone export. It has two halves (`storage/framework/core/payments/src/payment.ts`):
+
+- **Provider-neutral** - through `paymentDriver()`, so they work on Stripe and Adyen alike. Money is `{ amount, currency }` in minor units; results are the driver's shapes.
+- **Stripe only** - Stripe's parameters and types, and `PaymentUnsupportedError` (naming the operation) under any other driver: `changeSubscription`, `updateCustomer`, `deleteCustomer`, `addPaymentMethod`, `setDefaultPaymentMethod`, `createSetupIntent`, `getInvoices`, `createInvoice`, `payInvoice`, `createProduct`, `getPrice`, `listProducts`, `createCoupon`, `createPromoCode`, `validatePromoCode`, `billingPortal`. The check is `assertStripeDriver(operation)`, shared with the billable trait.
+
+Something Stripe-specific the neutral half cannot express (a Connect destination charge's `payment_intent_data.transfer_data`, `prorate`/`invoice_now` on a cancellation, customer create params) goes through the `manage*` modules or the raw `stripe` client.
 
 ### Charges
 
 ```typescript
 import { Payment } from '@stacksjs/payments'
 
-// Create and confirm a charge (creates PaymentIntent with confirm: true)
-const intent = await Payment.charge(user, 2999, 'pm_xxx', { currency: 'usd' })
+// Charge a stored payment method, server side
+const result = await Payment.charge(user, { amount: 2999, currency: 'usd' }, 'pm_xxx', { reference: 'order-1' })
 
-// Create PaymentIntent without confirming (for client-side confirmation)
-const intent = await Payment.createPayment(user, 2999, { currency: 'usd' })
+// A payment the browser completes: result.clientConfirmation is a Stripe client secret or an Adyen session
+const pending = await Payment.createPayment(user, { amount: 2999, currency: 'usd' })
 
-// Refund -- partial
-const refund = await Payment.refund('pi_xxx', 1000)
-
-// Refund -- full (omit amount)
-const refund = await Payment.refund('pi_xxx')
+// Refund -- partial, or full when the amount is left out
+const partial = await Payment.refund('pi_xxx', { amount: { amount: 1000, currency: 'usd' } })
+const full = await Payment.refund('pi_xxx')
 ```
 
-`charge()` sets `confirmation_method: 'automatic'`, `confirm: true`, attaches the payment method, and delegates to `createPayment()`. If the user has a `stripe_id`, it is set as the customer on the PaymentIntent. Default currency is `'usd'`.
-
-The `manageCharge` module also exposes `findPayment(id)` which retrieves a PaymentIntent by ID, returning `null` on failure.
+`PaymentResult` has `id`, `status` (`succeeded`, `processing`, `requires_action`, `requires_payment_method`, `failed`, `canceled`), `amount`, `clientConfirmation`, `redirectUrl` and `raw` (the provider's object; strip it before a browser sees it). The `manageCharge` module is the Stripe-level API (`findPayment(id)` and the PaymentIntent params).
 
 ### Checkout Sessions
 
 ```typescript
-// One-time payment checkout
-const session = await Payment.checkout(user, [
-  { price: 'price_xxx', quantity: 1 }
-], { success_url: '/success', cancel_url: '/cancel' })
+const session = await Payment.checkout(user, {
+  mode: 'payment',
+  lines: [{ price: 'price_xxx', quantity: 1 }],
+  successUrl: 'https://app.example.com/success',
+  cancelUrl: 'https://app.example.com/cancel',
+})
 
-// Subscription checkout
-const subSession = await Payment.subscriptionCheckout(user, 'price_xxx', {
-  success_url: '/success', cancel_url: '/cancel'
+// One price in subscription mode
+const upgrade = await Payment.subscriptionCheckout(user, 'price_xxx', {
+  successUrl: 'https://app.example.com/welcome',
+  cancelUrl: 'https://app.example.com/pricing',
+  metadata: { user_id: String(user.id) },
 })
 ```
 
-Both methods require the user to have a `stripe_id` (throws if missing). `checkout()` sets `mode: 'payment'`, `subscriptionCheckout()` sets `mode: 'subscription'`.
+Send the payer to `session.url`. `trialDays` starts a subscription checkout with a trial. `reference` and `metadata` are copied onto the payment or subscription the checkout creates. Return URLs must be on the app's origin.
 
 ### Subscriptions
 
 ```typescript
-// Create -- uses lookup_key to resolve the Stripe Price
+// Subscribe to a price (a Stripe lookup key); `type` names it locally, `default` unless given
 const sub = await Payment.subscribe(user, 'premium-monthly')
 
-// Cancel at period end (prorate: true)
-const cancelled = await Payment.cancelSubscription('sub_xxx')
+// Cancel now
+await Payment.cancelSubscription('sub_xxx')
 
-// Cancel immediately (invoice_now: true, prorate: false)
-const cancelled = await Payment.cancelSubscription('sub_xxx', true)
+// Stop renewing: entitled until the period ends, recorded in the row's ends_at
+await Payment.cancelSubscription('sub_xxx', { atPeriodEnd: true })
 
-// Check active subscription
+// The provider's subscriptions, every status
+const all = await Payment.subscriptions(user)
+
+// Entitlement, from the local subscriptions table
 const hasActive = await Payment.hasActiveSubscription(user, 'default')
 
-// Change plan -- swaps the subscription item's price
+// Stripe only: swap the subscription item's price
 const changed = await Payment.changeSubscription(user, 'enterprise-monthly')
 ```
 
-`subscribe()` calls `managePrice.retrieveByLookupKey(lookupKey)` to find the price, then creates the subscription with `payment_behavior: 'allow_incomplete'` and `expand: ['latest_invoice.payment_intent']`. It stores the subscription in the `subscriptions` database table.
+`subscribe()` resolves the price by lookup key, creates the subscription with `payment_behavior: 'allow_incomplete'` and `expand: ['latest_invoice.confirmation_secret']` (an incomplete subscription's summary carries that as `clientConfirmation`), and stores it in `subscriptions`. Dates are stored as timestamps from the subscription item's `current_period_end`, where Stripe keeps it since API 2025-03-31.basil.
 
 `isValid()` returns `true` if the subscription status is `'active'` or `'trialing'`. `isIncomplete()` checks for `'incomplete'` status.
 
-`cancel()` calls `stripe.subscriptions.cancel()` and updates `provider_status` to `'canceled'` in the database.
-
-`update()` retrieves the active subscription via `user.activeSubscription()`, finds the new price by lookup key, updates the subscription item, and stores the updated price in the database.
+`cancelSubscription(id, immediately)` is gone: its `false` also cancelled at once, only with a proration. For Stripe's `prorate` / `invoice_now`, call `manageSubscription.cancel(id, params)`.
 
 ### Customers
 
 ```typescript
-// Get existing or create new Stripe customer
-const customer = await Payment.getOrCreateCustomer(user, { name: 'John' })
+// The provider's customer, created on first use: { id, email, name }
+const customer = await Payment.getOrCreateCustomer(user)
 
-// Update customer details in Stripe
+// Stripe only
 const updated = await Payment.updateCustomer(user, { name: 'Jane' })
-
-// Delete from Stripe and clear stripe_id on user model
 const deleted = await Payment.deleteCustomer(user)
 ```
 
-`createOrGetStripeUser()` checks `user.stripe_id` first. If the user has one, it retrieves the customer from Stripe. If the customer was deleted (404 or `deleted: true`), it creates a new one. On creation, it auto-fills `name` and `email` from the user model and calls `user.update({ stripe_id: customer.id })`.
+`createOrGetStripeUser()` (what the Stripe driver uses) checks `user.stripe_id` first. If the user has one, it retrieves the customer from Stripe. If the customer was deleted (404 or `deleted: true`), it creates a new one. On creation, it auto-fills `name` and `email` from the user model and calls `user.update({ stripe_id: customer.id })`. Pass Stripe customer create params through `manageCustomer.createOrGetStripeUser(user, params)`.
 
 Additional methods on `manageCustomer`:
 - `stripeId(user)` -- returns `user.stripe_id`
@@ -137,18 +143,19 @@ Additional methods on `manageCustomer`:
 ### Payment Methods
 
 ```typescript
-// Add a payment method to the customer
+// The provider's stored methods, default marked: { id, type, brand, last4, expMonth, expYear, isDefault }
+const methods = await Payment.paymentMethods(user)
+
+// Detach one, by the provider's id
+await Payment.removePaymentMethod(user, 'pm_xxx')
+
+// Stripe only
 const pm = await Payment.addPaymentMethod(user, 'pm_xxx')
-
-// Set as default (by Stripe payment method ID string)
 const customer = await Payment.setDefaultPaymentMethod(user, 'pm_xxx')
-
-// Remove a payment method (by database record ID number)
-const removed = await Payment.removePaymentMethod(user, paymentMethodDbId)
-
-// Create a setup intent for collecting payment methods
 const intent = await Payment.createSetupIntent(user, { payment_method_types: ['card'] })
 ```
+
+`removePaymentMethod()` used to take the local `payment_methods` row id as well; `managePaymentMethod.deletePaymentMethod(user, id)` still does.
 
 `addPaymentMethod()` accepts a string (Stripe PM ID) or Stripe.PaymentMethod object. It attaches the PM to the customer if not already attached, then stores it in the `payment_methods` table with `type`, `last_four`, `brand`, `exp_year`, `exp_month`, `user_id`, `provider_id`.
 
@@ -549,9 +556,9 @@ The instance methods are exactly the keys of `createBillableMethods` in
 - Stripe API keys MUST be in `.env` as `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` -- never hardcode them in config files
 - The Stripe client is created lazily, on first use: importing `@stacksjs/payments` without `STRIPE_SECRET_KEY` (or without the opt-in `stripe` package) is fine, and the first Stripe call throws naming what is missing
 - All amounts are in cents -- use `toCents()` and `toDollars()` for conversion
-- `charge()` creates AND confirms the PaymentIntent in one step
+- `Payment.charge()` (Stripe driver) creates AND confirms the PaymentIntent in one step
 - `subscribe()` resolves the price via `lookup_key`, not a direct Stripe price ID
-- The facade's `Payment.removePaymentMethod()` takes a database record ID (number); the billable instance method `removePaymentMethod()` takes the provider's id (string)
+- `Payment.removePaymentMethod()` and the billable instance method `removePaymentMethod()` both take the provider's id (string); `managePaymentMethod.deletePaymentMethod()` takes the local row id (number)
 - `setDefaultPaymentMethod` has two variants: one takes a Stripe PM ID string (`setUserDefaultPayment`), the other takes a database ID number
 - `getOrCreateCustomer()` handles deleted Stripe customers by recreating them
 - Subscription status checks query the local database, not Stripe directly

@@ -29,8 +29,19 @@
     "noUncheckedSideEffectImports": true,
     "noUnusedLocals": false,
 
-    /* Performance - worth keeping `skipLibCheck` on */
-    "incremental": true,
+    /*
+     * Performance - worth keeping `skipLibCheck` on.
+     *
+     * Not `incremental`, which this file used to set back to `true` after
+     * `storage/framework/tsconfig.app.json` had turned it off, undoing the fix
+     * rather than inheriting it. The framework turns it off because the cache
+     * reports a false green once the auto-import barrels are regenerated
+     * (stacksjs/stacks#2405), and a typecheck that passes without looking is
+     * worth less than no typecheck at all. It also wrote a stray
+     * `tsconfig.tsbuildinfo` into the project root, outside the `.cache`
+     * directory the ignore rules cover. The whole check takes a couple of
+     * seconds from cold, so there is nothing to buy here.
+     */
     "skipLibCheck": true
   }
 }
