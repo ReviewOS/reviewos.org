@@ -1903,7 +1903,7 @@ type ServiceStart =
 async function startJobServices(job: any, workspace: string, say: (line: string) => Promise<void>): Promise<ServiceStart> {
   /*
    * A service's `env:` is expressions like any other - `POSTGRES_PASSWORD:
-   * ${{ secrets.DB_PASSWORD }}` is the usual way to keep a password out of the
+   * ${{ secrets.SERVICE_PASSWORD }}` is the usual way to keep a password out of the
    * file - so it is filled in against the same contexts a step sees, before
    * any step has run.
    */

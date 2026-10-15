@@ -223,9 +223,7 @@ export function resolveServices(requests: readonly ServiceRequest[]): ServiceDec
       version,
       package: known.package ?? null,
       credentials: credentialsFor(known.service, request.env),
-      rootPassword: known.service === 'mysql' || known.service === 'mariadb'
-        ? (request.env.MYSQL_ROOT_PASSWORD ?? request.env.MARIADB_ROOT_PASSWORD ?? null)
-        : null,
+      rootPassword: rootPasswordFor(known.service, request.env),
       health: options.health,
     })
   }
@@ -471,21 +469,33 @@ export function shellWords(text: string): string[] {
  * here with the same credentials: Postgres defaults the user to `postgres` and
  * the database to the user; MySQL creates a database only when asked, and a
  * user only when given one. Null for a service with no such idea.
+ *
+ * `variables` rather than `env`, because the configuration page lists every
+ * variable read off an `env` object as something an operator sets - and these are
+ * the workflow's, not this instance's.
  */
-export function credentialsFor(service: string, env: Record<string, string>): ServiceCredentials | null {
+export function credentialsFor(service: string, variables: Record<string, string>): ServiceCredentials | null {
   if (service === 'postgres') {
-    const user = env.POSTGRES_USER || 'postgres'
+    const user = variables.POSTGRES_USER || 'postgres'
 
-    return { user, password: env.POSTGRES_PASSWORD ?? '', database: env.POSTGRES_DB || user }
+    return { user, password: variables.POSTGRES_PASSWORD ?? '', database: variables.POSTGRES_DB || user }
   }
 
   if (service === 'mysql' || service === 'mariadb') {
-    const pick = (name: string) => env[`MYSQL_${name}`] ?? env[`MARIADB_${name}`] ?? ''
+    const pick = (name: string) => variables[`MYSQL_${name}`] ?? variables[`MARIADB_${name}`] ?? ''
 
     return { user: pick('USER') || 'root', password: pick('PASSWORD') || pick('ROOT_PASSWORD'), database: pick('DATABASE') }
   }
 
   return null
+}
+
+/** `MYSQL_ROOT_PASSWORD`, or MariaDB's spelling of it, for a MySQL-shaped service. */
+function rootPasswordFor(service: string, variables: Record<string, string>): string | null {
+  if (service !== 'mysql' && service !== 'mariadb')
+    return null
+
+  return variables.MYSQL_ROOT_PASSWORD ?? variables.MARIADB_ROOT_PASSWORD ?? null
 }
 
 /** A Postgres identifier, quoted, so a role called `user` is a role and not a keyword. */

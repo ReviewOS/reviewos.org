@@ -104,6 +104,16 @@ describe('the hand-written SQL', () => {
       if (file.path.startsWith('app/Actions/Database/'))
         continue
 
+      /*
+       * The same, for a job's `services:`. The runner connects to the database
+       * the *workflow* asked for - a Postgres or a MySQL it just started - and
+       * never to this instance's own, so the open connection's dialect has
+       * nothing to say about it. Each engine's statements are written out for
+       * that engine in `postgresSetup` and `mysqlSetup`.
+       */
+      if (file.path === 'app/Actions/Runner/services.ts')
+        continue
+
       const text = code(file.text)
 
       /*
