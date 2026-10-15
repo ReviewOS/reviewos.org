@@ -88,6 +88,11 @@ async function privateRepository(): Promise<{ id: number, name: string, path: st
 
 /** Start a run on `repositoryId` and claim its job, keeping the credential it was handed. */
 async function claim(repositoryId: number): Promise<string> {
+  return String((await claimJob(repositoryId))?.token ?? '')
+}
+
+/** The whole job a claim hands a runner. */
+async function claimJob(repositoryId: number): Promise<any> {
   await dispatchPush({
     repositoryId,
     event: { ref: 'refs/heads/main' },
@@ -101,7 +106,7 @@ async function claim(repositoryId: number): Promise<string> {
   })
 
   const body: any = await answer.json()
-  return String(body?.job?.token ?? '')
+  return body?.job ?? null
 }
 
 function urlOf(repository: { name: string }, secret: string): string {
@@ -148,7 +153,7 @@ beforeAll(async () => {
       ownerType: 'user',
       ownerId: created.ownerId,
       path: '.github/workflows/ci.yml',
-      source: 'name: CI\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: build\n',
+      source: 'name: CI\non: push\nenv:\n  BUN_VERSION: 1.4.2\n  LEVEL: workflow\njobs:\n  build:\n    runs-on: ubuntu-latest\n    env:\n      LEVEL: job\n    steps:\n      - run: build\n',
       sha: 'a'.repeat(40),
     })
 
@@ -183,6 +188,17 @@ afterAll(async () => {
   }
 
   rmSync(created.temp, { recursive: true, force: true })
+})
+
+describe('the job a claim hands a runner', () => {
+  test('carries the workflow\'s env and its own, its own winning', async () => {
+    if (!available)
+      return
+
+    // Neither level reached a step before: the claim sent each step's env alone.
+    const job = await claimJob(created.mine.id)
+    expect(job?.env).toEqual({ BUN_VERSION: '1.4.2', LEVEL: 'job' })
+  })
 })
 
 describe('a running job, reading over HTTP', () => {

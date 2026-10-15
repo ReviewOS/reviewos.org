@@ -873,6 +873,24 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     let extraPath = ''
 
     /*
+     * The workflow's and the job's own `env:`, merged by the control plane
+     * (job over workflow, `Workflow/env.ts`) and resolved here once, before
+     * the first step, against everything but `env` itself - which is what
+     * Actions allows in them.
+     *
+     * Neither level ever reached a step before: the claim carried only each
+     * step's own `env:`, so `env: { BUN_VERSION: 1.4.2 }` at the top of a
+     * workflow left `$BUN_VERSION` empty in every step while the conformance
+     * table called `env` supported. Under the services and whatever a step
+     * wrote to GITHUB_ENV, over the runner's own defaults; a step's `env:`
+     * still wins.
+     */
+    const jobEnv = interpolateValues(
+      (job.env && typeof job.env === 'object' ? job.env : {}) as Record<string, string>,
+      expressionContext(job, workspace, { status: 'success', steps: {}, env: { ...environmentFor(job, workspace), ...serviceEnv } }),
+    )
+
+    /*
      * What the steps so far have produced, in the shape an expression reads.
      *
      * This is the whole reason step-level `if:` had to wait for the runner: a
@@ -1015,7 +1033,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const context = expressionContext(job, workspace, {
         status: jobFailed ? 'failure' : 'success',
         steps: stepContext,
-        env: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
+        env: { ...environmentFor(job, workspace), ...jobEnv, ...serviceEnv, ...carried },
       })
 
       const decision = shouldRun(step.if, context)
@@ -1167,6 +1185,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           origins: options.actionOrigins,
           environment: {
             ...environmentFor(job, workspace),
+            ...jobEnv,
             ...serviceEnv,
             ...carried,
             ...actionFiles.environment,
@@ -1235,6 +1254,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const files = stepFiles(workspace, index)
       const environment = {
         ...environmentFor(job, workspace),
+        ...jobEnv,
         ...serviceEnv,
         ...carried,
         ...files.environment,
@@ -1442,7 +1462,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         expressionContext(job, workspace, {
           status: failed ? 'failure' : 'success',
           steps: stepContext,
-          env: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
+          env: { ...environmentFor(job, workspace), ...jobEnv, ...serviceEnv, ...carried },
         }),
       )
     }

@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { changedPathsFromColumn } from '../Workflow/dispatch'
+import { envFrom, resolveEnv } from '../Workflow/env'
 import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJobDetailed } from '../Workflow/secrets'
 import { isOwnerDefined } from '../Workflow/ownerWorkflows'
@@ -310,9 +311,11 @@ export default new Action({
     const definitionJob = await db
       .selectFrom('workflow_version_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_version_jobs.workflow_version_id')
       .select([
         'workflow_version_jobs.outputs as outputs',
         'workflow_version_jobs.env as env',
+        'workflow_versions.env as workflow_env',
         'workflow_version_jobs.permissions as permissions',
       ])
       .where('workflow_runs.id', '=', claimed.runId)
@@ -678,6 +681,14 @@ export default new Action({
          * anything at all.
          */
         outputs: readJson(definitionJob?.outputs),
+        /*
+         * The workflow's `env:` and this job's, the job's winning - the
+         * levels above a step, as `Workflow/env.ts` orders them. Values as
+         * written: they may be expressions, which the runner resolves once at
+         * the start of the job. Never sent before, so neither level reached a
+         * step's environment.
+         */
+        env: resolveEnv({ workflow: envFrom((definitionJob as any)?.workflow_env), job: envFrom(definitionJob?.env) }),
         /*
          * The matrix combination this job is, so `${{ matrix.node }}` means
          * something inside a step and in an output expression. Stored on the job
