@@ -75,6 +75,11 @@ jobs:
             echo "$(date)" > node_modules/installed
             echo "installed from scratch"
           fi
+      - name: Verify checkout
+        run: |
+          git diff --exit-code
+          printf 'checkout: '
+          cat README.md
 `
 
 beforeAll(async () => {
@@ -126,6 +131,7 @@ beforeAll(async () => {
     // The lockfile is what makes this workspace worth caching at all: without
     // one the key would mean "any job in this repository".
     writeFileSync(join(work, 'bun.lock'), 'a lockfile the key is derived from\n')
+    writeFileSync(join(work, 'README.md'), 'initial checkout\n')
     await git(work, 'add', '-A')
     await git(work, 'commit', '-m', 'a workflow whose install is observable')
     await git(work, 'push', created.diskPath, 'main')
@@ -303,6 +309,7 @@ describe('the second run of a workflow', () => {
     expect(warm.state).toBe('succeeded')
     expect(warm.log).toContain('Restored dependencies from refs/heads/main')
     expect(warm.log).toContain('dependencies were already here')
+    expect(warm.log).toContain('checkout: a second commit, so there is a second run')
     expect(warm.log).not.toContain('installed from scratch')
 
     /*

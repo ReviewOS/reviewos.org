@@ -26,12 +26,9 @@
  * because nobody has to know which paths their package manager writes to. Every
  * `actions/cache` bug report is somebody who got that list wrong.
  *
- * In practice "minus the checkout" is done by exclusion rather than by diffing:
- * `.git` and the runner's own directory are left out, and everything the
- * checkout wrote is already in the repository, so restoring over a fresh
- * checkout is a no-op for those files. Diffing the tree would be more precise
- * and would cost a stat of every file to save bytes on files that compress to
- * nothing.
+ * Git's untracked-file inventory includes ignored dependency trees but excludes
+ * every checked-in path. Restoring a whole older workspace would overwrite the
+ * fresh checkout with the source that happened to populate the cache.
  */
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -91,7 +88,8 @@ export function keyFor(workspace: string, facts: { runtime?: string | null, imag
     runtime: facts.runtime ?? null,
     architecture: process.arch,
     image: facts.image ?? null,
-    extra: facts.extra ?? [],
+    // Older snapshots included source. Never restore them over a new commit.
+    extra: ['untracked-workspace-v2', ...(facts.extra ?? [])],
   })
 }
 
@@ -115,12 +113,30 @@ export function worthCaching(workspace: string): boolean {
  * a runner that cannot cache at all on a base image from before 2021.
  */
 export async function packSnapshot(workspace: string, into: string): Promise<SnapshotResult> {
-  const excludes = NEVER_SNAPSHOT.flatMap(name => ['--exclude', `./${name}`])
-
-  const packed = Bun.spawn(['tar', '-czf', into, ...excludes, '-C', workspace, '.'], {
+  const inventory = Bun.spawn(['git', 'ls-files', '--others', '--directory', '--no-empty-directory', '-z'], {
+    cwd: workspace,
     stdout: 'pipe',
     stderr: 'pipe',
   })
+  const [paths, gitError] = await Promise.all([
+    new Response(inventory.stdout).text(),
+    new Response(inventory.stderr).text(),
+  ])
+  if (await inventory.exited !== 0)
+    return { ok: false, reason: `cannot inventory the checkout: ${gitError.slice(0, 400)}` }
+
+  // No --exclude-standard: ignored node_modules and build outputs are what
+  // this cache is for. NUL framing preserves spaces, newlines and tar syntax
+  // in filenames; the ./ prefix also prevents a name becoming an option.
+  const entries = paths.split('\0').filter(path => path && !NEVER_SNAPSHOT.some(name => path === name || path.startsWith(`${name}/`)))
+  const packed = Bun.spawn(['tar', '-czf', into, '--null', '-T', '-'], {
+    cwd: workspace,
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  packed.stdin.write(entries.map(path => `./${path}\0`).join(''))
+  packed.stdin.end()
 
   const failure = await new Response(packed.stderr).text()
   const status = await packed.exited
@@ -142,11 +158,9 @@ export async function packSnapshot(workspace: string, into: string): Promise<Sna
 /**
  * Unpack an archive over a workspace.
  *
- * Over rather than into an empty directory: the checkout is already there, and
- * a snapshot that replaced it would throw away the commit this run is meant to
- * be testing. Files in both win from the archive, which is what "restored as
- * the starting state" means - an install that patched a checked-in file stays
- * patched.
+ * Over rather than into an empty directory: the checkout is already there.
+ * Dependency snapshots contain only untracked paths, so the commit under test
+ * never travels from an earlier build.
  *
  * `-p` keeps permissions, because the executable bit on `node_modules/.bin/*`
  * is the difference between a restored cache and a build that cannot run its

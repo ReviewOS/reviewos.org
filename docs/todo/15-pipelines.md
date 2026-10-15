@@ -3289,3 +3289,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
 - **Bug-for-bug fidelity with GitHub.** Compatible means a normal workflow runs unchanged, not that
   every undocumented behavior is reproduced. Where we differ, the conformance report says so and the
   parser warns. The line between those two is a judgement call, made per construct, written down.
+
+- [x] Dependency snapshots preserve the current checkout: archive only Git-untracked paths
+      (including ignored dependency trees), and invalidate older snapshots that included source.
+      A warm-cache regression changes a helper and deletes a file without changing the lockfile,
+      then proves both survive restoration.

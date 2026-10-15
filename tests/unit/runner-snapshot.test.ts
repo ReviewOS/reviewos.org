@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { snapshotKey } from '../../app/Actions/Workflow/cacheKey'
 import { keyFor, lockfilesIn, NEVER_SNAPSHOT, packSnapshot, unpackSnapshot, worthCaching } from '../../app/Actions/Runner/snapshot'
 
 const root = join(
@@ -20,6 +21,11 @@ const source = join(root, 'workspace')
 const target = join(root, 'restored')
 const archive = join(root, 'snapshot.tar.gz')
 
+function git(cwd: string, ...args: string[]): void {
+  const result = Bun.spawnSync(['git', '-c', 'user.name=Snapshot Test', '-c', 'user.email=snapshot@test.local', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  if (result.exitCode !== 0) throw new Error(result.stderr.toString())
+}
+
 beforeAll(() => {
   mkdirSync(join(source, 'node_modules', '.bin'), { recursive: true })
   mkdirSync(join(source, '.git'), { recursive: true })
@@ -27,6 +33,7 @@ beforeAll(() => {
   mkdirSync(target, { recursive: true })
 
   writeFileSync(join(source, 'bun.lock'), 'a lockfile')
+  writeFileSync(join(source, '.gitignore'), 'node_modules/\n')
   writeFileSync(join(source, 'node_modules', 'installed.js'), 'module.exports = 1')
   writeFileSync(join(source, 'node_modules', '.bin', 'linter'), '#!/bin/sh\necho ok\n')
   chmodSync(join(source, 'node_modules', '.bin', 'linter'), 0o755)
@@ -34,7 +41,9 @@ beforeAll(() => {
 
   // The two that must never travel: the checkout is fetched, not restored, and
   // the runner's own directory holds this job's step files.
-  writeFileSync(join(source, '.git', 'HEAD'), 'ref: refs/heads/main')
+  git(source, 'init', '-q', '-b', 'main')
+  git(source, 'add', 'bun.lock', '.gitignore')
+  git(source, 'commit', '-qm', 'Initial checkout')
   writeFileSync(join(source, '.reviewos-runner', 'output-0'), 'secret=value')
 })
 
@@ -66,6 +75,33 @@ describe('what goes in a snapshot', () => {
     expect(statSync(join(target, 'node_modules', '.bin', 'linked.js')).isFile()).toBe(true)
   })
 
+  test('a warm cache preserves changed source and cannot resurrect deleted source', async () => {
+    const old = join(root, 'old-checkout')
+    const current = join(root, 'current-checkout')
+    const cached = join(root, 'old-dependencies.tar.gz')
+    mkdirSync(old)
+    writeFileSync(join(old, 'bun.lock'), 'the same dependencies')
+    writeFileSync(join(old, 'helpers.ts'), 'export const oldHelper = 1')
+    writeFileSync(join(old, 'deleted.ts'), 'obsolete source')
+    git(old, 'init', '-q', '-b', 'main')
+    git(old, 'add', '.')
+    git(old, 'commit', '-qm', 'Old source')
+    git(root, 'clone', '-q', old, current)
+    writeFileSync(join(current, 'helpers.ts'), 'export const newHelper = 2')
+    rmSync(join(current, 'deleted.ts'))
+    git(current, 'add', '-A')
+    git(current, 'commit', '-qm', 'Current source')
+    mkdirSync(join(old, 'node_modules'))
+    writeFileSync(join(old, 'node_modules', 'installed.js'), 'installed dependency')
+
+    expect((await packSnapshot(old, cached)).ok).toBe(true)
+    expect((await unpackSnapshot(cached, current)).ok).toBe(true)
+    expect(await Bun.file(join(current, 'helpers.ts')).text()).toBe('export const newHelper = 2')
+    expect(existsSync(join(current, 'deleted.ts'))).toBe(false)
+    expect(await Bun.file(join(current, 'node_modules', 'installed.js')).text()).toBe('installed dependency')
+    expect(Bun.spawnSync(['git', 'diff', '--exit-code'], { cwd: current }).exitCode).toBe(0)
+  })
+
   test('and never the checkout or the runner\'s own directory', async () => {
     /*
      * `.git` because the commit under test is fetched, not restored - a
@@ -82,6 +118,11 @@ describe('the key a workspace produces', () => {
   test('reads the lockfiles that are actually there', () => {
     expect(Object.keys(lockfilesIn(source))).toEqual(['bun.lock'])
     expect(lockfilesIn(join(root, 'nowhere'))).toEqual({})
+  })
+
+  test('cannot restore a legacy snapshot that included checked-in source', () => {
+    const legacy = snapshotKey({ lockfiles: lockfilesIn(source), runtime: 'bun@1.4.2', architecture: process.arch, image: null, extra: [] })
+    expect(keyFor(source, { runtime: 'bun@1.4.2' })).not.toBe(legacy)
   })
 
   test('changes when the lockfile does, and not when nothing did', async () => {

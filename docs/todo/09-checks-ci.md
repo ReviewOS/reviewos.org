@@ -300,7 +300,9 @@ Built. `cacheScope.ts` decides who may read and write, `cacheKey.ts` derives the
 and `WorkflowCacheEntry` store it through the phase 18 blob store, two runner endpoints carry it,
 and `snapshot.ts` with `cacheClient.ts` make and unpack the archive. The restore happens after the
 checkout and before the first step; the save happens at the end of a job that succeeded and whose
-restore was not an exact hit. `cacheCollect.ts` and `buddy ci:caches` are the collection half.
+restore was not an exact hit. Snapshots include only Git-untracked paths, including ignored
+dependency trees; checked-in source always comes from the current checkout. The cache format key
+excludes old snapshots that included source. `cacheCollect.ts` and `buddy ci:caches` collect them.
 
 One difference from the wording below: the snapshot is taken per **job**, not per step. Steps of a
 job already share a workspace, so a per-step snapshot would store the same tree several times to
