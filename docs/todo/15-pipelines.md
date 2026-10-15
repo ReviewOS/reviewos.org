@@ -1524,6 +1524,9 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 
       No `clean`, and that is a property of this runner rather than an omission: every job gets a
       workspace of its own. The parser says so in the error rather than leaving somebody to guess.
+- [x] Shallow job checkouts can fetch their recorded commit after a branch or mirror advances.
+      HTTP and SSH upload-pack accept commits reachable from the repository's refs, while still
+      rejecting unreachable objects. Real protocol requests cover both transports.
 - [x] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,
       and the one that decides whether a big repository is usable here at all.
 

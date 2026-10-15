@@ -616,7 +616,19 @@ export function serviceArgs(
   // life of the channel, which is the mode git was written for - and passing
   // the flag there produces a client that hangs waiting for a second round
   // nobody is going to send.
-  const args = options.stateless === false ? [service] : [service, '--stateless-rpc']
+  const args: string[] = []
+
+  // A job fetches its recorded commit with --depth 1. Once a branch or mirror
+  // advances, that commit is no longer advertised as a tip, but is still part
+  // of the repository readers may clone. Advertise and accept reachable wants
+  // so queued jobs keep working. Unreachable objects remain refused by git.
+  if (service === 'upload-pack')
+    args.push('-c', 'uploadpack.allowReachableSHA1InWant=true')
+
+  args.push(service)
+
+  if (options.stateless !== false)
+    args.push('--stateless-rpc')
 
   if (options.advertiseRefs)
     args.push('--advertise-refs')

@@ -79,7 +79,7 @@ afterAll(() => {
 describe('serviceArgs', () => {
   test('names the repository rather than the working directory', () => {
     expect(serviceArgs('/srv/repos/acme/app.git', 'upload-pack'))
-      .toEqual(['upload-pack', '--stateless-rpc', '/srv/repos/acme/app.git'])
+      .toEqual(['-c', 'uploadpack.allowReachableSHA1InWant=true', 'upload-pack', '--stateless-rpc', '/srv/repos/acme/app.git'])
   })
 
   test('adds the advertisement flag before the repository', () => {
@@ -96,6 +96,62 @@ describe('serviceArgs', () => {
       }
     }
   })
+})
+
+/** A protocol-v0 fetch, the same shallow commit request a remote runner makes. */
+function wantCommit(sha: string): Buffer {
+  const packet = (line: string) => `${(Buffer.byteLength(line) + 4).toString(16).padStart(4, '0')}${line}`
+  return Buffer.from(`${packet(`want ${sha}\n`)}${packet('deepen 1\n')}0000${packet('done\n')}`)
+}
+
+describe('a job whose branch has advanced', () => {
+  let previous: string
+  let unreachable: string
+
+  beforeAll(() => {
+    const work = `${wanted}-work`
+    previous = git(work, 'rev-parse', 'HEAD').trim()
+    writeFileSync(join(work, 'next.txt'), 'the next push\n')
+    git(work, 'add', '.')
+    git(work, 'commit', '-m', 'advance the branch')
+    git(work, 'push', 'origin', 'alpha')
+    // Present in the bare object store, but not reachable from any ref.
+    const tree = git(work, 'rev-parse', 'HEAD^{tree}').trim()
+    unreachable = git(wanted, 'commit-tree', tree, '-m', 'unreferenced commit').trim()
+  })
+
+  for (const stateless of [true, false]) {
+    const transport = stateless ? 'HTTP' : 'SSH'
+
+    test(`${transport} advertises that clients may request reachable commits`, () => {
+      const result = spawnSync('git', serviceArgs(wanted, 'upload-pack', { stateless, advertiseRefs: true }), { cwd: elsewhere })
+
+      expect(result.status).toBe(0)
+      expect(result.stdout.toString()).toContain('allow-reachable-sha1-in-want')
+    })
+
+    test(`${transport} fetches the recorded commit after the next push`, () => {
+      const result = spawnSync('git', serviceArgs(wanted, 'upload-pack', { stateless }), {
+        cwd: elsewhere,
+        input: wantCommit(previous),
+      })
+
+      expect(result.stderr.toString()).not.toContain('not our ref')
+      expect(result.status).toBe(0)
+      expect(result.stdout.includes(Buffer.from('PACK'))).toBe(true)
+    })
+
+    test(`${transport} still rejects an unreachable commit`, () => {
+      const result = spawnSync('git', serviceArgs(wanted, 'upload-pack', { stateless }), {
+        cwd: elsewhere,
+        input: wantCommit(unreachable),
+      })
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr.toString()).toContain('not our ref')
+      expect(result.stdout.includes(Buffer.from('PACK'))).toBe(false)
+    })
+  }
 })
 
 /**
