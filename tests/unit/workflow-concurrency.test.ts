@@ -7,7 +7,8 @@
 // the case where being wrong cancels somebody's build.
 
 import { describe, expect, test } from 'bun:test'
-import { fillGroup, resolveGroup } from '../../app/Actions/Workflow/concurrency'
+import { cancelsInProgress, fillGroup, resolveGroup } from '../../app/Actions/Workflow/concurrency'
+import { concurrencyFrom, parseWorkflow } from '../../app/Actions/Workflow/parse'
 
 const push = {
   workflow: 'CI',
@@ -159,5 +160,87 @@ describe('a job\'s own group', () => {
      * this deliberately fails away from.
      */
     expect(resolveGroup('build-${{ matrix.node }}', push)).toBeNull()
+  })
+})
+
+/*
+ * `cancel-in-progress` as an expression, which is how the hq.training CI
+ * writes it: cancel a pull request's stale run, but never a push to main
+ * mid-deploy. Only a literal `true` used to count, so this cancelled nothing.
+ */
+const HQ_TRAINING = `name: CI
+on: [push, pull_request]
+concurrency:
+  group: \${{ github.workflow }}-\${{ github.head_ref || github.ref }}
+  cancel-in-progress: \${{ github.event_name == 'pull_request' }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bun test
+`
+
+describe('reading cancel-in-progress', () => {
+  test('a literal is a literal, quoted or not', () => {
+    expect(concurrencyFrom({ group: 'g', 'cancel-in-progress': true })).toEqual({ group: 'g', cancelInProgress: true, cancelInProgressExpression: null })
+    expect(concurrencyFrom({ group: 'g', 'cancel-in-progress': 'true' })).toEqual({ group: 'g', cancelInProgress: true, cancelInProgressExpression: null })
+    expect(concurrencyFrom({ group: 'g', 'cancel-in-progress': false })).toEqual({ group: 'g', cancelInProgress: false, cancelInProgressExpression: null })
+    expect(concurrencyFrom('g')).toEqual({ group: 'g', cancelInProgress: false, cancelInProgressExpression: null })
+  })
+
+  test('an expression is kept as written, to be answered per run', () => {
+    const parsed = parseWorkflow(HQ_TRAINING, '.github/workflows/ci.yml')
+
+    expect(parsed.errors).toEqual([])
+    expect(parsed.workflow?.concurrency).toEqual({
+      group: '${{ github.workflow }}-${{ github.head_ref || github.ref }}',
+      cancelInProgress: false,
+      cancelInProgressExpression: '${{ github.event_name == \'pull_request\' }}',
+    })
+  })
+
+  test('and on a job too', () => {
+    const job = parseWorkflow(
+      'on: push\njobs:\n  deploy:\n    runs-on: x\n    concurrency:\n      group: deploy\n      cancel-in-progress: ${{ github.ref != \'refs/heads/main\' }}\n    steps:\n      - run: make deploy\n',
+      '.github/workflows/deploy.yml',
+    ).workflow?.jobs[0]
+
+    expect(job?.concurrency?.cancelInProgressExpression).toBe('${{ github.ref != \'refs/heads/main\' }}')
+  })
+})
+
+describe('answering cancel-in-progress at dispatch', () => {
+  const expression = '${{ github.event_name == \'pull_request\' }}'
+
+  test('the hq.training rule: a pull request cancels, a push does not', () => {
+    expect(cancelsInProgress(false, expression, pullRequest)).toBe(true)
+    expect(cancelsInProgress(false, expression, push)).toBe(false)
+  })
+
+  test('a literal answers for itself, in the shapes a database returns it', () => {
+    expect(cancelsInProgress(true, null, push)).toBe(true)
+    expect(cancelsInProgress('t', null, push)).toBe(true)
+    expect(cancelsInProgress(1, null, push)).toBe(true)
+    expect(cancelsInProgress(false, null, push)).toBe(false)
+    expect(cancelsInProgress(null, '', push)).toBe(false)
+  })
+
+  test('the matrix and the inputs are readable, as they are for the group', () => {
+    expect(cancelsInProgress(false, '${{ matrix.os == \'linux\' }}', { ...push, matrix: { os: 'linux' } })).toBe(true)
+    expect(cancelsInProgress(false, '${{ inputs.fast }}', { ...push, eventName: 'workflow_dispatch', inputs: { fast: true } })).toBe(true)
+  })
+
+  test('a template that reads as true is true', () => {
+    expect(cancelsInProgress(false, '${{ \'tr\' }}${{ \'ue\' }}', push)).toBe(true)
+  })
+
+  test('an expression that cannot be answered cancels nothing', () => {
+    /*
+     * The same direction as a group that cannot be resolved: not cancelling
+     * wastes a runner on a stale commit, and cancelling wrongly stops somebody's
+     * deploy halfway.
+     */
+    expect(cancelsInProgress(true, '${{ nonsense(1) }}', pullRequest)).toBe(false)
+    expect(cancelsInProgress(false, '${{ steps.x.outputs.y == \'1\' }}', pullRequest)).toBe(false)
   })
 })

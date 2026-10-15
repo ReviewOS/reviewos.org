@@ -252,6 +252,23 @@ export default defineModel({
     },
 
     /**
+     * `cancel-in-progress` when it is an expression rather than a literal.
+     *
+     * `${{ github.event_name == 'pull_request' }}` is the common one: cancel a
+     * pull request's stale run, but let a push to main finish its deploy. It
+     * can only be answered against the event that started a run, so it is
+     * stored as written and evaluated at dispatch, the way the group is. Null
+     * when the workflow wrote `true`, `false` or nothing, which the column
+     * above already says.
+     */
+    cancel_in_progress_expression: {
+      order: 55,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /**
      * `reviewos.intermediate:` - what happens to runs still waiting when a
      * newer one arrives.
      *

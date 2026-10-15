@@ -153,7 +153,66 @@ function expressionContext(context: ConcurrencyContext): Record<string, unknown>
       event: context.number ? { number: context.number, pull_request: { number: context.number } } : {},
     },
     matrix: context.matrix ?? {},
+    inputs: context.inputs ?? {},
   }
+}
+
+/**
+ * Whether a new run in a group cancels the ones already in it.
+ *
+ * The literal when the workflow wrote one; otherwise its expression, answered
+ * against this run's event - `${{ github.event_name == 'pull_request' }}`
+ * cancels a pull request's stale runs and lets a push to main finish its
+ * deploy, which is exactly why people write it.
+ *
+ * An expression that cannot be answered cancels nothing, for the reason a
+ * group that cannot be resolved is no group: the cost of not cancelling is a
+ * runner spent on a stale commit, and the cost of cancelling wrongly is
+ * somebody's deploy stopped halfway.
+ */
+export function cancelsInProgress(
+  literal: unknown,
+  expression: string | null | undefined,
+  context: ConcurrencyContext,
+): boolean {
+  const text = String(expression ?? '').trim()
+
+  // The column as a database hands it back: a boolean, or Postgres' `t` and a
+  // driver's `1` - the same readings `isTrue` accepts, kept here so this module
+  // stays free of the database.
+  if (!text)
+    return literal === true || literal === 1 || literal === 'true' || literal === '1' || literal === 't'
+
+  const whole = /^\$\{\{([\s\S]*)\}\}$/.exec(text)
+
+  // One expression, which is every form in use: its value, read for truth the
+  // way the expression language reads it.
+  if (whole && !whole[1]!.includes('}}')) {
+    const result = evaluateExpression(whole[1]!, expressionContext(context))
+
+    return result.ok && truthy(result.value)
+  }
+
+  // A template around more than one: the text it produces, which only means
+  // true when it says so.
+  const filled = text.replace(/\$\{\{([\s\S]*?)\}\}/g, (written: string, inner: string) => {
+    const result = evaluateExpression(inner, expressionContext(context))
+
+    return result.ok ? String(result.value ?? '') : written
+  })
+
+  return filled.trim().toLowerCase() === 'true'
+}
+
+/**
+ * The expression language's truthiness: an empty string, zero, false and null
+ * are false, and anything else - an empty object included - is true.
+ */
+function truthy(value: unknown): boolean {
+  if (value === null || value === undefined || value === false || value === '' || value === 0)
+    return false
+
+  return !(typeof value === 'number' && Number.isNaN(value))
 }
 
 /**

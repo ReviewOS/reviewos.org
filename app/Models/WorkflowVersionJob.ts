@@ -235,6 +235,18 @@ export default defineModel({
       factory: () => false,
     },
 
+    /**
+     * The job's `cancel-in-progress` when it is an expression, evaluated per
+     * run and per matrix combination at dispatch. Null for a literal, which
+     * the column above holds.
+     */
+    job_cancel_in_progress_expression: {
+      order: 49,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     /** `defaults.run.shell` on the job, which overrides the workflow's. */
     default_shell: {
       order: 37,

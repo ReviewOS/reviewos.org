@@ -343,7 +343,13 @@ export interface WorkflowService {
 
 export interface WorkflowConcurrency {
   group: string
+  /** `cancel-in-progress` when it is a literal. */
   cancelInProgress: boolean
+  /**
+   * `cancel-in-progress` when it is an expression, as written - to be answered
+   * per run, against the event that started it. Null for a literal.
+   */
+  cancelInProgressExpression: string | null
 }
 
 export interface TriggerFilter {
@@ -2376,14 +2382,36 @@ export function callSecretsFrom(value: unknown): Array<{ name: string, descripti
  */
 export function concurrencyFrom(value: unknown): WorkflowConcurrency | null {
   if (typeof value === 'string' && value.length > 0)
-    return { group: value, cancelInProgress: false }
+    return { group: value, cancelInProgress: false, cancelInProgressExpression: null }
 
   const record = asRecord(value)
 
   if (!record || typeof record.group !== 'string')
     return null
 
-  return { group: record.group, cancelInProgress: record['cancel-in-progress'] === true }
+  return { group: record.group, ...cancelInProgressFrom(record['cancel-in-progress']) }
+}
+
+/**
+ * `cancel-in-progress`, as a literal or as an expression.
+ *
+ * Only a literal `true` was honoured, so the line every pull-request-aware
+ * workflow writes - `${{ github.event_name == 'pull_request' }}` - cancelled
+ * nothing, ever: a stale pull request run kept its runner until it finished.
+ * An expression is kept as written and answered at dispatch, against the
+ * event, the way Actions answers it. A quoted `'true'` is the literal it
+ * spells, because YAML put the quotes there rather than the author's intent.
+ */
+function cancelInProgressFrom(value: unknown): Pick<WorkflowConcurrency, 'cancelInProgress' | 'cancelInProgressExpression'> {
+  if (typeof value === 'boolean')
+    return { cancelInProgress: value, cancelInProgressExpression: null }
+
+  const text = typeof value === 'string' ? value.trim() : ''
+
+  if (/^(?:true|false)$/i.test(text))
+    return { cancelInProgress: text.toLowerCase() === 'true', cancelInProgressExpression: null }
+
+  return { cancelInProgress: false, cancelInProgressExpression: text.includes('${{') ? text.slice(0, 500) : null }
 }
 
 /** `defaults.run`, which every step inherits unless it says otherwise. */

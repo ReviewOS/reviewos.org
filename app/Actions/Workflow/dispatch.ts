@@ -29,7 +29,7 @@ import type { Combination, MatrixAdjustment } from './matrix'
 import { isOrchestratorJob } from './program'
 import { adjustmentFor } from './matrix'
 import type { ConcurrencyContext } from './concurrency'
-import { resolveGroup } from './concurrency'
+import { cancelsInProgress, resolveGroup } from './concurrency'
 import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
@@ -115,6 +115,7 @@ const VERSION_COLUMNS = [
       'workflow_versions.workflow_run_branches as workflow_run_branches',
       'workflow_versions.concurrency_group as concurrency_group',
       'workflow_versions.cancel_in_progress as cancel_in_progress',
+      'workflow_versions.cancel_in_progress_expression as cancel_in_progress_expression',
       'workflow_versions.intermediate as intermediate',
       // The workflow's name, for `${{ github.workflow }}` in a group.
       'workflows.name as workflow_name',
@@ -325,12 +326,12 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
         context,
       })
 
-      await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
+      await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
         runId,
         group,
-        cancelInProgress: isTrue(version.cancel_in_progress),
+        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -441,12 +442,12 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
         context,
       })
 
-      await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
+      await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
         runId,
         group,
-        cancelInProgress: isTrue(version.cancel_in_progress),
+        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -582,12 +583,12 @@ export async function dispatchWorkflowRun(input: {
         context,
       })
 
-      await supersede(Number(finished.repository_id), runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
+      await supersede(Number(finished.repository_id), runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: Number(finished.repository_id),
         runId,
         group,
-        cancelInProgress: isTrue(version.cancel_in_progress),
+        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -774,12 +775,12 @@ async function createPullRequestRun(
       await announceActionRequiredFor(input.repositoryId, runId, 'approval').catch(() => null)
     }
 
-    await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
+    await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,
       runId,
       group,
-      cancelInProgress: isTrue(version.cancel_in_progress),
+      cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
       intermediate: String(version.intermediate ?? 'run'),
     })
 
@@ -842,12 +843,12 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
       context,
     })
 
-    await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
+    await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,
       runId,
       group,
-      cancelInProgress: isTrue(version.cancel_in_progress),
+      cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
       intermediate: String(version.intermediate ?? 'run'),
     })
 
@@ -1195,7 +1196,7 @@ async function createJobs(
     .selectFrom('workflow_version_jobs')
     .select([
       'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
-      'concurrency_group', 'job_cancel_in_progress', 'condition',
+      'concurrency_group', 'job_cancel_in_progress', 'job_cancel_in_progress_expression', 'condition',
       'uses', 'call_with',
       // The policy the run is judged by, copied onto it below.
       'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
@@ -1463,7 +1464,13 @@ async function createJobs(
 
         await copySteps(client, Number(job.id), Number(created?.id), repositoryId)
 
-        await supersedeJobs(client, runId, Number(created?.id), group, isTrue(job.job_cancel_in_progress))
+        // The job's own `cancel-in-progress`, answered against this run and
+        // this combination, the same context its group was resolved in.
+        const cancels = context
+          ? cancelsInProgress(job.job_cancel_in_progress, job.job_cancel_in_progress_expression, withMatrix(context, values))
+          : isTrue(job.job_cancel_in_progress)
+
+        await supersedeJobs(client, runId, Number(created?.id), group, cancels)
       }
     }
   }

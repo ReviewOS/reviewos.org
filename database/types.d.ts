@@ -3074,6 +3074,7 @@ declare module '@stacksjs/database' {
       permissions: string
       concurrency_group: string
       job_cancel_in_progress: boolean
+      job_cancel_in_progress_expression: string
       default_shell: string
       default_working_directory: string
       uses: string
@@ -3131,6 +3132,7 @@ declare module '@stacksjs/database' {
       pull_request_paths: string
       concurrency_group: string
       cancel_in_progress: boolean
+      cancel_in_progress_expression: string
       intermediate: "run" | "skip" | "cancel"
       dispatch_inputs: string
       env: string

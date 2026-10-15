@@ -127,7 +127,7 @@ describe('an ordinary workflow', () => {
   test('reads concurrency rather than accepting and dropping it', () => {
     // The named failure: Gitea takes `concurrency:` and does nothing with it,
     // which is how a workflow that relies on it looks like it works.
-    expect(result.workflow!.concurrency).toEqual({ group: 'ci-${{ github.ref }}', cancelInProgress: true })
+    expect(result.workflow!.concurrency).toEqual({ group: 'ci-${{ github.ref }}', cancelInProgress: true, cancelInProgressExpression: null })
   })
 
   test('and the workflow-level env and defaults', () => {
@@ -179,8 +179,8 @@ jobs:
 
 describe('concurrency and defaults on their own', () => {
   test('a bare string is the group, with no cancellation', () => {
-    expect(concurrencyFrom('release')).toEqual({ group: 'release', cancelInProgress: false })
-    expect(concurrencyFrom({ group: 'ci', 'cancel-in-progress': true })).toEqual({ group: 'ci', cancelInProgress: true })
+    expect(concurrencyFrom('release')).toEqual({ group: 'release', cancelInProgress: false, cancelInProgressExpression: null })
+    expect(concurrencyFrom({ group: 'ci', 'cancel-in-progress': true })).toEqual({ group: 'ci', cancelInProgress: true, cancelInProgressExpression: null })
   })
 
   test('and anything without a group is nothing', () => {
