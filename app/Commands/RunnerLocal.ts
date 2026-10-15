@@ -49,6 +49,8 @@ interface RunnerOptions {
   register?: boolean
   /** Where this machine's own hooks live. See `docs/runner-hooks.md`. */
   hooks?: string
+  /** With `--register`: a runner for this one repository rather than the instance. */
+  repository?: string
 }
 
 export default function (cli: CLI) {
@@ -63,9 +65,18 @@ export default function (cli: CLI) {
     .option('--jobs <count>', 'Stop after this many jobs', { default: '0' })
     .option('--idle-timeout <seconds>', 'Stop after this long with nothing to do', { default: '0' })
     .option('--hooks <directory>', 'Where this machine\'s hooks live, outside repository control')
+    .option('--repository <owner/name>', 'With --register: a runner for this repository alone, not the whole instance')
     .action(async (options: RunnerOptions) => {
       if (options.register) {
-        await registerRunner(options, { print: true })
+        try {
+          await registerRunner(options, { print: true })
+        }
+        catch (error) {
+          // A repository that is not here, or an owner/name that is not one:
+          // said in a line, not as an uncaught exception's stack.
+          console.error(`Could not register the runner: ${error instanceof Error ? error.message : String(error)}`)
+          process.exit(1)
+        }
         return
       }
 
@@ -158,15 +169,20 @@ export default function (cli: CLI) {
 async function registerRunner(options: RunnerOptions, output: { print: boolean }): Promise<string> {
   const name = String(options.name ?? 'local')
   const labels = labelsOf(options)
+  const scope = await scopeOf(options)
 
   const secret = generateToken()
 
-  const existing = await db
+  let lookup = db
     .selectFrom('runners')
     .select(['id'])
     .where('name', '=', name)
-    .where('scope_type', '=', 'instance')
-    .executeTakeFirst()
+    .where('scope_type', '=', scope.type)
+
+  if (scope.id !== null)
+    lookup = lookup.where('scope_id', '=', scope.id)
+
+  const existing = await lookup.executeTakeFirst()
 
   if (existing) {
     // Re-registering rotates the credential rather than making a second runner
@@ -183,8 +199,8 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
       .insertInto('runners')
       .values({
         name,
-        scope_type: 'instance',
-        scope_id: null,
+        scope_type: scope.type,
+        scope_id: scope.id,
         token_hash: secret.hash,
         labels: labels.join('\n'),
         // `active` or `disabled` are the states a runner has; whether it is
@@ -196,7 +212,7 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
   }
 
   if (output.print) {
-    console.log(`Runner \`${name}\` registered for the whole instance, answering to: ${labels.join(', ')}`)
+    console.log(`Runner \`${name}\` registered for ${scope.label}, answering to: ${labels.join(', ')}`)
     console.log('')
     console.log('Its credential, shown once:')
     console.log('')
@@ -210,6 +226,48 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
   }
 
   return secret.token
+}
+
+/**
+ * What a new runner may take work from: the whole instance, or one repository.
+ *
+ * One repository is the scope for a machine somebody provides for their own
+ * project's CI. An instance-wide runner takes any repository's jobs, including
+ * a repository somebody else created here five minutes ago with a workflow that
+ * runs whatever it likes - and it runs it as this machine's user, with no
+ * isolation. Scoping is what keeps a machine bought for one project from
+ * becoming everybody's shell. `claim.ts` narrows to it in SQL and
+ * `runnerReaches` checks it again, so a runner registered here cannot be handed
+ * anything else.
+ */
+async function scopeOf(options: RunnerOptions): Promise<{ type: 'instance' | 'repository', id: number | null, label: string }> {
+  const wanted = String(options.repository ?? '').trim()
+  if (!wanted)
+    return { type: 'instance', id: null, label: 'the whole instance' }
+
+  const [ownerHandle, name] = wanted.split('/')
+  if (!ownerHandle || !name)
+    throw new Error('--repository must be owner/name')
+
+  const org = await db.selectFrom('organizations').select(['id']).where('handle', '=', ownerHandle).executeTakeFirst()
+  const user = org ? null : await db.selectFrom('users').select(['id']).where('handle', '=', ownerHandle).executeTakeFirst()
+  const owner = org ? { type: 'organization', id: Number(org.id) } : user ? { type: 'user', id: Number(user.id) } : null
+
+  if (!owner)
+    throw new Error(`No organization or user is called ${ownerHandle}`)
+
+  const repository = await db
+    .selectFrom('repositories')
+    .select(['id'])
+    .where('owner_type', '=', owner.type)
+    .where('owner_id', '=', owner.id)
+    .where('name', '=', name)
+    .executeTakeFirst()
+
+  if (!repository)
+    throw new Error(`${wanted} is not a repository on this instance`)
+
+  return { type: 'repository', id: Number(repository.id), label: wanted }
 }
 
 /**

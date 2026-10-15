@@ -628,6 +628,18 @@ Copy the binary and the credential to the machine, and run it:
 Re-running `--register` with the same name rotates the credential rather than
 making a second runner, so a leaked token is fixed by one command.
 
+A machine bought for one project's CI should take that project's jobs and
+nobody else's:
+
+```sh
+./buddy runner:local --register --name widgets-ci --repository acme/widgets
+```
+
+Without `--repository` the runner serves the whole instance - including a
+repository somebody created here a minute ago with a workflow that runs whatever
+it likes, on this machine, as its user. On an instance where anybody can sign
+up, an instance-wide runner without isolation is an open shell.
+
 Two differences from a runner on the instance's own host, both because the code
 is somewhere else: it **clones over HTTP** rather than from the bare repository
 on disk, and it cannot register itself, which is what carrying a credential over
