@@ -1142,11 +1142,25 @@ route.post('/repos/tests/monitors', 'Actions/Tests/MonitorTestsAction').middlewa
  * and records what came back - the executing is done on the operator's machine,
  * which is the whole decision in `docs/ci-threat-model.md`.
  */
-route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf()
-route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
-route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
-route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf()
-route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf()
+/*
+ * Limits of its own, per credential and per endpoint.
+ *
+ * Under the API's default - 300 writes an hour per token - a job's own log
+ * lines used up its token's budget within minutes, and then its heartbeat
+ * was refused 429 for the rest of the hour: the lease lapsed while the job
+ * was still running, and the instance failed it as a runner that "stopped
+ * responding" (stacksjs/hq.training's e2e job, a thousand lines of test
+ * output). A machine's traffic is not a person's, and the log has its own
+ * backpressure (`AppendLogAction` answers 429 with a retry). Each endpoint
+ * gets its own limit - so its own bucket, since the throttle keys on the
+ * limit too - and a heartbeat never competes with the output it is keeping
+ * alive. Still finite: a runner in a loop is stopped, just not this one.
+ */
+route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf().middleware('throttle:240,1m')
+route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf().middleware('throttle:60,1m')
+route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf().middleware('throttle:120,1m')
+route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf().middleware('throttle:1200,1m')
+route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf().middleware('throttle:120,1m')
 /*
  * The dependency cache: a snapshot of a workspace after its install.
  *
@@ -1165,13 +1179,13 @@ route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf(
  * token is the scoping - it names one run, so there is no run identifier in the
  * request to get wrong.
  */
-route.post('/runner/orchestrator', 'Actions/Runner/OrchestratorCallAction').skipCsrf()
-route.post('/runner/orchestrator/result', 'Actions/Runner/OrchestratorResultAction').skipCsrf()
-route.post('/runner/caches', 'Actions/Runner/SaveCacheAction').skipCsrf()
-route.get('/runner/caches/restore', 'Actions/Runner/RestoreCacheAction')
+route.post('/runner/orchestrator', 'Actions/Runner/OrchestratorCallAction').skipCsrf().middleware('throttle:600,1m')
+route.post('/runner/orchestrator/result', 'Actions/Runner/OrchestratorResultAction').skipCsrf().middleware('throttle:600,1m')
+route.post('/runner/caches', 'Actions/Runner/SaveCacheAction').skipCsrf().middleware('throttle:120,1m')
+route.get('/runner/caches/restore', 'Actions/Runner/RestoreCacheAction').middleware('throttle:120,1m')
 // What a job's steps said about the code: `::error file=...,line=...::` becomes
 // a check annotation, which is what the diff renders in the gutter.
-route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
+route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf().middleware('throttle:600,1m')
 /*
  * The values one run's jobs pass to each other.
  *
@@ -1179,7 +1193,7 @@ route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
  * compare-and-set, which is what stops two parallel jobs losing each other's
  * contribution. The run comes from the job token rather than from the request.
  */
-route.post('/runner/metadata', 'Actions/Runner/MetadataAction')
+route.post('/runner/metadata', 'Actions/Runner/MetadataAction').middleware('throttle:120,1m')
 /*
  * An artifact from earlier in the same run, by name.
  *
@@ -1187,7 +1201,7 @@ route.post('/runner/metadata', 'Actions/Runner/MetadataAction')
  * it. The run comes from the job token, so a runner cannot fetch another run's
  * output - which on a fork's pull request belongs to somebody else's commit.
  */
-route.post('/runner/artifacts/fetch', 'Actions/Runner/FetchArtifactAction')
+route.post('/runner/artifacts/fetch', 'Actions/Runner/FetchArtifactAction').middleware('throttle:120,1m')
 /*
  * A short-lived identity token for the job this runner holds.
  *
@@ -1195,7 +1209,7 @@ route.post('/runner/artifacts/fetch', 'Actions/Runner/FetchArtifactAction')
  * run rather than the request - the only thing a caller chooses is the audience
  * - and an untrusted run gets nothing at all.
  */
-route.post('/runner/oidc', 'Actions/Runner/OidcTokenAction')
+route.post('/runner/oidc', 'Actions/Runner/OidcTokenAction').middleware('throttle:60,1m')
 /*
  * Steps a job generated, added to its own run.
  *
@@ -1203,7 +1217,7 @@ route.post('/runner/oidc', 'Actions/Runner/OidcTokenAction')
  * run it belongs to - which is what makes "an upload cannot raise its own trust
  * level" enforceable rather than promised.
  */
-route.post('/runner/upload', 'Actions/Runner/UploadStepsAction').skipCsrf()
+route.post('/runner/upload', 'Actions/Runner/UploadStepsAction').skipCsrf().middleware('throttle:120,1m')
 
 /*
  * Which tests this node should run, for a job on this instance's own runner.
@@ -1212,7 +1226,7 @@ route.post('/runner/upload', 'Actions/Runner/UploadStepsAction').skipCsrf()
  * not also have to carry a repository token, which would be stored as a secret,
  * rotated by somebody, and far broader than "read the timings for this suite".
  */
-route.post('/runner/split', 'Actions/Runner/SplitTestsForJobAction').skipCsrf()
+route.post('/runner/split', 'Actions/Runner/SplitTestsForJobAction').skipCsrf().middleware('throttle:120,1m')
 
 // Reading is the repository's permission, not the runner's: a log is the
 // repository's data, and somebody who cannot see the code cannot see what

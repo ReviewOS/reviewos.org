@@ -201,6 +201,32 @@ describe('the job a claim hands a runner', () => {
   })
 })
 
+describe('a busy job', () => {
+  test('keeps its lease however much it logs', async () => {
+    if (!available)
+      return
+
+    // Under the API's default write limit, 300 an hour per token, a job's own
+    // log lines used up its budget and its heartbeat was refused 429: the
+    // lease lapsed while the job ran, and the instance failed it.
+    const secret = await claim(created.mine.id)
+    const post = (path: string, body: unknown) => fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}`, 'X-Runner-Protocol': '1' },
+      body: JSON.stringify(body),
+    })
+
+    const statuses = new Set<number>()
+    for (let sequence = 1; sequence <= 320; sequence++)
+      statuses.add((await post('/api/runner/logs', { sequence, content: `line ${sequence}\n`, stream: 'stdout' })).status)
+
+    expect(statuses.has(429) && !statuses.has(200)).toBe(false)
+
+    const beat = await post('/api/runner/heartbeat', { steps: null })
+    expect(beat.status).toBe(200)
+  }, 120_000)
+})
+
 describe('a running job, reading over HTTP', () => {
   test('clones its own private repository with the credential it was claimed with', async () => {
     if (!available)

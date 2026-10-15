@@ -957,9 +957,27 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     let sentThrough = 0
 
     /** Hand up whatever has finished since the last time, and renew the lease. */
+    let heartbeatFailing = false
     const handUpResults = async (): Promise<void> => {
       const pending = timings.slice(sentThrough)
-      const answer = await beat(options.baseUrl, jobToken, pending).catch(() => ({ held: false, recorded: 0 }))
+      const answer: { held: boolean, recorded: number, refusal?: string } = await beat(options.baseUrl, jobToken, pending)
+        .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
+
+      /*
+       * Said, once per streak. A heartbeat that fails in silence is a lease
+       * that lapses while the job is still running, and the only trace was
+       * the instance failing the job as "stopped responding" - with the
+       * runner's own log saying nothing at all about why.
+       */
+      if (!answer.held && !heartbeatFailing) {
+        heartbeatFailing = true
+        const line = `The instance did not renew this job's lease: ${answer.refusal || 'no answer'}`
+        console.error(`job ${job.id}: ${line}`)
+        await send(`${line}\n`, 'stderr').catch(() => {})
+      }
+      else if (answer.held) {
+        heartbeatFailing = false
+      }
 
       /*
        * Only counted as sent when the answer came back. A lost answer means
@@ -3421,7 +3439,7 @@ async function runStep(input: {
 
 /* ------------------------------------------------------- the wire, verbatim */
 
-async function post(baseUrl: string, path: string, token: string, body: unknown): Promise<{ ok: boolean, body: any }> {
+async function post(baseUrl: string, path: string, token: string, body: unknown): Promise<{ ok: boolean, body: any, status: number }> {
   const answer = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: {
@@ -3432,15 +3450,19 @@ async function post(baseUrl: string, path: string, token: string, body: unknown)
       'X-Runner-Protocol': '1',
     },
     body: JSON.stringify(body ?? {}),
+    // A request that never answers must not hold the runner with it: a
+    // heartbeat stuck on a dead connection is a lease that lapses while the
+    // runner believes it is renewing it.
+    signal: AbortSignal.timeout(30_000),
   })
 
   const text = await answer.text()
 
   try {
-    return { ok: answer.ok, body: text ? JSON.parse(text) : null }
+    return { ok: answer.ok, body: text ? JSON.parse(text) : null, status: answer.status }
   }
   catch {
-    return { ok: false, body: { error: text.slice(0, 200) } }
+    return { ok: false, body: { error: text.slice(0, 200) }, status: answer.status }
   }
 }
 
@@ -3479,7 +3501,15 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
  * longer this runner's, and anything it does afterwards will be refused too.
  * The caller is told, so it can stop.
  */
-async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Promise<{ held: boolean, recorded: number }> {
+/** What a refusal said, whether the instance sent a sentence or an `{ code, message }`. */
+function refusalText(error: unknown): string {
+  if (error && typeof error === 'object')
+    return String((error as any).message ?? (error as any).code ?? JSON.stringify(error)).slice(0, 200)
+
+  return String(error ?? '').slice(0, 200)
+}
+
+async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Promise<{ held: boolean, recorded: number, refusal?: string }> {
   const answer = await post(baseUrl, '/api/runner/heartbeat', jobToken, {
     steps: steps.length > 0 ? steps : null,
   })
@@ -3487,6 +3517,7 @@ async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Pro
   return {
     held: answer.ok,
     recorded: Number(answer.body?.steps_recorded ?? 0) || 0,
+    refusal: answer.ok ? undefined : `${answer.status} ${refusalText(answer.body?.error)}`.trim(),
   }
 }
 
