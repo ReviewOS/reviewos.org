@@ -135,6 +135,29 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
      */
     const { authenticatedUrl, mirrorToken, redact } = await import('../Actions/Mirror/credentials')
     const token = await mirrorToken(mirror.credential_ref)
+
+    /*
+     * A mirror named a credential that this instance does not have yet.
+     *
+     * Not a failure of the upstream, and not counted as one: fetching anyway
+     * fails on the first private repository with "could not read Username",
+     * and ten of those disable the mirror for good - before anybody has had
+     * the chance to add the token it is waiting for. It waits, says what it
+     * is waiting for on its row, and syncs on the first sweep after the
+     * credential arrives.
+     */
+    if (String(mirror.credential_ref ?? '').trim() && !token) {
+      const waiting = `waiting for its credential: set MIRROR_TOKEN_${String(mirror.credential_ref).trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
+
+      await db
+        .updateTable('repository_mirrors')
+        .set({ last_error: waiting, last_synced_at: new Date().toISOString() })
+        .where('id', '=', mirrorId)
+        .execute()
+
+      return { ok: false, reason: waiting }
+    }
+
     // The provider decides whether pull request heads come across, and under
     // what name: they are not on any branch, so without it the mirror has the
     // proposals' titles and none of their commits.

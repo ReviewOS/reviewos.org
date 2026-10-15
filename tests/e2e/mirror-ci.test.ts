@@ -286,6 +286,35 @@ describe('a mirror that does not', () => {
   })
 })
 
+describe('a mirror waiting for its credential', () => {
+  test('waits, says what for, and does not count it as a failure', async () => {
+    if (!available)
+      return
+
+    // A credential named and not yet set: fetching anyway fails on a private
+    // repository, and ten of those disabled the mirror for good before anybody
+    // could add the token it was waiting for.
+    await db.updateTable('repository_mirrors')
+      .set({ credential_ref: 'notsetyet', failure_count: 0 })
+      .where('id', '=', created.plain.mirrorId)
+      .execute()
+    delete process.env.MIRROR_TOKEN_NOTSETYET
+
+    const { default: MirrorSyncJob } = await import('../../app/Jobs/MirrorSyncJob')
+    const outcome: any = await MirrorSyncJob.handle({ mirrorId: created.plain.mirrorId })
+
+    expect(outcome.ok).toBe(false)
+    expect(String(outcome.reason)).toContain('MIRROR_TOKEN_NOTSETYET')
+
+    const row: any = await db.selectFrom('repository_mirrors').select(['failure_count', 'enabled', 'last_error']).where('id', '=', created.plain.mirrorId).executeTakeFirst()
+    expect(Number(row.failure_count)).toBe(0)
+    expect(Boolean(row.enabled)).toBe(true)
+    expect(String(row.last_error)).toContain('waiting for its credential')
+
+    await db.updateTable('repository_mirrors').set({ credential_ref: null }).where('id', '=', created.plain.mirrorId).execute()
+  })
+})
+
 describe('talking to GitHub', () => {
   test('a run posts its state on the upstream commit, as a status in its workflow\'s name', async () => {
     if (!available)
