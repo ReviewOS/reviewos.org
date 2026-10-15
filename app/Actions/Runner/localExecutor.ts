@@ -48,6 +48,7 @@ import { resolveServices, serviceEnvironment, servicesContext, startServices, st
 import type { ExpressionContext } from '../Workflow/expression'
 import { HASH_FILES, interpolate, shouldRun } from '../Workflow/expression'
 import { hashFilesIn } from './hashFiles'
+import { cleanUpOrphans, installStopHandlers, pruneGroup, recordGroup, TRACKING_VARIABLE, trackingIdFor } from './orphans'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
@@ -160,6 +161,14 @@ export function takeStopRequest(): string | null {
 
   return stop
 }
+
+/**
+ * How long a step's output may keep arriving after its shell has exited.
+ *
+ * Long enough for the last lines of an ordinary command to land; short enough
+ * that a background process holding the pipe does not hold the step.
+ */
+const OUTPUT_DRAIN_MS = 2000
 
 /** A step's result, in the shape the log stream wants to describe it. */
 interface StepResult {
@@ -424,6 +433,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
   if (options.workspaceRoot)
     mkdirSync(workspace, { recursive: true })
+
+  /*
+   * This job's tracking id, handed to every process it starts through the
+   * environment, so the end of the job can find what was left running. Set
+   * before the first `environmentFor`, which is what hands it out.
+   */
+  job.tracking_id = trackingIdFor(job.id)
+  installStopHandlers()
 
   let sequence = 1
 
@@ -1521,6 +1538,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
 
     /*
+     * "Cleaning up orphan processes", as Actions says at the end of a job.
+     *
+     * After the hooks, which may still want the server a step started, and
+     * before the conclusion, so the lines land in this job's log rather than
+     * after it has closed. The `finally` below asks again for the ways out
+     * that never reach here, and finds nothing when this already ran.
+     */
+    await cleanUpOrphans(job.tracking_id, line => send(`${line}\n`))
+    await flush()
+
+    /*
      * Read after the artifact and exit hooks, not before them.
      *
      * A `pre-exit` hook that fails has failed the job, and computing the
@@ -1601,6 +1629,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   }
   finally {
     stopPulse()
+
+    // Whatever an early way out left running - a failed hook, a refused
+    // service, an exception. Said to the runner's own log, since the job's
+    // has been concluded.
+    await cleanUpOrphans(job.tracking_id, line => say(`job ${job.id}: ${line}`)).catch(() => [])
 
     if (jobServices.length > 0)
       await stopServices(jobServices).catch(() => {})
@@ -2553,6 +2586,15 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     RUNNER_TOOL_CACHE: join(workspace, '.reviewos-runner', 'tools'),
   }
 
+  /*
+   * Which job a process belongs to, under Actions' own name for it, so the
+   * end of the job can find what it left running - and so a step that wants
+   * something to outlive the job opts out the way it would on Actions, by
+   * clearing it.
+   */
+  if (job?.tracking_id)
+    environment[TRACKING_VARIABLE] = String(job.tracking_id)
+
   for (const [name, value] of Object.entries(shared)) {
     environment[`GITHUB_${name}`] = value
     environment[`REVIEWOS_${name}`] = value
@@ -3240,29 +3282,80 @@ async function runStep(input: {
     // No stdin. A step that waits for input on a runner nobody is watching is
     // a step that waits forever.
     stdin: 'ignore',
+    /*
+     * A process group of its own, which a shell's background jobs stay in.
+     * That is how the end of the job finds a server a step started with `&`
+     * and never stopped - see `orphans.ts`.
+     */
+    detached: true,
   })
+
+  const tracking = input.environment[TRACKING_VARIABLE]
+
+  recordGroup(tracking, child.pid)
+
+  const readers: Array<ReadableStreamDefaultReader<Uint8Array>> = []
 
   const pump = async (stream: ReadableStream<Uint8Array> | null, name: 'stdout' | 'stderr'): Promise<void> => {
     if (!stream)
       return
 
     const decoder = new TextDecoder()
+    const reader = stream.getReader()
 
-    for await (const chunk of stream as any)
-      await input.onOutput(decoder.decode(chunk), name)
+    readers.push(reader)
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+
+        if (done)
+          break
+
+        await input.onOutput(decoder.decode(value), name)
+      }
+    }
+    catch {
+      // Cancelled below, once the step has exited and stopped writing.
+    }
   }
 
   let killed = false
 
   const timeout = setTimeout(() => {
     killed = true
-    child.kill()
+
+    // The whole group, so a step stopped for taking too long does not leave
+    // the thing that was taking too long still running.
+    try {
+      process.kill(-child.pid, 'SIGTERM')
+    }
+    catch {
+      child.kill()
+    }
   }, input.timeoutMs ?? STEP_TIMEOUT_MS)
 
   try {
-    await Promise.all([pump(child.stdout as any, 'stdout'), pump(child.stderr as any, 'stderr')])
+    const pumping = Promise.all([pump(child.stdout as any, 'stdout'), pump(child.stderr as any, 'stderr')])
 
     const exitCode = await child.exited
+
+    /*
+     * The step is over when its shell exits, not when its output closes.
+     *
+     * A process the step backgrounded without redirecting its output holds the
+     * pipe open for as long as it runs, and waiting for the end of the stream
+     * waited for *it* - so `server &` with no `> log` hung the step until the
+     * server stopped, which is never. Whatever arrives shortly after the exit
+     * is still read; past that the step ends, as it does on Actions, and the
+     * process is left for the end of the job to clean up.
+     */
+    await Promise.race([pumping, Bun.sleep(OUTPUT_DRAIN_MS)])
+
+    for (const reader of readers)
+      await reader.cancel().catch(() => {})
+
+    pruneGroup(tracking, child.pid)
 
     if (killed) {
       /*
