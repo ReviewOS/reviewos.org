@@ -94,12 +94,12 @@ export async function runMirrorWorkflows(input: MirrorWorkflowInput): Promise<vo
  * Tell the upstream about the runs this sync just started.
  *
  * A run is announced when it *moves*, and a new one has not moved yet: it is
- * `queued` from the start and stays that way until a runner claims it. On the
+ * `queued` from the start, or `waiting` when its concurrency group is busy. On the
  * upstream commit that is the most useful moment to say something - "CI is
  * coming" is what keeps somebody from merging before it reports - so the runs
  * this sync created are reported once here, before any runner has them.
  */
-async function announceNewRuns(repositoryId: number, updates: readonly RefUpdate[]): Promise<void> {
+export async function announceNewRuns(repositoryId: number, updates: readonly RefUpdate[], fetchImpl?: typeof fetch): Promise<void> {
   const heads = updates
     .filter(update => update.change !== 'deleted' && update.kind !== 'other')
     .map(update => update.after)
@@ -114,7 +114,7 @@ async function announceNewRuns(repositoryId: number, updates: readonly RefUpdate
     .select(['workflow_runs.id as id', 'workflow_runs.number as number', 'workflow_runs.state as state', 'workflow_runs.head_sha as head_sha'])
     .where('workflows.repository_id', '=', repositoryId)
     .where('workflow_runs.head_sha', 'in', heads)
-    .where('workflow_runs.state', '=', 'queued')
+    .where('workflow_runs.state', 'in', ['queued', 'waiting', 'paused'])
     .execute()
     .catch(() => [])
 
@@ -126,7 +126,7 @@ async function announceNewRuns(repositoryId: number, updates: readonly RefUpdate
       number: Number(run.number),
       state: String(run.state),
       headSha: String(run.head_sha),
-    })
+    }, fetchImpl)
   }
 }
 

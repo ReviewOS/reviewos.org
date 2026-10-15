@@ -344,6 +344,43 @@ describe('talking to GitHub', () => {
     delete process.env.MIRROR_TOKEN_MIRRORCITEST
   })
 
+  test('a concurrency-held run is announced before a runner can claim it', async () => {
+    if (!available)
+      return
+
+    const [run] = await runsOf(created.ci.repositoryId)
+    const { announceNewRuns, updatesFromChanges } = await import('../../app/Actions/Mirror/workflows')
+    const updates = updatesFromChanges([{ ref: 'refs/heads/main', before: null, after: String(run.head_sha), kind: 'created' }])
+    const posted: any[] = []
+    const fetchImpl = (async (url: string, init: any) => {
+      posted.push({ url: String(url), body: JSON.parse(init.body) })
+      return new Response('{}', { status: 201 })
+    }) as unknown as typeof fetch
+    const previousToken = process.env.MIRROR_TOKEN_MIRRORCITEST
+    process.env.MIRROR_TOKEN_MIRRORCITEST = 'test-token'
+
+    try {
+      await db.updateTable('workflow_runs').set({ state: 'waiting' }).where('id', '=', Number(run.id)).execute()
+      await announceNewRuns(created.ci.repositoryId, updates, fetchImpl)
+
+      expect(posted).toHaveLength(1)
+      expect(posted[0].url).toBe(`https://api.github.com/repos/acme/widgets/statuses/${run.head_sha}`)
+      expect(posted[0].body).toMatchObject({ state: 'pending', context: 'ReviewOS / CI', description: 'Run 1 is waiting' })
+
+      // A later sync must not overwrite a completed verdict with an initial announcement.
+      await db.updateTable('workflow_runs').set({ state: 'succeeded' }).where('id', '=', Number(run.id)).execute()
+      await announceNewRuns(created.ci.repositoryId, updates, fetchImpl)
+      expect(posted).toHaveLength(1)
+    }
+    finally {
+      await db.updateTable('workflow_runs').set({ state: run.state }).where('id', '=', Number(run.id)).execute()
+      if (previousToken === undefined)
+        delete process.env.MIRROR_TOKEN_MIRRORCITEST
+      else
+        process.env.MIRROR_TOKEN_MIRRORCITEST = previousToken
+    }
+  })
+
   test('and nothing for a mirror that does not run its workflows here', async () => {
     if (!available)
       return

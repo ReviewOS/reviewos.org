@@ -1215,6 +1215,9 @@ export const tsCloud: TsCloudConfig = {
         DB_PASSWORD: env.DB_PASSWORD || '',
         APP_KEY: env.APP_KEY || '',
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
+        // Runner claims and reports arrive here, so this process needs the
+        // same private-mirror credential as the worker that fetches its code.
+        MIRROR_TOKEN_STACKS: String(env.MIRROR_TOKEN_STACKS ?? ''),
         // The same queue as the page server's, for the same reason. This
         // process dispatches too - a webhook received here, a run cancelled
         // through the API - and on `sync` it would do that work inside the

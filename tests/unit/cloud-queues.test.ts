@@ -142,6 +142,15 @@ describe('the queue workers on the box', () => {
   })
 })
 
+describe('the private mirror credential on the box', () => {
+  test('reaches the API that reports runs as well as the worker that fetches commits', () => {
+    const sites = (tsCloud as any).sites
+    const workerToken = sites.reviewos.env.MIRROR_TOKEN_STACKS
+    expect(typeof workerToken).toBe('string')
+    expect(sites.api.env.MIRROR_TOKEN_STACKS).toBe(workerToken)
+  })
+})
+
 describe('the scheduler on the box', () => {
   test('is enabled, because nothing else fires the sweep', () => {
     // A worker processes what is enqueued. Without this, nothing enqueues -

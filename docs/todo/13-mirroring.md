@@ -183,6 +183,10 @@ there?
 
 ## Credentials
 
+- [x] Announce a mirror run's pending upstream status while concurrency holds it
+      in `waiting`, before a runner can claim it; preserve completed verdicts.
+      Forward its credential to the API service too, so runner claims and reports
+      can post automatic status updates after the worker has fetched the code.
 - [x] Document replacing `MIRROR_TOKEN_STACKS` through Actions secrets, applying it
       with a deployment, verifying mirror sync and upstream CI status, and only
       then revoking the previous credential.
