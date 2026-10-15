@@ -183,6 +183,9 @@ there?
 
 ## Credentials
 
+- [x] Document replacing `MIRROR_TOKEN_STACKS` through Actions secrets, applying it
+      with a deployment, verifying mirror sync and upstream CI status, and only
+      then revoking the previous credential.
 - [x] A public repository mirrors with no credential at all, and that path is tested, because it is
       the one someone will try first
 - [x] Private repositories use a stored token or GitHub App installation, encrypted at rest,
