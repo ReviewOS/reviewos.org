@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `workflow_versions` (
   `pull_request_paths` text,
   `concurrency_group` varchar(500),
   `cancel_in_progress` tinyint(1) default 0,
+  `cancel_in_progress_expression` varchar(500),
   `intermediate` ENUM('run', 'skip', 'cancel') default 'run',
   `dispatch_inputs` text,
   `env` text,

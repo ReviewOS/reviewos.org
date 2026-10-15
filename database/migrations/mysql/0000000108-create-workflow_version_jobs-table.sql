@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `workflow_version_jobs` (
   `permissions` text,
   `concurrency_group` varchar(500),
   `job_cancel_in_progress` tinyint(1) default 0,
+  `job_cancel_in_progress_expression` varchar(500),
   `default_shell` varchar(200),
   `default_working_directory` varchar(500),
   `uses` varchar(500),

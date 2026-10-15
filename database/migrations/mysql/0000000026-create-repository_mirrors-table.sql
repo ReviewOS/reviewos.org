@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `repository_mirrors` (
   `last_metadata_sync_at` varchar(255),
   `metadata_error` text,
   `metadata_failure_count` integer default 0,
+  `run_workflows` tinyint(1) default 0,
   `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
