@@ -45,7 +45,9 @@ import { drive } from './orchestrate'
 import { httpTransport } from './orchestratorClient'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
-import { interpolate, shouldRun } from '../Workflow/expression'
+import type { ExpressionContext } from '../Workflow/expression'
+import { HASH_FILES, interpolate, shouldRun } from '../Workflow/expression'
+import { hashFilesIn } from './hashFiles'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
@@ -996,6 +998,34 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       }
 
       /*
+       * An expression this step depends on that cannot be filled in.
+       *
+       * Only `hashFiles` gets here - every other expression this cannot answer
+       * is left as written, visibly - and it fails the step rather than
+       * running it, because the step it would run is one with a cache key that
+       * is the same literal text on every run. Asked before any branch below,
+       * so a cache step, an action and a `run:` all fail the same way.
+       */
+      const refusal = unfillable(step, context)
+
+      if (refusal) {
+        await send(`::group::${name}\n${refusal}\n::endgroup::\n`, 'stderr')
+
+        if (step.id)
+          stepContext[String(step.id)] = { outputs: {}, outcome: 'failure', conclusion: step.continue_on_error ? 'success' : 'failure' }
+
+        timed(index, stepStartedAt, 0, step.continue_on_error ? 'succeeded' : 'failed', null, refusal)
+        await handUpResults()
+
+        if (step.continue_on_error)
+          continue
+
+        failed = `${name}: ${refusal}`
+        jobFailed = true
+        continue
+      }
+
+      /*
        * `actions/cache`, answered here rather than fetched and run.
        *
        * The real action talks to GitHub's cache service over an API this
@@ -1699,7 +1729,7 @@ function expressionContext(
   job: any,
   workspace: string,
   state: { status: string, steps: Record<string, unknown>, env: Record<string, string> },
-): Record<string, unknown> {
+): ExpressionContext {
   const run = job?.run ?? {}
   const ref = String(run.ref ?? '')
   const full = String(job?.repository_full_name ?? '')
@@ -1794,6 +1824,12 @@ function expressionContext(
       tool_cache: join(workspace, '.reviewos-runner', 'tools'),
     },
     env: state.env,
+    /*
+     * `hashFiles`, over this job's checkout. A fresh hasher per context, so a
+     * step reads the files as the steps before it left them rather than as
+     * they were when an earlier step asked.
+     */
+    [HASH_FILES]: hashFilesIn(workspace),
   }
 }
 
@@ -2875,6 +2911,9 @@ async function runComposite(
     ),
     env: environment,
     github: { action_path: environment.GITHUB_ACTION_PATH ?? '' },
+    // A composite action's `hashFiles` reads the caller's checkout, the same
+    // tree its steps run in.
+    [HASH_FILES]: hashFilesIn(workspace),
   }
 
   for (const [index, step] of definition.steps.entries()) {
@@ -3108,7 +3147,35 @@ export function parseEnvFile(text: string): Record<string, string> {
 }
 
 /** Every value in a map, with its expressions filled in. */
-function interpolateValues(values: Record<string, unknown>, context: Record<string, unknown>): Record<string, string> {
+/**
+ * Why one of a step's expressions cannot be filled in, or null when they all can.
+ *
+ * Every field the step loop interpolates, tried once up front. The hasher on
+ * the context remembers its answers, so asking here costs nothing when the
+ * step then runs and asks again.
+ */
+export function unfillable(step: any, context: ExpressionContext): string | null {
+  const fields = [
+    step?.run,
+    step?.working_directory,
+    ...Object.values((step?.with ?? {}) as Record<string, unknown>),
+    ...Object.values((step?.env ?? {}) as Record<string, unknown>),
+  ]
+
+  try {
+    for (const field of fields) {
+      if (field !== undefined && field !== null)
+        interpolate(String(field), context)
+    }
+
+    return null
+  }
+  catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
+
+function interpolateValues(values: Record<string, unknown>, context: ExpressionContext): Record<string, string> {
   const filled: Record<string, string> = {}
 
   for (const [name, value] of Object.entries(values ?? {}))

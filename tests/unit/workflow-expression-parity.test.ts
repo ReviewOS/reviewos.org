@@ -229,6 +229,6 @@ describe('interpolation, as a workflow writes it', () => {
      * means - `rm -rf ${{ secrets.PREFIX }}/build` is the example that ends
      * badly - so it stays visible instead.
      */
-    expect(interpolate('${{ hashFiles(\'**/lock\') }}', context)).toBe('${{ hashFiles(\'**/lock\') }}')
+    expect(interpolate('${{ fromJSON(\'not json\') }}', context)).toBe('${{ fromJSON(\'not json\') }}')
   })
 })

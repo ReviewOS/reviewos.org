@@ -25,9 +25,24 @@
 
 export type ExpressionValue = string | number | boolean | null | ExpressionValue[] | { [key: string]: ExpressionValue }
 
+/**
+ * Where `hashFiles` gets its answer, when the caller has a checkout.
+ *
+ * A symbol rather than a name in the context, for the same reason the grammar
+ * is closed: every string key of a context is something a workflow can read,
+ * and a function reachable as `${{ hashFiles }}` would be a host value leaking
+ * into an expression. Nothing a workflow writes can produce a symbol, so only
+ * the runner - which has the files - can supply one.
+ */
+export const HASH_FILES: unique symbol = Symbol('hashFiles')
+
 export interface ExpressionContext {
   [name: string]: unknown
+  [HASH_FILES]?: (patterns: readonly string[]) => string
 }
+
+/** What `hashFiles` says where there are no files to hash. */
+export const HASH_FILES_REFUSED = 'hashFiles reads the checked-out files, and this is evaluated before there is a checkout - it only works inside a step'
 
 export interface EvaluationResult {
   ok: boolean
@@ -460,12 +475,30 @@ function callFunction(name: string, args: ExpressionValue[], context: Expression
       return true
 
     /*
-     * `hashFiles` reads the checked-out tree, which this side does not have.
-     * Refused rather than answered with a fake digest: a wrong hash silently
-     * restores the wrong cache, and that is a bug people chase for days.
+     * `hashFiles` reads the checked-out tree, so it is answered only by a
+     * caller that has one - the runner, which puts a hasher on the context.
+     * Everywhere else it is refused rather than answered with a fake digest:
+     * a wrong hash silently restores the wrong cache, and that is a bug people
+     * chase for days.
      */
-    case 'hashfiles':
-      throw new ExpressionError('hashFiles needs a checkout, which the control plane does not have', 0)
+    case 'hashfiles': {
+      const hasher = context[HASH_FILES]
+
+      if (typeof hasher !== 'function')
+        throw new ExpressionError(HASH_FILES_REFUSED, 0)
+
+      const patterns = args.map(arg => toDisplay(arg)).filter(pattern => pattern.trim() !== '')
+
+      if (patterns.length === 0)
+        throw new ExpressionError('hashFiles needs at least one pattern', 0)
+
+      try {
+        return hasher(patterns)
+      }
+      catch (error) {
+        throw new ExpressionError(`hashFiles could not read what it matched: ${error instanceof Error ? error.message : String(error)}`, 0)
+      }
+    }
 
     default:
       throw new ExpressionError(`\`${name}\` is not a function in this language`, 0)
@@ -709,11 +742,51 @@ export function shouldRun(condition: string | null | undefined, context: Express
  * The same direction as everywhere else here: an expression this does not
  * understand stays visible rather than becoming an empty string somebody has
  * to explain.
+ *
+ * **Except `hashFiles`, which throws.** Left as written, it becomes a cache key
+ * that is the same literal text on every run - so the first entry ever saved
+ * is restored forever, whatever the lockfile says, which is the wrong cache
+ * with nothing visibly wrong. The caller turns the throw into a failed step
+ * that names the expression, and that is the only honest answer when the hash
+ * cannot be computed.
  */
 export function interpolate(source: string, context: ExpressionContext = {}): string {
   return source.replace(/\$\{\{([\s\S]*?)\}\}/g, (whole, inner) => {
     const result = evaluateExpression(String(inner), context)
 
-    return result.ok ? toDisplay(result.value) : whole
+    if (result.ok)
+      return toDisplay(result.value)
+
+    if (NAMES_HASH_FILES.test(String(inner)))
+      throw new ExpressionError(`\`${String(inner).trim()}\` could not be evaluated: ${result.error}`, 0)
+
+    return whole
   })
+}
+
+/** A call to `hashFiles`, in any case, the way the grammar would read one. */
+const NAMES_HASH_FILES = /\bhashfiles\s*\(/i
+
+/**
+ * Whether a value written in a workflow calls `hashFiles` anywhere.
+ *
+ * For the parser, which refuses the function wherever it would be evaluated
+ * before a checkout exists. Matched inside `${{ }}` only, or anywhere in a bare
+ * condition, because `if:` is an expression without the braces.
+ */
+export function callsHashFiles(value: unknown, bare = false): boolean {
+  if (typeof value === 'string') {
+    if (bare)
+      return NAMES_HASH_FILES.test(value)
+
+    return [...value.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].some(match => NAMES_HASH_FILES.test(String(match[1])))
+  }
+
+  if (Array.isArray(value))
+    return value.some(item => callsHashFiles(item))
+
+  if (value && typeof value === 'object')
+    return Object.values(value).some(item => callsHashFiles(item))
+
+  return false
 }

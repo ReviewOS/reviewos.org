@@ -144,7 +144,18 @@ export async function resolveCallOutputs(input: {
      * empty string. A caller that reads `${{ ... }}` back knows the value did
      * not arrive; one that reads nothing cannot tell that from an empty answer.
      */
-    resolved[output.name] = interpolate(output.value, { jobs })
+    try {
+      resolved[output.name] = interpolate(output.value, { jobs })
+    }
+    catch {
+      /*
+       * `hashFiles` in a call's output, which is the one thing `interpolate`
+       * throws for. The parser refuses it there now, so this is a definition
+       * stored before it did - and a settle that throws is a run that never
+       * finishes, which is worse than one output left as its author wrote it.
+       */
+      resolved[output.name] = output.value
+    }
   }
 
   return resolved

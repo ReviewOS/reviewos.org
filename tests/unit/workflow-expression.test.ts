@@ -130,11 +130,12 @@ describe('functions', () => {
   })
 
   /*
-   * `hashFiles` reads the checked-out tree, which this side does not have.
-   * Refused rather than answered with a fake digest: a wrong hash silently
+   * `hashFiles` reads the checked-out tree, which only the runner has - see
+   * `runner-hash-files.test.ts` for the answer it gives there. Without one it
+   * is refused rather than answered with a fake digest: a wrong hash silently
    * restores the wrong cache, which is a bug people chase for days.
    */
-  test('hashFiles is refused rather than guessed', () => {
+  test('hashFiles is refused rather than guessed where there is no checkout', () => {
     const result = evaluateExpression('hashFiles(\'**/lock\')')
 
     expect(result.ok).toBe(false)
@@ -203,7 +204,11 @@ describe('interpolation', () => {
     // The same direction as everywhere else here: an expression this does not
     // understand stays visible rather than becoming an empty string somebody
     // has to explain.
-    expect(interpolate('x-${{ hashFiles(\'a\') }}', {})).toBe('x-${{ hashFiles(\'a\') }}')
+    expect(interpolate('x-${{ nonsense(\'a\') }}', {})).toBe('x-${{ nonsense(\'a\') }}')
+  })
+
+  test('except hashFiles, which is refused rather than left as a key that never changes', () => {
+    expect(() => interpolate('x-${{ hashFiles(\'a\') }}', {})).toThrow(/hashFiles/)
   })
 
   test('an object interpolates as JSON, the way Actions renders one', () => {

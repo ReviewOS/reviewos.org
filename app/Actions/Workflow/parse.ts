@@ -23,6 +23,7 @@
 import { isProblem, parsePluginReference, readPluginList } from '../Plugin/reference'
 import { MAX_NOTIFY } from './notify'
 import { differencesIn } from './conformance'
+import { callsHashFiles } from './expression'
 import type { Combination, MatrixAdjustment, MatrixDefinition } from './matrix'
 import { combinationLabel, expandMatrix } from './matrix'
 
@@ -2857,6 +2858,8 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
     }
   }
 
+  errors.push(...hashFilesBeforeCheckout(root, source))
+
   const cycle = cyclicJobs(jobs)
   if (cycle.length > 0) {
     errors.push({
@@ -2894,6 +2897,59 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       intermediate,
     },
   }
+}
+
+/**
+ * `hashFiles` written where it would be evaluated before there is a checkout.
+ *
+ * It reads the checked-out files, so it means something only inside a step -
+ * which is also the only place Actions accepts it. Anywhere else (a job's
+ * `if:`, a `concurrency:` group, an `env:` above the steps, a job's outputs) is
+ * answered on the control plane, which has a repository and no working tree.
+ * Refused here, at parse time and with the line, rather than at dispatch: a
+ * group that cannot be resolved silently becomes no group at all, and a job
+ * condition that cannot be evaluated silently skips the job. Both are the
+ * quiet failures this file exists to turn into loud ones.
+ */
+function hashFilesBeforeCheckout(root: Record<string, unknown>, source: string): WorkflowError[] {
+  const errors: WorkflowError[] = []
+
+  const refuse = (where: string, line: number): void => {
+    errors.push({
+      line,
+      message: `\`hashFiles\` in ${where} is evaluated before there is a checkout to hash`,
+      fix: 'It reads the checked-out files, so it only works inside a step: in a step\'s `run:`, `with:`, `env:` or `if:`. A job that needs the hash can compute it in a step and read it as a step output.',
+    })
+  }
+
+  for (const key of ['env', 'concurrency', 'run-name', 'defaults']) {
+    if (callsHashFiles(root[key]))
+      refuse(`the workflow's \`${key}:\``, lineOf(source, key))
+  }
+
+  const call = asRecord(asRecord(root.on)?.workflow_call)
+
+  if (call && callsHashFiles(call.outputs))
+    refuse('`on.workflow_call.outputs`', lineOf(source, 'outputs', lineOf(source, 'workflow_call')))
+
+  for (const [id, raw] of Object.entries(asRecord(root.jobs) ?? {})) {
+    const body = asRecord(raw)
+
+    if (!body)
+      continue
+
+    const jobLine = lineOf(source, id)
+
+    for (const [key, value] of Object.entries(body)) {
+      // The steps are where it belongs; everything else on a job is decided
+      // before a runner has the job, let alone a checkout. A job's `if:` is an
+      // expression with or without the braces, so it is read bare.
+      if (key !== 'steps' && callsHashFiles(value, key === 'if'))
+        refuse(`\`jobs.${id}.${key}\``, lineOf(source, key, jobLine))
+    }
+  }
+
+  return errors
 }
 
 /**
