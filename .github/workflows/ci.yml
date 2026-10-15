@@ -917,6 +917,9 @@ jobs:
           # small instance slowly and is strictly better than a token that is
           # dead on arrival.
           GITHUB_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN }}
+          # The private mirrors' own credential (`credential: stacks` in
+          # mirrors.yml); see the note on it in config/cloud.ts.
+          MIRROR_TOKEN_STACKS: ${{ secrets.MIRROR_TOKEN_STACKS }}
           COPYFILE_DISABLE: '1'
         run: |
           set -euo pipefail
@@ -940,7 +943,11 @@ jobs:
             printf 'DB_PASSWORD=%s\n' "${DB_PASSWORD:-}"
             printf 'PORKBUN_API_KEY=%s\n' "${PORKBUN_API_KEY:-}"
             printf 'PORKBUN_SECRET_KEY=%s\n' "${PORKBUN_SECRET_KEY:-}"
+            printf 'GITHUB_TOKEN=%s\n' "${GITHUB_TOKEN:-}"
+            printf 'MIRROR_TOKEN_STACKS=%s\n' "${MIRROR_TOKEN_STACKS:-}"
           } > .env
+
+          [ -n "${MIRROR_TOKEN_STACKS:-}" ] || echo "::warning::MIRROR_TOKEN_STACKS is not set; the private mirrors (stacksjs/hq.training) cannot fetch, so their CI does not run."
 
           for required in HCLOUD_TOKEN DB_PASSWORD; do
             eval "value=\${$required:-}"
