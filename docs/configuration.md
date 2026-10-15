@@ -19,31 +19,7 @@ are wrong and what to do about them.
 
 Default: `ReviewOS`.
 
-On reviewos.org, keep this value in the `MIRROR_TOKEN_STACKS` repository secret
-under [ReviewOS Actions secrets](https://github.com/ReviewOS/reviewos.org/settings/secrets/actions).
-Both deployment workflows copy it into the production environment. Saving a
-secret changes future deployments; it does not update an already running server.
-
-To replace it whenever needed:
-
-1. Create a replacement GitHub credential. For a fine-grained token, choose
-   `stacksjs` as the resource owner, select only `hq.training`, and grant
-   **Contents: read** and **Commit statuses: read and write**.
-2. Update the existing `MIRROR_TOKEN_STACKS` Actions secret with the replacement.
-3. Open [CI](https://github.com/ReviewOS/reviewos.org/actions/workflows/ci.yml),
-   choose **Run workflow**, select `main`, and start it. Wait for the deploy job
-   to succeed so the running server receives the new value.
-4. In the HQ mirror's settings, use **Sync now**, or wait for its next scheduled
-   sweep. Check that the mirror updates without a credential error and that a
-   subsequent run posts its **ReviewOS / CI** status on GitHub.
-5. Revoke the previous credential after the replacement works. If other tools
-   share the previous credential, move those tools before revoking it.
-
-The mirror's credential reference stays `stacks` throughout a replacement. Token
-values belong in the secret, never in `mirrors.yml`, a commit, or a support log.
-
-Read by `app/Actions/Mirror/credentials.ts`; forwarded by `config/cloud.ts` and
-the CI and manual deployment workflows.
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_ENV`
 
@@ -1623,6 +1599,9 @@ A private mirror's own token, named by its `credential:` in mirrors.yml
 or MIRROR_TOKEN_<REF>_FILE for a secret manager). A fine-grained token scoped
 to those repositories: Contents read to fetch them, and Commit statuses read
 and write when the mirror runs its CI here and reports it back upstream.
+Resolved by app/Actions/Mirror/credentials.ts. On reviewos.org, update the
+Actions secret and deploy to apply a replacement; see
+[Rotating the HQ mirror credential](./self-hosting.md#rotating-the-hq-mirror-credential).
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
