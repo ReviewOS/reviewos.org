@@ -259,6 +259,13 @@ export default {
     default: '',
   },
 
+  // The private mirrors' credential (`credential: stacks` in mirrors.yml);
+  // see config/cloud.ts.
+  MIRROR_TOKEN_STACKS: {
+    validation: schema.string(),
+    default: '',
+  },
+
   PUBLIC_DIFF_ENABLED: {
     validation: schema.boolean(),
     default: false,

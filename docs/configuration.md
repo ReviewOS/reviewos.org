@@ -40,7 +40,7 @@ Default: `reviewos.localhost`. Checked at boot, so a wrong value stops the insta
 Pretty HTTPS URLs are the default development experience. `./buddy dev`
 routes this hostname through rpx, which uses tlsx for local certificates.
 
-Read by `app/Actions/Atproto/client.ts`, `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Actions/Screenshot/capture.ts`, `app/Jobs/CheckpointRepositoriesJob.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`, `resources/components/RepoBrowser.stx`, `resources/views/register.stx`.
+Read by `app/Actions/Atproto/client.ts`, `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Mirror/upstreamStatus.ts`, `app/Actions/Notification/vapid.ts`, `app/Actions/Screenshot/capture.ts`, `app/Jobs/CheckpointRepositoriesJob.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`, `resources/components/RepoBrowser.stx`, `resources/views/register.stx`.
 
 ### `APP_MAINTENANCE`
 
@@ -1587,6 +1587,20 @@ Where imports clone from. Only ever changed by the tests, which point it at a
 local repository so a suite does not depend on being able to reach github.com.
 
 Read by `app/Jobs/ImportRepositoryJob.ts`.
+
+## Mirror
+
+### `MIRROR_TOKEN_STACKS`
+
+Default: unset.
+
+A private mirror's own token, named by its `credential:` in mirrors.yml
+(`credential: stacks` reads `MIRROR_TOKEN_STACKS`; any MIRROR_TOKEN_<REF> works,
+or MIRROR_TOKEN_<REF>_FILE for a secret manager). A fine-grained token scoped
+to those repositories: Contents read to fetch them, and Commit statuses read
+and write when the mirror runs its CI here and reports it back upstream.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Set by git, not by you
 
