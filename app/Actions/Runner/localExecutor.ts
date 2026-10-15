@@ -43,8 +43,8 @@ import { cacheActionMode, isCacheAction, requestFrom, restoreKeyed, saveKeyed } 
 import { ORCHESTRATE_ACTION } from '../Workflow/program'
 import { drive } from './orchestrate'
 import { httpTransport } from './orchestratorClient'
-import type { ServiceRequest } from './services'
-import { resolveServices, serviceEnvironment, waitForPort } from './services'
+import type { ServiceRequest, StartedService } from './services'
+import { resolveServices, serviceEnvironment, servicesContext, startServices, stopServices } from './services'
 import type { ExpressionContext } from '../Workflow/expression'
 import { HASH_FILES, interpolate, shouldRun } from '../Workflow/expression'
 import { hashFilesIn } from './hashFiles'
@@ -504,6 +504,13 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    */
   let pulse: ReturnType<typeof setInterval> | null = null
 
+  /*
+   * The services this job started, held out here so the `finally` below can
+   * put them away whichever way the job ends - a database left running per
+   * failed job is how a runner runs out of ports.
+   */
+  let jobServices: StartedService[] = []
+
   try {
     await send(`Running job ${job.key} of run ${job.run?.number} on this host.\n`)
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
@@ -731,9 +738,13 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * in a log nobody reads to the bottom, and the person debugging it has no
      * reason to suspect the `services:` line at all.
      */
-    const started = await startServices(job, text => send(text))
+    const started = await startJobServices(job, workspace, text => send(text))
+
+    jobServices = started.started
 
     if (!started.ok) {
+      await send(`${started.reason}\n`, 'stderr')
+      await flush()
       await report(options.baseUrl, jobToken, 'failed', started.reason)
       say(`job ${job.id} failed: ${started.reason}`)
 
@@ -741,6 +752,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
 
     const serviceEnv = started.environment
+
+    // `job.services` for the expressions, which is where Actions puts the
+    // host port a step should connect to.
+    job.services_context = started.context
 
     /*
      * The upload command, written into the workspace as a script on PATH.
@@ -1587,6 +1602,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   finally {
     stopPulse()
 
+    if (jobServices.length > 0)
+      await stopServices(jobServices).catch(() => {})
+
     if (!options.workspaceRoot)
       rmSync(workspace, { recursive: true, force: true })
   }
@@ -1781,7 +1799,7 @@ function expressionContext(
   return {
     github,
     reviewos: github,
-    job: { status: state.status },
+    job: { status: state.status, services: job?.services_context ?? {} },
     steps: state.steps,
     needs: job?.needs ?? {},
     matrix: job?.matrix_values ?? {},
@@ -1841,59 +1859,50 @@ function expressionContext(
  * that with a container; this instance has pantry, which starts and
  * health-checks sixty-eight of exactly these.
  *
- * **A service already running is used rather than restarted**, and not stopped
- * afterwards. Pantry's services are the machine's, not this job's - stopping
- * one at the end of a job would take down the database another job on the same
- * runner is mid-query against.
+ * **Each one belongs to this job**: its own pantry project, its own data, its
+ * own port, and removed when the job ends - see `services.ts` for why a job is
+ * never pointed at a server the machine was already running.
  */
 type ServiceStart =
-  | { ok: true, environment: Record<string, string> }
-  | { ok: false, reason: string }
+  | { ok: true, environment: Record<string, string>, context: Record<string, unknown>, started: StartedService[] }
+  | { ok: false, reason: string, started: StartedService[] }
 
-async function startServices(job: any, say: (line: string) => Promise<void>): Promise<ServiceStart> {
-  const requests = servicesOf(job)
+async function startJobServices(job: any, workspace: string, say: (line: string) => Promise<void>): Promise<ServiceStart> {
+  /*
+   * A service's `env:` is expressions like any other - `POSTGRES_PASSWORD:
+   * ${{ secrets.DB_PASSWORD }}` is the usual way to keep a password out of the
+   * file - so it is filled in against the same contexts a step sees, before
+   * any step has run.
+   */
+  const context = expressionContext(job, workspace, { status: 'success', steps: {}, env: environmentFor(job, workspace) })
+  const requests = servicesOf(job).map(request => ({ ...request, env: interpolateValues(request.env, context) }))
 
   if (requests.length === 0)
-    return { ok: true, environment: {} }
+    return { ok: true, environment: {}, context: {}, started: [] }
 
   const decision = resolveServices(requests)
 
   if (!decision.ok)
-    return { ok: false, reason: decision.reason }
+    return { ok: false, reason: decision.reason, started: [] }
 
   await say('::group::Services\n')
 
-  for (const service of decision.services) {
-    await say(`${service.name}: pantry start ${service.service}\n`)
+  for (const note of decision.notes)
+    await say(`${note}\n`)
 
-    const child = Bun.spawn(['pantry', 'start', service.service], { stdout: 'pipe', stderr: 'pipe' })
-
-    await child.exited
-
-    /*
-     * Started is not ready. Postgres accepts connections a second or two after
-     * the process exists, and a first step that connects immediately fails on
-     * a fast machine and passes on a slow one - which is where a whole class
-     * of "flaky CI" comes from.
-     */
-    const ready = await waitForPort(service.port)
-
-    if (!ready) {
-      await say('::endgroup::\n')
-
-      return {
-        ok: false,
-        reason: `\`${service.name}\` never started listening on port ${service.port}. `
-          + 'Check `pantry logs ' + service.service + '` on the runner.',
-      }
-    }
-
-    await say(`${service.name}: ready on 127.0.0.1:${service.port}\n`)
-  }
+  const outcome = await startServices(decision.services, say)
 
   await say('::endgroup::\n')
 
-  return { ok: true, environment: serviceEnvironment(decision.services) }
+  if (!outcome.ok)
+    return { ok: false, reason: outcome.reason, started: outcome.services }
+
+  return {
+    ok: true,
+    environment: serviceEnvironment(outcome.services),
+    context: servicesContext(outcome.services),
+    started: outcome.services,
+  }
 }
 
 /** A job's `services:`, out of the settings the control plane copied forward. */
@@ -1908,6 +1917,8 @@ function servicesOf(job: any): ServiceRequest[] {
         name: String(one.name ?? ''),
         image: String(one.image),
         env: (one.env && typeof one.env === 'object' ? one.env : {}) as Record<string, string>,
+        ports: Array.isArray(one.ports) ? one.ports.map(String) : [],
+        options: typeof one.options === 'string' ? one.options : '',
       }))
   }
   catch {

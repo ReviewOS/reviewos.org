@@ -335,8 +335,10 @@ export interface WorkflowService {
   name: string
   image: string
   env: Record<string, string>
-  /** `ports:` as written. Informational here - a host service listens where it listens. */
+  /** `ports:` as written. The host side, when there is one, is the port the runner opens. */
   ports: string[]
+  /** `options:` as written. The runner reads the `--health-*` flags out of it. */
+  options: string
 }
 
 export interface WorkflowConcurrency {
@@ -2431,7 +2433,11 @@ export function servicesFrom(value: unknown): WorkflowService[] {
       name: String(name),
       image,
       env: asStringMap(body?.env),
-      ports: asStringList(body?.ports),
+      // A bare `- 5432` is a number to YAML, and still a port.
+      ports: (Array.isArray(body?.ports) ? body.ports : [body?.ports])
+        .filter(port => typeof port === 'string' || typeof port === 'number')
+        .map(String),
+      options: typeof body?.options === 'string' ? body.options : '',
     })
   }
 
