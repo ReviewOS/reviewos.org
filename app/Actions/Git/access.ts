@@ -186,6 +186,21 @@ export async function tokenFromBasicAuth(header: string | null): Promise<Authent
   return result.ok ? result.token : null
 }
 
+/** The password half of a basic auth header, which is where git puts a token. */
+export function basicAuthSecret(header: string | null): string {
+  if (!header?.startsWith('Basic '))
+    return ''
+
+  try {
+    const decoded = atob(header.slice('Basic '.length))
+    const separator = decoded.indexOf(':')
+    return separator === -1 ? '' : decoded.slice(separator + 1)
+  }
+  catch {
+    return ''
+  }
+}
+
 /** The user behind a basic auth header, when only the identity is needed. */
 export async function userFromBasicAuth(header: string | null): Promise<number | null> {
   const token = await tokenFromBasicAuth(header)

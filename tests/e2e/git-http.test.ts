@@ -491,10 +491,16 @@ describe('a private repository', () => {
 
     try {
       const response = await fetch(`${cloneUrl()}/info/refs?service=git-upload-pack`)
+      const missing = await fetch(`${cloneUrl().replace(/\.git$/, '')}-not-here.git/info/refs?service=git-upload-pack`)
 
-      // 404 rather than 401 or 403: telling a stranger they are not allowed to
-      // see it confirms there is something to see.
-      expect(response.status).toBe(404)
+      // A challenge, and the same one a repository that does not exist gets:
+      // git offers a credential only after a 401, so a 404 here made every
+      // private repository unclonable over HTTP for everybody. Answering the
+      // missing repository the same way is what still keeps a stranger from
+      // learning there is something to see.
+      expect(response.status).toBe(401)
+      expect(missing.status).toBe(401)
+      expect(await response.text()).toBe(await missing.text())
 
       const into = join(created.temp, 'refused')
       const result = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', cloneUrl(), into)

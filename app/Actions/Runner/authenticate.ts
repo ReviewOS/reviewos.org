@@ -182,3 +182,47 @@ export async function authenticateJob(
     },
   }
 }
+
+/**
+ * Whether `token` is the credential of a job that is running now, on an
+ * active runner, for this repository - so it may read that repository over
+ * git's HTTP protocol.
+ *
+ * The job's own credential is the right thing to clone with: it names one
+ * job, it dies with that job's lease, and it reaches exactly the repository
+ * the job belongs to. A runner off the instance's host otherwise had nothing
+ * to clone a private repository with - an operator-wide clone token reaches
+ * every repository the runner might be handed, and a run with no actor (a
+ * mirror's sync, a schedule) has no user token at all. Read only: the
+ * caller asks this for `upload-pack`, never for a push.
+ */
+export async function jobMayRead(token: string, repositoryId: number, now: Date = new Date()): Promise<boolean> {
+  if (!token)
+    return false
+
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.runner_id as runner_id', 'workflow_jobs.state as state', 'workflow_jobs.lease_expires_at as lease_expires_at', 'workflow_runs.repository_id as repository_id'])
+    .where('workflow_jobs.job_token_hash', '=', hashToken(token))
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!job?.runner_id || Number(job.repository_id) !== repositoryId)
+    return false
+
+  const live = String(job.state) === 'running' && leaseIsLive({
+    leaseExpiresAt: job.lease_expires_at ? String(job.lease_expires_at) : null,
+  }, now)
+
+  if (!live)
+    return false
+
+  const runner = await db
+    .selectFrom('runners')
+    .select(['state'])
+    .where('id', '=', Number(job.runner_id))
+    .executeTakeFirst()
+
+  return String(runner?.state ?? '') === 'active'
+}

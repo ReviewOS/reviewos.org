@@ -1,5 +1,5 @@
 import { route } from '@stacksjs/router'
-import { findRepositoryByPath, mayUseService, pushActorFor, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
+import { basicAuthSecret, findRepositoryByPath, mayUseService, pushActorFor, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
@@ -39,13 +39,37 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
   if (!parsed)
     return { ok: false as const, status: 404 }
 
+  /*
+   * An anonymous request is challenged, whether or not the repository exists.
+   *
+   * git sends a credential only after a 401 asks for one - one in the URL, a
+   * credential helper, `GIT_ASKPASS`, all of them. This answered an anonymous
+   * request for a private repository with 404, to keep its existence quiet,
+   * and so no private repository could be cloned over HTTP by anybody: git
+   * read the 404, gave up, and never offered the token it was holding. A
+   * challenge for *every* anonymous request keeps the secret just as well - a
+   * repository that is not there is challenged too, as GitHub does - and lets
+   * git answer it. Somebody who did authenticate and may not read the
+   * repository still gets 404 below.
+   */
+  const authorization = request.headers?.get?.('authorization') ?? null
   const repository = await findRepositoryByPath(parsed.owner, parsed.name)
   if (!repository)
-    return { ok: false as const, status: 404 }
+    return { ok: false as const, status: authorization ? 404 : 401 }
 
-  const token = await tokenFromBasicAuth(request.headers?.get?.('authorization') ?? null)
+  const token = await tokenFromBasicAuth(authorization)
   const userId = token?.userId ?? null
-  const allowed = await mayUseService(repository, userId, service, token)
+  let allowed = await mayUseService(repository, userId, service, token)
+
+  /*
+   * A running job reading its own repository, with the credential it was
+   * claimed with: how a runner off the instance's host checks out a private
+   * repository (`jobMayRead`). Reads only - a job's credential never pushes.
+   */
+  if (!allowed && !token && service === 'upload-pack') {
+    const { jobMayRead } = await import('../app/Actions/Runner/authenticate')
+    allowed = await jobMayRead(basicAuthSecret(authorization), Number(repository.id))
+  }
 
   if (allowed && token) {
     // Not awaited: an unused token being visible as unused is worth a write,
@@ -54,10 +78,11 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
   }
 
   if (!allowed) {
-    // A private repository answers 404 to somebody who cannot read it, rather
-    // than 401: a 401 confirms the repository exists, which is the one thing
-    // the visitor is not allowed to know.
-    if (userId === null && repository.visibility === 'public')
+    // Anonymous: a challenge, for any repository (see above). Authenticated
+    // and refused: 404 for a private repository - the credential is real, and
+    // telling it the repository exists is the one thing it may not learn -
+    // and 403 for a public one it may read but not push to.
+    if (!authorization)
       return { ok: false as const, status: 401 }
     return { ok: false as const, status: repository.visibility === 'public' ? 403 : 404 }
   }

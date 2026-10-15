@@ -627,7 +627,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
            * machine, which is every runner that is not the instance's own host.
            */
           baseUrl: options.baseUrl,
-          cloneToken: options.cloneToken,
+          /*
+           * An operator's clone credential when there is one, else this job's
+           * own: the instance lets a running job read its own repository with
+           * the credential it was claimed with (`jobMayRead`), as Actions lets a
+           * job check out with its GITHUB_TOKEN. Without it a runner off the
+           * instance's host could not check out a private repository at all.
+           */
+          cloneToken: options.cloneToken || String(job.token ?? '') || undefined,
           // What the job asked for: a depth, sparse paths, submodules, LFS, or
           // no checkout at all.
           options: (job.checkout ?? undefined) as CheckoutOptions | undefined,
