@@ -102,6 +102,12 @@ export async function announceRun(repositoryId: number, run: RunFacts): Promise<
   catch (error) {
     console.error('[workflow] could not announce a run transition:', error)
   }
+
+  // And on the upstream commit, for a mirror whose CI runs here. Its own
+  // try: a webhook that could not be delivered is no reason to keep the
+  // verdict from the people pushing upstream, nor the other way round.
+  const { reportRunUpstream } = await import('../Mirror/upstreamStatus')
+  await reportRunUpstream(repositoryId, run)
 }
 
 /** One job of a run moved. */

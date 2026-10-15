@@ -216,3 +216,8 @@ storage/framework/core/defaults/*
 
 # Throwaway probe scripts. One got swept into a commit already.
 scratch-*.ts
+
+# A global `*.sql` ignore (common, and on this machine) would otherwise drop
+# every generated migration from a commit without a word.
+!database/migrations/*.sql
+!database/migrations/mysql/*.sql

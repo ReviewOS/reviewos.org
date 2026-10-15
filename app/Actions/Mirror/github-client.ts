@@ -380,4 +380,52 @@ export class GitHubClient {
       return { ok: false, status: 0, message: error instanceof Error ? error.message : String(error) }
     }
   }
+
+  /**
+   * A commit status on the upstream: CI that ran here, shown where the commit
+   * was pushed.
+   *
+   * A status rather than a check run because a check run needs a GitHub App;
+   * a status needs only a token that may write statuses to the repository,
+   * which is the credential a private mirror already holds to fetch it. One
+   * `context` per workflow, so a later report on the same commit replaces the
+   * earlier one instead of piling up beside it.
+   */
+  async postStatus(input: {
+    owner: string
+    name: string
+    sha: string
+    state: 'pending' | 'success' | 'failure' | 'error'
+    context: string
+    description?: string | null
+    targetUrl?: string | null
+  }): Promise<{ ok: true } | { ok: false, status: number, message: string }> {
+    const payload: Record<string, unknown> = {
+      state: input.state,
+      context: input.context.slice(0, 255),
+    }
+
+    // GitHub refuses a description over 140 characters outright rather than
+    // trimming it, which would turn a long workflow name into no status at all.
+    if (input.description)
+      payload.description = input.description.slice(0, 140)
+
+    if (input.targetUrl)
+      payload.target_url = input.targetUrl
+
+    try {
+      const answer = await this.fetchImpl(
+        `${this.baseUrl}/repos/${input.owner}/${input.name}/statuses/${input.sha}`,
+        { method: 'POST', headers: { ...this.headers(), 'content-type': 'application/json' }, body: JSON.stringify(payload) },
+      )
+
+      if (!answer.ok)
+        return { ok: false, status: answer.status, message: (await answer.text().catch(() => '')).slice(0, 300) }
+
+      return { ok: true }
+    }
+    catch (error) {
+      return { ok: false, status: 0, message: error instanceof Error ? error.message : String(error) }
+    }
+  }
 }

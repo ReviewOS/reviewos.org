@@ -51,15 +51,7 @@ export async function syncFromPush(event: any): Promise<void> {
       return
 
     const updates = Array.isArray(event?.updates) ? event.updates : []
-
-    // The default branch's new head, or nothing to do. A push that did not move
-    // it cannot have changed the definitions this instance trusts.
-    const moved = updates.find((update: any) =>
-      update?.kind === 'branch'
-      && update?.name === defaultBranch
-      && update?.change !== 'deleted')
-
-    if (!moved?.after)
+    if (updates.length === 0)
       return
 
     const repository = await db
@@ -71,41 +63,23 @@ export async function syncFromPush(event: any): Promise<void> {
     if (!repository)
       return
 
-    const gitDir = await resolveGitDir(repository, String(event?.owner ?? ''))
-    if (!gitDir)
-      return
-
-    const found = await discoverWorkflows(gitDir, String(moved.after))
-
-    for (const file of found) {
-      // One bad file does not stop the others. A repository with four workflows
-      // and one typo should end up with three registered and one reported,
-      // rather than none - the alternative makes a single mistake look like the
-      // whole feature is broken.
-      await syncWorkflowFile({
-        repositoryId: Number(repository.id),
-        ownerType: String(repository.owner_type) === 'organization' ? 'organization' : 'user',
-        ownerId: Number(repository.owner_id),
-        path: file.path,
-        source: file.source,
-        sha: String(moved.after),
-      }).catch(() => null)
-    }
+    // The default branch's new head, when this push moved it. Only then can
+    // the definitions this instance trusts have changed.
+    const moved = updates.find((update: any) =>
+      update?.kind === 'branch'
+      && update?.name === defaultBranch
+      && update?.change !== 'deleted')
 
     /*
-     * A file that is no longer there stops running.
+     * A push that left the default branch alone still starts runs.
      *
-     * Deleting a workflow used to leave its row active forever, so a repository
-     * that removed its CI kept starting runs from a definition nobody could
-     * find in the tree. The same applies when a repository copies its
-     * workflows to `.reviewos/workflows` - the `.github` ones stop being read,
-     * and a row that still says `active` would be a workflow with no file.
-     *
-     * `removed` rather than `disabled`: a person's decision to switch a
-     * workflow off has to survive the file coming back, and one state for both
-     * would let a revert quietly resurrect it.
+     * This used to return here, before dispatching, so a push to a feature
+     * branch started nothing - the opposite of the rule written above it.
+     * Every branch that moves is a push somebody expects CI on; what the
+     * default branch decides is only which definitions answer it.
      */
-    await retireMissing(Number(repository.id), found.map(file => file.path))
+    if (moved?.after && !await syncDefinitions(repository, String(event?.owner ?? ''), String(moved.after)))
+      return
 
     // Definitions first, then what they say to do with this push - in that
     // order, so a workflow added by this very push can run on it. The other
@@ -118,6 +92,59 @@ export async function syncFromPush(event: any): Promise<void> {
     // fail it. By the time this runs the refs have moved and the push has been
     // answered; the worst case here is definitions that are one push stale.
   }
+}
+
+/**
+ * Register the workflows the default branch has at `sha`, and retire the ones
+ * it no longer has. Starts nothing.
+ *
+ * Its own step because a push is not the only way a tree arrives: a mirror
+ * that has just been told to run its workflows already holds the upstream's
+ * history, and its first sync after that may find nothing new to fetch. Its
+ * definitions are registered from the head it has, so `workflow_dispatch` and
+ * `schedule` work from that moment rather than from the next upstream commit.
+ *
+ * False when the repository's directory could not be found, which is the one
+ * case where nothing after this can work either.
+ */
+export async function syncDefinitions(repository: any, owner: string, sha: string): Promise<boolean> {
+  const gitDir = await resolveGitDir(repository, owner)
+  if (!gitDir)
+    return false
+
+  const found = await discoverWorkflows(gitDir, sha)
+
+  for (const file of found) {
+    // One bad file does not stop the others. A repository with four workflows
+    // and one typo should end up with three registered and one reported,
+    // rather than none - the alternative makes a single mistake look like the
+    // whole feature is broken.
+    await syncWorkflowFile({
+      repositoryId: Number(repository.id),
+      ownerType: String(repository.owner_type) === 'organization' ? 'organization' : 'user',
+      ownerId: Number(repository.owner_id),
+      path: file.path,
+      source: file.source,
+      sha,
+    }).catch(() => null)
+  }
+
+  /*
+   * A file that is no longer there stops running.
+   *
+   * Deleting a workflow used to leave its row active forever, so a repository
+   * that removed its CI kept starting runs from a definition nobody could
+   * find in the tree. The same applies when a repository copies its
+   * workflows to `.reviewos/workflows` - the `.github` ones stop being read,
+   * and a row that still says `active` would be a workflow with no file.
+   *
+   * `removed` rather than `disabled`: a person's decision to switch a
+   * workflow off has to survive the file coming back, and one state for both
+   * would let a revert quietly resurrect it.
+   */
+  await retireMissing(Number(repository.id), found.map(file => file.path))
+
+  return true
 }
 
 /**

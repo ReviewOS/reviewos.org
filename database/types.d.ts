@@ -2071,6 +2071,7 @@ declare module '@stacksjs/database' {
       last_metadata_sync_at: string
       metadata_error: string
       metadata_failure_count: number
+      run_workflows: boolean
     }
     requests: {
       // columns

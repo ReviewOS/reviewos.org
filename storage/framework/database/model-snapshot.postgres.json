@@ -8115,6 +8115,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "run_workflows",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -15247,7 +15256,7 @@
       }
     ]
   },
-  "hash": "68c2c0110a0b347eabb3b960314b09ca27370a5de5de16bdd5f65c4918b9b4e8",
+  "hash": "4654f0c4b74d21cf2c5f9eb2a38dcf100a6ab195abd5c4752aa4afda1b0dc367",
   "dialect": "postgres",
-  "updatedAt": "2026-10-15T02:16:02.282Z"
+  "updatedAt": "2026-10-15T02:25:10.859Z"
 }

@@ -27,6 +27,14 @@ export interface MirrorOptions {
   name?: string
   metadata?: boolean
   interval?: string
+  /** The credential to read the upstream with: `MIRROR_TOKEN_<REF>` (see `credentials.ts`). */
+  credential?: string
+  /** Run the repository's workflows here on every sync that moves something. */
+  ci?: boolean
+  /** Private here whatever the upstream says. */
+  private?: boolean
+  /** For tests: what asks GitHub whether the upstream is public. */
+  fetchImpl?: typeof fetch
 }
 
 export default function (cli: CLI) {
@@ -37,6 +45,9 @@ export default function (cli: CLI) {
     .option('--name <name>', 'The local repository name', { default: '' })
     .option('--metadata', 'Also import issues, pull requests and review threads', { default: false })
     .option('--interval <seconds>', 'Seconds between sweeps', { default: '900' })
+    .option('--credential <ref>', 'Read the upstream with MIRROR_TOKEN_<REF>, for a private repository', { default: '' })
+    .option('--ci', 'Run the repository\'s workflows here whenever a sync moves it', { default: false })
+    .option('--private', 'Keep the mirror private here, whatever the upstream is', { default: false })
     .action(async (options: MirrorOptions) => {
       try {
         await addMirror(options)
@@ -105,14 +116,52 @@ export async function addMirror(options: MirrorOptions): Promise<void> {
   // mirror the sweep will pick up.
   await initBare(diskPath)
 
-  const repositoryId = await upsertRepository(owner, localName, diskPath)
+  const visibility = options.private
+    ? 'private'
+    : await upstreamVisibility(remote, options.credential, options.fetchImpl)
+
+  const repositoryId = await upsertRepository(owner, localName, diskPath, visibility)
   await upsertMirror(repositoryId, remote, options)
 
-  console.log(`Mirroring ${remote.owner}/${remote.name} as ${owner.handle}/${localName}`)
+  console.log(`Mirroring ${remote.owner}/${remote.name} as ${owner.handle}/${localName} (${visibility})`)
   console.log(`  repository ${repositoryId} at ${diskPath}`)
   console.log(options.metadata
     ? '  metadata sync enabled (issues, pull requests, review threads)'
     : '  code only; pass --metadata to import issues and pull requests too')
+  if (options.ci)
+    console.log('  workflows run here on every sync that moves something')
+}
+
+/**
+ * Whether the upstream is public, asked of GitHub with the token the mirror
+ * will fetch with.
+ *
+ * A mirror used to be created public and made private only by the metadata
+ * sync, which runs only when `--metadata` was passed - while the fetch itself
+ * falls back to the instance's `GITHUB_TOKEN`, which may well read private
+ * repositories. So a private repository mirrored code-only was served to
+ * anybody, from its first sync for ever. Now the question is asked before the
+ * row exists, and **anything but a clear "public" is private**: no answer, a
+ * rate limit or a refusal keeps the code hidden, because a mirror that is
+ * private by mistake is one setting away from right, and one that is public by
+ * mistake has already been read.
+ */
+export async function upstreamVisibility(
+  remote: { owner: string, name: string },
+  credential?: string,
+  fetchImpl?: typeof fetch,
+): Promise<'public' | 'private'> {
+  try {
+    const { mirrorToken } = await import('../Actions/Mirror/credentials')
+    const { GitHubClient } = await import('../Actions/Mirror/github-client')
+    const token = await mirrorToken(credential)
+    const found = await new GitHubClient({ token, fetchImpl }).repository(remote.owner, remote.name)
+
+    return found && found.private === false ? 'public' : 'private'
+  }
+  catch {
+    return 'private'
+  }
 }
 
 async function resolveOwner(handle: string): Promise<{ id: number, handle: string, type: 'organization' | 'user' }> {
@@ -141,6 +190,7 @@ async function upsertRepository(
   owner: { id: number, handle: string, type: string },
   name: string,
   diskPath: string,
+  visibility: 'public' | 'private',
 ): Promise<number> {
   const existing = await db
     .selectFrom('repositories')
@@ -151,9 +201,11 @@ async function upsertRepository(
     .executeTakeFirst()
 
   if (existing) {
+    // Made private when it should be, never public: a repository somebody
+    // chose to hide here stays hidden even if its upstream is open.
     await db
       .updateTable('repositories')
-      .set({ disk_path: diskPath })
+      .set(visibility === 'private' ? { disk_path: diskPath, visibility } : { disk_path: diskPath })
       .where('id', '=', Number(existing.id))
       .execute()
     return Number(existing.id)
@@ -165,9 +217,10 @@ async function upsertRepository(
       owner_type: owner.type,
       owner_id: owner.id,
       name,
-      // A mirror of a public repository is public. Anything else would hide it
-      // from the people who can already read it upstream.
-      visibility: 'public',
+      // As open as the upstream and no more (`upstreamVisibility`): a public
+      // repository mirrored privately would hide it from the people who can
+      // already read it there, and the other way round leaks it.
+      visibility,
       default_branch: 'main',
       disk_path: diskPath,
     })
@@ -204,6 +257,8 @@ async function upsertMirror(
     interval_seconds: Math.max(60, Number(options.interval ?? 900) || 900),
     enabled: true,
     sync_metadata: Boolean(options.metadata),
+    credential_ref: String(options.credential ?? '').trim() || null,
+    run_workflows: Boolean(options.ci),
   }
 
   const existing = await db

@@ -2,6 +2,7 @@ import { dispatch } from '@stacksjs/events'
 import { Job } from '@stacksjs/queue'
 import { fetchMirror, isAncestor } from '../Actions/Mirror/fetch'
 import { describeChanges, diffRefs, headOf, isForcePush, shouldDisable } from '../Actions/Mirror/sync'
+import { isTrue } from '../Actions/Support/sql'
 import { cancelRequested, markCancelled, markFailed, markRunning, markSucceeded } from '../Api/progress'
 
 /**
@@ -240,6 +241,26 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
           console.error(`[mirror] could not queue ${name}:`, error)
         }
       }
+    }
+
+    /*
+     * CI, for a mirror whose owners asked for it (`run_workflows`).
+     *
+     * After the row and the repository are current, so a run that reads them
+     * sees this sync's state; awaited, because a queued job that returns
+     * before its work is done hands the worker back while the work is still
+     * using the connection. `runMirrorWorkflows` never throws.
+     */
+    if (isTrue(mirror.run_workflows)) {
+      const { runMirrorWorkflows } = await import('../Actions/Mirror/workflows')
+
+      await runMirrorWorkflows({
+        repository,
+        owner: ownerHandle ?? '',
+        defaultBranch,
+        changes,
+        head: headOf(outcome.after, defaultBranch),
+      })
     }
 
     dispatch('mirror:synced', {

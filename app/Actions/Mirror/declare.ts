@@ -23,6 +23,7 @@
 
 import { db } from '@stacksjs/database'
 import { addMirror, parseRemote } from '../../Commands/MirrorAdd'
+import { isTrue } from '../Support/sql'
 
 /** One line of the file: an upstream repository, and where it lives here. */
 export interface DeclaredMirror {
@@ -36,6 +37,12 @@ export interface DeclaredMirror {
   metadata?: boolean
   /** Seconds between sweeps. */
   interval?: number
+  /** Run its workflows here on every sync that moves something (`run_workflows`). */
+  ci?: boolean
+  /** Read the upstream with `MIRROR_TOKEN_<CREDENTIAL>`: a private repository. */
+  credential?: string
+  /** Private here, whatever the upstream says. */
+  private?: boolean
 }
 
 export interface DeclaredMirrors {
@@ -82,6 +89,9 @@ export function readDeclaration(source: string): { mirrors: DeclaredMirrors, err
         name: row.name ? String(row.name) : undefined,
         metadata: row.metadata === undefined ? undefined : Boolean(row.metadata),
         interval: row.interval === undefined ? undefined : Number(row.interval),
+        ci: row.ci === undefined ? undefined : Boolean(row.ci),
+        credential: row.credential ? String(row.credential) : undefined,
+        private: row.private === undefined ? undefined : Boolean(row.private),
       }
     }).filter(row => row.remote && row.owner)
 
@@ -144,6 +154,9 @@ export async function planMirrors(declared: DeclaredMirrors): Promise<MirrorPlan
       if (current.remote !== `${remote.owner}/${remote.name}`)
         changes.push({ local, detail: `repoint ${local} at ${remote.owner}/${remote.name} (it mirrors ${current.remote})` })
 
+      for (const detail of settingsDrift(local, current, mirror))
+        changes.push({ local, detail })
+
       continue
     }
 
@@ -167,6 +180,7 @@ export async function planMirrors(declared: DeclaredMirrors): Promise<MirrorPlan
  */
 export async function applyMirrors(declared: DeclaredMirrors): Promise<MirrorPlan> {
   const plan = await planMirrors(declared)
+  const existing = await readExisting()
   const planned = new Set(plan.changes.map(change => change.local.toLowerCase()))
 
   for (const mirror of declared.mirrors ?? []) {
@@ -175,12 +189,25 @@ export async function applyMirrors(declared: DeclaredMirrors): Promise<MirrorPla
     if (!planned.has(local.toLowerCase()))
       continue
 
+    const current = existing.get(local.toLowerCase())
+    const remote = parseRemote(mirror.remote)
+    if (current && remote && current.remote.toLowerCase() === `${remote.owner}/${remote.name}`.toLowerCase()) {
+      // The same upstream, settings that moved: change those and nothing else.
+      // `addMirror` would rewrite the whole row - a fresh interval, metadata
+      // off - for a line that only asked for CI.
+      await settleSettings(current, mirror)
+      continue
+    }
+
     await addMirror({
       remote: mirror.remote,
       owner: mirror.owner,
       name: mirror.name ?? '',
       metadata: mirror.metadata ?? false,
       interval: String(mirror.interval ?? 900),
+      credential: mirror.credential,
+      ci: mirror.ci ?? false,
+      private: mirror.private ?? false,
     })
   }
 
@@ -188,18 +215,87 @@ export async function applyMirrors(declared: DeclaredMirrors): Promise<MirrorPla
 }
 
 /** Every mirror already here, keyed by the local `owner/name` in lower case. */
-async function readExisting(): Promise<Map<string, { local: string, remote: string }>> {
-  const found = new Map<string, { local: string, remote: string }>()
+/** A mirror this instance already has, with the settings a declaration can change. */
+export interface ExistingMirror {
+  local: string
+  remote: string
+  mirrorId: number
+  repositoryId: number
+  runWorkflows: boolean
+  credentialRef: string
+  visibility: string
+}
+
+/**
+ * What a line asks to change on a mirror that already exists, in words.
+ *
+ * Only what the line says: a key it leaves out is no opinion, so a file that
+ * predates `ci:` cannot switch CI off on every mirror somebody turned it on
+ * for by hand. And never towards public - `private: false` is not a request to
+ * publish a repository, because that is not a decision a file applied on
+ * every deploy should be able to make.
+ */
+export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runWorkflows' | 'credentialRef' | 'visibility'>, declared: DeclaredMirror): string[] {
+  const drift: string[] = []
+
+  if (declared.ci !== undefined && declared.ci !== current.runWorkflows)
+    drift.push(declared.ci ? `run ${local}'s workflows here` : `stop running ${local}'s workflows here`)
+
+  const credential = String(declared.credential ?? '').trim()
+  if (credential && credential !== current.credentialRef)
+    drift.push(`read ${local} with the ${credential} credential`)
+
+  if (declared.private === true && current.visibility !== 'private')
+    drift.push(`make ${local} private`)
+
+  return drift
+}
+
+/** Apply `settingsDrift`'s answer, and only that, to an existing mirror. */
+async function settleSettings(current: ExistingMirror, declared: DeclaredMirror): Promise<void> {
+  const mirror: Record<string, unknown> = {}
+
+  if (declared.ci !== undefined && declared.ci !== current.runWorkflows)
+    mirror.run_workflows = declared.ci
+
+  const credential = String(declared.credential ?? '').trim()
+  if (credential && credential !== current.credentialRef)
+    mirror.credential_ref = credential
+
+  if (Object.keys(mirror).length > 0) {
+    await db
+      .updateTable('repository_mirrors')
+      .set(mirror as any)
+      .where('id', '=', current.mirrorId)
+      .execute()
+  }
+
+  if (declared.private === true && current.visibility !== 'private') {
+    await db
+      .updateTable('repositories')
+      .set({ visibility: 'private' })
+      .where('id', '=', current.repositoryId)
+      .execute()
+  }
+}
+
+async function readExisting(): Promise<Map<string, ExistingMirror>> {
+  const found = new Map<string, ExistingMirror>()
 
   const rows: any[] = await db
     .selectFrom('repository_mirrors')
     .innerJoin('repositories', 'repositories.id', '=', 'repository_mirrors.repository_id')
     .select([
+      'repositories.id as repository_id',
       'repositories.name as name',
       'repositories.owner_type as owner_type',
       'repositories.owner_id as owner_id',
+      'repositories.visibility as visibility',
+      'repository_mirrors.id as mirror_id',
       'repository_mirrors.remote_owner as remote_owner',
       'repository_mirrors.remote_name as remote_name',
+      'repository_mirrors.run_workflows as run_workflows',
+      'repository_mirrors.credential_ref as credential_ref',
     ])
     .execute()
     .catch(() => [])
@@ -215,7 +311,15 @@ async function readExisting(): Promise<Map<string, { local: string, remote: stri
       continue
 
     const local = `${handle}/${row.name}`
-    found.set(local.toLowerCase(), { local, remote: `${row.remote_owner}/${row.remote_name}` })
+    found.set(local.toLowerCase(), {
+      local,
+      remote: `${row.remote_owner}/${row.remote_name}`,
+      mirrorId: Number(row.mirror_id),
+      repositoryId: Number(row.repository_id),
+      runWorkflows: isTrue(row.run_workflows),
+      credentialRef: String(row.credential_ref ?? ''),
+      visibility: String(row.visibility ?? ''),
+    })
   }
 
   return found

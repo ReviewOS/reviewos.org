@@ -1211,6 +1211,52 @@ config file is in every backup - and the error messages git prints are redacted
 before they are stored, so an expired token does not end up on the mirror's
 page.
 
+**A new mirror is as open as its upstream, and no more.** `mirror:add` asks
+GitHub whether the upstream is public, with the token the mirror will fetch
+with, and anything but a clear "public" - private, not found, rate-limited -
+creates it private. `--private` (or `private: true` in `mirrors.yml`) keeps it
+private whatever the upstream says. Mirrors used to start public and only the
+metadata sync made them private, so a private repository mirrored code-only was
+readable by anybody.
+
+### Running a mirror's CI here
+
+A mirror is usually somebody else's project, and its workflows are none of this
+instance's business: a runner answering `ubuntu-latest` would otherwise spend
+itself on the CI of every repository mirrored here. So a mirror runs its
+workflows only when asked:
+
+```sh
+buddy mirror:add --remote acme/widgets --owner acme --credential acme --ci
+```
+
+```yaml
+# mirrors.yml - applied on every deploy, existing mirrors included
+mirrors:
+  - remote: acme/widgets
+    owner: acme
+    credential: acme
+    private: true
+    ci: true
+```
+
+Every sync that moves a branch or a tag then runs as a push of the same refs
+would: definitions from the default branch, runs for every ref that moved,
+`paths` filters on what changed. Turning it on for a mirror that is already
+current registers the definitions it holds without waiting for the next
+upstream commit.
+
+With a credential that may write commit statuses, each run is reported on the
+upstream commit as `ReviewOS / <workflow>` - pending while it waits and runs,
+then success, failure, or error for a cancelled run - linking to the run here.
+That is what lets the people pushing upstream see the verdict, and a branch
+protection rule there require it. A fine-grained token needs **Contents: read**
+and **Commit statuses: read and write** on the repository.
+
+The sync interval decides how soon CI starts. A webhook from the upstream
+(`POST /api/mirrors/webhook`, signed with the secret `mirror:add` prints) makes
+it immediate; without one, `interval: 60` is the shortest the sweep allows.
+
 ### Keeping the dependencies honest
 
 `buddy-bot.config.ts` configures both halves, and both run from

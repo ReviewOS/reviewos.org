@@ -202,6 +202,8 @@ export const actions = {
   'Actions/Mirror/overdue': '../../../app/Actions/Mirror/overdue.ts',
   'Actions/Mirror/status': '../../../app/Actions/Mirror/status.ts',
   'Actions/Mirror/sync': '../../../app/Actions/Mirror/sync.ts',
+  'Actions/Mirror/upstreamStatus': '../../../app/Actions/Mirror/upstreamStatus.ts',
+  'Actions/Mirror/workflows': '../../../app/Actions/Mirror/workflows.ts',
   'Actions/Mirror/writeThrough': '../../../app/Actions/Mirror/writeThrough.ts',
   'Actions/Notification/ListNotificationsAction': '../../../app/Actions/Notification/ListNotificationsAction.ts',
   'Actions/Notification/MarkReadAction': '../../../app/Actions/Notification/MarkReadAction.ts',

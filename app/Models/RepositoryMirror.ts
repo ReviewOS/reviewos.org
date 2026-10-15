@@ -260,5 +260,25 @@ export default defineModel({
       validation: { rule: schema.number().min(0) },
       factory: () => 0,
     },
+
+    /**
+     * Whether a sync runs this repository's workflows, as a push here would.
+     *
+     * **Off by default, and the default is the one that keeps the runners
+     * free.** Most mirrors on an instance are copies of somebody else's
+     * project, nearly all of them with a `.github/workflows` directory, and a
+     * runner answering `ubuntu-latest` would otherwise pick up the CI of every
+     * one of them on every upstream commit. Turning it on says this instance
+     * is where the upstream's CI runs: the repository's owners trust its
+     * default branch the way they trust a push to it, and want the verdict
+     * here (and, with a credential, back on the upstream commit).
+     */
+    run_workflows: {
+      order: 21,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 })
