@@ -198,6 +198,46 @@ describe('a running job, reading over HTTP', () => {
     expect(cloned.code).toBe(0)
   })
 
+  test('the runner\'s own checkout does it, through the /git mount a deployed instance forwards', async () => {
+    if (!available)
+      return
+
+    const secret = await claim(created.mine.id)
+    const { checkoutCode } = await import('../../app/Actions/Runner/checkout')
+    const sha = (await git(created.mine.path, 'rev-parse', 'refs/heads/main')).stdout.trim()
+    const workspace = join(created.temp, 'workspace', 'job')
+    mkdirSync(workspace, { recursive: true })
+
+    let said = ''
+    const outcome = await checkoutCode({
+      reposRoot: join(created.temp, 'no-repositories-here'),
+      fullName: `${created.handle}/${created.mine.name}`,
+      sha,
+      workspace,
+      baseUrl: `http://127.0.0.1:${port}`,
+      cloneToken: secret,
+      onOutput: async (text) => { said += text },
+      run: async ({ command, cwd, environment }) => {
+        const child = Bun.spawn(['/bin/sh', '-c', command], {
+          cwd,
+          env: { ...process.env, ...environment, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        })
+        said += await new Response(child.stderr).text()
+        const exitCode = await child.exited
+        return { ok: exitCode === 0, exitCode }
+      },
+    })
+
+    expect(outcome.ok, said).toBe(true)
+    expect((await git(workspace, 'rev-parse', 'HEAD')).stdout.trim()).toBe(sha)
+    // Cloned from the mounted URL, the one a deployed instance forwards to
+    // the API - not the bare root URL only the API process itself answers.
+    const origin = (await git(workspace, 'config', '--get', 'remote.origin.url')).stdout.trim()
+    expect(origin).toBe(`http://127.0.0.1:${port}/git/${created.handle}/${created.mine.name}.git`)
+  })
+
   test('and nobody without one does', async () => {
     if (!available)
       return

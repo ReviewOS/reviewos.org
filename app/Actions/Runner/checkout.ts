@@ -14,6 +14,7 @@
 
 import { chmodSync, existsSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { GIT_MOUNT } from '../Git/storage'
 
 /** What a workflow asked for. Every field optional; the defaults are today's behaviour. */
 export interface CheckoutOptions {
@@ -240,9 +241,15 @@ export async function checkoutCode(input: {
    * `--no-hardlinks` so a step running `git gc` cannot write into the objects
    * everybody pushes to, no network, and no credential. On any other machine
    * there is nothing on disk, so it clones over the instance's ordinary git
-   * endpoint - the same URL a person would.
+   * endpoint - the same URL a person would, `GIT_MOUNT` included.
+   *
+   * It cloned from the unmounted `/<owner>/<name>.git`, which only the API
+   * process answers. A deployed instance puts the page process in front of
+   * the API and forwards it git under `/git` alone, so on every real
+   * instance the page process answered that clone with a 404 and every job on
+   * a runner off the instance's host failed at its checkout.
    */
-  const source = onHost ? bare : `${String(input.baseUrl ?? '').replace(/\/$/, '')}/${input.fullName}.git`
+  const source = onHost ? bare : `${String(input.baseUrl ?? '').replace(/\/$/, '')}${GIT_MOUNT}/${input.fullName}.git`
 
   if (!onHost && !input.baseUrl)
     return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
