@@ -1034,6 +1034,18 @@ export const tsCloud: TsCloudConfig = {
         // boolean, and this field is a string.
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
         /*
+         * The credential of the private mirrors declared with `credential:
+         * stacks` in mirrors.yml (stacksjs/hq.training, whose CI runs here).
+         *
+         * A fine-grained token scoped to those repositories - Contents: read
+         * to fetch them, Commit statuses: read and write to report their runs
+         * back - rather than widening `GITHUB_TOKEN`, which every public
+         * mirror's metadata sync shares. Referenced, never inlined; without
+         * it the private mirrors fail their fetch and say so on the mirror's
+         * row, and nothing public is affected.
+         */
+        MIRROR_TOKEN_STACKS: String(env.MIRROR_TOKEN_STACKS ?? ''),
+        /*
          * Where this site's `/api/**` proxy sends same-origin requests.
          *
          * Required, and its absence is why the whole API surface answered 502

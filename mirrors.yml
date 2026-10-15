@@ -26,6 +26,24 @@ mirrors:
   - remote: stacksjs/.github
     owner: stacks
 
+  # HQ.training, whose CI runs here instead of on GitHub Actions: the
+  # repository is private, so Actions bills it by the minute (~16 a push),
+  # while its runner here is one flat-rate box that takes this repository's
+  # jobs and nobody else's (`runner:local --register --repository`). The code
+  # stays on GitHub; every sync that moves a ref runs `.reviewos/workflows`
+  # and the verdict goes back to the commit as the status "ReviewOS / CI".
+  #
+  # Private here because it is private there, and read with its own
+  # fine-grained token (`MIRROR_TOKEN_STACKS`). The repository's push webhook
+  # starts CI at once; without it the sweep (every five minutes, this mirror
+  # due every minute) starts it within five.
+  - remote: stacksjs/hq.training
+    owner: stacks
+    credential: stacks
+    private: true
+    ci: true
+    interval: 60
+
   # `ReviewOS/.github` is deliberately absent: there is no such repository
   # upstream, and a declared mirror of a repository that does not exist is a
   # sweep that fails every fifteen minutes until it disables itself. This
