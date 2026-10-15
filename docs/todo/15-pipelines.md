@@ -387,10 +387,30 @@ written down here so it does not get relitigated:
 
       **Started is not ready**, and the health check is the point: Postgres accepts connections a
       second or two after the process exists, so a first step that connects immediately fails on a
-      fast machine and passes on a slow one. A service already running is used rather than
-      restarted and is not stopped afterwards - pantry's services belong to the machine, and
-      stopping one would take down the database another job on the same runner is mid-query
-      against.
+      fast machine and passes on a slow one.
+
+      **The rest of the block is honoured too**, which a real workflow (hq.training's CI) needed:
+      the tag's major version is pinned (`postgres:17-alpine` is a Postgres 17), `POSTGRES_USER`,
+      `POSTGRES_PASSWORD` and `POSTGRES_DB` create the role and database the way the official image
+      does (the MySQL variables likewise), `ports: ['5432:5432']` pins the host port, and
+      `--health-cmd`, `--health-interval`, `--health-timeout` and `--health-retries` are read out of
+      `options:`. Readiness is a protocol check - a Postgres login as that role, a Redis PING - and
+      then the workflow's own health command with the client tools pointed at this job's port.
+
+      **Every job's services are its own**: a pantry project in the temporary directory, its own data
+      directory and port, removed with its data when the job ends. It used to reuse whatever the
+      machine was running, which pointed a job's migrations at somebody else's database. A pinned
+      port something else holds now fails the job, saying what to change; an unpinned one is a free
+      port, in `$POSTGRES_PORT` and `${{ job.services.postgres.ports['5432'] }}`. Checked end to end
+      with Postgres 17 and Redis 7; MySQL does not come up through pantry 0.11.73 on macOS (8.x is
+      missing from its registry, the latest never turns healthy), a pantry gap the runner reports
+      with pantry's own error line.
+- [x] Orphan processes stopped at the end of every job, as Actions does. A step that writes
+      `server &` leaves a process that outlived the job and held its port against the next one.
+      Each step now leads its own process group, and every process also carries Actions'
+      `RUNNER_TRACKING_ID`; at the end of the job whatever still has either gets SIGTERM, five
+      seconds, then SIGKILL, with a line each in the log. A step ends when its shell exits rather
+      than when its output closes, so an unredirected `server &` no longer hangs it.
 
       The readiness check was verified against a live service on this machine, and the refusal path
       against a port nothing is on. Worth writing down from the same session: `pantry start
@@ -410,6 +430,11 @@ written down here so it does not get relitigated:
       own event rather than stored as written, and a new run in the same group moves the ones it
       replaces to `cancelling`. Push twice and the first run stops, which is the whole reason people
       write the key.
+
+      **As an expression too.** `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`
+      was read as "not `true`" and cancelled nothing. It is stored as written and answered at
+      dispatch against the run's own context, like the group, and one that cannot be answered
+      cancels nothing.
 
       `cancelling` rather than `cancelled`: a run already handed to a runner has to be told and has
       to acknowledge ([phase 9](./09-ci.md)), and the control plane does not get to claim an outcome
@@ -675,8 +700,12 @@ written down here so it does not get relitigated:
       rather than booleans (`inputs.name || 'default'` is the fallback idiom), an unknown property
       is null rather than an error, and an empty object is truthy.
 
-      `hashFiles` is **refused rather than answered**: it reads a checked-out tree this side does
-      not have, and a fake digest silently restores the wrong cache - a bug people chase for days.
+      `hashFiles` is **answered on the runner and refused everywhere else**. The runner has the
+      checkout and computes Actions' digest - the SHA-256 of each matched file's SHA-256, in path
+      order, empty when nothing matches, with `!` exclusions. The control plane has no working tree,
+      so the parser refuses it outside a step (Actions does the same), and on the runner a
+      `hashFiles` that cannot be answered fails the step: left as written it would be a cache key
+      that never changes, restoring the first entry ever saved forever.
 
       Property reads are own-properties only. `thing.toString` is null, not the host's function;
       the grammar cannot call anything outside the closed set, but a value that leaks a host
