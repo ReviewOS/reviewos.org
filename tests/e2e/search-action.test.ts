@@ -11,7 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, publicIssueId: 0, privateIssueId: 0, publicPullId: 0, privatePullId: 0, handle: '', term: '' }
+const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, privateName: '', publicIssueId: 0, privateIssueId: 0, publicPullId: 0, privatePullId: 0, handle: '', term: '' }
 
 let available = false
 let db: any
@@ -82,8 +82,11 @@ beforeAll(async () => {
   const issued: any = await createToken(created.outsiderId, 'search action test')
   created.outsiderToken = String(issued?.plainTextToken ?? issued?.token ?? issued)
 
-  for (const [key, visibility] of [['publicId', 'public'], ['privateId', 'private']] as const) {
-    const name = `${unique('repo')}${created.term}`
+  for (const [key, visibility] of [['privateId', 'private'], ['publicId', 'public']] as const) {
+    // Public names may contain the digits of a private id. Exercise that
+    // collision deliberately so privacy assertions inspect actual identities.
+    const name = `${unique('repo')}${visibility === 'public' ? created.privateId : ''}${created.term}`
+    if (visibility === 'private') created.privateName = name
     const row: any = await db
       .insertInto('repositories')
       .values({
@@ -230,7 +233,7 @@ describe('searching through the route', () => {
     const ids = body.results.map((r: any) => r.id)
     expect(ids).toContain(created.publicId)
     expect(ids).not.toContain(created.privateId)
-    expect(JSON.stringify(body)).not.toContain(String(created.privateId))
+    expect(JSON.stringify(body)).not.toContain(created.privateName)
   })
 
   test('and neither does an anonymous reader', async () => {
