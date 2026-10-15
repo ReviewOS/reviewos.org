@@ -2456,7 +2456,7 @@ function readEnvFile(path: string): Record<string, string> {
  * first, in the one place where being wrong means building against the wrong
  * compiler.
  */
-async function provideTools(workspace: string, say: (line: string) => Promise<void>): Promise<string> {
+export async function provideTools(workspace: string, say: (line: string) => Promise<void>, executable = 'pantry'): Promise<string> {
   const manifests = ['deps.yaml', 'deps.yml', 'dependencies.yaml', 'dependencies.yml', 'pkgx.yaml', 'pkgx.yml']
 
   if (!manifests.some(name => existsSync(join(workspace, name))))
@@ -2464,16 +2464,32 @@ async function provideTools(workspace: string, say: (line: string) => Promise<vo
 
   await say('::group::Toolchain\n')
 
-  const child = Bun.spawn(['pantry', 'env', '--install', '--json', '--dir', workspace], {
-    cwd: workspace,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    stdin: 'ignore',
-  })
+  /*
+   * A machine with no `pantry` at all is the ordinary case this was written
+   * for, and `Bun.spawn` throws for a missing executable rather than exiting
+   * non-zero - so the "said once and not fatal" branch below was never
+   * reached, and every job of a repository with a deps.yaml failed on such a
+   * machine before its first step.
+   */
+  let child: ReturnType<typeof Bun.spawn>
+  try {
+    child = Bun.spawn([executable, 'env', '--install', '--json', '--dir', workspace], {
+      cwd: workspace,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      stdin: 'ignore',
+    })
+  }
+  catch (error) {
+    await say(`This repository declares its tools, and pantry is not installed here (${error instanceof Error ? error.message : String(error)}); the job's own steps provide them.\n`)
+    await say('::endgroup::\n')
+
+    return ''
+  }
 
   const [out, error, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    new Response(child.stdout as ReadableStream).text(),
+    new Response(child.stderr as ReadableStream).text(),
     child.exited,
   ])
 
