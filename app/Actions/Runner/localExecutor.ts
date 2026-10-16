@@ -512,7 +512,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   }
 
   /**
-   * The timer that says "still here" while a step runs.
+   * The timer that says "still here" from preparation through the last step.
    *
    * Declared out here so the way out can stop it, whichever way out is taken:
    * a heartbeat landing after the conclusion is a machine claiming a job it has
@@ -522,6 +522,59 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   let pulse: ReturnType<typeof setInterval> | null = null
 
   /*
+   * What each step did, collected as it goes and sent with the conclusion.
+   *
+   * Collected rather than written as it happens because nothing reads a
+   * step's recorded result until its job is over - and a request per step
+   * would be forty of them carrying a few hundred bytes each.
+   */
+  const timings: StepTiming[] = []
+
+  /*
+   * How many of those results the control plane has.
+   *
+   * A step's result used to travel only with the conclusion, which is a
+   * result a crash loses - and "the runner died at step nine" is precisely
+   * the case restart-from-step is for. So each one goes up as it lands, on
+   * the heartbeat that was being sent anyway, and the conclusion carries
+   * whatever is left.
+   */
+  let sentThrough = 0
+
+  /** Hand up whatever has finished since the last time, and renew the lease. */
+  let heartbeatFailing = false
+  const handUpResults = async (): Promise<void> => {
+    const pending = timings.slice(sentThrough)
+    const answer: { held: boolean, recorded: number, refusal?: string } = await beat(options.baseUrl, jobToken, pending)
+      .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
+
+    /*
+     * Said, once per streak. A heartbeat that fails in silence is a lease
+     * that lapses while the job is still running, and the only trace was
+     * the instance failing the job as "stopped responding" - with the
+     * runner's own log saying nothing at all about why.
+     */
+    if (!answer.held && !heartbeatFailing) {
+      heartbeatFailing = true
+      const line = `The instance did not renew this job's lease: ${answer.refusal || 'no answer'}`
+      console.error(`job ${job.id}: ${line}`)
+      await send(`${line}\n`, 'stderr').catch(() => {})
+    }
+    else if (answer.held) {
+      heartbeatFailing = false
+    }
+
+    /*
+     * Only counted as sent when the answer came back. A lost answer means
+     * sending them again, which the control plane is built to accept: every
+     * field is stated rather than accumulated, so a second write of the same
+     * result is the same row.
+     */
+    if (answer.held)
+      sentThrough = timings.length
+  }
+
+  /*
    * The services this job started, held out here so the `finally` below can
    * put them away whichever way the job ends - a database left running per
    * failed job is how a runner runs out of ports.
@@ -529,6 +582,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   let jobServices: StartedService[] = []
 
   try {
+    // Preparation owns the lease too: a checkout, cache restore, tool install
+    // or hook can take longer than a workflow step. Keep one pulse throughout.
+    pulse = setInterval(() => { void handUpResults() }, Math.max(5000, (LEASE_SECONDS / 3) * 1000))
+    await handUpResults()
     await send(`Running job ${job.key} of run ${job.run?.number} on this host.\n`)
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
 
@@ -551,6 +608,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
     if (!bootstrap.ok) {
       await flush()
+      stopPulse()
       await report(options.baseUrl, jobToken, 'failed', bootstrap.reason)
       say(`job ${job.id} refused: ${bootstrap.reason}`)
 
@@ -580,6 +638,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
       if (!outcome.ok) {
         await flush()
+        stopPulse()
         await report(options.baseUrl, jobToken, 'failed', outcome.reason)
 
         return { jobId: Number(job.id), state: 'failed', reason: outcome.reason }
@@ -656,6 +715,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         })
 
     if (!checkout.ok) {
+      stopPulse()
       await report(options.baseUrl, jobToken, 'failed', checkout.reason)
       say(`job ${job.id} failed: ${checkout.reason}`)
 
@@ -769,6 +829,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     if (!started.ok) {
       await send(`${started.reason}\n`, 'stderr')
       await flush()
+      stopPulse()
       await report(options.baseUrl, jobToken, 'failed', started.reason)
       say(`job ${job.id} failed: ${started.reason}`)
 
@@ -817,6 +878,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
       if (!outcome.ok) {
         await flush()
+        stopPulse()
         await report(options.baseUrl, jobToken, 'failed', outcome.reason)
 
         return { jobId: Number(job.id), state: 'failed', reason: outcome.reason }
@@ -902,15 +964,6 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     let jobFailed = false
 
     /*
-     * What each step did, collected as it goes and sent with the conclusion.
-     *
-     * Collected rather than written as it happens because nothing reads a
-     * step's recorded result until its job is over - and a request per step
-     * would be forty of them carrying a few hundred bytes each.
-     */
-    const timings: StepTiming[] = []
-
-    /*
      * When the step before this one finished, so the gap can be attributed.
      *
      * Starts at the moment the steps began, which makes the first step's queue
@@ -944,60 +997,6 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
       previousFinishedAt = finished
     }
-
-    /*
-     * How many of those results the control plane has.
-     *
-     * A step's result used to travel only with the conclusion, which is a
-     * result a crash loses - and "the runner died at step nine" is precisely
-     * the case restart-from-step is for. So each one goes up as it lands, on
-     * the heartbeat that was being sent anyway, and the conclusion carries
-     * whatever is left.
-     */
-    let sentThrough = 0
-
-    /** Hand up whatever has finished since the last time, and renew the lease. */
-    let heartbeatFailing = false
-    const handUpResults = async (): Promise<void> => {
-      const pending = timings.slice(sentThrough)
-      const answer: { held: boolean, recorded: number, refusal?: string } = await beat(options.baseUrl, jobToken, pending)
-        .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
-
-      /*
-       * Said, once per streak. A heartbeat that fails in silence is a lease
-       * that lapses while the job is still running, and the only trace was
-       * the instance failing the job as "stopped responding" - with the
-       * runner's own log saying nothing at all about why.
-       */
-      if (!answer.held && !heartbeatFailing) {
-        heartbeatFailing = true
-        const line = `The instance did not renew this job's lease: ${answer.refusal || 'no answer'}`
-        console.error(`job ${job.id}: ${line}`)
-        await send(`${line}\n`, 'stderr').catch(() => {})
-      }
-      else if (answer.held) {
-        heartbeatFailing = false
-      }
-
-      /*
-       * Only counted as sent when the answer came back. A lost answer means
-       * sending them again, which the control plane is built to accept: every
-       * field is stated rather than accumulated, so a second write of the same
-       * result is the same row.
-       */
-      if (answer.held)
-        sentThrough = timings.length
-    }
-
-    /*
-     * And a heartbeat on a timer, for the step that takes longer than a lease.
-     *
-     * Without one, a job whose first step is a ten-minute build had its lease
-     * lapse at sixty seconds, was swept back into the queue, and ran a second
-     * time on another machine - while the first was still working. The runner
-     * never said it was alive because nothing ever asked it to.
-     */
-    pulse = setInterval(() => { void handUpResults() }, Math.max(5000, (LEASE_SECONDS / 3) * 1000))
 
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)

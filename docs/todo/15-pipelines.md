@@ -1120,6 +1120,13 @@ survive contact with a self-hosted forge unless we make it.
       those to a repository's script would make the runner a way to read every repository on the
       instance. `uses:` steps are skipped with a line saying so, since resolving an action is the
       next box rather than this one.
+- [x] Renew a job's lease throughout preparation, before workflow steps begin.
+
+      Hooks, checkout, cache restoration and tool installation can each outlast the lease. The
+      runner renews it before preparation and keeps one heartbeat timer through the step loop,
+      stopping before any terminal report. A slow checkout must not be reclaimed while its runner
+      is still working. The protocol regression holds a real checkout hook open until it receives
+      a heartbeat, then verifies that the workflow step and its result still complete normally.
 - [x] The interface says clearly when a run is queued because no runner matches, and which labels
       would have matched, instead of a spinner.
 
