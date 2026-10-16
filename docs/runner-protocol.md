@@ -10,7 +10,10 @@ can hold in their head is one they can debug at three in the morning with
 
 **If you do not want to write one**, this instance ships a runner that speaks it:
 `./buddy build:runner --target linux-x64` compiles the executor into a single
-file with nothing to install on the machine that runs it. See
+file with nothing to install on the machine that runs it. The compiled runner
+does not load `.env` or `bunfig.toml` from its working directory. Supply its URL
+and credential through command-line arguments or the runner service environment;
+application preload code must never execute before runner policy. See
 [self-hosting](./self-hosting.md#a-fleet). The rest of this page is for the case
 where you would rather write your own, which is a supported thing to do.
 

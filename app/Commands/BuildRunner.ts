@@ -61,6 +61,10 @@ export default function (cli: CLI) {
         'build',
         'app/Actions/Runner/standalone.ts',
         '--compile',
+        // A fleet runner must not execute an application's preload code or read
+        // its credentials merely because a job left that directory as cwd.
+        '--no-compile-autoload-dotenv',
+        '--no-compile-autoload-bunfig',
         ...(target ? ['--target', target] : []),
         '--outfile',
         outfile,

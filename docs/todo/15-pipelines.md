@@ -3312,3 +3312,7 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       may recover only within the existing lease.
       Resource-limit tests use disposable directories so different users and
       concurrent runs cannot collide on shared temporary files.
+- [x] Compiled fleet runners ignore working-directory dotenv files and Bun
+      configuration. An executable-level regression checks hostile preloads,
+      dotenv credentials, and explicit runner configuration against a local
+      control plane.
