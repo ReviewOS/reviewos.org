@@ -3306,3 +3306,7 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       (including ignored dependency trees), and invalidate older snapshots that included source.
       A warm-cache regression changes a helper and deletes a file without changing the lockfile,
       then proves both survive restoration.
+- [x] Host runners stop owned command groups when a lease is revoked or expires,
+      including checkout hooks and nested actions. Refused work reports cancellation
+      and cannot continue into later `always()` steps; transient heartbeat failures
+      may recover only within the existing lease.

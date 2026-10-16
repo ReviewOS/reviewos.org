@@ -51,6 +51,7 @@ import { hashFilesIn } from './hashFiles'
 import { cleanUpOrphans, installStopHandlers, pruneGroup, recordGroup, TRACKING_VARIABLE, trackingIdFor } from './orphans'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
+import { RunnerLease } from './lease'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
 import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
@@ -520,6 +521,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * process open after its work ended.
    */
   let pulse: ReturnType<typeof setInterval> | null = null
+  const lease = new RunnerLease()
 
   /*
    * What each step did, collected as it goes and sent with the conclusion.
@@ -545,8 +547,13 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   let heartbeatFailing = false
   const handUpResults = async (): Promise<void> => {
     const pending = timings.slice(sentThrough)
-    const answer: { held: boolean, recorded: number, refusal?: string } = await beat(options.baseUrl, jobToken, pending)
+    const answer: { held: boolean, recorded: number, refusal?: string, status?: number } = await beat(options.baseUrl, jobToken, pending)
       .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
+
+    if (answer.held)
+      lease.renew()
+    else
+      lease.refuse(answer.status, answer.refusal || 'no answer')
 
     /*
      * Said, once per streak. A heartbeat that fails in silence is a lease
@@ -570,8 +577,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * field is stated rather than accumulated, so a second write of the same
      * result is the same row.
      */
-    if (answer.held)
+    if (answer.held) {
       sentThrough = timings.length
+    }
+  }
+
+  const renewLease = async (): Promise<void> => {
+    await handUpResults()
+    lease.signal.throwIfAborted()
   }
 
   /*
@@ -585,7 +598,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     // Preparation owns the lease too: a checkout, cache restore, tool install
     // or hook can take longer than a workflow step. Keep one pulse throughout.
     pulse = setInterval(() => { void handUpResults() }, Math.max(5000, (LEASE_SECONDS / 3) * 1000))
-    await handUpResults()
+    await renewLease()
     await send(`Running job ${job.key} of run ${job.run?.number} on this host.\n`)
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
 
@@ -604,6 +617,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       runnerDirectory: options.hooksDirectory,
       plugins: installed,
       say: send,
+      signal: lease.signal,
     })
 
     if (!bootstrap.ok) {
@@ -632,6 +646,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         runnerDirectory: options.hooksDirectory,
         plugins: installed,
         say: send,
+        signal: lease.signal,
       })
 
       Object.assign(hookEnvironment, outcome.exported)
@@ -670,6 +685,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
             environment: { ...environmentFor(job, workspace), ...hookEnvironment },
             runnerDirectory: options.hooksDirectory,
             say: send,
+            signal: lease.signal,
           })
 
           Object.assign(hookEnvironment, outcome.exported)
@@ -704,7 +720,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
            * none of that machinery applies to a staging directory it is about to
            * copy and delete.
            */
-          run: runStep,
+          run: input => runStep({ ...input, signal: lease.signal, environment: { ...input.environment, [TRACKING_VARIABLE]: job.tracking_id } }),
           /*
            * A hook may have written here already - the `environment` stage runs
            * before the checkout precisely so a fleet can set things up - and
@@ -808,7 +824,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * "give me node 22": no image to bake, no registry, and a machine that
      * needs a different version tomorrow installs it rather than being rebuilt.
      */
-    const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text))
+    const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text), 'pantry', { signal: lease.signal, trackingId: job.tracking_id })
 
     /*
      * `services:` - a database beside the job, started with pantry.
@@ -872,6 +888,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         runnerDirectory: options.hooksDirectory,
         plugins: installed,
         say: send,
+        signal: lease.signal,
       })
 
       Object.assign(hookEnvironment, outcome.exported)
@@ -999,6 +1016,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
 
     for (const [index, step] of steps.entries()) {
+      lease.signal.throwIfAborted()
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
       const stepStartedAt = Date.now()
 
@@ -1066,7 +1084,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         timed(index, stepStartedAt, 0, 'skipped', null, decision.reason)
         }
 
-        await handUpResults()
+        await renewLease()
 
         continue
       }
@@ -1089,7 +1107,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           stepContext[String(step.id)] = { outputs: {}, outcome: 'failure', conclusion: step.continue_on_error ? 'success' : 'failure' }
 
         timed(index, stepStartedAt, 0, step.continue_on_error ? 'succeeded' : 'failed', null, refusal)
-        await handUpResults()
+        await renewLease()
 
         if (step.continue_on_error)
           continue
@@ -1193,6 +1211,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         const actionFiles = stepFiles(workspace, index)
 
         const result = await runAction({
+          signal: lease.signal,
           uses: String(step.uses),
           with: interpolateValues(step.with ?? {}, context),
           workspace,
@@ -1297,6 +1316,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const commandStartedAt = Date.now()
 
       const result = await runStep({
+        signal: lease.signal,
         /*
          * The expressions in a `run:` are filled in before the shell sees it.
          *
@@ -1400,7 +1420,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
        * run somebody can restart at step nine rather than one that looks as
        * though it never began.
        */
-      await handUpResults()
+      await renewLease()
 
       if (!result.ok) {
         if (step.continue_on_error) {
@@ -1435,6 +1455,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         runnerDirectory: options.hooksDirectory,
         plugins: installed,
         say: send,
+        signal: lease.signal,
       })
 
       Object.assign(hookEnvironment, outcome.exported)
@@ -1455,6 +1476,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       runnerDirectory: options.hooksDirectory,
       plugins: installed,
       say: send,
+      signal: lease.signal,
     })
 
     if (!afterCommand.ok && !failed)
@@ -1526,6 +1548,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         runnerDirectory: options.hooksDirectory,
         plugins: installed,
         say: send,
+        signal: lease.signal,
       })
 
       if (!outcome.ok && !failed)
@@ -1549,6 +1572,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         runnerDirectory: options.hooksDirectory,
         plugins: installed,
         say: send,
+        signal: lease.signal,
       })
 
       if (!outcome.ok && !failed)
@@ -1641,6 +1665,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * it has finished with, and the control plane cleared the lease when it
      * recorded the result.
      */
+    lease.signal.throwIfAborted()
     stopPulse()
 
     /*
@@ -1662,14 +1687,16 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * the sweep that reclaims it cannot know whether the work happened. Saying
      * "this failed, here is why" is both honest and terminal.
      */
-    const reason = error instanceof Error ? error.message : String(error)
+    const failure = lease.signal.aborted ? lease.signal.reason : error
+    const reason = failure instanceof Error ? failure.message : String(failure)
+    const state = lease.signal.aborted ? 'cancelled' : 'failed'
 
     stopPulse()
 
-    await report(options.baseUrl, jobToken, 'failed', reason).catch(() => {})
-    say(`job ${job.id} failed: ${reason}`)
+    await report(options.baseUrl, jobToken, state, reason).catch(() => {})
+    say(`job ${job.id} ${state}: ${reason}`)
 
-    return { jobId: Number(job.id), state: 'failed', reason }
+    return { jobId: Number(job.id), state, reason }
   }
   finally {
     stopPulse()
@@ -1688,6 +1715,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
   /** Stop the heartbeat timer, whichever way this job ended. */
   function stopPulse(): void {
+    lease.dispose()
     if (pulse === null)
       return
 
@@ -2382,6 +2410,7 @@ export interface HookOutcome {
  * else to put it.
  */
 async function runHooks(input: {
+  signal?: AbortSignal
   stage: HookStage
   job: any
   workspace: string
@@ -2390,6 +2419,7 @@ async function runHooks(input: {
   plugins?: readonly InstalledPlugin[]
   say: (text: string, stream?: 'stdout' | 'stderr') => Promise<void>
 }): Promise<HookOutcome> {
+  input.signal?.throwIfAborted()
   /*
    * A fork's hooks are not run at all. This runner refuses untrusted runs
    * outright, so this is a second line - and it is here so that the day the
@@ -2427,6 +2457,7 @@ async function runHooks(input: {
     await input.say(`::group::Hook ${input.stage} (${hook.plugin ? `plugin ${hook.plugin}` : hook.scope})\n`)
 
     const result = await runStep({
+      signal: input.signal,
       command: `${JSON.stringify(hook.path)}`,
       cwd: input.workspace,
       environment: {
@@ -2493,7 +2524,8 @@ function readEnvFile(path: string): Record<string, string> {
  * first, in the one place where being wrong means building against the wrong
  * compiler.
  */
-export async function provideTools(workspace: string, say: (line: string) => Promise<void>, executable = 'pantry'): Promise<string> {
+export async function provideTools(workspace: string, say: (line: string) => Promise<void>, executable = 'pantry', execution: { signal?: AbortSignal, trackingId?: string } = {}): Promise<string> {
+  execution.signal?.throwIfAborted()
   const manifests = ['deps.yaml', 'deps.yml', 'dependencies.yaml', 'dependencies.yml', 'pkgx.yaml', 'pkgx.yml']
 
   if (!manifests.some(name => existsSync(join(workspace, name))))
@@ -2508,27 +2540,30 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
    * reached, and every job of a repository with a deps.yaml failed on such a
    * machine before its first step.
    */
-  let child: ReturnType<typeof Bun.spawn>
+  let out = ''
+  let error = ''
+  let code: number
   try {
-    child = Bun.spawn([executable, 'env', '--install', '--json', '--dir', workspace], {
+    if (!Bun.which(executable)) throw new Error(`Executable not found: ${executable}`)
+    const result = await runStep({
+      signal: execution.signal,
+      argv: [executable, 'env', '--install', '--json', '--dir', workspace],
       cwd: workspace,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      stdin: 'ignore',
+      environment: { ...process.env as Record<string, string>, ...(execution.trackingId ? { [TRACKING_VARIABLE]: execution.trackingId } : {}) },
+      onOutput: async (text, stream) => {
+        if (stream === 'stdout') out += text
+        else error += text
+      },
     })
+    code = result.exitCode
   }
   catch (error) {
+    execution.signal?.throwIfAborted()
     await say(`This repository declares its tools, and pantry is not installed here (${error instanceof Error ? error.message : String(error)}); the job's own steps provide them.\n`)
     await say('::endgroup::\n')
 
     return ''
   }
-
-  const [out, error, code] = await Promise.all([
-    new Response(child.stdout as ReadableStream).text(),
-    new Response(child.stderr as ReadableStream).text(),
-    child.exited,
-  ])
 
   if (code !== 0) {
     /*
@@ -2727,6 +2762,7 @@ function runnerArch(): string {
  * this runner does not already have.
  */
 async function runAction(input: {
+  signal?: AbortSignal
   uses: string
   with: Record<string, unknown>
   workspace: string
@@ -2742,6 +2778,7 @@ async function runAction(input: {
   seen?: readonly string[]
 }): Promise<{ ok: boolean, reason: string }> {
   const depth = Number(input.depth ?? 0)
+  input.signal?.throwIfAborted()
   const seen = input.seen ?? []
 
   /*
@@ -2794,6 +2831,7 @@ async function runAction(input: {
     }
 
     return runContainer({
+      signal: input.signal,
       image: String(reference.image ?? ''),
       uses: input.uses,
       workspace: input.workspace,
@@ -2873,6 +2911,7 @@ async function runAction(input: {
 
   if (definition.kind === 'composite') {
     return runComposite(definition, input.workspace, environment, input.onOutput, {
+      signal: input.signal,
       // What a nested `uses:` needs to resolve the way this one did.
       job: input.job,
       policy: input.policy,
@@ -2884,7 +2923,7 @@ async function runAction(input: {
   }
 
   if (definition.kind === 'javascript')
-    return runJavaScript(definition, directory, input.workspace, environment, input.onOutput)
+    return runJavaScript(definition, directory, input.workspace, environment, input.onOutput, input.signal)
 
   if (definition.kind === 'docker') {
     const image = String(definition.image ?? '')
@@ -2907,6 +2946,7 @@ async function runAction(input: {
     }
 
     return runContainer({
+      signal: input.signal,
       image: image.slice('docker://'.length),
       uses: input.uses,
       workspace: input.workspace,
@@ -2936,6 +2976,7 @@ async function runAction(input: {
  * a job pass without doing the thing it exists to do.
  */
 async function runContainer(input: {
+  signal?: AbortSignal
   image: string
   uses: string
   workspace: string
@@ -2976,6 +3017,7 @@ async function runContainer(input: {
   await input.onOutput(`Running ${input.image} with ${runtime}.\n`, 'stdout')
 
   const result = await runStep({
+    signal: input.signal,
     argv,
     cwd: input.workspace,
     // The container's environment is passed with `--env`, so the runtime itself
@@ -2999,6 +3041,7 @@ async function runComposite(
   environment: Record<string, string>,
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
   nesting: {
+    signal?: AbortSignal
     job: any
     policy: ReturnType<typeof defaultPolicy>
     cacheRoot: string
@@ -3045,6 +3088,7 @@ async function runComposite(
       await onOutput(`::group::${name}\n`, 'stdout')
 
       const nested = await runAction({
+        signal: nesting.signal,
         uses: interpolate(step.uses, context),
         // Evaluated against this action's inputs, so a wrapper can pass its
         // own input down - which is most of what a wrapper is for.
@@ -3076,6 +3120,7 @@ async function runComposite(
     await onOutput(`::group::${name}\n`, 'stdout')
 
     const result = await runStep({
+      signal: nesting.signal,
       command: interpolate(step.run, context),
       /*
        * A composite step's working directory defaults to the *workspace*, not
@@ -3112,6 +3157,7 @@ async function runJavaScript(
   workspace: string,
   environment: Record<string, string>,
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
+  signal?: AbortSignal,
 ): Promise<{ ok: boolean, reason: string }> {
   const entry = join(directory, String(definition.main))
 
@@ -3126,6 +3172,7 @@ async function runJavaScript(
   await onOutput(`Running ${definition.main} with bun (the action asked for ${definition.runtime}).\n`, 'stdout')
 
   const result = await runStep({
+    signal,
     command: `bun ${JSON.stringify(entry)}`,
     cwd: workspace,
     environment,
@@ -3299,6 +3346,7 @@ function interpolateValues(values: Record<string, unknown>, context: ExpressionC
 
 /** Run one command, streaming its output as it arrives. */
 async function runStep(input: {
+  signal?: AbortSignal
   /** A shell command, for a `run:` step. */
   command?: string
   /**
@@ -3316,6 +3364,7 @@ async function runStep(input: {
   timeoutMs?: number
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<StepResult> {
+  input.signal?.throwIfAborted()
   /*
    * The ceilings, applied before the step's first instruction.
    *
@@ -3381,8 +3430,11 @@ async function runStep(input: {
   }
 
   let killed = false
+  let timedOut = false
+  let escalation: ReturnType<typeof setTimeout> | undefined
 
-  const timeout = setTimeout(() => {
+  const stop = (): void => {
+    if (killed) return
     killed = true
 
     // The whole group, so a step stopped for taking too long does not leave
@@ -3393,6 +3445,17 @@ async function runStep(input: {
     catch {
       child.kill()
     }
+    escalation = setTimeout(() => {
+      if (child.exitCode !== null) return
+      try { process.kill(-child.pid, 'SIGKILL') }
+      catch { child.kill('SIGKILL') }
+    }, 5000)
+  }
+  input.signal?.addEventListener('abort', stop, { once: true })
+  if (input.signal?.aborted) stop()
+  const timeout = setTimeout(() => {
+    timedOut = true
+    stop()
   }, input.timeoutMs ?? STEP_TIMEOUT_MS)
 
   try {
@@ -3417,7 +3480,7 @@ async function runStep(input: {
 
     pruneGroup(tracking, child.pid)
 
-    if (killed) {
+    if (timedOut) {
       /*
        * Said out loud, because a killed step exits with a signal and reads as
        * an ordinary failure otherwise - which sends somebody looking for the
@@ -3429,10 +3492,13 @@ async function runStep(input: {
       )
     }
 
+    input.signal?.throwIfAborted()
     return { ok: !killed && exitCode === 0, exitCode }
   }
   finally {
     clearTimeout(timeout)
+    clearTimeout(escalation)
+    input.signal?.removeEventListener('abort', stop)
   }
 }
 
@@ -3508,13 +3574,14 @@ function refusalText(error: unknown): string {
   return String(error ?? '').slice(0, 200)
 }
 
-async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Promise<{ held: boolean, recorded: number, refusal?: string }> {
+async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Promise<{ held: boolean, recorded: number, refusal?: string, status?: number }> {
   const answer = await post(baseUrl, '/api/runner/heartbeat', jobToken, {
     steps: steps.length > 0 ? steps : null,
   })
 
   return {
     held: answer.ok,
+    status: answer.status,
     recorded: Number(answer.body?.steps_recorded ?? 0) || 0,
     refusal: answer.ok ? undefined : `${answer.status} ${refusalText(answer.body?.error)}`.trim(),
   }
