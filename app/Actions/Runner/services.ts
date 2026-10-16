@@ -131,7 +131,7 @@ export const SERVICE_IMAGES: Record<string, { service: string, port: number, pac
   'elasticsearch': { service: 'elasticsearch', port: 9200 },
   'opensearch': { service: 'opensearch', port: 9200 },
   'meilisearch': { service: 'meilisearch', port: 7700 },
-  'typesense': { service: 'typesense', port: 8108 },
+  'typesense': { service: 'typesense', port: 8108, package: 'typesense.org' },
   'clickhouse': { service: 'clickhouse', port: 8123 },
   'cockroachdb': { service: 'cockroachdb', port: 26257 },
   'influxdb': { service: 'influxdb', port: 8086 },

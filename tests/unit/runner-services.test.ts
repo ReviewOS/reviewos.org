@@ -79,6 +79,13 @@ describe('what an image means', () => {
 })
 
 describe('resolving a job\'s services', () => {
+  test('installs the Typesense package for a clean runner and honors its image version', () => {
+    const decision = resolveServices([{ name: 'search', image: 'typesense/typesense:30.2', env: {} }])
+    expect(decision.ok).toBe(true)
+    if (!decision.ok) throw new Error(decision.reason)
+    expect(decision.services[0]).toMatchObject({ service: 'typesense', package: 'typesense.org', version: '30', containerPort: 8108 })
+  })
+
   test('the ones this runner can serve', () => {
     const decision = resolveServices([
       { name: 'db', image: 'postgres:16', env: {} },

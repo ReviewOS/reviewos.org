@@ -1127,6 +1127,11 @@ survive contact with a self-hosted forge unless we make it.
       stopping before any terminal report. A slow checkout must not be reclaimed while its runner
       is still working. The protocol regression holds a real checkout hook open until it receives
       a heartbeat, then verifies that the workflow step and its result still complete normally.
+- [x] Install the Typesense service package on clean runners and honor the requested image major.
+
+      A service mapping without its package could only start when an operator had already
+      installed its binary. Typesense now resolves through `typesense.org`, so the job owns its
+      installation, port and data directory, just as database services do.
 - [x] The interface says clearly when a run is queued because no runner matches, and which labels
       would have matched, instead of a spinner.
 
