@@ -3310,3 +3310,5 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       including checkout hooks and nested actions. Refused work reports cancellation
       and cannot continue into later `always()` steps; transient heartbeat failures
       may recover only within the existing lease.
+      Resource-limit tests use disposable directories so different users and
+      concurrent runs cannot collide on shared temporary files.

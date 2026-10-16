@@ -10,10 +10,20 @@
 // string, because a limit that is spelled correctly and does nothing is exactly
 // the failure this file exists to catch.
 
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { limitPrelude, limitedArgv, limitedCommand, limitsFrom } from '../../app/Actions/Runner/limits'
 
 const none = { memoryMb: 0, processes: 0, fileSizeMb: 0, cpuSeconds: 0 }
+const fixtures: string[] = []
+function fixture(): string {
+  const directory = mkdtempSync(join(tmpdir(), 'reviewos-step-limits-'))
+  fixtures.push(directory)
+  return directory
+}
+afterEach(() => fixtures.splice(0).forEach(directory => rmSync(directory, { recursive: true, force: true })))
 
 describe('the settings', () => {
   test('are generous by default, because a limit that trips on ordinary work is one an operator removes', () => {
@@ -133,7 +143,7 @@ describe('what the ceilings actually do', () => {
     )
 
     const child = Bun.spawn(['/bin/sh', '-c', command], {
-      cwd: '/tmp',
+      cwd: fixture(),
       stdout: 'ignore',
       stderr: 'ignore',
     })
@@ -150,7 +160,7 @@ describe('what the ceilings actually do', () => {
     )
 
     const child = Bun.spawn(['/bin/sh', '-c', command], {
-      cwd: '/tmp',
+      cwd: fixture(),
       stdout: 'ignore',
       stderr: 'ignore',
     })
@@ -170,7 +180,7 @@ describe('what the ceilings actually do', () => {
     )
 
     const child = Bun.spawn(['/bin/sh', '-c', command], {
-      cwd: '/tmp',
+      cwd: fixture(),
       stdout: 'ignore',
       stderr: 'ignore',
     })
