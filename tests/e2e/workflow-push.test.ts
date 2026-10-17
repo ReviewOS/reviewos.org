@@ -814,6 +814,26 @@ jobs:
       .execute()
 
     expect(jobs.every(job => String(job.state) === 'cancelled')).toBe(true)
+
+    // An active build holds later commits in `waiting`, not `queued`.
+    // A fourth commit should replace that pending third commit while leaving
+    // the active build and its remaining jobs alone.
+    await db.updateTable('workflow_runs').set({ state: 'running' }).where('id', '=', Number(both[1].id)).execute()
+    await push('skip/three.txt', 'three\n')
+    const held = await waitFor(runsFor, (rows: any[]) => rows.length === 3 && String(rows[2].state) === 'waiting')
+    expect(held[2].state).toBe('waiting')
+    await push('skip/four.txt', 'four\n')
+    const latest = await waitFor(runsFor, (rows: any[]) => rows.length === 4 && String(rows[2].state) === 'cancelled')
+    expect(latest.map(row => String(row.state))).toEqual(['cancelled', 'running', 'cancelled', 'waiting'])
+    const heldJobs = await db.selectFrom('workflow_jobs').select(['state']).where('workflow_run_id', '=', Number(held[2].id)).execute()
+    expect(heldJobs.every((job: any) => String(job.state) === 'cancelled')).toBe(true)
+    const activeJobs = await db.selectFrom('workflow_jobs').select(['state']).where('workflow_run_id', '=', Number(both[1].id)).execute()
+    expect(activeJobs.every((job: any) => String(job.state) !== 'cancelled')).toBe(true)
+    await db.updateTable('workflow_jobs').set({ state: 'succeeded', finished_at: new Date().toISOString() }).where('workflow_run_id', '=', Number(both[1].id)).execute()
+    const { settleRun } = await import('../../app/Actions/Workflow/settle')
+    await settleRun(Number(both[1].id))
+    const released = await waitFor(runsFor, (rows: any[]) => String(rows[3]?.state) === 'queued')
+    expect(released.map(row => String(row.state))).toEqual(['cancelled', 'succeeded', 'cancelled', 'queued'])
   }, 30_000)
 
   /*

@@ -755,6 +755,11 @@ somebody reads, while the queued ones would produce two that nobody does. A
 skipped run is `cancelled` outright rather than `cancelling` - nothing had taken
 it, so there is no machine to tell - with the reason on the run.
 
+The latest pending run waits for the active build to finish. Replacement
+includes runs held in `waiting` behind the concurrency group. If a runner
+claims a pending run during replacement, the active run and its remaining jobs
+are preserved.
+
 **Actions has `cancel` only**, through `concurrency.cancel-in-progress`.
 
 ## Toolchains, instead of container images

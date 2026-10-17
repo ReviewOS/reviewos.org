@@ -1753,6 +1753,9 @@ output, which covers the common case and nothing else.
 
       It takes `workflow:dispatch` rather than repository administration: the person who needs to
       stop a workflow failing at three in the morning is the person on call, not the owner.
+- [x] Skip concurrency-held `waiting` runs as well as `queued` runs when a newer
+      commit arrives under `intermediate: skip`; preserve an active run and its
+      remaining jobs if a runner claims it during replacement.
 - [x] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
       minute on the same branch, do not run all three
 

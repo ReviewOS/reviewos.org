@@ -912,11 +912,11 @@ async function supersede(
       .where('id', '!=', runId)
       // Not started: no runner has taken any of its jobs. A run that is
       // `running` is one somebody is already waiting on.
-      .where('state', '=', 'queued')
+      .where('state', 'in', ['queued', 'waiting'])
       .execute()
 
     for (const run of waiting) {
-      await db
+      const cancelled = await db
         .updateTable('workflow_runs')
         .set({
           state: 'cancelled',
@@ -924,8 +924,14 @@ async function supersede(
           conclusion_reason: 'Skipped: a newer commit arrived before this run started.',
         })
         .where('id', '=', Number(run.id))
-        .where('state', '=', 'queued')
-        .execute()
+        .where('state', 'in', ['queued', 'waiting'])
+        .returning(['id'])
+        .executeTakeFirst()
+
+      // A runner may have claimed the run since the selection above. Its
+      // remaining jobs belong to that active run and must stay executable.
+      if (!cancelled)
+        continue
 
       await db
         .updateTable('workflow_jobs')
@@ -979,10 +985,10 @@ async function holdForGroup(input: {
   cancelInProgress: boolean
   intermediate: string
 }): Promise<boolean> {
-  // Only the plain case. `cancel` and `skip` have already decided what happens
-  // to the runs around this one, and holding on top of either would be two
-  // policies fighting over the same group.
-  if (!input.group || input.cancelInProgress || input.intermediate !== 'run')
+  // Both `run` and `skip` preserve a build that has started. The latest
+  // pending run must wait for it; skipping older pending runs does not grant
+  // permission to deploy beside the active one.
+  if (!input.group || input.cancelInProgress || input.intermediate === 'cancel')
     return false
 
   const ahead = await db
