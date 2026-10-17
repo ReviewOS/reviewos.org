@@ -68,7 +68,9 @@ export function limitsFrom(env: Record<string, string | undefined> = process.env
     // Off by default: see the note on the field. A per-user ceiling applied to
     // a build counts everything else the user is doing.
     processes: positive(env.CI_STEP_PROCESSES, 0),
-    fileSizeMb: positive(env.CI_STEP_FILE_SIZE_MB, 4096),
+    // Native Android devices create a 6 GiB raw data image before booting.
+    // Keep a bounded ceiling that permits that ordinary build workload.
+    fileSizeMb: positive(env.CI_STEP_FILE_SIZE_MB, 8192),
     // Zero by default: CPU seconds and wall time bound different things, and a
     // build that legitimately uses eight cores for two minutes has spent
     // sixteen CPU minutes without being slow. An operator who wants this knows
