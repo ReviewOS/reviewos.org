@@ -23,7 +23,7 @@
  */
 
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { tmpdir, userInfo } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fetchAction } from './actionCache'
@@ -2617,6 +2617,7 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
 export function environmentFor(job: any, workspace: string): Record<string, string> {
   const run = job?.run ?? {}
   const ref = String(run.ref ?? '')
+  const username = process.env.USER || process.env.LOGNAME || userInfo().username
 
   const shared: Record<string, string> = {
     WORKSPACE: workspace,
@@ -2663,6 +2664,10 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     PATH: process.env.PATH ?? '/usr/bin:/bin',
     HOME: process.env.HOME ?? workspace,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
+    // Native tools such as XcodeGen need the local account, independently of
+    // the workflow actor. Keep the rest of the host environment private.
+    USER: username,
+    LOGNAME: process.env.LOGNAME || username,
     CI: 'true',
     GITHUB_ACTIONS: 'true',
     REVIEWOS: 'true',

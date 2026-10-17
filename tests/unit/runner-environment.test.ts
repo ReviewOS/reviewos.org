@@ -7,6 +7,7 @@
 // that reads an empty event payload does nothing at all.
 
 import { describe, expect, test } from 'bun:test'
+import { userInfo } from 'node:os'
 import { environmentFor } from '../../app/Actions/Runner/localExecutor'
 import { eventPayload } from '../../app/Actions/Workflow/eventPayload'
 
@@ -104,6 +105,14 @@ describe('the default environment', () => {
     // else's branch.
     expect(environment.RUNNER_TEMP).toContain('/w/')
     expect(environment.RUNNER_TOOL_CACHE).toContain('/w/')
+  })
+
+  test('native build tools can identify the operating system account independently of the workflow actor', () => {
+    const environment = environmentFor(job, '/w')
+
+    expect(environment.USER).toBe(userInfo().username)
+    expect(environment.LOGNAME).toBe(userInfo().username)
+    expect(environment.GITHUB_ACTOR).toBe('ada')
   })
 
   test('and none of the control plane\'s own environment comes with it', () => {
