@@ -2043,8 +2043,9 @@ guards it.
       one job stops it being handed out rather than passing it round the fleet forever.
 
 - [x] Journal temporary runner workspaces through Stacks storage and persist each
-      authenticated job claim. Retire only controller-confirmed terminal jobs
-      owned by that runner, after process and service shutdown are verified.
+      authenticated job claim in the PostgreSQL and MySQL schemas. Retire only
+      controller-confirmed terminal jobs owned by that runner, after process and
+      service shutdown are verified.
       Share the preview/apply maintenance command with the standalone binary,
       preserve unknown or busy workspaces, and compile without working-directory
       dotenv or preload execution.

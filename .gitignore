@@ -66,13 +66,9 @@ storage/framework/stx/
 storage/framework/runtime/
 storage/cloud/
 
-# Model snapshots for dialects this project does not use. The postgres one is
-# committed on purpose - it is what `generate:migrations` diffs against - but a
-# `bun test` run exercises fixtures on other dialects and drops their snapshots
-# here too. A stray mysql snapshot is worse than untidy: the dialect-mismatch
-# guard sees postgres with no snapshot and mysql with one, concludes the
-# environment is misconfigured, and refuses to generate migrations at all.
-storage/framework/database/model-snapshot.mysql.json
+# Commit the PostgreSQL and MySQL model snapshots with their migration corpora.
+# Both engines run in CI; each incremental generator needs its own baseline.
+# SQLite snapshots belong only to development and test fixtures.
 storage/framework/database/model-snapshot.sqlite.json
 
 # The repositories themselves. These are user data on a running instance and
