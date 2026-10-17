@@ -946,6 +946,8 @@ cannot talk back to the runner is a workflow that fails on its second line.
       Nesting - a composite step that itself `uses:` something - is refused with a message rather
       than followed, because doing it without the depth limit and cycle check the
       reusable-workflow path already has is the version that recurses forever.
+- [x] Re-running a trigger starts a fresh child for that attempt and preserves the failed child.
+      Verified against PostgreSQL by claiming and reporting each child through the runner protocol.
 - [x] JavaScript actions use a neutral Bun configuration and no automatic dotenv loading,
       preserving the workflow workspace and explicit environment. A repository preload cannot
       boot its application before dependencies are installed. Verified through the runner job

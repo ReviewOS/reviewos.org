@@ -708,12 +708,13 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
 async function startTrigger(runId: number, jobId: number, now: Date): Promise<void> {
   const job = await db
     .selectFrom('workflow_jobs')
-    .select(['settings', 'job_id'])
+    .select(['settings', 'job_id', 'attempt'])
     .where('id', '=', jobId)
     .executeTakeFirst()
 
   const settings = settingsOf(job)
   const wanted = String(settings.workflow ?? '').trim()
+  const attempt = Number(job?.attempt ?? 1)
 
   const run = await db
     .selectFrom('workflow_runs')
@@ -815,7 +816,8 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
        * two triggers from two runs of the same commit are two runs.
        */
       event: 'workflow_trigger',
-      event_ref: `${String(run.event_ref ?? '')}#trigger/${runId}/${String(job?.job_id ?? '')}`,
+      // Retries get a fresh child identity while initial-attempt refs stay stable.
+      event_ref: `${String(run.event_ref ?? '')}#trigger/${runId}/${String(job?.job_id ?? '')}${attempt > 1 ? `/attempt/${attempt}` : ''}`,
       head_sha: String(run.head_sha ?? ''),
       definition_sha: String(run.head_sha ?? ''),
       /*

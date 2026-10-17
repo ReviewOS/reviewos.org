@@ -12,7 +12,8 @@ import { hashToken } from '../../app/Actions/Runner/authenticate'
 import { claimNextJob } from '../../app/Actions/Runner/claim'
 import { splitLabels } from '../../app/Actions/Runner/protocol'
 import { reportJob } from '../../app/Actions/Runner/report'
-import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
+import { dispatchPush, startRun } from '../../app/Actions/Workflow/dispatch'
+import { rerunRun } from '../../app/Actions/Workflow/rerun'
 import { settleRun } from '../../app/Actions/Workflow/settle'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 import { isTrue } from '../../app/Actions/Support/sql'
@@ -97,7 +98,7 @@ async function runnerFacts(id: number) {
   }
 }
 
-async function makeRunner(): Promise<any> {
+async function makeRunner(labels = 'ubuntu-latest'): Promise<any> {
   const row: any = await db
     .insertInto('runners')
     .values({
@@ -105,7 +106,7 @@ async function makeRunner(): Promise<any> {
       scope_type: 'repository',
       scope_id: created.repositoryId,
       token_hash: hashToken(unique('tok')),
-      labels: 'ubuntu-latest',
+      labels,
       state: 'active',
     })
     .returning(['id'])
@@ -1168,5 +1169,75 @@ jobs:
 
     // And the deploy is not, because it never asked for that.
     expect(String(jobNamed(rows, 'deploy').state)).toBe('skipped')
+  }, 120_000)
+})
+
+
+describe('retrying an awaiting trigger', () => {
+  test('starts a fresh child for the new attempt and preserves the failed child', async () => {
+    expect(available).toBe(true)
+    // Earlier cases leave queued fixtures. Close only this fixture repository's
+    // unfinished jobs so the runner can claim this pipeline deterministically.
+    const earlier = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    if (earlier.length > 0) {
+      await db.updateTable('workflow_jobs').set({ state: 'cancelled', finished_at: new Date().toISOString() })
+        .where('workflow_run_id', 'in', earlier.map((row: any) => Number(row.id)))
+        .where('state', 'in', ['blocked', 'queued', 'running', 'paused']).execute()
+    }
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId,
+      path: '.github/workflows/retry-child.yml', sha: '9e'.repeat(20),
+      source: `name: Retry child
+on: workflow_dispatch
+jobs:
+  say:
+    runs-on: trigger-retry-fixture
+    steps:
+      - run: echo checked
+`,
+    })
+    const version = await syncWorkflowFile({
+      repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId,
+      path: '.github/workflows/retry-trigger.yml', sha: '9e'.repeat(20),
+      source: `name: Retry trigger
+on: workflow_dispatch
+jobs:
+  verify:
+    reviewos:
+      trigger:
+        workflow: Retry child
+        await: true
+`,
+    })
+    expect(version.ok).toBe(true)
+    const runId = await startRun({ values: {
+      workflow_version_id: version.versionId, repository_id: created.repositoryId, number: 9901,
+      state: 'queued', event: 'workflow_dispatch', event_ref: 'refs/heads/main',
+      head_sha: '9e'.repeat(20), definition_sha: '9e'.repeat(20), trusted: true,
+    }, versionId: Number(version.versionId) })
+    const original = jobNamed(await jobsOf(runId), 'verify')
+    expect(original.state).toBe('running')
+    const firstChild = Number(original.triggered_run_id)
+    const firstJob = (await jobsOf(firstChild))[0]!
+    const runner = await makeRunner('trigger-retry-fixture')
+    const firstClaim = await claimNextJob(runner)
+    expect(firstClaim?.jobId).toBe(Number(firstJob.id))
+    await reportJob(runner, { jobId: firstClaim!.jobId, state: 'failed', exitStatus: 1 })
+    expect(await runState(runId)).toBe('failed')
+
+    const retry = await rerunRun({ runId, scope: 'failed' })
+    expect(retry).toMatchObject({ ok: true, attempt: 2, jobs: 1 })
+    const repeated = jobNamed(await jobsOf(runId), 'verify')
+    expect(repeated.state).toBe('running')
+    expect(Number(repeated.attempt)).toBe(2)
+    const secondChild = Number(repeated.triggered_run_id)
+    expect(secondChild).not.toBe(firstChild)
+    expect(await runState(firstChild)).toBe('failed')
+    const secondJob = (await jobsOf(secondChild))[0]!
+    const secondClaim = await claimNextJob(runner)
+    expect(secondClaim?.jobId).toBe(Number(secondJob.id))
+    await reportJob(runner, { jobId: secondClaim!.jobId, state: 'succeeded' })
+    expect(await runState(secondChild)).toBe('succeeded')
+    expect(await runState(runId)).toBe('succeeded')
   }, 120_000)
 })
