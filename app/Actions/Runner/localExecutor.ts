@@ -3414,6 +3414,8 @@ async function runStep(input: {
   recordGroup(tracking, child.pid)
 
   const readers: Array<ReadableStreamDefaultReader<Uint8Array>> = []
+  let outputFailed = false
+  let delivering = 0
 
   const pump = async (stream: ReadableStream<Uint8Array> | null, name: 'stdout' | 'stderr'): Promise<void> => {
     if (!stream)
@@ -3431,11 +3433,17 @@ async function runStep(input: {
         if (done)
           break
 
-        await input.onOutput(decoder.decode(value), name)
+        delivering++
+        try { await input.onOutput(decoder.decode(value), name) }
+        finally { delivering-- }
       }
     }
     catch {
-      // Cancelled below, once the step has exited and stopped writing.
+      // A failed delivery must not abandon a live pipe: a verbose child would
+      // block writing to it forever, while the runner kept renewing its lease.
+      // Stop this command rather than reporting success with missing output.
+      outputFailed = true
+      stop()
     }
   }
 
@@ -3485,10 +3493,23 @@ async function runStep(input: {
      */
     await Promise.race([pumping, Bun.sleep(OUTPUT_DRAIN_MS)])
 
+    // Background writers retain the fixed grace above. If delivery is still
+    // pending at its end, cancelling could discard buffered command output;
+    // that is an unproven result, never a successful step.
+    if (delivering > 0)
+      outputFailed = true
+
     for (const reader of readers)
       await reader.cancel().catch(() => {})
 
+    // Cancelling a reader closes pending reads, but an output delivery may
+    // still be retrying. Its result belongs to this step's conclusion too.
+    await pumping
+
     pruneGroup(tracking, child.pid)
+
+    if (outputFailed)
+      throw new Error('The step output could not be delivered; the command was stopped.')
 
     if (timedOut) {
       /*
@@ -3551,31 +3572,31 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
    * part where something went wrong with nothing to say it happened.
    *
    * Bounded, because a runner that waits forever on a server that keeps saying
-   * no is a job nobody can cancel. After a few tries the chunk is let go and
-   * the job carries on: losing a line is bad, and stalling a machine is worse.
+   * no is a job nobody can cancel. Exhaustion fails the command: missing logs
+   * must not turn an unverified result into a successful job.
    */
   for (let attempt = 0; attempt < 5; attempt++) {
     let answer: Awaited<ReturnType<typeof post>>
-
     try {
       answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
     }
-    catch {
-      // A transport error must not escape into the output pump: that stops
-      // reading the pipe and eventually blocks the command writing to it.
-      if (attempt === 4) {
-        console.error(`Could not deliver log sequence ${sequence} after five attempts; continuing to drain command output.`)
-        return
-      }
-
-      await Bun.sleep(Math.min(2000, 200 * 2 ** attempt))
+    catch (error) {
+      // The instance can restart while a step writes. Retry this same sequence
+      // so a lost response neither duplicates output nor closes its reader.
+      if (attempt === 4) throw error
+      await Bun.sleep(200 * 2 ** attempt)
       continue
     }
 
-    if (answer.ok || !answer.body?.retry_after_ms)
-      return
+    if (answer.ok) return
 
-    await new Promise(resolve => setTimeout(resolve, Math.min(2000, Number(answer.body.retry_after_ms) || 200)))
+    if (!answer.body?.retry_after_ms && answer.status < 500 && ![408, 429].includes(answer.status))
+      throw new Error(`The instance refused step output (HTTP ${answer.status}).`)
+
+    if (attempt === 4)
+      throw new Error('The instance did not accept step output after five attempts.')
+
+    await Bun.sleep(Math.min(2000, Number(answer.body?.retry_after_ms) || 200 * 2 ** attempt))
   }
 }
 

@@ -3322,6 +3322,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       configuration. An executable-level regression checks hostile preloads,
       dotenv credentials, and explicit runner configuration against a local
       control plane.
-- [x] A transient log connection failure retries the same sequence without
-      abandoning the command's output pipe. A real connection-drop regression
-      proves a noisy command completes and its first and last messages arrive.
+- [x] A control-plane restart retries log chunks with their original sequence.
+      Connection drops and proxy failures are covered by real HTTP regressions,
+      including lost acknowledgments. Undeliverable output stops the owned
+      command and fails the job rather than abandoning its pipe or reporting
+      success with unverified buffered output.

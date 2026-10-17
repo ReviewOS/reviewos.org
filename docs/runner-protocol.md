@@ -17,6 +17,13 @@ application preload code must never execute before runner policy. See
 [self-hosting](./self-hosting.md#a-fleet). The rest of this page is for the case
 where you would rather write your own, which is a supported thing to do.
 
+The shipped runner retries failed log deliveries with the original sequence,
+including connection failures and temporary proxy errors. It makes at most five
+attempts. A command whose output cannot be delivered fails and is stopped;
+output loss never counts as success. After a command exits, background-held
+output pipes retain a two-second grace. If a delivery is still pending at that
+boundary, the job fails because buffered command output cannot be verified.
+
 ## Registering a runner
 
 A runner is a row an operator creates, with a token it holds and a scope that
