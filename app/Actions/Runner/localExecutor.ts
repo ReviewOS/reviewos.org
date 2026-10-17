@@ -729,6 +729,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
            * instance's host could not check out a private repository at all.
            */
           cloneToken: options.cloneToken || String(job.token ?? '') || undefined,
+          jobToken: String(job.token ?? '') || undefined,
           // What the job asked for: a depth, sparse paths, submodules, LFS, or
           // no checkout at all.
           options: (job.checkout ?? undefined) as CheckoutOptions | undefined,

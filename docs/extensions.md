@@ -577,6 +577,13 @@ There is no `clean`, and its absence is a property of this runner rather than an
 omission: every job gets a workspace of its own, so there is nothing left over
 to clean.
 
+Host jobs can continue reading their private origin after checkout, including
+`git ls-remote` for deployment revision checks. A helper scoped to that origin
+uses the job's read-only credential, which expires with its lease. The token is
+absent from the remote URL and Git configuration, and an operator's clone token
+is never retained. The helper is removed with the ephemeral workspace. Isolated
+microVM payloads continue to contain no clone or job credentials.
+
 Anything malformed is refused rather than ignored - a checkout that quietly did
 something other than what the file said is a build against the wrong tree, which
 is the one failure where the logs look fine.

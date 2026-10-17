@@ -12,7 +12,7 @@
  * where nobody can call it means the quoting is tested by running builds.
  */
 
-import { chmodSync, existsSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { GIT_MOUNT } from '../Git/storage'
 
@@ -199,6 +199,8 @@ export async function checkoutCode(input: {
   workspace: string
   baseUrl?: string
   cloneToken?: string
+  /** Host jobs may keep reading their own origin while this job's lease is live. Never an operator token. */
+  jobToken?: string
   /** What the workflow asked for, when it asked. */
   options?: CheckoutOptions
   /** False when a hook has already written into the workspace. */
@@ -267,30 +269,61 @@ export async function checkoutCode(input: {
 
   await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)} (${plan.summary})\n`, 'stdout')
 
-  const clone = await input.run({
-    // Joined with `&&`: each step of a checkout depends on the one before it,
-    // and a sparse-checkout that failed followed by a fetch that succeeded is a
-    // build against the wrong tree with a green checkout above it.
-    command: plan.commands.join(' && '),
-    cwd: input.workspace,
-    environment: {
-      PATH: process.env.PATH ?? '/usr/bin:/bin',
-      HOME: input.workspace,
-      GIT_TERMINAL_PROMPT: '0',
-      /*
-       * The credential, when there is one, through an askpass helper rather
-       * than in the URL: a token in a remote URL is written into
-       * `.git/config`, which is inside the workspace a step can read.
-       */
-      ...(input.cloneToken && !onHost
-        ? {
-            GIT_ASKPASS: askpassFor(input.workspace, input.cloneToken),
-            GIT_CONFIG_PARAMETERS: `'credential.helper='`,
-          }
-        : {}),
-    },
-    onOutput: input.onOutput,
-  })
+  const askpass = input.cloneToken && !onHost ? askpassFor(input.workspace, input.cloneToken) : undefined
+  let clone: { ok: boolean, exitCode: number }
+  try {
+    clone = await input.run({
+      // Joined with `&&`: each step of a checkout depends on the one before it,
+      // and a sparse-checkout that failed followed by a fetch that succeeded is a
+      // build against the wrong tree with a green checkout above it.
+      command: plan.commands.join(' && '),
+      cwd: input.workspace,
+      environment: {
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        HOME: input.workspace,
+        GIT_TERMINAL_PROMPT: '0',
+        /*
+         * The credential, when there is one, through an askpass helper rather
+         * than in the URL: a token in a remote URL is written into
+         * `.git/config`, which is inside the workspace a step can read.
+         */
+        ...(askpass
+          ? {
+              GIT_ASKPASS: askpass,
+              GIT_CONFIG_PARAMETERS: `'credential.helper='`,
+            }
+          : {}),
+      },
+      onOutput: input.onOutput,
+    })
+  }
+  finally {
+    if (askpass)
+      rmSync(askpass, { force: true })
+  }
+
+  if (clone.ok && !onHost && input.jobToken) {
+    // Git reads origin again for deployment freshness checks, tags and fetches.
+    // A URL-scoped helper keeps that read authenticated without putting a token
+    // in the remote or configuration. Only the job's expiring, read-only token
+    // is retained; the operator's clone credential never enters the checkout.
+    const helper = join(input.workspace, '.git', 'reviewos-credential-helper')
+    writeFileSync(helper, `#!/bin/sh\nif [ "$1" = get ]; then\n  printf '%s\\n' 'username=x-job' ${shellQuote(`password=${input.jobToken}`)}\nfi\n`, { mode: 0o700 })
+    chmodSync(helper, 0o700)
+    const credential = `credential.${source}`
+    const configured = await input.run({
+      command: [
+        `git config --local ${shellQuote(`${credential}.useHttpPath`)} true`,
+        `git config --local --add ${shellQuote(`${credential}.helper`)} ''`,
+        `git config --local --add ${shellQuote(`${credential}.helper`)} ${shellQuote('!sh "$(git rev-parse --git-path reviewos-credential-helper)"')}`,
+      ].join(' && '),
+      cwd: input.workspace,
+      environment: { PATH: process.env.PATH ?? '/usr/bin:/bin', GIT_TERMINAL_PROMPT: '0' },
+      onOutput: input.onOutput,
+    })
+    if (!configured.ok)
+      clone = configured
+  }
 
   await input.onOutput('::endgroup::\n', 'stdout')
 
@@ -302,8 +335,8 @@ export async function checkoutCode(input: {
 /**
  * A one-line askpass script holding the clone credential.
  *
- * Outside the workspace, mode 0700, and removed with the workspace's parent
- * when the job ends. The alternative - `https://token@host/...` - writes the
+ * Outside the workspace, mode 0700, and removed as soon as checkout finishes.
+ * The alternative - `https://token@host/...` - writes the
  * credential into `.git/config` *inside the checkout*, where the repository's
  * own steps can read it.
  */
