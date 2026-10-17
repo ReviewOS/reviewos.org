@@ -3171,17 +3171,27 @@ async function runJavaScript(
 
   await onOutput(`Running ${definition.main} with bun (the action asked for ${definition.runtime}).\n`, 'stdout')
 
-  const result = await runStep({
-    signal,
-    command: `bun ${JSON.stringify(entry)}`,
-    cwd: workspace,
-    environment,
-    onOutput,
-  })
+  // Actions operate in the checkout, but must not boot its application before
+  // dependencies are installed or implicitly load its dotenv credentials.
+  const runtime = mkdtempSync(join(tmpdir(), 'reviewos-action-runtime-'))
+  const config = join(runtime, 'bunfig.toml')
+  writeFileSync(config, 'preload = []\n')
+  try {
+    const result = await runStep({
+      signal,
+      argv: ['bun', `--config=${config}`, '--no-env-file', entry],
+      cwd: workspace,
+      environment,
+      onOutput,
+    })
 
-  return result.ok
-    ? { ok: true, reason: 'the action exited zero' }
-    : { ok: false, reason: `the action exited ${result.exitCode}` }
+    return result.ok
+      ? { ok: true, reason: 'the action exited zero' }
+      : { ok: false, reason: `the action exited ${result.exitCode}` }
+  }
+  finally {
+    rmSync(runtime, { recursive: true, force: true })
+  }
 }
 
 /**

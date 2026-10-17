@@ -946,6 +946,10 @@ cannot talk back to the runner is a workflow that fails on its second line.
       Nesting - a composite step that itself `uses:` something - is refused with a message rather
       than followed, because doing it without the depth limit and cycle check the
       reusable-workflow path already has is the version that recurses forever.
+- [x] JavaScript actions use a neutral Bun configuration and no automatic dotenv loading,
+      preserving the workflow workspace and explicit environment. A repository preload cannot
+      boot its application before dependencies are installed. Verified through the runner job
+      protocol with a dependency-free action, a throwing preload, and a repository dotenv marker.
 - [x] Container actions: `uses: docker://registry/image:tag`
 
       The argv is built by a pure function and the execution is three lines, which is the right way
