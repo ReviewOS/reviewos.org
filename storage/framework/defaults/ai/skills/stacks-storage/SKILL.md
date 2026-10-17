@@ -57,17 +57,37 @@ import { Visibility, createDirectoryListing, normalizeExpiryToMilliseconds, norm
 
 // Low-level file operations
 import { copy, copyFile, copyFolder } from '@stacksjs/storage'
-import { move, rename } from '@stacksjs/storage'
+import { storage } from '@stacksjs/storage' // storage.move, storage.rename
 import { del, deleteFile, deleteFolder, deleteEmptyFolder, deleteEmptyFolders, deleteGlob, isDirectoryEmpty } from '@stacksjs/storage'
 import { readJsonFile, readPackageJson, readTextFile, writeFile, writeJsonFile, writeTextFile, put, get, getFiles, deleteFiles, hasFiles } from '@stacksjs/storage'
 import { isFolder, isDir, doesFolderExist, createFolder, getFolders } from '@stacksjs/storage'
 import { glob, globSync } from '@stacksjs/storage'
 import { hashDirectory, hashPath, hashPaths } from '@stacksjs/storage'
-import { zip, unzip, archive, unarchive, compress, decompress, gzipSync, gunzipSync, deflateSync, inflateSync } from '@stacksjs/storage'
+import { zip, unzip, archive, unarchive, compress, decompress, gzipSync, gunzipSync, deflateSync, inflateSync, zipEntries } from '@stacksjs/storage'
+import type { ZipEntriesOptions, ZipEntry } from '@stacksjs/storage'
 import * as storage from '@stacksjs/storage'
 ```
 
 ## Storage Facade (StorageManager)
+
+### Recoverable temporary workspaces
+
+Use `TemporaryWorkspaceJournal` for workers that recover temporary directories after a process interruption. Keep its private journal outside job-controlled checkouts and separate it by stable worker and controller identity. `create(key)` returns a frozen live ownership handle; stop its resources, then call `complete(handle)` for normal disposal. A restarted instance cannot forge this capability from a listed record.
+
+Both live completion and recovered retirement recheck the current mount table immediately before deletion. Nested mounts, including bind mounts on the same device, preserve the workspace and journal. Incomplete mount inspection also preserves them: recursive deletion can unlink mounted data before reporting that the mount point is busy.
+
+Crash recovery uses `inspectRetirement(id, mayRetire)` for a read-only preview and `retire(id, mayRetire)` to apply the same checks. Both require an authoritative lifecycle decision and preserve changed, mounted or in-use directories. Age alone never authorizes deletion. `inspectTemporaryWorkspace` reports unavailable process visibility explicitly. Protected same-user peers can require privileged maintenance on Linux; never ignore permission errors. An already-privileged operator may set `ownerUid` to maintain an existing private journal belonging to that user. This does not create another user's workspaces or grant new privileges. Unsupported or incomplete inspection always preserves data.
+
+```ts
+import { TemporaryWorkspaceJournal } from '@stacksjs/storage'
+
+const journal = new TemporaryWorkspaceJournal({ directory: privateJournalDirectory, temporaryRoot, prefix: 'worker-job-' })
+const workspace = journal.create(jobId)
+// Stop the live workspace's resources before normal disposal.
+journal.complete(workspace)
+// After restart, ask the controller about a recovered record.
+await journal.retire(recovered.id, record => controllerConfirmsFinished(record.key))
+```
 
 The `Storage` singleton is a pre-instantiated `StorageManager`. It lazily builds its config from `@stacksjs/config` (which reads `config/filesystems.ts` and env vars).
 
@@ -160,7 +180,7 @@ Storage.reset()
 The facade auto-configures these disks from `config/filesystems.ts`:
 
 - **`local`** -- `driver: 'local'`, root: `<project>/storage/app`, visibility: from config (default `'private'`)
-- **`public`** -- `driver: 'local'`, root: `<project>/public`, url: `<appUrl>/storage`, visibility: `'public'`
+- **`public`** -- `driver: 'local'`, root: `<project>/public`, url: the application origin, visibility: `'public'`
 - **`s3`** -- only added if `s3.bucket` is configured in filesystems config
 
 ## StorageAdapter Interface
@@ -169,7 +189,7 @@ All adapters implement this interface:
 
 ```typescript
 interface StorageAdapter {
-  write(path: string, contents: FileContents): Promise<void>
+  write(path: string, contents: FileContents): Promise<PutResult>
   read(path: string): Promise<FileContents>
   readToString(path: string): Promise<string>
   readToBuffer(path: string): Promise<Buffer>
@@ -208,8 +228,8 @@ const local = createLocalStorage({ root: './storage' })
 - `moveFile()` uses `fs.rename()`; `copyFile()` uses `fs.copyFile()`
 - `checksum()` uses `Bun.CryptoHasher` (default algorithm: `sha256`)
 - `temporaryUrl()` generates HMAC-signed URLs using `APP_KEY` env var
-- `changeVisibility()` is a no-op (Node.js doesn't map to public/private simply)
-- `visibility()` always returns `'private'`
+- `changeVisibility()` changes POSIX modes: public files/directories use 0644/0755, private use 0600/0700
+- `visibility()` reads mode bits; a world-readable entry is public, other modes collapse to private
 - MIME type detection is extension-based (supports txt, html, css, js, json, xml, pdf, zip, jpg, jpeg, png, gif, svg, mp4, mp3, wav)
 - `list()` returns an async iterable; supports `deep: true` for recursive listing
 
@@ -370,17 +390,19 @@ copyFolder('srcDir/', 'destDir/', ['dist'])     // directory with exclusions
 ### Move/Rename
 
 ```typescript
-import { move, rename } from '@stacksjs/storage'
+import { storage } from '@stacksjs/storage'
 
-const result = await move('old.txt', 'new.txt')                    // single file
-const result = await move(['a.txt', 'b.txt'], 'dest/')             // multiple files to directory
-const result = await move('old.txt', 'new.txt', { overwrite: true })
+const result = await storage.move('old.txt', 'new.txt')                    // single file
+const result = await storage.move(['a.txt', 'b.txt'], 'dest/')             // multiple files to directory
+const result = await storage.move('old.txt', 'new.txt', { overwrite: true })
 
-const result = await rename('old.txt', 'new.txt')
+const result = await storage.rename('old.txt', 'new.txt')
 // Returns Result<{ message: string }, Error>
 ```
 
-`move()` creates destination directories if needed. Without `overwrite: true`, throws if destination exists.
+Low-level storage.move/rename returns a Result; inspect an error result instead
+of assuming an awaited call succeeded. The facade Storage.move targets a disk
+and has a different void/error contract.
 
 ### Delete
 
@@ -457,6 +479,35 @@ const decompressed = gunzipSync(compressed) // Bun.gunzipSync
 const deflated = deflateSync(data)         // Bun.deflateSync
 const inflated = inflateSync(deflated)     // Bun.inflateSync
 ```
+
+### In-memory ZIP (`zipEntries`)
+
+`zip()` needs files on disk and the `zip` binary. To answer a request with an
+archive built from data you already hold (an export, a bundle of generated
+CSVs), use `zipEntries()`: it returns the archive's bytes and touches nothing on
+disk.
+
+```typescript
+import { zipEntries } from '@stacksjs/storage'
+
+const bytes = zipEntries([
+  { name: 'members.csv', data: membersCsv },                 // string -> UTF-8
+  { name: 'photos/logo.png', data: pngBytes },               // Uint8Array as is
+  { name: 'README.txt', data: readme, date: exportedAt },    // per-entry timestamp
+], { level: 6, date: new Date() })                           // both optional
+
+return new Response(bytes, {
+  headers: {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': 'attachment; filename="export.zip"',
+  },
+})
+```
+
+- Each entry is deflated with Bun's raw DEFLATE when that is smaller, else stored; `level: 0` stores everything. CRC-32 per entry, UTF-8 names (flag bit 11), DOS timestamps (local time, 2-second steps, clamped to 1980-2107), files marked `-rw-r--r--`.
+- `options.date` is the timestamp for entries without their own `date` (default now); fix it for byte-identical archives.
+- Entry order is kept. It throws on a repeated name, a name that is empty, absolute (`/x`, `C:/x`), or has an empty, `.` or `..` part; backslashes become `/`. No directory entries: folders come from the paths.
+- No ZIP64: more than 65,535 entries, or any entry, offset or the archive past 4 GB, throws. Everything is held in memory, so it is for downloads, not backups (use `zip()` there).
 
 ### Folder Utilities
 
@@ -610,9 +661,9 @@ const config = configFromEnv({ default: 'local' })
 ```
 
 ## Gotchas
-- Default driver is `'bun'` (not `'local'`), but the Storage facade only supports `'local'` and `'s3'` drivers -- the `buildConfig()` in the facade maps the filesystems config to `'local'` as the default disk driver
+- The default is the local disk. filesystems.driver names a configured disk, not an adapter; facade drivers are local, s3 and azure
 - The `local` disk root is `<project>/storage/app`, not the project root
-- The `public` disk root is `<project>/public` with URL prefix `<appUrl>/storage`
+- The public disk root is `<project>/public`, served from the application origin, with no /storage prefix
 - S3 disk is only added if `s3.bucket` is configured
 - `list()` returns an `AsyncIterable` -- use `for await` to iterate
 - `checksum()` defaults to `sha256` in both adapters (not `md5`)
@@ -620,11 +671,29 @@ const config = configFromEnv({ default: 'local' })
 - `temporaryUrl()` on S3 adapter uses pre-signed URLs via `getSignedUrl()`
 - `LocalStorageAdapter` prevents path traversal -- throws if resolved path escapes the root
 - `S3StorageAdapter` requires a bucket name -- throws on construction if missing
-- `changeVisibility()` is a no-op on both local and S3 adapters
-- `visibility()` always returns `'private'` on both adapters
+- Local uses POSIX permissions; S3 uses provider ACL operations. Azure refuses per-object visibility changes because visibility belongs to its container
+- Query visibility through the adapter; a generated publicUrl does not by itself grant public read access
 - The `Storage` singleton is pre-instantiated -- use `Storage.reset()` to clear caches for testing
 - `UploadedFile.storeAs()` rejects filenames containing `..`, `/`, or `\` to prevent path traversal
 - `UploadedFile.hashName()` is cached -- calling it multiple times returns the same hash
 - Low-level operations (`copy`, `move`, `delete*`, etc.) use synchronous `fs` methods, while the Storage facade uses async operations
 - `zip()` and `unzip()` shell out to the `zip`/`unzip` commands -- they require these tools to be installed on the system
+- `zipEntries()` is the in-memory alternative: no binary, no disk, returns a `Uint8Array` (no ZIP64, so it refuses 65,535+ entries or 4 GB)
 - `STORAGE_DRIVER` env var controls the driver selection in `config/filesystems.ts`
+
+
+## Upload, stream and signed-link workflows
+
+Read [UPLOADS-AND-DISKS.md](UPLOADS-AND-DISKS.md) when implementing uploads,
+direct-to-provider writes, signed downloads, tenant scoping, large file streams
+or cross-disk transfers. It covers the facade/adapter distinction and the limits
+that change application behavior.
+
+## Provider evidence
+
+The capability registry in `core/config/src/capabilities.ts` marks local
+and memory supported; S3, Azure and Bun adapter parity are partial. S3/Azure
+tests prove signing/request construction, not a live provider round-trip.
+`ensureBucket/ensureConfiguredBuckets` provisions S3-compatible buckets;
+Azure containers must exist already. An adapter's optional streaming, signed
+URL and presigned write methods must be checked before a generic call.

@@ -25,9 +25,9 @@ export { format as dateFormat } from './format'  // convenience alias
 ```
 
 Three source files:
-- `now.ts` — `DateTime` class and `now()` helper
-- `format.ts` — standalone `format()` function with token-based formatting and timezone support
-- `parse.ts` — standalone `parse()` function with token-based parsing
+- `now.ts` - `DateTime` class and `now()` helper
+- `format.ts` - standalone `format()` function with token-based formatting and timezone support
+- `parse.ts` - standalone `parse()` function with token-based parsing
 
 ## DateTime Class (`now.ts`)
 
@@ -122,6 +122,9 @@ Implementation details:
 - `addSeconds/Minutes/Hours` use millisecond arithmetic on timestamp
 - `addDays` uses `Date.setDate()` (handles month boundaries correctly)
 - `addMonths` uses `Date.setMonth()` (handles year boundaries)
+- Month/year arithmetic inherits native overflow behavior. For a business
+  calendar month that must clamp January 31 to February's last day, use the
+  exported `addCalendarMonths(date, count, { utc? })` helper instead.
 - `addYears` uses `Date.setFullYear()`
 - All `sub*` methods delegate to `add*(-n)`
 
@@ -229,7 +232,9 @@ parse('2024-06-15 10:30 +0530', 'YYYY-MM-DD HH:mm Z') // Date with timezone offs
 **Without format string**:
 - Date-only ISO strings (YYYY-MM-DD) are parsed as LOCAL time, not UTC -- this is a deliberate fix for the native Date behavior where `new Date('2024-06-15')` treats it as UTC causing day shifts
 - All other strings use native `new Date()` parsing
-- Throws on invalid dates
+- Rejects unparseable native dates. Calendar fields can normalize through native
+  Date, so use validation for strict rejection of impossible dates such as
+  February 31 rather than treating this parser as a validation boundary.
 
 **With format string**:
 - Builds a regex from the format tokens and extracts named groups
@@ -240,7 +245,18 @@ parse('2024-06-15 10:30 +0530', 'YYYY-MM-DD HH:mm Z') // Date with timezone offs
 - Z token: parses +HHMM offset, constructs UTC time and adjusts
 - Throws if the format doesn't match the input string
 
-## `now()` Helper
+## Named-zone instants and calendar months
+
+The root additionally exports `zoneOffsetMinutes(instant, timeZone)`,
+`zonedTimeToUtc(wallClock, timeZone)`, `isoInZone(instant, timeZone)` and
+`addCalendarMonths(date, count, { utc? })`. A wall-clock string has no supplied
+offset; the named IANA zone converts it into an instant. `isoInZone` retains
+that zone's offset in serialized output rather than merely displaying a date.
+Review `zone.ts` and its DST behavior when ambiguous/gap local times matter.
+`addCalendarMonths` clones and clamps the day; ordinary `DateTime.addMonths`
+preserves native Date overflow instead. Do not interchange those contracts.
+
+## Current-time helper example
 
 ```typescript
 import { now } from '@stacksjs/datetime'
@@ -267,3 +283,31 @@ now().startOfMonth().toDateString()    // first of current month
 - `endOfMonth()` uses the `new Date(year, month + 1, 0)` trick to find the last day
 - Application timezone should be configured in `config/app.ts`
 - Prefer `@stacksjs/datetime` over raw `Date` for framework consistency
+
+## Site and organization clocks
+
+`localDateTime(instant, ...timeZones)` resolves the first valid named zone, then
+UTC, and returns `{ date, time, timeZone }` from one instant. Supply site and
+organization zones in that order. Missing/invalid zones fall through; an
+invalid instant throws. The output uses YYYY-MM-DD and HH:mm and is suitable
+for comparing local schedule dates and end times, not for elapsed durations.
+
+## Recurrences, coverage and local reporting periods
+
+The pure schedule entry exports parseWeeklySchedule, expandWeeklySchedule,
+clockMinutes, addClockMinutes and timeWindowsCover. Recurrence validation
+rejects invalid weekday entries; expansion refuses excessive ranges and
+midnight-crossing durations instead of silently truncating them. Adjacent
+windows can cover one continuous slot. ScheduleInputError carries status 422.
+
+localDateRange(from, to, ...zones) converts inclusive calendar days to an
+exclusive-end UTC instant range in a selected valid zone, including DST days.
+Its supported reporting dates are 0101-01-01 through 9999-12-30; unsupported
+boundaries raise ScheduleInputError rather than normalizing to another year.
+netHoursBetween(start, end, breaks) retains full precision; apply display or
+monetary rounding at the final boundary. It performs duration arithmetic,
+not jurisdiction-specific compensation or overtime decisions.
+
+localTimeSpan(date, start, end, ...zones) converts a clock interval, including
+next-day ends, to actual instants for cross-site/overnight overlap checks.
+Equal endpoints and non-positive DST-normalized intervals are rejected.

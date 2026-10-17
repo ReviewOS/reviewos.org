@@ -8,6 +8,13 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 # Stacks Chat
 
+Native direct messaging accepts an optional `onMessageSent` callback in its
+messenger options. It receives `{ message, actorId, recipientId, scope,
+participantType }` once for each newly saved message, after an enclosing
+transaction commits. Duplicate send retries and rolled-back messages do not
+run it. Connect notification jobs there; a callback failure is logged without
+turning a saved message into a failed send.
+
 Multi-driver chat messaging with Slack, Discord, and Microsoft Teams support. Each driver supports both webhook and bot token modes, with retry logic and structured message formats.
 
 ## Key Paths
@@ -438,13 +445,29 @@ All three drivers implement `sendWithRetry()`:
 
 ## Gotchas
 - The default driver for `send()` is `'slack'`, not auto-detected
-- Each driver has two modes: webhook (simpler) and bot token (richer, returns message IDs)
+- Slack and Discord support webhook or bot-token sends; Teams uses its Workflows webhook
 - Slack bot token mode uses `https://slack.com/api/chat.postMessage`, not a webhook
 - Discord webhook returns `204` on success with no body -- this is handled as success
 - Discord bot token mode uses `message.to` as the channel ID
 - Teams accepts only Workflows webhook URLs; the retired `webhook.office.com` connectors are refused
 - Teams uses `message.to` as fallback webhook URL if `config.webhookUrl` is not set
-- All drivers set `mrkdwn: true` or equivalent by default
+- Slack supports mrkdwn; Discord embeds and Teams Adaptive Cards use their own provider payloads
+
+## Results and native notification integration
+
+Direct send returns ChatResult, with success false for a handled provider failure;
+inspect it before persisting sent state. Awaiting a send only proves the promise
+settled. Webhook configuration does not replace ChatMessage's to/content or
+template fields. The generic notify chat channel supplies a body-only shape and
+does not normalize every structured transport failure, so use this package's
+direct API when application behavior depends on valid chat delivery.
+
+Settings resolve per send after app config readiness, with explicit configure
+overrides taking precedence. Retained request/config coverage lives under
+`storage/framework/core/chat/tests/`; it is distinct from live workspace
+delivery evidence. Inbox reads/archive operations use separate provider grants
+and optional native controllers; sending credentials do not automatically grant
+those operations.
 - Block Kit blocks are only built when `message.template` is set (Slack) or when `message.subject`/`message.template` is set (Discord/Teams)
 - `validateMessage()` requires both `to` and either `content` or `template`
 - The `handle()` callback runs before `onSuccess()` -- both results are merged
@@ -452,3 +475,58 @@ All three drivers implement `sendWithRetry()`:
 - Each driver module exports a pre-instantiated `driver` singleton and both class-based and function-based APIs
 - Discord embed default color is `0x5865F2` (Discord blurple), not customizable via the auto-build path
 - Teams Adaptive Cards use version `1.4` with the official JSON schema URL
+
+
+## Persistent direct messaging
+
+`@stacksjs/orm` and `@stacksjs/chat` export `createMessenger`. Enable
+`traits: { useMessaging: true }` to bind `record.messenger(options)` to a
+hydrated model's identity. Trait migrations create `chat_conversations` and
+`chat_messages` with a cascading conversation foreign key and a unique send key.
+
+```ts
+import { createMessenger } from '@stacksjs/chat'
+
+const messenger = createMessenger({
+  actorId: authenticatedUser.id,
+  scope: `gym:${authorizedGym.id}`,
+  authorize: (actorId, recipientId) => canMessage(actorId, recipientId),
+  maxLength: 4000,
+  pageSize: 50,
+  enabled: true,
+})
+const thread = await messenger.direct(recipient.id)
+await messenger.send(thread.id, 'How did the session feel?', retryKey)
+const page = await messenger.messages(thread.id)
+await messenger.markRead(thread.id, page.messages.at(-1)!.id)
+```
+
+Select actor and scope on the server. Authorization is required and is checked
+for every inbox, history, send and read receipt operation. Use a stable retry
+key for one attempted message; a different body with the same key returns 409.
+History is chronological, with `has_more` and a `before` message-id cursor.
+Receipts acknowledge only messages through the id actually displayed.
+`MessagingError.status` provides safe HTTP statuses for application handlers.
+
+For the UI, STX ships `ChatInbox`, `ChatMessage`, and `ChatUnreadBadge` in
+`@stacksjs/components`. Browser stores import `createChat` from
+`@stacksjs/components/chat` and inject their authenticated HTTP transport.
+
+### Native broadcasting
+
+`createMessenger` emits `messaging.sent` after a new persisted message and
+`messaging.read` when acknowledged messages first become read. Retried sends and
+unchanged receipts emit nothing. Set `broadcast: false` to disable. Initialize
+Stacks realtime before delivery, using `createServer` for WebSockets or
+`createBroadcastHub` for authenticated HTTP streams.
+
+`messagingChannel(participantType, userId)` selects that person's private inbox.
+Authorize subscription using the authenticated person's server-owned ID. Events
+carry only `conversation_id`; always re-read message text through current
+relationship and tenant policy. This prevents a revoked relationship's old socket
+from receiving private message contents.
+
+The native STX controller accepts `broadcastEndpoint`. `chat.observe(active)`
+shares one stream across inboxes, launchers and unread badges, returns a cleanup,
+and reconciles after reconnect. Only an active visible inbox acknowledges reads.
+It clears account/tenant state and reconnects when the scope changes.

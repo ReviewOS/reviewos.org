@@ -16,7 +16,47 @@
  */
 
 import { isLocalDeployment } from '@stacksjs/env'
-import { route } from '@stacksjs/router'
+import { projectPath } from '@stacksjs/path'
+import { dashboardGroupMiddleware, describeUnknownDashboardGroups, resolveDashboardAccess, route } from '@stacksjs/router'
+import { log } from '@stacksjs/logging/runtime'
+
+/**
+ * Which roles may reach each group below, from `config/dashboard.ts`
+ * (stacksjs/stacks#2883).
+ *
+ * Every group here shipped `middleware: 'auth'` and nothing more, so any
+ * signed-in user could reach `/api/commerce`, `/cms` or `/models` whatever the
+ * sidebar showed them - and an app could not tighten it, because this file is
+ * framework-owned and nothing attached middleware to a path.
+ *
+ * Read by path rather than through `@stacksjs/config`, matching how the ORM
+ * route generator reads `config/security.ts`: registration runs at import time,
+ * which is before `overridesReady` resolves, so the config package would hand
+ * back framework defaults here. A missing or malformed file resolves to no
+ * gating at all, which is exactly how this file behaved before.
+ */
+const dashboardAccess = await (async () => {
+  try {
+    const configured = (await import(projectPath('config/dashboard.ts'))).default?.access
+    return resolveDashboardAccess(configured)
+  }
+  catch {
+    return resolveDashboardAccess(undefined)
+  }
+})()
+
+{
+  // A typo'd prefix gates nothing, and would read as a gate that is quietly
+  // absent. Named once, not per group.
+  const report = describeUnknownDashboardGroups(dashboardAccess.unknown)
+  if (report)
+    log.warn(report)
+}
+
+/** One group's middleware: its `auth` base, plus any role the app declared. */
+function guarded(prefix: string, base?: Parameters<typeof dashboardGroupMiddleware>[2]) {
+  return dashboardGroupMiddleware(prefix, dashboardAccess, base)
+}
 
 // ============================================================================
 // Email
@@ -46,6 +86,21 @@ route.post('/api/contact', 'Actions/ContactAction').name('contact.send').skipCsr
 // authenticated user whose email matches the invitation.
 route.get('/api/team-invitation-links/{token}', 'Actions/Teams/ShowInvitationAction').rateLimit(30, 'minute')
 route.post('/api/team-invitations/{token}/accept', 'Actions/Teams/AcceptInvitationAction').middleware('auth').rateLimit(10, 'minute')
+
+// An external reviewer files feedback through a revocable link, without an
+// account: the only unauthenticated write the dashboard has. Outside every
+// `auth` group on purpose, and narrow because of it - the token names one
+// board, adds a card to it, and reads nothing.
+//
+// CSRF is skipped for the same reason `/api/contact` above skips it, and more
+// safely: there is no ambient authority to borrow here. The capability is the
+// high-entropy token in the path, not a cookie the browser attaches, so a
+// cross-site POST has nothing to forge with.
+//
+// Rate limited like the other token-bearing unauthenticated routes. The token
+// is 256 bits, so this is about stopping a flood of cards from a link that
+// leaked, not about guessing.
+route.post('/api/feedback/{token}', 'Actions/Dashboard/Feedback/FeedbackStoreAction').name('feedback.store').skipCsrf().rateLimit(10, 'minute')
 
 // ============================================================================
 // Storefront (anonymous cart + multi-step checkout)
@@ -123,9 +178,10 @@ route.get('/robots.txt', 'Actions/RobotsAction')
 // a public AI endpoint (e.g. a homepage chat widget), it can register the
 // route in `routes/api.ts` without the middleware — user routes load before
 // framework routes, so the unauthenticated copy wins.
-route.group({ middleware: 'auth' }, () => {
-  route.post('/ai/ask', 'Actions/AI/AskAction')
-  route.post('/ai/summary', 'Actions/AI/SummaryAction')
+// Prefixed so `access` can name it; `/ai/ask` and `/ai/summary` as before.
+route.group({ prefix: '/ai', middleware: guarded('/ai') }, () => {
+  route.post('/ask', 'Actions/AI/AskAction')
+  route.post('/summary', 'Actions/AI/SummaryAction')
 })
 
 // ============================================================================
@@ -137,7 +193,7 @@ route.group({ middleware: 'auth' }, () => {
 // Always auth-gated.
 // ============================================================================
 
-route.group({ prefix: '/voide', middleware: 'auth' }, () => {
+route.group({ prefix: '/voide', middleware: guarded('/voide') }, () => {
   route.get('/state', 'Actions/Buddy/BuddyStateAction')
   route.post('/repo', 'Actions/Buddy/BuddyRepoOpenAction')
   route.post('/repo/validate', 'Actions/Buddy/BuddyRepoValidateAction')
@@ -165,7 +221,7 @@ route.group({ prefix: '/voide', middleware: 'auth' }, () => {
 // the newsletter signup lives at /api/email/subscribe — those stay open.
 // ============================================================================
 
-route.group({ prefix: '/dashboard', middleware: 'auth' }, () => {
+route.group({ prefix: '/dashboard', middleware: guarded('/dashboard') }, () => {
   route.get('/home', 'Actions/Dashboard/DashboardHomeAction')
   route.get('/stats', 'Actions/Dashboard/DashboardStatsAction')
   route.get('/activity', 'Actions/Dashboard/DashboardActivityAction')
@@ -186,7 +242,7 @@ route.group({ prefix: '/dashboard', middleware: 'auth' }, () => {
 // action must STILL scope to the authenticated user (derive the customer from
 // `await request.user()`, never trust the `{id}` path param) to prevent an
 // authenticated user from reaching another user's billing.
-route.group({ prefix: '/payments', middleware: 'auth' }, () => {
+route.group({ prefix: '/payments', middleware: guarded('/payments') }, () => {
   route.get('/fetch-customer/{id}', 'Actions/Payment/FetchPaymentCustomerAction')
   route.get('/fetch-transaction-history/{id}', 'Actions/Payment/FetchTransactionHistoryAction')
   route.get('/fetch-user-subscriptions/{id}', 'Actions/Payment/FetchUserSubscriptionsAction')
@@ -217,11 +273,11 @@ route.group({ prefix: '/payments', middleware: 'auth' }, () => {
 // Auth-gated to match every other operational dashboard group — these expose
 // internal job/queue and websocket state and were the only siblings missing
 // `auth`, leaking infra telemetry to anonymous callers.
-route.group({ prefix: '/queues', middleware: 'auth' }, () => {
+route.group({ prefix: '/queues', middleware: guarded('/queues') }, () => {
   route.get('/', 'Actions/Queue/FetchQueuesAction')
 })
 
-route.group({ prefix: '/realtime', middleware: 'auth' }, () => {
+route.group({ prefix: '/realtime', middleware: guarded('/realtime') }, () => {
   route.get('/websockets', 'Actions/Realtime/FetchWebsocketsAction')
   route.get('/stats', 'Actions/Dashboard/Realtime/RealtimeStatsAction')
 })
@@ -230,7 +286,7 @@ route.group({ prefix: '/realtime', middleware: 'auth' }, () => {
 // Query Dashboard
 // ============================================================================
 
-route.group({ prefix: '/api/queries', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/queries', middleware: guarded('/api/queries') }, () => {
   route.get('/dashboard', 'Actions/Dashboard/Queries/QueryIndexAction')
   route.get('/stats', 'Controllers/QueryController@getStats')
   route.get('/recent', 'Controllers/QueryController@getRecentQueries')
@@ -245,7 +301,7 @@ route.group({ prefix: '/api/queries', middleware: 'auth' }, () => {
 // Monitoring / Error Tracking
 // ============================================================================
 
-route.group({ prefix: '/api/monitoring', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/monitoring', middleware: guarded('/api/monitoring') }, () => {
   route.get('/errors', 'Actions/Monitoring/ErrorIndexAction')
   route.get('/errors/stats', 'Actions/Monitoring/ErrorStatsAction')
   route.get('/errors/timeline', 'Actions/Monitoring/ErrorTimelineAction')
@@ -265,7 +321,7 @@ route.group({ prefix: '/api/monitoring', middleware: 'auth' }, () => {
 // is no longer a DB/CMS mirror. /cms below remains the authoring API.
 // ============================================================================
 
-route.group({ prefix: '/cms', middleware: 'auth' }, () => {
+route.group({ prefix: '/cms', middleware: guarded('/cms') }, () => {
   route.get('/dashboard', 'Actions/Dashboard/Content/ContentDashboardAction')
   route.get('/posts', 'Actions/Cms/PostIndexAction')
   route.get('/posts/{id}', 'Actions/Cms/PostShowAction')
@@ -319,7 +375,7 @@ route.group({ prefix: '/cms', middleware: 'auth' }, () => {
 // underlying actions, since user routes load before framework routes.
 // ============================================================================
 
-route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/commerce', middleware: guarded('/api/commerce') }, () => {
   route.get('/dashboard', 'Actions/Dashboard/Commerce/CommerceDashboardAction')
   route.get('/pos', 'Actions/Dashboard/Commerce/PosIndexAction')
   route.get('/products', 'Actions/Commerce/Product/ProductIndexAction')
@@ -494,7 +550,7 @@ route.group({ prefix: '/api/commerce', middleware: 'auth' }, () => {
 // Analytics
 // ============================================================================
 
-route.group({ prefix: '/api/analytics', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/analytics', middleware: guarded('/api/analytics') }, () => {
   route.get('/sales', 'Actions/Dashboard/Analytics/SalesAnalyticsAction')
   route.get('/web', 'Actions/Dashboard/Analytics/WebAnalyticsAction')
   route.get('/blog', 'Actions/Dashboard/Analytics/BlogAnalyticsAction')
@@ -512,13 +568,13 @@ route.group({ prefix: '/api/analytics', middleware: 'auth' }, () => {
 // Jobs & Queue
 // ============================================================================
 
-route.group({ prefix: '/jobs', middleware: 'auth' }, () => {
+route.group({ prefix: '/jobs', middleware: guarded('/jobs') }, () => {
   route.get('/', 'Actions/Dashboard/Jobs/JobIndexAction')
   route.get('/stats', 'Actions/Dashboard/Jobs/JobStatsAction')
   route.post('/{id}/retry', 'Actions/Dashboard/Jobs/JobRetryAction')
 })
 
-route.group({ prefix: '/queue', middleware: 'auth' }, () => {
+route.group({ prefix: '/queue', middleware: guarded('/queue') }, () => {
   route.get('/stats', 'Actions/Dashboard/Queue/QueueStatsAction')
   route.get('/workers', 'Actions/Dashboard/Queue/QueueWorkersAction')
   route.post('/retry-failed', 'Actions/Dashboard/Queue/QueueRetryFailedAction')
@@ -528,7 +584,7 @@ route.group({ prefix: '/queue', middleware: 'auth' }, () => {
 // Releases
 // ============================================================================
 
-route.group({ prefix: '/releases', middleware: 'auth' }, () => {
+route.group({ prefix: '/releases', middleware: guarded('/releases') }, () => {
   route.get('/', 'Actions/Dashboard/Releases/ReleaseIndexAction')
   route.get('/stats', 'Actions/Dashboard/Releases/ReleaseIndexAction')
 })
@@ -537,7 +593,7 @@ route.group({ prefix: '/releases', middleware: 'auth' }, () => {
 // Settings
 // ============================================================================
 
-route.group({ prefix: '/api/settings', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/settings', middleware: guarded('/api/settings') }, () => {
   route.get('/mail', 'Actions/Dashboard/Settings/MailSettingsGetAction')
   route.put('/mail', 'Actions/Dashboard/Settings/MailSettingsUpdateAction')
 })
@@ -546,7 +602,7 @@ route.group({ prefix: '/api/settings', middleware: 'auth' }, () => {
 // Data Management
 // ============================================================================
 
-route.group({ prefix: '/api/data', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/data', middleware: guarded('/api/data') }, () => {
   route.get('/subscribers', 'Actions/Dashboard/Data/SubscriberIndexAction')
   route.get('/teams', 'Actions/Dashboard/Data/TeamIndexAction')
   route.get('/users', 'Actions/Dashboard/Data/UserIndexAction')
@@ -557,7 +613,7 @@ route.group({ prefix: '/api/data', middleware: 'auth' }, () => {
 // Infrastructure
 // ============================================================================
 
-route.group({ prefix: '/infrastructure', middleware: 'auth' }, () => {
+route.group({ prefix: '/infrastructure', middleware: guarded('/infrastructure') }, () => {
   route.get('/servers', 'Actions/Dashboard/Infrastructure/ServerIndexAction')
   route.get('/dns', 'Actions/Dashboard/Infrastructure/DnsIndexAction')
   route.get('/environment', 'Actions/Dashboard/Infrastructure/EnvironmentIndexAction')
@@ -574,7 +630,7 @@ route.get('/api/serverless', 'Actions/Dashboard/Cloud/ServerlessIndexAction').mi
 // Dashboard Views — Commerce
 // ============================================================================
 
-route.group({ prefix: '/dashboard/commerce', middleware: 'auth' }, () => {
+route.group({ prefix: '/dashboard/commerce', middleware: guarded('/dashboard/commerce') }, () => {
   route.get('/customers', 'Actions/Dashboard/Commerce/CommerceCustomersAction')
   route.get('/orders', 'Actions/Dashboard/Commerce/CommerceOrdersAction')
   route.get('/products', 'Actions/Dashboard/Commerce/CommerceProductsAction')
@@ -590,7 +646,7 @@ route.group({ prefix: '/dashboard/commerce', middleware: 'auth' }, () => {
 // Dashboard Views — CMS Content
 // ============================================================================
 
-route.group({ prefix: '/dashboard/cms', middleware: 'auth' }, () => {
+route.group({ prefix: '/dashboard/cms', middleware: guarded('/dashboard/cms') }, () => {
   route.get('/posts', 'Actions/Dashboard/Content/PostIndexAction')
   route.get('/pages', 'Actions/Dashboard/Content/PageIndexAction')
   route.get('/categories', 'Actions/Dashboard/Content/CategoryIndexAction')
@@ -603,7 +659,7 @@ route.group({ prefix: '/dashboard/cms', middleware: 'auth' }, () => {
 // Marketing
 // ============================================================================
 
-route.group({ prefix: '/api/marketing', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/marketing', middleware: guarded('/api/marketing') }, () => {
   route.get('/campaigns', 'Actions/Dashboard/Marketing/CampaignIndexAction')
   route.get('/lists', 'Actions/Dashboard/Marketing/ListIndexAction')
   route.get('/social-posts', 'Actions/Dashboard/Marketing/SocialPostIndexAction')
@@ -613,7 +669,7 @@ route.group({ prefix: '/api/marketing', middleware: 'auth' }, () => {
 // Notifications
 // ============================================================================
 
-route.group({ prefix: '/api/notifications', middleware: 'auth' }, () => {
+route.group({ prefix: '/api/notifications', middleware: guarded('/api/notifications') }, () => {
   route.get('/dashboard', 'Actions/Dashboard/Notifications/NotificationDeliveryOverviewAction')
   route.get('/email', 'Actions/Dashboard/Notifications/NotificationDeliveryIndexAction')
   route.get('/sms', 'Actions/Dashboard/Notifications/NotificationDeliveryIndexAction')
@@ -624,7 +680,7 @@ route.group({ prefix: '/api/notifications', middleware: 'auth' }, () => {
 // Library & Packages
 // ============================================================================
 
-route.group({ prefix: '/library', middleware: 'auth' }, () => {
+route.group({ prefix: '/library', middleware: guarded('/library') }, () => {
   route.get('/dependencies', 'Actions/Dashboard/Library/DependencyIndexAction')
   route.get('/packages', 'Actions/Dashboard/Library/PackageIndexAction')
   route.get('/functions', 'Actions/Dashboard/Library/GetFunctions')
@@ -643,7 +699,7 @@ route.group({ prefix: '/library', middleware: 'auth' }, () => {
 // Deployments
 // ============================================================================
 
-route.group({ prefix: '/deployments', middleware: 'auth' }, () => {
+route.group({ prefix: '/deployments', middleware: guarded('/deployments') }, () => {
   route.get('/', 'Actions/Dashboard/Deployments/GetDeployments')
   route.get('/count', 'Actions/Dashboard/Deployments/GetDeploymentCount')
   route.get('/recent', 'Actions/Dashboard/Deployments/GetRecentDeployments')
@@ -659,7 +715,7 @@ route.group({ prefix: '/deployments', middleware: 'auth' }, () => {
 // Models
 // ============================================================================
 
-route.group({ prefix: '/models', middleware: 'auth' }, () => {
+route.group({ prefix: '/models', middleware: guarded('/models') }, () => {
   route.get('/', 'Actions/Dashboard/Models/GetModels')
   route.get('/user-count', 'Actions/Dashboard/Models/GetUserCount')
   route.get('/subscriber-count', 'Actions/Dashboard/Models/GetSubscriberCount')

@@ -1,6 +1,6 @@
 ---
 name: stacks-models
-description: Use when working with data models in Stacks - the defineModel() API, model attributes with validation and factories, relationships (hasOne/hasMany/belongsTo/belongsToMany), traits (useAuth, useUuid, useTimestamps, useSearch, useApi, billable, taggable, categorizable, commentable, likeable, observe), computed properties (get/set), model generation, and the 105 built-in framework models. Covers model definitions and storage/framework/defaults/app/Models/.
+description: Use when defining or extending Stacks models, deriving migrations and CRUD, configuring attributes/relationships/traits/ownership, or preserving model inference. Covers defineModel, extendModel, model types, native data workflows, and the 107 built-in framework models.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -10,14 +10,20 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 ## Key Paths
 - Your models: `app/Models/` (create it; it does not exist in a fresh project)
-- Built-in models: `storage/framework/defaults/app/Models/` (62 files, grouped
+- Built-in models: `storage/framework/defaults/app/Models/` (grouped
   into `commerce/`, `Content/`, `realtime/` and a flat top level)
-- `ModelOptions` / `Attribute` types: `storage/framework/core/types/src/model.ts`
+- Actual `defineModel` contract: `storage/framework/core/orm/src/define-model.ts`
+- Compatibility `ModelOptions` / `Attribute` types: `storage/framework/core/types/src/model.ts`
 - Attribute presets: `storage/framework/types/attributes.ts`
 
 To customize a built-in model, create the same filename under `app/Models/` -
 `app/Models/User.ts` wins over the default. `buddy publish:model User` copies the
 default across as a starting point.
+
+For an additive override, use `extendModel` rather than copying the full built-in
+definition. Read [references/model-capabilities.md](references/model-capabilities.md)
+for merge rules, casts, encryption, ownership, validation, lifecycle, search,
+pagination, sharding, and the native type utilities.
 
 ## Writing a model
 
@@ -31,8 +37,8 @@ import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
 
 export default defineModel({
-  name: 'Product',        // defaults to the file name
-  table: 'products',      // defaults to lowercase plural of `name`
+  name: 'Product',        // declare the model identity explicitly
+  table: 'products',      // declare the database table explicitly
   primaryKey: 'id',       // default
   autoIncrement: true,    // default
 
@@ -74,7 +80,11 @@ generated model types stay precise.
 
 ### Attribute fields
 
-`validation.rule` is the only required key on an attribute.
+The modern `defineModel` contract accepts attributes inferred from an explicit
+type, validation rule, factory, or default. A validator is recommended for
+request-facing values, but is not mandatory for every internal attribute.
+An unclassified value can infer `unknown`; declare the intended type instead
+of forcing a cast. See `orm/tests/inference-attributes.test-d.ts`.
 
 | Field | Effect |
 |---|---|
@@ -90,7 +100,8 @@ generated model types stay precise.
 | `foreignKey` | Disable, infer, or configure the FK constraint |
 | `personal` | Personal data: exported by `gdpr:export`, anonymized by erasure and retention. `true`, or `{ anonymize?, export? }`. See "Personal data (GDPR)" below |
 | `factory` | `(faker, attributes) => value`, used by seeders and tests. `attributes` holds what this record's earlier-declared factories produced, so one value can depend on another: `(faker, { discountType }) => ...` |
-| `validation` | `{ rule, message? }` - `rule` from `schema`, `message` keyed by rule name |
+| `validation` | `{ rule, message? }` - declared rules are enforced on direct ORM writes and generated CRUD |
+| `encrypted` | Encrypt persisted values and decrypt model reads; raw queries still see stored ciphertext |
 
 ### Traits
 
@@ -127,10 +138,90 @@ useApi: {
 }
 ```
 
+`security.api.models` and `STACKS_MODEL_APIS` select which `useApi` definitions
+publish routes. The environment setting wins; `all`, `own`, `none`, or named
+models can narrow the surface. An app override counts as its own model.
+Selection does not add the trait or replace middleware/ownership checks, and
+it is separate from feature bundle and database migration selection. See
+`orm/tests/model-api-selection.test.ts` before configuring a restricted API.
+
 Dashboard-specific endpoints may still use scoped Actions when their transport
 shape, authorization boundary, or aggregation differs from generic CRUD. Do
 not expose a sensitive model through unguarded generated routes just because a
 separate dashboard endpoint is protected.
+
+#### Who may reach the generated routes
+
+Omit `middleware` and reads AND writes get `auth`: an undeclared read route is
+how a customer list leaks (#2224). Four declaration forms, narrowest last:
+
+```ts
+middleware: ['auth']                       // every ability
+middleware: []                             // every ability public; warns at boot
+middleware: { read: [], write: ['auth'] }  // public catalog, guarded writes
+middleware: { write: ['auth'], destroy: ['auth', 'role:admin'] }  // per ability
+```
+
+`read` covers `index` and `show`; `write` covers `store`, `update` and
+`destroy`; an ability name overrides its side; and `destroy` covers bulk-delete
+with the single delete. Use the per-ability form for the "fewer actions" half of
+a tiered role - "may file an order, may not void one" is `store` versus
+`destroy`, which the read/write split cannot express. Declaring one ability
+leaves the other four on `auth`, so narrowing one route never widens another.
+
+A model is also gated by the roles it declares for the dashboard:
+
+```ts
+dashboard: { roles: ['admin'] }   // hides the sidebar row AND gates every generated route
+```
+
+That one declaration covers both surfaces (#2883). It appends `role:admin` to
+the resolved middleware of each ability, unless that ability names a `role:`
+itself (explicit wins) or was explicitly emptied (a deliberately public surface
+is reported at boot, not quietly closed). `dashboard: { roles: [...], enforce:
+false }` keeps the row hidden and the API as the middleware leaves it, for a row
+hidden only to reduce clutter.
+
+Row-level scoping is separate and already on: a model scopes rows by an
+`ownership` config or a `team_id` column, and `security.api.rowScoping` defaults
+to `'deny'`, which withholds store/update/destroy from a model that scopes
+neither (#2375). A role says who may call the route; ownership says which rows
+are theirs. A tiered app usually needs both.
+
+#### Per-row rules: a policy
+
+Middleware answers "may this caller use this endpoint". A policy answers "may
+this caller do this to THIS row", which is the part a role cannot express. The
+generated routes consult one when the model has one (#2883):
+
+| Route | Ability | Subject |
+|---|---|---|
+| `index` | `viewAny` | none |
+| `show` | `view` | the row |
+| `store` | `create` | none |
+| `update` | `update` | the existing row |
+| `destroy`, bulk-delete | `delete` | the row, one call each |
+
+```ts
+// app/Policies/OrderPolicy.ts
+export default class OrderPolicy {
+  viewAny(user) { return user !== null }
+  view(user, order) { return order.customer_id === user?.id }
+  delete(user, order) { return order.status === 'draft' && order.customer_id === user?.id }
+}
+```
+
+Register it in `app/Gates.ts` under `policies`, or name it `<Model>Policy` under
+`app/Policies/` and it is discovered by convention. A model with no policy is
+unaffected, so adding one is opt-in per model. A refusal is a 403 carrying the
+policy's own message; an ability the policy does not implement is a refusal too,
+so a partial policy does not leave the rest open.
+
+`Gate.inspectFor(model, ability, user, row)` is the same check from your own
+code, keyed by model NAME rather than by instance - which is what a dashboard
+action holding a query-builder row needs. It answers null for "no policy
+registered", which is deliberately distinct from a denial; `Gate.allowsFor`
+is the boolean form that reads null as allowed.
 
 Generated store and update routes accept both spellings of every fillable
 attribute and each foreign key implied by `belongsTo`. Declaring Product as a
@@ -207,7 +298,7 @@ get: {
   fullName: (model) => `${model.firstName} ${model.lastName}`,
 },
 set: {
-  password: (value) => makeHash(value),
+  password: (attributes) => makeHash(attributes.password),
 },
 scopes: {
   published: (query) => query.where('status', 'published'),
@@ -304,7 +395,7 @@ honoured: fewer rows are seeded rather than a duplicate combination.
 ## Built-in models by category
 
 The ones below are worth knowing by name. They are a selection, not the set:
-`storage/framework/defaults/app/Models/` holds 105, and that directory is the
+`storage/framework/defaults/app/Models/` holds 107, and that directory is the
 authority. This section said "All 62 built-in models by category" while
 listing fewer than that against 102 on disk, so an agent reading to the end
 had no way to tell it was short.
@@ -314,8 +405,9 @@ maintained by hand, drifts the moment anyone adds a bullet, and is the same
 habit that produced the "All 62". The total above is pinned by
 `buddy docs:agent-counts`.
 
-Run `find storage/framework/defaults/app/Models -name '*.ts'` for the full
-list, or `buddy list` for what a given project resolves.
+Run `rg --files storage/framework/defaults/app/Models app/Models` for definitions
+and inspect the model registry for the runtime selection. `buddy list` lists
+commands, not a project's resolved models.
 
 ### Users & Auth
 - **User** — name, email, password | traits: useAuth(passkey), useUuid, useTimestamps, useSocials(github) | hasOne: Subscriber, Driver, Author | hasMany: PersonalAccessToken, Customer
@@ -392,12 +484,13 @@ list, or `buddy list` for what a given project resolves.
   will be overwritten by the next diff.
 - **`commentable`, not `commentables`.** `define-model` only checks the singular
   key. The plural spelling used to type check while leaving the trait inert.
-- **Seeding is model-declared.** `useSeeder` sets the count and fixtures; the
-  per-attribute `factory` functions produce the values. There are no seeder
-  files to write or register.
+- **Seeding can be model-declared.** `useSeeder` sets the count and fixtures;
+  attribute factories produce values. Application `Seeder` classes under
+  `database/seeders` are also supported for ordered bootstrap work.
 - **`hidden` is serialization, `guarded` is mass assignment.** They are different
   protections; a password wants both `hidden` and no `fillable`.
-- **`validation.rule` is mandatory** on every attribute - it drives both request
-  validation and the inferred column type.
+- **Declared validation is enforced on ORM writes**, including quiet writes.
+  Type inference also accepts explicit types, factories, and defaults; absence
+  of a validator is not a promise that an arbitrary request body is safe.
 - Dashboard-highlighted models (`dashboard: { highlight: true }`) appear
   prominently in the admin UI.

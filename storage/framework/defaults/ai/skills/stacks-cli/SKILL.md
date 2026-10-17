@@ -97,9 +97,9 @@ export default defineCommands({
 ```
 
 ### Registration Methods
-1. **Drop a file in `app/Commands/`** — auto-discovered, nothing else to do
-2. **Event listeners** — CLI events in `app/Listeners/Console.ts`
-3. **`app/Commands.ts`** — optional, for ordering / aliases / disabling
+1. **Drop a file in `app/Commands/`** - auto-discovered, nothing else to do
+2. **Event listeners** - CLI events in `app/Listeners/Console.ts`
+3. **`app/Commands.ts`** - optional, for ordering / aliases / disabling
 
 ## CLI Event Listeners
 
@@ -107,11 +107,11 @@ export default defineCommands({
 // app/Listeners/Console.ts
 export default function(cli: CLI) {
   cli.on('custom:command', () => {
-    console.log('Custom command executed!')
+    log.info('Custom command executed!')
   })
 
   cli.on('my:*', () => {
-    // Wildcard — matches my:anything
+    // Wildcard - matches my:anything
   })
 
   cli.on('unknown:!', () => {
@@ -120,14 +120,23 @@ export default function(cli: CLI) {
 }
 ```
 
+## Plain command output
+
+Import `print` and `printError` from `@stacksjs/cli/output` for command results,
+test tallies and diagnostics that must be visible even when logging is filtered.
+They write synchronously to stdout and stderr, preserve Node formatting and
+inspection, append a newline, and complete before an immediate `process.exit()`.
+The narrow import needs no application configuration. Use `log` for application
+logging with levels, context and transports.
+
 ## Output Formatting
 
 Via `@stacksjs/utils` color functions (available in CLI context):
 ```typescript
 import { bold, green, red, yellow, dim, underline } from '@stacksjs/utils'
 
-console.log(green('✓ Success'))
-console.log(red('✗ Error'))
+print(green('✓ Success'))
+printError(red('✗ Error'))
 console.log(yellow('⚠ Warning'))
 console.log(bold('Important'))
 console.log(dim('Subtle info'))
@@ -145,7 +154,7 @@ console.log(dim('Subtle info'))
 ```
 
 ## CLI Commands
-- `buddy make:command [name]` — scaffold a new command
+- `buddy make:command [name]` - scaffold a new command
 
 ## Compiled Binaries
 
@@ -158,7 +167,23 @@ buddy build:cli                    # build CLI binary
 - Application commands go in `app/Commands/`, framework commands in `storage/framework/core/buddy/src/commands/`
 - Commands are auto-discovered from `app/Commands/`; `app/Commands.ts` is optional and additive
 - CLI events support wildcards (`*`) and default handlers (`!`)
-- The buddy CLI lazy-loads commands — not all load at startup
+- The buddy CLI lazy-loads commands - not all load at startup
 - Output formatting uses ANSI colors from `@stacksjs/utils`
 - Custom CLIs can be compiled to platform-specific binaries
-- The CLI framework is separate from buddy — buddy uses it internally
+- The CLI framework is separate from buddy - buddy uses it internally
+
+
+## Native terminal primitives
+
+The public `@stacksjs/cli` entry re-exports table, progress, tasks, note,
+getTerminalSize and isInteractive from `core/cli/src/terminal.ts`. Import
+dump/dd/echo from `@stacksjs/logging`, where those debug helpers live. Read their
+options/types before building a new terminal formatter or adding another CLI
+dependency. Commands can also use the native prompt, spinner, exec and signal
+helpers from the same package. A command file is discovered recursively; its
+handler's argument order comes from defineCommand, not a copied CAC action shape.
+
+Source evidence: `storage/framework/core/cli/src/index.ts`,
+`commands.ts` and `terminal.ts`; command discovery is owned by buddy's
+runtime registry. `buddy list` and `buddy <command> --help` are the
+authoritative command/flag inventory, including package-contributed commands.

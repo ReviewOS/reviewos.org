@@ -70,7 +70,7 @@ route.group({ prefix: '/api/v1', middleware: ['auth', 'throttle'] }, () => {
 ```
 
 ### Handler Types
-- Function: `(req) => …` — return a `Response`, or any value `formatResult`
+- Function: `(req) => ...` - return a `Response`, or any value `formatResult`
   handles: an object/array becomes JSON, a string becomes text, `null` becomes
   204, a `ReadableStream` streams. `req.params` is narrowed to the path's own
   placeholders, so `req.params.slugTypo` is a compile error rather than
@@ -186,6 +186,34 @@ export default {
 } satisfies Record<string, string | RouteDefinition>
 ```
 
+The registry is optional; `appRouteRegistry()` falls back to the API file
+mounted at `/api`. App registrations precede default bundles and the first
+duplicate method/path wins. Default bundles are selected explicitly or through
+their feature gates; see `stacks-routes` for `STACKS_DEFAULT_ROUTES` and prefix
+rules. Do not hard-code an assumption that every built-in route is mounted.
+
+## Binding, signed access, and request lifecycle
+
+`defineRouteModelBinding(param, resolver)` resolves a raw path value for policy
+middleware. Explicit bindings take precedence over the optional fallback.
+Unclaimed parameters stay raw; a claimed missing model is different from an
+unclaimed parameter. Binding does not remove the need to validate a path key.
+
+`signedUrl`, `signUrl`, `verifySignedUrl`, and `verifySignedUrlMiddleware`
+support temporary signed access. Signing requires `APP_KEY` or the dedicated
+secret. Verify method/URL/expiry according to the helper contract; changing a
+signed URL is not equivalent to authorizing a row. Storage signatures are a
+separate provider/delivery contract.
+
+Native request context carries typed model/user data, query tracking, trace
+IDs, route params, and hooks. `safePathParam`/`sanitizePathParam` protect path
+segments, while numeric IDs need numeric validation as well. `stream` preserves
+backpressure; do not eagerly collect a stream merely to attach JSON metadata.
+
+Read `health`, `signed-url`, `route-model-binding`, `precognition`,
+`request-context`, `after-response`, and `stream-backpressure` tests before
+depending on the corresponding lifecycle behavior.
+
 ## Enhanced Request (Laravel-style)
 
 ### Input Methods
@@ -299,7 +327,10 @@ clearTrackedQueries()
 clearMiddlewareCache()
 ```
 
-## Default API Routes (routes/api.ts)
+## Default API route families
+
+These are examples of available bundles. The app's registry, selected default
+bundles, and feature gates decide the mounted surface; inspect `buddy route:list`.
 
 ### Auth
 - `POST /login`, `POST /register`, `POST /auth/refresh`, `POST /auth/token`
@@ -354,3 +385,22 @@ url('user.show', { id: 42 })             // '/users/42'
 - Query tracking is for debug/profiling — call `clearTrackedQueries()` to free memory
 - The dev server writes a route manifest to `storage/framework/stx/routes.ts` (stx's `stateDir`, set in `config/ui.ts`); it is a build artifact, not a file to edit
 - The health endpoint returns uptime, memory, PID, and Bun version info
+
+## Protocol-owned request bodies
+
+For MCP or another wire protocol with its own validation and error envelope,
+`route.post('/mcp', handler).parseBody(false)` leaves the body unread for the
+handler. This does not disable middleware or CSRF: choose authentication and CSRF
+policy explicitly. Duplicate registrations cannot change the live route's policy.
+Use `readJsonBody(request, maxBytes)` from `@stacksjs/router/body` for a streamed
+byte limit, media-type and strict UTF-8 checks. `RequestBodyError.status` is
+400, 413 or 415. Normal app routes continue using the standard request macros.
+JSON-RPC error envelopes keep their shape; X-Request-ID remains in the headers.
+
+
+`@stacksjs/router/body` also exposes `readTextBody(request, maxBytes)` for
+bounded UTF-8 form or text protocols. It counts actual streamed bytes, rejects
+invalid UTF-8, cancels oversized streams and grows one buffer geometrically so
+many small chunks do not create an unbounded chunk-object list. Pair it with
+`parseBody(false)` where the handler owns wire parsing. Media-type policy stays
+with the protocol; `readJsonBody` additionally requires application/json.

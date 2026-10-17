@@ -18,9 +18,9 @@ Comprehensive AI/LLM integration with 4 provider drivers, image generation, visi
 ```
 ai/src/
 ├── drivers/
-│   ├── anthropic.ts      # Claude driver
-│   ├── openai.ts         # GPT + DALL-E + Whisper + TTS
-│   ├── ollama.ts         # Local LLM driver
+│   ├── anthropic/index.ts # Claude driver
+│   ├── openai/index.ts    # GPT + image + transcription + TTS
+│   ├── ollama/index.ts    # Local LLM driver
 │   └── bedrock/          # Amazon Bedrock, through the Converse API
 ├── image.ts              # Image generation & vision
 ├── speech.ts             # Provider-neutral text-to-speech & speech-to-text
@@ -210,7 +210,7 @@ const index = await indexText(text, { chunkSize: 500 })
 const answer = await rag('What is X?', index, { model: 'claude-sonnet-4-20250514', maxTokens: 1000 })
 
 // VectorIndex class
-const idx = new VectorIndex({ dimensions: 1536 })
+const idx = new VectorIndex({ provider: 'openai', model: 'text-embedding-3-small' })
 await idx.add([{ id: '1', content: 'Hello', metadata: {} }])
 const results = await idx.search('greeting', 5)
 const results2 = await idx.searchByVector(queryEmbedding, 5)
@@ -239,9 +239,9 @@ const openaiTools = client.toOpenAITools()
 
 // Multiple servers
 const manager = new MCPManager()
-manager.addServer({ name: 'server1', transport: 'stdio', command: '...' })
-manager.addServer({ name: 'server2', transport: 'streamable-http', url: '...' })
-const allTools = await manager.getAllTools()
+await manager.addServer({ name: 'server1', transport: 'stdio', command: '...' })
+await manager.addServer({ name: 'server2', transport: 'streamable-http', url: '...' })
+const allTools = manager.getAllTools() // cached tools from connected servers
 await manager.callTool('server1/tool-name', args)
 await manager.disconnectAll()
 
@@ -356,14 +356,109 @@ await driver.resumeSession(sessionId, 'Add validation')
 ```
 
 ## Gotchas
-- API keys should be in `.env` — `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+- API keys should be in `.env` - `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 - Ollama requires a local server running on port 11434
 - Image generation uses OpenAI DALL-E by default
 - Vision supports both GPT-4V and Claude models
-- VectorIndex is in-memory — not persisted between restarts
+- VectorIndex is in-memory - not persisted between restarts
 - RAG combines chunking + embedding + vector search + LLM generation
 - MCP supports stdio (subprocess), SSE, and HTTP transports
 - The buddy assistant has git integration (commit, push, apply changes)
 - Claude Agent SDK wraps the Claude Code CLI for agentic workflows
 - A Bedrock id as `default` selects the Bedrock driver; it never reaches api.anthropic.com
-- Sentiment/classification use AI models — they're not rule-based
+- Sentiment/classification use AI models - they're not rule-based
+
+
+## Usage, retries and multimodal messages
+
+The public package also exposes `onUsage/recordUsage/listUsageReporters`
+(and clearUsageReporters for teardown), `estimateTokens/estimateMessageTokens`,
+`sanitizePrompt`, `fetchWithRetry`, and
+`buildMessageWithImages/normalizeMessagesForProvider`. Use the exported
+types and their `utils/` implementations before composing a provider-neutral
+message or reporting costs. Token estimates are heuristic, usage callback data
+comes from provider results, and sanitizing a prompt is not authorization for
+executing a suggested tool.
+
+Provider capabilities differ: embeddings currently use OpenAI/Ollama; RAG supports
+Anthropic/OpenAI/Ollama; speech uses OpenAI only. The shared chat client and
+tool-turn helpers support the four chat providers but do not imply those other
+features are implemented by Bedrock. VectorIndex is memory-only; its constructor
+accepts EmbeddingOptions (provider/model), not an arbitrary vector dimensions
+setting. Runtime credentials come from env/provider configuration, never a
+browser-exported config response.
+
+Tests: `storage/framework/core/ai/tests/usage-and-tokens.test.ts`,
+`vision.test.ts`, `retry.test.ts`, `driver-retry.test.ts`,
+`tool-calls.test.ts` and `client.test.ts`. Verify chosen model/provider
+capabilities from config and registry rather than assuming a marketing model name
+is usable for every API.
+
+## Serving MCP tools
+
+Use the native server subpath so serving a tool does not load AI provider drivers:
+
+```typescript
+import { createMCPServer, mcpTextResult } from '@stacksjs/ai/mcp-server'
+import { route } from '@stacksjs/router'
+
+const server = createMCPServer({
+  name: 'example', version: '1.0.0',
+  authenticate: async request => authenticateIntegrationKey(request),
+  tools: [{
+    name: 'account', description: 'Read the connected account',
+    inputSchema: { type: 'object', additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    execute: async (args, { principal }) => mcpTextResult({ id: principal.id }),
+  }],
+})
+route.post('/mcp', server.handle).parseBody(false).skipCsrf()
+route.get('/mcp', server.handle)
+route.delete('/mcp', server.handle).skipCsrf()
+```
+
+`authenticateIntegrationKey` is application-owned: return a principal or an HTTP
+401/403 `Response`. Authenticate every request, enforce scopes and quotas, and
+never accept ambient login cookies as integration credentials. Tool `available`
+filters discovery and execution; domain operations must still check authorization.
+`@stacksjs/api/operation` supplies `defineApiOperation({ authorize, handle })` for
+sharing that check across HTTP, MCP and background invocations.
+
+This transport is stateless Streamable HTTP with JSON replies. It supports
+2025-11-25, 2025-06-18 and 2025-03-26; GET/DELETE return 405. Clients send both
+application/json and text/event-stream in Accept. It implements tools, static
+resources, prompts and discovery pagination; it does not claim SSE subscriptions,
+tasks, server requests, session ids, stdio or JSON-RPC batch support. `parseBody(false)`
+is essential: the protocol owns its bounded read and error envelope. The router
+keeps middleware, CSRF policy, CORS, security and request-id headers. JSON-RPC
+error bodies keep their envelope instead of receiving a top-level request_id.
+
+Schemas use an explicitly bounded vocabulary: type, enum, const, properties,
+required, additionalProperties (boolean), items, minimum/maximum, min/maxLength,
+min/maxItems and pattern, plus descriptive metadata. Unsupported keywords fail
+registration; put additional domain validation in the authorized operation.
+Use object schemas for input and optional structured output. `mcpTextResult`
+serializes the same data in both text and structuredContent. Tool exceptions are
+redacted, with server-side `onError` diagnostics. Expected domain failures may
+return `mcpTextResult(data, true)`. Do not advertise idempotency for a write unless
+the underlying operation guarantees it. `responseHeaders(principal)` can expose
+per-key rate limits. Browser requests require exact configured allowedOrigins. Requests without an Origin header
+remain eligible for bearer authentication. The request Host is never an origin allowlist.
+
+Tests: `core/ai/tests/mcp-server.test.ts`, `core/router/tests/body.test.ts`,
+`core/router/tests/protocol-body.test.ts` and `core/api/tests/operation.test.ts`.
+
+
+For OAuth-backed MCP hosts, set `resourceMetadataUrl` to the canonical RFC 9728
+metadata URL; authentication failures keep their HTTP status and advertise it in
+the Bearer challenge. Use native Stacks auth for registration, consent, PKCE,
+audience checks, token exchange and revocation. Per-tool `securitySchemes` and
+`_meta` are supported for host authentication metadata; they describe policy and
+do not replace runtime authorization. Tool result `_meta` can carry protocol
+extensions such as authentication challenges.
+
+The server snapshots registered tools, schemas, prompt arguments, origins and
+callbacks. Later changes to the supplied objects cannot relax an active server's
+policy. Invalid schema types and bounds fail at registration; enum/const accept
+JSON primitives only. String bounds count Unicode code points. Diagnostics and
+response-metadata callback failures cannot reject the protocol handler.

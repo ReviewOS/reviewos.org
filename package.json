@@ -19,7 +19,7 @@
     "url": "https://github.com/ReviewOS/reviewos.org/issues"
   },
   "scripts": {
-    "build:reset": "rm -rf node_modules && pantry install && ./buddy generate:types && ./buddy lint:fix && cd storage/framework && bun run build && cd ../../",
+    "build:reset": "rm -rf node_modules pantry.lock && bun install && ./buddy generate:types && ./buddy lint:fix",
     "buddy": "./buddy",
     "stacks": "./buddy",
     "setup": "./bootstrap",
@@ -55,7 +55,7 @@
     "generate": "./buddy generate",
     "typecheck": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",
     "typecheck:clean": "bunx --bun rimraf storage/framework/.cache/typescript",
-    "types:check": "bun run typecheck",
+    "types:check": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",
     "types:fix": "./buddy types:fix",
     "test": "./buddy test",
     "test:ui": "./buddy test:ui",
@@ -64,35 +64,37 @@
     "deps:lockfile:check": "bun .github/scripts/check-lockfile-version.ts",
     "bud": "./buddy",
     "stx": "./buddy",
-    "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
+    "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false",
+    "typecheck:app": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "@stacksjs/actions": "0.75.212",
-    "@stacksjs/api": "0.75.212",
-    "@stacksjs/buddy": "0.75.212",
+    "@stacksjs/actions": "0.75.217",
+    "@stacksjs/api": "0.75.217",
+    "@stacksjs/buddy": "0.75.217",
     "@stacksjs/bunpress": "^0.2.14",
-    "@stacksjs/database": "0.75.212",
-    "@stacksjs/docs": "0.75.212",
-    "@stacksjs/env": "0.75.212",
-    "@stacksjs/events": "0.75.212",
-    "@stacksjs/faker": "0.75.212",
-    "@stacksjs/orm": "0.75.212",
-    "@stacksjs/queue": "0.75.212",
-    "@stacksjs/search-engine": "0.75.212",
-    "@stacksjs/router": "0.75.212",
-    "@stacksjs/server": "0.75.212",
+    "@stacksjs/database": "0.75.217",
+    "@stacksjs/docs": "0.75.217",
+    "@stacksjs/env": "0.75.217",
+    "@stacksjs/events": "0.75.217",
+    "@stacksjs/faker": "0.75.217",
+    "@stacksjs/orm": "0.75.217",
+    "@stacksjs/queue": "0.75.217",
+    "@stacksjs/search-engine": "0.75.217",
+    "@stacksjs/router": "0.75.217",
+    "@stacksjs/server": "0.75.217",
     "@stacksjs/stx": "0.2.553",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.13",
     "mermaid": "^12.1.0",
     "pickier": "^0.1.67",
-    "stacks": "0.75.212",
+    "stacks": "0.75.217",
     "ts-git-lfs": "^0.1.3",
     "ts-images": "^0.2.25",
     "ts-pantry": "^0.11.69",
-    "ts-syntax-highlighter": "^0.2.17"
+    "ts-syntax-highlighter": "^0.2.17",
+    "@stacksjs/http": "0.75.217"
   },
   "workspaces": [
     "storage/framework",
@@ -108,7 +110,7 @@
     "commit-msg": "bun x gitlint --edit \"$1\""
   },
   "devDependencies": {
-    "@stacksjs/image": "0.75.212",
+    "@stacksjs/image": "0.75.217",
     "better-dx": "^0.2.37"
   },
   "overrides": {
@@ -120,6 +122,6 @@
     "bun-plugin-stx": "0.2.553",
     "@stacksjs/components": "0.2.553",
     "@stacksjs/ts-cloud": "^0.16.58",
-    "@stacksjs/buddy": "0.75.212"
+    "@stacksjs/buddy": "0.75.217"
   }
 }

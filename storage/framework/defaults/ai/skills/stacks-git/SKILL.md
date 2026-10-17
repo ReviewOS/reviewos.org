@@ -83,6 +83,13 @@ Based on `cz-git` UserConfig:
 
 ## Git Utilities
 
+`buddy release` atomically pushes its commit and version tag to the branch's
+configured upstream remote and branch. A worktree on `codex/example` tracking
+`origin/main` releases to `origin/main`; it does not create a remote feature
+branch. Without an upstream it uses `origin` and the current branch. Detached
+HEAD, incomplete upstreams, local-only remotes and non-branch or ambiguous
+upstreams are rejected before the version bump.
+
 ```typescript
 import { isGitClean } from '@stacksjs/utils'
 
@@ -176,6 +183,17 @@ Credit: adapted from Matt Pocock's `resolving-merge-conflicts` skill (MIT),
 <https://github.com/mattpocock/skills>.
 
 ## Gotchas
+
+### Setting up pre-commit checks
+
+The current Matt Pocock `setup-pre-commit` workflow maps to Stacks' existing
+hooks, rather than adding Husky, lint-staged, or Prettier. Inspect `package.json`,
+the installed `better-dx` tooling, `config/git.ts`, and CI. Keep staged formatting
+on pickier and run the repository's actual typecheck and test commands at the
+appropriate gate. Preserve existing hook actions. Prove a deliberate temporary
+violation fails, restore it, and prove the valid state passes. Do not create a
+commit merely to exercise a hook. See [NOTICE.md](NOTICE.md) and
+[the Stacks adaptation rules](../stacks-flow/ENGINEERING.md).
 - **`@stacksjs/git` is mostly re-exports** - actual functionality in `@stacksjs/gitlint`, `@stacksjs/gitit`, `bun-git-hooks`
 - **Pre-commit runs lint-staged** - the only default hook
 - **Emoji disabled by default** - `useEmoji: false` but emoji mappings exist for each type

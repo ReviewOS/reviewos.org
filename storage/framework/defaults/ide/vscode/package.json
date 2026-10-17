@@ -2,7 +2,7 @@
   "publisher": "Stacks",
   "name": "vscode-stacks",
   "displayName": "Stacks",
-  "version": "0.75.89",
+  "version": "0.75.217",
   "description": "Stacks, built into VS Code: stx templates, pickier linting and formatting, encrypted env files, the dev server preview and every buddy command. No other extensions required.",
   "license": "MIT",
   "funding": "https://github.com/sponsors/chrisbbreuer",
@@ -144,6 +144,11 @@
         "command": "stx.reloadUtilityClasses",
         "title": "Reload Utility Class Configuration",
         "category": "stx"
+      },
+      {
+        "command": "stx.extractToComponent",
+        "title": "Extract to Component",
+        "category": "stx"
       }
     ],
     "menus": {
@@ -280,6 +285,11 @@
             "type": "boolean",
             "default": true,
             "description": "Validate that template paths in @include and @component directives exist"
+          },
+          "stx.diagnostics.validateComponentProps": {
+            "type": "boolean",
+            "default": true,
+            "description": "Validate required and unknown props passed through @component directives"
           },
           "stx.completion.enable": {
             "type": "boolean",

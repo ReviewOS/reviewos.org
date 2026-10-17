@@ -1,6 +1,6 @@
 ---
 name: stacks-mobile
-description: Use when building native iOS or Android applications from a Stacks and STX codebase with Craft, including mobile configuration, native capabilities, safe areas, haptics, sharing, and mobile build output.
+description: Use when building native iOS or Android applications from Stacks and STX with Craft, mobile configuration, native capabilities, device search, health, route recording, safe areas, haptics, or mobile build output. Covers @stacksjs/mobile and the mobile build pipeline.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, Xcode for iOS project generation
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -13,6 +13,22 @@ API as the web application. Craft owns the platform project and native bridge;
 Stacks owns application configuration and build orchestration.
 
 ## Key paths
+
+Applications own zero Swift: author STX and TypeScript, configure the shell in
+`config/mobile.ts`, and extend reusable native capabilities in Craft. Swift
+templates ship in `craft-native`; generated sources under `storage/framework/mobile`
+are build output, never application overrides. `buddy build:ios` writes a source
+ignore rule and an Xcode Cloud post-clone hook that restores sources from frozen
+dependencies. Retain Xcode metadata, generated config, assets and compiled bundles
+for cloud discovery. Remove previously tracked Swift with `git rm --cached` when
+migrating an existing app; keep the generated files locally for Xcode.
+
+Use the Bun-only `@stacksjs/mobile/testing` entrypoint for
+`prepareIosSimulatorDriver(config.ios)`, `serializeSimulatorSteps(steps)`,
+`createNativeMutationValidator()` (macOS + swiftc), and `restoreIosShell(output)`.
+Configure the reusable simulator host with `ios.simulator` and Bun bootstrap with
+`ios.shell.bunVersion`. See the mobile package README for the control-server wire
+protocol and Xcode tooling requirements. Browser code must not import `/testing`.
 
 - App configuration: `config/mobile.ts`
 - Mobile runtime: `storage/framework/core/mobile/src/`
@@ -37,6 +53,13 @@ The build validates `config/mobile.ts`, initializes a Craft iOS project,
 selects either a remote application URL or bundled web assets, generates the
 Xcode project with xcodegen, and records source, capability, and Craft builder
 revision provenance in `stacks-mobile.json`.
+
+xcodegen comes from Pantry, never from `PATH`: the version is
+`iosDependencies` in `config/deps.ts` (beside `androidDependencies`; the
+framework default is `github.com/yonaskolb/XcodeGen@^2.46.0`), and
+`buddy setup:ios` installs it with `pantry install --user`. A machine without
+it fails before the build starts, with that command in the error. Xcode is not
+a Pantry package; install it from the App Store or developer.apple.com.
 
 For local Craft development, point Stacks at Craft's builder source:
 
@@ -96,6 +119,61 @@ Choose exactly one primary content source:
 Only enable capabilities the product uses. Craft turns enabled capabilities
 into native bridge availability and required iOS privacy descriptions.
 
+The shell's behaviour around the page defaults to a native app's; set only
+what should differ: `swipeBack` (`'router'`, the stx router's interactive
+swipe, or `'webview'` for WebKit's history swipe), `keyboardAccessory` (off),
+`allowsLinkPreview` (off), `disableZoom` (on), `splashMaxSeconds` (3),
+`requestTimeoutSeconds` (10), `backgroundRefresh: { enabled, identifier?,
+minimumIntervalMinutes? }`and`associatedDomains` (universal links). Leave
+`swipeNavigation` unset: WebKit's swipe alongside the router's fights it, and
+`buddy build:ios` warns. The Liquid Glass chrome needs iOS 26 at run time;
+the default `deploymentTarget` stays, older systems drawing classic bars.
+
+## Native screen bindings
+
+Screens under `resources/native/` use the same STX client syntax as web views.
+Declare reactive data in `<script client>` and bind text with `:text`, props
+with `:prop`, and native presses with `@click`. Pull-to-refresh uses `@refresh`
+and a boolean `:refreshing` signal. Bare signals auto-unwrap in bindings;
+read them with `signal()` and update them with `signal.set()` inside scripts.
+Imported helpers used only in bindings are retained in the client setup.
+
+```stx
+<script client>
+const title = state('Today')
+const refreshing = state(false)
+async function refresh() {
+  refreshing.set(true)
+  try {
+    const response = await fetch('https://example.com/api/title')
+    if (!response.ok) throw new Error('Could not refresh')
+    title.set((await response.json()).title)
+  }
+  finally {
+    refreshing.set(false)
+  }
+}
+</script>
+<ScrollView @refresh="refresh()" :refreshing="refreshing">
+  <Text :text="title" />
+</ScrollView>
+```
+
+A single-brace JSX expression such as `{title}` is plain text in STX. Keep
+startup requests and timers in `onMount()`, returning a cleanup for timers so
+leaving a native screen releases them. Test the minified `compileNativeBundle`
+output with the native bridge, including refresh, keyed rows, conditions and
+navigation; compiling a plausible tree alone does not prove it updates.
+
+While an app is in TestFlight before its first public release, keep the iOS
+marketing version at `1.0.0` and run `buddy release:ios --bump build`. Each
+upload needs a new build number, not a patch to the marketing version.
+
+Each `release:ios` also creates the tag's GitHub release (the TestFlight build
+number and the changes since the previous tag), using `GITHUB_TOKEN`,
+`GH_TOKEN`, the GitHub CLI's token or the git credential. When that fails the
+tag is still out; `buddy release:github <tag>` creates the missing release.
+
 ## Device search index
 
 `spotlight` says what of the application's own content a device may index, so
@@ -118,7 +196,7 @@ export default {
 
 `slots` is a budget, not a guess. iOS indexes donated `NSUserActivity` objects
 and hands a tapped one back only for an activity type the build declares in
-`Info.plist`, a list fixed at build time — so a type per record id cannot be
+`Info.plist`, a list fixed at build time - so a type per record id cannot be
 declared at all. Each kind gets that many slots, each slot holds whichever
 record is currently in it, and the oldest donation makes room for the next.
 `buddy build:ios` writes the declarations; an entry the build did not declare
@@ -145,11 +223,144 @@ host predates the bridge, and where the index is turned off (`enabled: false`),
 so a page can donate unconditionally. `spotlight.routeFor(action)` answers a tap
 synchronously for an app that already routes Craft's shortcut events itself.
 
-Index what is the person's — saved, joined, entered — rather than what they
+Index what is the person's - saved, joined, entered - rather than what they
 looked at, wherever the page re-renders on that change: a page that donates on
 every render would put a record straight back the moment they left it. Donating
 the same record twice is free, so an effect over the record is the natural call
 site.
+
+## Heart-rate strap (Bluetooth)
+
+`heartRate` reads a Bluetooth heart-rate strap (Polar, Garmin, Wahoo), or a
+watch broadcasting its heart rate, through the standard Heart Rate Service.
+`scan` finds straps nearby (`onDevice` hears each), `connect(id)` subscribes
+to its readings (`onReading`: bpm and RR intervals, about once a second) and
+remembers it, so `reconnect()` finds it next time without a scan; a strap that
+drops out is asked for again until `disconnect()`. `startRecording()` keeps
+every reading natively, screen locked or app closed, until `stopRecording()`
+hands them back. iOS only, behind `capabilities.heartRate` (which adds the
+`bluetooth-central` background mode); Bluetooth needs no network.
+
+`capabilities.backgroundAudio` (iOS) adds the `audio` background mode, so a
+soundscape played with Web Audio keeps going with the screen locked: a sleep
+timer built on stx's `useAmbientSound().fadeOut(seconds, after)` then fades it
+out on the audio clock. App Review expects audible content from an app that
+asks for it.
+
+```ts
+import { createRouteRecorder, heartRate, location } from '@stacksjs/mobile'
+
+const stop = heartRate.onDevice(device => list.push(device)) // { id, name, rssi }
+await heartRate.scan({ timeout: 15 })        // can show iOS's Bluetooth prompt
+await heartRate.connect(list[0].id)          // rejects TIMEOUT while still asking
+heartRate.onReading(reading => show(reading.bpm))
+
+// With a route: the strap records with it, and each fix gets its heart rate.
+const recorder = createRouteRecorder({ location, heartRate })
+await recorder.start()
+const fixes = await recorder.stop()          // fixes[i].heartRate
+const samples = recorder.heartRate           // every reading: { timestamp, bpm, rr? }
+```
+
+Without a route, record it on its own (`heartRate.startRecording()` /
+`stopRecording()`), and `attachHeartRate(fixes, samples)` pairs readings
+with fixes recorded separately. In a browser and on Android `isAvailable()` is
+false, the state says `available: false` and nothing fires. Word iOS's prompt
+with `ios.usageDescriptions.NSBluetoothAlwaysUsageDescription`.
+
+## Apple Watch scheduled workouts
+
+`scheduledWorkouts` puts structured workouts on the paired Apple Watch through
+WorkoutKit's scheduler (iOS 17+): each appears in the watch's Workout app on
+its day, with its warmup, repeated blocks, cooldown, goals and alerts. iOS
+only, behind `capabilities.scheduledWorkouts`; only an app with it compiles in
+and links WorkoutKit. The calls work on the page and on native stx screens.
+A plan is plain JSON in SI units, its `id` a UUID the app keeps for it.
+
+```ts
+import { scheduledWorkouts } from '@stacksjs/mobile'
+
+if (await scheduledWorkouts.isSupported()) {           // false off an iPhone, never rejects
+  await scheduledWorkouts.requestAuthorization()       // iOS's prompt, once; call it from a tap
+  const kept = await scheduledWorkouts.list()          // [{ id, date, hour, minute, complete }]
+  await scheduledWorkouts.schedule({
+    id: '6f1c2b8e-5a7d-4c3e-9b1a-2d4e6f8a0b1c',
+    date: '2026-10-20', hour: 6, minute: 30,           // local; 07:00 without a time
+    workout: {
+      activity: 'running', location: 'outdoor', displayName: '4 x 1 km',
+      warmup: { goal: { type: 'time', seconds: 600 } },
+      blocks: [{ iterations: 4, steps: [
+        { purpose: 'work', step: { goal: { type: 'distance', meters: 1000 }, alert: { type: 'speed', min: 4.1, max: 4.4 } } },
+        { purpose: 'recovery', step: { goal: { type: 'time', seconds: 120 } } },
+      ] }],
+    },
+  })
+  await scheduledWorkouts.remove(kept[0].id)          // every day it is on
+}
+```
+
+Goals are `open`, `time` (seconds), `distance` (meters) and `energy`
+(kilocalories); alerts `heartRate`, `power`, `speed` (m/s), `cadence` ranges and
+`heartRateZone` / `powerZone`. An activity or goal WorkoutKit refuses rejects
+the call with a message naming it; an alert it refuses is left out and named
+in the result's `droppedAlerts`. `schedule` also rejects LIMIT_REACHED (the
+watch holds 15) and NOT_SCHEDULED when nothing kept the plan, as without a
+paired watch. In a browser and on Android `isSupported()` is false and every
+other call rejects `unsupported`.
+
+For tests, `createScheduledWorkoutsFake()` from `@stacksjs/mobile/testing` is a
+`craft.scheduledWorkouts` that answers like the shell. On the iOS simulator,
+which never has a watch, the app's `CraftFakeWorkoutScheduler` default makes
+the shell keep plans itself (`xcrun simctl spawn <device> defaults write <bundle id> CraftFakeWorkoutScheduler -bool YES`).
+
+## Apple Music (now playing)
+
+`music` shows what the Music app is playing (title, artist, album, a small
+artwork data URL, duration, position, playback state) and steers it: `play`,
+`pause`, `togglePlayPause`, `skipToNext` and `skipToPrevious`, which restarts
+the song a few seconds in, like the Music app's own button. Changes arrive
+from native as they happen, so a page never polls. iOS only, behind
+`capabilities.appleMusic`; music control is local to the phone, so it works
+offline.
+
+```ts
+import { music } from '@stacksjs/mobile'
+
+// From the person's tap, never on load: iOS shows its prompt the first time.
+if (await music.requestAuthorization() === 'authorized') {
+  render(await music.getNowPlaying())
+  const stop = music.onChange(render) // observes while anyone listens
+  await music.togglePlayPause()
+}
+```
+
+Only Apple Music: iOS gives no app the controls of another player, Spotify
+included, so while one plays the song fields are null and `otherAudioPlaying`
+is true; say so rather than show controls that do nothing. Nothing is read
+before access is allowed (`authorization` is `notDetermined`, `denied` or
+`restricted` until then). In a browser and on Android `isAvailable()` is false,
+every call answers `{ available: false }` and `onChange` never fires. Word the
+prompt with `ios.usageDescriptions.NSAppleMusicUsageDescription`. The
+simulator's Music app has nothing to play; launch a simulator build with
+`-CraftFakeMusicPlayer YES` for three made-up songs that play and skip.
+
+## Crash reporting (bughq)
+
+`crashReporting` in `config/mobile.ts` turns on Craft's native reporter (craft-native >= 0.0.179; the build refuses an older one). It sends crashes, hangs (MetricKit), ANRs and native crashes (ApplicationExitInfo) and uncaught JavaScript errors in native screens and the app script to bughq from an on-disk outbox, with app version and build, OS, device model, session and breadcrumbs (screens shown, failed requests).
+
+```ts
+export default {
+  crashReporting: { host: env.BUGHQ_HOST || undefined, environment: 'production' },
+  ios: { /* ... */ crashReporting: { key: env.BUGHQ_IOS_KEY } },
+  android: { /* ... */ crashReporting: { key: env.BUGHQ_ANDROID_KEY } },
+} satisfies MobileConfig
+```
+
+- Platform settings override the shared ones field by field; no key means off.
+- `release` defaults to `<version>+<build>`; one session per launch feeds crash-free sessions.
+- Symbols: `build:ios` writes `ci_scripts/ci_post_xcodebuild.sh`, which uploads Xcode Cloud archive dSYMs (`symbols | gzip | curl`) when the workflow has the secret `BUGHQ_UPLOAD_TOKEN`; `build:android --bundle` uploads the R8 `mapping.txt` the same way. `uploadSymbols: false` turns both off. The token never goes in the app.
+- JavaScript: `crashReporting.start()` from `@stacksjs/mobile` runs `@bughq/sdk` in web views with a transport into the native outbox (no key needed in the app; a no-op in a browser without one). `crashReporting.setUser(id)` names the user by id only. On a native screen or the app script use `craft.crashReporter` (`capture`, `setUser`, `addBreadcrumb`, `flush`, `context`).
+- Test crashes are Debug-only: `xcrun simctl launch <device> <bundle id> -CraftCrashTest swift|signal|exception|js`, or `--es craftCrashTest native|js` on Android.
 
 ## Runtime API
 
@@ -166,16 +377,59 @@ await withNativeFeedback(() => saveActivity())
 ```
 
 The runtime is browser-safe. Craft-backed operations use the native bridge;
-supported web APIs provide fallback behavior outside a native host.
+supported web APIs provide fallback behavior outside a native host. Inside a
+native host whose bridge is still loading (an older shell installs it after
+the page loads), a call waits for it briefly instead of taking the web path.
+Nothing throws for being unsupported: it resolves `null` or `false`.
+
+Beyond the services above, each with a web fallback:
+
+```ts
+import { browser, clipboard, confirmAction, contextMenu, db, dialog, files, haptics, orientation, shortcuts, storeKit, symbols, useActionSheet, widgets } from '@stacksjs/mobile'
+
+await dialog.alert({ title: 'Saved' }) // UIAlertController, or an HTML alert
+if (await confirmAction({ title: 'Delete this workout?', confirmLabel: 'Delete', destructive: true })) remove()
+const id = await useActionSheet()({ actions: [{ id: 'skip', title: 'Skip' }] }) // null when cancelled
+await contextMenu.show({ items, anchor }) // UIMenu, or an HTML menu over the blurred page
+await browser.open(url, { mode: 'auth', callbackScheme: 'myapp' }) // ASWebAuthenticationSession
+await symbols.image('heart.fill') // an SF Symbol as a PNG data URL, cached
+await haptics.prepare('impact') // wake the Taptic Engine before a likely tap
+```
+
+Also `statusBar`, `chrome` (under-page colour, keyboard accessory),
+`refresh` (the native UIRefreshControl), `background.complete`, `clipboard`,
+`db` (the app's SQLite), `files` (PDF, screenshot, QR scan, pick, save,
+download), `shortcuts` (home screen quick actions), `widgets`,
+`orientation`, `auth.signInWithApple` and `storeKit`. The phone's events:
+`onAppearance`, `onResume`, `onMemoryWarning`, and `onSilentPush` /
+`onBackgroundRefresh`, which tell iOS the work is done when the handler
+settles.
 
 For a run or ride, `createRouteRecorder({ location, onUpdate })` starts, pauses,
 resumes and stops the native recording, re-attaches to one that outlived the
 app (`attach()`), and reports live distance and pace from `routeStats(fixes)`,
 which ignores GPS drift, inaccurate fixes and the ground crossed during a pause.
+Recorder operations serialize; repeated `stop()` returns the same recording.
+Call `dispose()` when the owning page is destroyed to stop polling without
+stopping the native recording. Refreshes coalesce and cannot overwrite a final
+recording with a stale read.
+
+For timestamp-based timers use `startSessionClock(now)`,
+`pauseSessionClock(clock, now)`, `resumeSessionClock(clock, now)` and
+`sessionClockElapsed(clock, now)`; elapsed seconds exclude pauses across sleep.
+`typedDistanceKm(text, { defaultUnit: 'km' })` honors labelled kilometre fields,
+including zero, decimal commas and explicit `m`/`mi` suffixes. Without the
+option the original metres heuristic remains for unlabelled inputs.
 
 ## STX components
 
 - `<NativeAppShell>` applies iOS safe-area insets and reserves tab-bar space.
+  In the phone app it sets the system font at the Dynamic Type size (the
+  components size in `em` off `--native-font-size`), drops the tap flash and
+  double-tap delay, gives `data-native-pressable` elements UIKit's pressed
+  state (and wakes the haptics as a finger lands), and keeps the under-page
+  colour, status bar, keyboard bar and Reduce Motion
+  (`data-native-reduce-motion` on the root) in step with the page.
 - `<NativeTabBar>` provides the accessible navigation shell and selection haptics.
 - `<NativeTabItem>` provides each route, active state, label, and Iconify icon.
 - `<NativeShareButton>` opens the native share sheet and reports feedback.
@@ -183,29 +437,54 @@ which ignores GPS drift, inaccurate fixes and the ground crossed during a pause.
 - `<NativePermissionButton>` wraps permission status, requests, haptics, and the native Settings escape hatch.
 - `<NativeHealthButton>` requests the minimal Apple Health or Android Health Connect grants.
 - `<NativeNavBar>` is the iOS navigation bar: a large title that collapses into
-  the bar as the page scrolls, a back button (`back="/parent"`) that goes back
+  the bar with the scroll, a frame at a time (and stretches when pulled past
+  the top), a `chevron.backward` back button (`back="/parent"`) that goes back
   through history when the app pushed the screen, and `leading` / `actions`
   slots. Pass `:large="false"` on a pushed screen; `title` is reactive.
 - `<NativePullToRefresh @refresh="reload">` refreshes the page when pulled from
-  its top. The event carries `done()`: call it when the new data is in.
+  its top: the phone's own UIRefreshControl in the shell, the 12-spoke
+  indicator with the content held down elsewhere. The event carries `done()`:
+  call it when the new data is in. `scrollHost=".list"` for a screen that
+  scrolls in a container.
 - `<NativeSegmentedControl :options="[...]" v-model:value="range">` switches
-  between views of one screen, with selection haptics.
+  between views of one screen, with selection haptics, thumb scrubbing and
+  arrow keys.
 - `<NativeSheet v-model:open="editing" title="…">` raises a bottom sheet for a
-  task that belongs to the screen, above the tab bar.
+  task that belongs to the screen: dragged down from its grabber or header to
+  dismiss, the page behind inert. `detents="medium large"` makes it full
+  height with detents, the page pressed into a card at large. An open sheet is
+  a layer on stx's overlay stack (`window.stx.overlays`) with Dialog, Drawer,
+  stxConfirm and the HTML alerts: the stack locks the page, makes it inert,
+  gives Escape and Tab to the top layer and returns focus, so a confirm opened
+  from a sheet closes alone. `lockBackground` and `trapFocus` no longer exist;
+  an app's own overlay uses `openOverlay` / `closeOverlay` from
+  `@stacksjs/components/overlays` (in `<script client>`), passing `root` for
+  an element lifted into `<body>` and `zIndex` to stack by opening order.
+- `<NativeContextMenu :items="[...]" @select="…">` opens a menu on a
+  half-second press: UIMenu in the shell, an HTML menu elsewhere.
+- `<NativeActionSheet v-model:open="choosing" :actions="[...]" @select="…">`
+  asks for a choice from the bottom; `confirmAction()` and `useActionSheet()`
+  do it from code.
+- `<NativeSymbol name="heart.fill" icon="i-lucide-heart">` draws an SF Symbol
+  in the text colour, with an Iconify stand-in where there are none.
 - `<NativeProgressRing :value="percent" :size="176">` fills a ring as something
   completes (sets done, a countdown running out), with its content in the
   slot. Colours follow `--native-ring` and `--native-ring-track`.
 - A screen that is a task of its own (a workout player, a composer) marks an
   element `data-native-hide-tab-bar`, and the tab bar steps away while it is
   shown, its reserved space with it.
-- `<Video :src="current.url">` is the framework's player (ts-video-player):
-  YouTube, Vimeo, HLS, DASH or a file. `src` is reactive, so one player in a
-  sheet can show whichever video is chosen; clearing it pauses the player.
-  Craft lets an https iframe load inside the app, so embeds play inline.
+- `<Video :src="current.url" autoplay>` is the player from
+  `@stacksjs/components` (ts-video-player): YouTube, Vimeo, HLS, DASH or a
+  file, with controls in the page's language. `src`, `poster`, `aspectRatio`
+  and `label` are reactive, so one player in a sheet can show whichever video
+  is chosen, `autoplay` starts each one, and clearing `src` pauses it. Craft
+  lets an https iframe load inside the app, so embeds play inline.
 
 `<NativeTabItem match="/m/workout">` keeps a tab lit on the detail screens
 opened from it. A tab bar is a `<nav>`, where a link is otherwise current only
-on its own page.
+on its own page. Tab links are the stx router's tabs (`data-stx-nav="tab"`):
+each keeps its own screens and history, and choosing the current one again
+scrolls it to the top, then pops it to its root (`stx:tabreselect`).
 
 Use Iconify classes for tab icons. Keep native operations inside reusable
 components or TypeScript composables, never through `window.*` in an STX
@@ -216,11 +495,28 @@ script.
 `ios.appearance: 'system'` follows the phone's Light/Dark setting (and the
 page's `prefers-color-scheme` with it), with a status bar that reads on either;
 `'light'` and `'dark'` pin one. `ios.backgroundColorDark` colours the launch
-screen and webview in Dark Mode. `ios.swipeNavigation: true` lets an edge swipe
-go back through the page's history, pushed routes included.
+screen and webview in Dark Mode. An edge swipe goes back through the stx
+router's own interactive swipe; WebKit's (`ios.swipeBack: 'webview'`) is only
+for an app whose pages are not on the router.
 
 Decide native-only chrome with `await whenNativeMobile()`, not
 `isNativeMobile()` at setup: Craft installs its bridge after the page starts.
+
+## Android native screens
+
+`android.renderer: 'native'` with the iOS app's `nativeScreens`, `tabs` and
+`nativeApp` draws the same `.stx` screens with Android views (Craft >= 0.0.169;
+`CRAFT_ANDROID_FLOORS` in `actions/src/build/android-config.ts` refuses an older
+Craft). The host is JavaScriptSandbox: it cannot answer synchronously, so Craft
+starts each isolate with copies of storage, secure storage and snapshots and keeps
+them current; timers and frames are the host's. `android.healthConnect: { read,
+write, background, history }` declares only the listed Health Connect types,
+`backgroundRefresh` runs the app script from WorkManager, and
+`buddy build:android --bundle` writes a signed AAB (`CRAFT_ANDROID_KEYSTORE`,
+`CRAFT_ANDROID_KEYSTORE_PASSWORD`, `CRAFT_ANDROID_KEY_ALIAS`,
+`CRAFT_ANDROID_KEY_PASSWORD`). On Android, `craft.health.availability()`,
+`grantedTypes()` and `openSettings()` (stx >= 0.2.514) handle Health Connect
+needing an install or update and its own permission screen.
 
 ## Health and watch surfaces
 
@@ -228,7 +524,20 @@ Enable `healthKit` on iOS or `healthConnect` on Android, then use the shared
 `health` service to request only the record types the product needs. On iOS,
 `health.getWorkouts()` lists Apple Health workouts (keyed on HealthKit's UUID)
 and `health.getDailyStatistics(type)` returns one value per day for steps,
-energy, distance, heart rate, resting heart rate, HRV, weight and sleep. Completed
+energy, distance, heart rate, resting heart rate, HRV, weight and sleep.
+`health.getHeartRateSamples(range)` returns every heart-rate reading (bpm,
+start/end, source and device) and `health.getSleepIntervals(range)` the night's
+in-bed, awake and asleep stages; check `health.supports(method)` first, since an
+app build that predates a read resolves `[]` for it. Mindful minutes go through
+`health.saveMindfulSession({ id, startDate, endDate })` (the `mindful` grant;
+the id is the sample's external UUID, so a repeat save keeps the first) and come
+back from `health.getMindfulSessions(range)` with `ownApp` on this app's own.
+`health.startHeartRateUpdates({ since })` streams Apple Health's heart rate as
+the watch syncs it (Craft 0.0.166, HKAnchoredObjectQuery) to
+`health.onHeartRate(samples => …)`; it resolves `false` on an older build, so
+fall back to polling `getData('heartRate')`, and `stopHeartRateUpdates()` ends
+it. Readings come every few seconds only while the watch runs a workout or a
+Mindfulness session. Completed
 recordings can be written back with `health.saveWorkout(...)`; treat permission
 revocation as a normal runtime state and never block saving the application's
 own activity when a health write fails.
@@ -239,6 +548,27 @@ context without exposing `WCSession` to STX templates. Set
 `ios.watchDeploymentTarget` when the default watchOS 9.0 target is not suitable.
 
 ## Validation
+
+### Capability and lifecycle boundaries
+
+Named imports from `@stacksjs/mobile` are browser-safe and tree-shake the
+selected Craft services. Prefer them to reading a module namespace or reaching
+through global bridge internals. A native host can exist before its bridge is
+ready; service wrappers wait where appropriate, while haptics are deliberately
+best-effort so a late response never delays a tap. Check `whenNativeMobile`
+when selecting native-only chrome and preserve cleanup from subscriptions.
+
+Capability configuration generates platform entitlements/privacy descriptions;
+it does not grant the user permission or prove a capability works on every OS.
+Permission denial, revocation, unavailable hardware and web fallback behavior
+are ordinary states. Build evidence and a successful native API call on a real
+device are different validations. Health/watch, StoreKit, Spotlight, background
+refresh and live activity work need their specific device/environment checks.
+
+Route recordings can outlive the web page, so attach to an existing recording
+before starting a second. `indoorVerdict(fixes, elapsedS)` and
+`typedDistanceKm(input)` are small exported helpers for indoor-workout decisions
+and typed distance; they are not an indoor-positioning service.
 
 Before finishing mobile work:
 
@@ -262,3 +592,19 @@ observable from the generated project: search a record's name from the home
 screen, confirm the entry appears and opens that record rather than the last
 screen, then make it stop being the person's (leave, unsave, withdraw, sign
 out) and confirm it stops being findable.
+
+## Bundled native fonts
+
+`ios.nativeFonts` and `android.nativeFonts` map a font's PostScript name to local
+`{ src, license? }` paths, resolved against the application root. Use the same
+name in a native Text node's `fontFamily` style. For example:
+
+```ts
+nativeFonts: {
+  'Allura-Regular': { src: 'public/assets/fonts/allura/Allura-Regular.ttf', license: 'public/assets/fonts/allura/OFL.txt' },
+}
+```
+
+Craft >= 0.0.229 packages the files and licenses into both apps. iOS registers
+`UIAppFonts`; Android loads asset typefaces. The build rejects older builders,
+missing font files and invalid names. Fonts work without a network request.

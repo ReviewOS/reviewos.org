@@ -1,6 +1,6 @@
 ---
 name: stacks-deploy
-description: Use when deploying a Stacks application - picking a deploy target (AWS, Hetzner, or a host you own over SSH), the deployment workflow (build → deploy), pre/post deploy hooks, server vs serverless mode selection, first-time deployment setup, rollback, deployment troubleshooting, or the buddy deploy command. For cloud infrastructure details (EC2, Lambda, CloudFormation, Route53, IAM, rpx, systemd), see stacks-cloud.
+description: Use when deploying a Stacks application - picking a deploy target (AWS, Hetzner, or a host you own over SSH), the deployment workflow (build → deploy), pre/post deploy hooks, server vs serverless mode selection, first-time deployment setup, rollback, deployment troubleshooting, or the buddy deploy command. For cloud infrastructure details (EC2, Lambda, CloudFormation, Route53, IAM, rpx, systemd), see stacks-cloud. Covers buddy deploy, config/cloud.ts, provider previews, release and rollback.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, AWS / Hetzner / any 64-bit Debian or Ubuntu host over SSH
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -50,6 +50,12 @@ packaging, hooks, provider calls, persistence, DNS, TLS, or service restarts. Th
 a versioned `STACKS_DEPLOY_PREVIEW_JSON=` line for API and tool consumers.
 
 ## Deployment Prerequisites
+
+Automated production deployments on GitHub Actions and ReviewOS require a full provider
+commit SHA and branch ref. Before prerequisite setup, Buddy verifies the checkout against
+that SHA and reads the current branch head from `origin`. A stale commit, tag/PR ref,
+missing metadata or unavailable remote stops the deployment. Ordinary manual deployments
+and staging deployments keep their existing behavior; dry-run previews remain read-only.
 
 **AWS** (`provider: 'aws'`)
 
@@ -199,6 +205,11 @@ buddy cloud:cleanup           # clean retained resources
 ```
 
 ## Gotchas
+- The API reachability guard recognises `serve:api`, source `serve/api.js`
+  entrypoints and compiled `storage/framework/runtime/production/api.js`
+  bundles, including wrapper commands and custom site names. Page sites still
+  need `API_URL` or `PORT_API` pointing to their API; a compiled API site does
+  not need a proxy back to itself.
 - Check `cloud.provider` before advising anything provider-specific. Half the AWS advice is wrong
   for a Hetzner or SSH box, and vice versa.
 - `buddy deploy --prod` from a non-interactive shell refuses without `--yes`, rather than hanging
@@ -214,3 +225,19 @@ buddy cloud:cleanup           # clean retained resources
 - A failover replica bucket (`infrastructure.storage.<name>.failover`) lives outside the stack, so
   `buddy cloud:remove` leaves it, and its data, behind on purpose
 - For infrastructure details, see the `stacks-cloud` skill
+
+
+## Evidence and infrastructure contract
+
+`core/config/src/capabilities.ts` marks the Hetzner and adopted SSH targets
+experimental: their retained SSH-target tests do not prove live rollback/provider
+conformance. AWS and Fly have runtime paths outside that registry's retained
+deploy matrix; do not infer either supported or unsupported from their absence.
+Read the actual deploy branch, preview and provider tests before claiming parity.
+
+`config/cloud.ts` distinguishes the named tsCloud object (provider,
+infrastructure, environments, sites) from the default Stacks wrapper. Follow the
+installed file's shape rather than moving tsCloud settings into an unrelated
+flat object. A cloud SQS queue definition does not implement QUEUE_DRIVER=sqs
+in the Stacks queue package. Previews, destructive removal, secret writes and
+provider mutations need the user's existing task authorization.
