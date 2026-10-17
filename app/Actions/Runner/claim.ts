@@ -258,30 +258,59 @@ export async function claimNextJob(
      */
     const held = facts.runnerId !== null
 
-    let update = db
-      .updateTable('workflow_jobs')
-      .set({
-        state: 'running',
-        runner_id: String(runner.id),
-        lease_expires_at: expires,
-        started_at: row.started_at ?? now.toISOString(),
-        // Minted per claim, so recovering a lapsed lease invalidates the dead
-        // runner's token in the same write that hands the work on.
-        job_token_hash: hashToken(token),
-      })
-      .where('id', '=', facts.id)
+    const lostClaim = new Error('The job candidate changed before claim')
+    const claimed = await db.transaction(async (handle) => {
+      const tx = handle as unknown as typeof db
+      // Lock the parent before touching its job. Intermediate-run replacement
+      // updates this same row, so it either wins before a claim, or observes
+      // the committed running state and leaves this run's remaining jobs alone.
+      const started = await tx.updateTable('workflow_runs')
+        .set({ state: 'running', started_at: now.toISOString() })
+        .where('id', '=', Number(row.run_id))
+        .where('state', '=', 'queued')
+        .returning(['id'])
+        .executeTakeFirst()
+      const active = started ?? await tx.updateTable('workflow_runs')
+        .set({ state: 'running' })
+        .where('id', '=', Number(row.run_id))
+        .where('state', '=', 'running')
+        .returning(['id'])
+        .executeTakeFirst()
+      if (!active)
+        return null
 
-    update = held
-      // Recovering an expired lease: only if it is still the same stale holder.
-      ? update.where('runner_id', '=', String(facts.runnerId)).where('lease_expires_at', '=', facts.leaseExpiresAt)
-      // Taking a free one: only if nobody has taken it since. `whereNull`
-      // rather than `where(col, 'is', null)`, which this builder compiles into
-      // a bound parameter and Postgres rejects as a syntax error.
-      : update.where('state', '=', 'queued').whereNull('runner_id')
+      let update = tx
+        .updateTable('workflow_jobs')
+        .set({
+          state: 'running',
+          runner_id: String(runner.id),
+          lease_expires_at: expires,
+          started_at: row.started_at ?? now.toISOString(),
+          // Minted per claim, so recovering a lapsed lease invalidates the dead
+          // runner's token in the same write that hands the work on.
+          job_token_hash: hashToken(token),
+        })
+        .where('id', '=', facts.id)
 
-    const result: any = await update.execute()
+      update = held
+        // Recovering an expired lease: only if it is still the same stale holder.
+        ? update.where('state', '=', 'running').where('runner_id', '=', String(facts.runnerId)).where('lease_expires_at', '=', facts.leaseExpiresAt)
+        // Taking a free one: only if nobody has taken it since. `whereNull`
+        // rather than `where(col, 'is', null)`, which this builder compiles into
+        // a bound parameter and Postgres rejects as a syntax error.
+        : update.where('state', '=', 'queued').whereNull('runner_id')
 
-    if (!changedSomething(result))
+      const result: any = await update.execute()
+      if (!changedSomething(result))
+        throw lostClaim // Roll back the parent transition together with this claim.
+      return { wasQueued: Boolean(started) }
+    }).catch((error) => {
+      if (error === lostClaim)
+        return null
+      throw error
+    })
+
+    if (!claimed)
       continue
 
     /*
@@ -292,22 +321,7 @@ export async function claimNextJob(
      * and a dashboard that hears "job running" while the run still says
      * "queued" has to guess which one is stale.
      */
-    const runState = await db
-      .selectFrom('workflow_runs')
-      .select(['state'])
-      .where('id', '=', Number(row.run_id))
-      .executeTakeFirst()
-
-    const wasQueued = String(runState?.state ?? '') === 'queued'
-
-    if (wasQueued) {
-      await db
-        .updateTable('workflow_runs')
-        .set({ state: 'running', started_at: now.toISOString() })
-        .where('id', '=', Number(row.run_id))
-        .where('state', '=', 'queued')
-        .execute()
-    }
+    const wasQueued = claimed.wasQueued
 
     await announceJob(facts.repositoryId, {
       id: facts.id,

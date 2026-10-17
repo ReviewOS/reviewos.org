@@ -909,7 +909,9 @@ async function supersede(
       .select(['id'])
       .where('repository_id', '=', repositoryId)
       .where('concurrency_group', '=', group)
-      .where('id', '!=', runId)
+      // Dispatch callbacks can finish out of order. An older callback must
+      // never cancel a newer run that has already entered the same group.
+      .where('id', '<', runId)
       // Not started: no runner has taken any of its jobs. A run that is
       // `running` is one somebody is already waiting on.
       .where('state', 'in', ['queued', 'waiting'])
