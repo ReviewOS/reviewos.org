@@ -159,8 +159,10 @@ afterAll(async () => {
   try {
     if (created.repositoryId)
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
-    if (created.ownerId)
+    if (created.ownerId) {
+      await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute()
       await db.deleteFrom('users').where('id', '=', created.ownerId).execute()
+    }
   }
   catch { /* the next run uses fresh names */ }
 })
@@ -273,6 +275,81 @@ describe('one run', () => {
 })
 
 describe('cancelling', () => {
+  test('the local operator uses the same cooperative, repository-scoped audited operation', async () => {
+    if (!available)
+      return
+
+    const { cancelRun } = await import('../../app/Actions/Workflow/cancel')
+    const number = await makeRun('running', crypto.randomUUID().replaceAll('-', '').padEnd(40, '0'))
+    const run: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id), job_id: 'done', name: 'Done', position: 1,
+      state: 'succeeded', runs_on: 'ubuntu-latest',
+    }).execute()
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id), job_id: 'waiting', name: 'Waiting', position: 2,
+      state: 'queued', runs_on: 'ubuntu-latest',
+    }).execute()
+
+    const actor = { externalActor: 'local-ssh:test-operator', actorId: null }
+    const otherName = unique('other')
+    const other: any = await db.insertInto('repositories').values({
+      owner_type: 'user', owner_id: created.ownerId, name: otherName,
+      visibility: 'private', default_branch: 'main', disk_path: `${created.handle}/${otherName}.git`,
+    }).returning(['id']).executeTakeFirst()
+    try {
+      const foreign = await cancelRun({ repositoryId: Number(other.id), number, reason: 'wrong repository', actor })
+      expect(foreign.status).toBe(404)
+    }
+    finally {
+      await db.deleteFrom('repositories').where('id', '=', Number(other.id)).execute()
+    }
+
+    const results = await Promise.all([
+      cancelRun({ repositoryId: created.repositoryId, number, reason: 'superseded release', actor }),
+      cancelRun({ repositoryId: created.repositoryId, number, reason: 'superseded release', actor }),
+    ])
+    expect(results.filter(result => 'cancelled' in result.body && result.body.cancelled)).toHaveLength(1)
+
+    const jobs: any[] = await db.selectFrom('workflow_jobs').select(['job_id', 'state', 'lease_expires_at'])
+      .where('workflow_run_id', '=', Number(run.id)).execute()
+    expect(jobs.find(job => job.job_id === 'test').state).toBe('cancelling')
+    expect(jobs.find(job => job.job_id === 'test').lease_expires_at).toBeTruthy()
+    expect(jobs.find(job => job.job_id === 'waiting').state).toBe('cancelled')
+    expect(jobs.find(job => job.job_id === 'done').state).toBe('succeeded')
+
+    const audit: any[] = await db.selectFrom('audit_events').select(['external_actor', 'actor_id', 'detail'])
+      .where('repository_id', '=', created.repositoryId).where('subject_id', '=', Number(run.id))
+      .where('action', '=', 'workflow:run-cancelled').execute()
+    expect(audit).toHaveLength(1)
+    expect(audit[0].external_actor).toBe('local-ssh:test-operator')
+    expect(audit[0].actor_id).toBeNull()
+    expect(JSON.parse(String(audit[0].detail))).toMatchObject({ number, from: 'running', reason: 'superseded release' })
+  })
+
+  test('the operator cannot alter a completed run or its jobs', async () => {
+    if (!available)
+      return
+
+    const { cancelRun } = await import('../../app/Actions/Workflow/cancel')
+    const number = await makeRun('succeeded', crypto.randomUUID().replaceAll('-', '').padEnd(40, '0'))
+    const run: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    const result = await cancelRun({
+      repositoryId: created.repositoryId, number, reason: 'late cancellation',
+      actor: { externalActor: 'local-ssh:test-operator', actorId: null },
+    })
+    expect(result).toMatchObject({ status: 200, body: { cancelled: false, workflow_run: { state: 'succeeded' } } })
+    const job: any = await db.selectFrom('workflow_jobs').select(['state'])
+      .where('workflow_run_id', '=', Number(run.id)).executeTakeFirst()
+    expect(job.state).toBe('queued')
+    const audit: any[] = await db.selectFrom('audit_events').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('subject_id', '=', Number(run.id))
+      .where('action', '=', 'workflow:run-cancelled').execute()
+    expect(audit).toHaveLength(0)
+  })
+
   test('needs a caller, and an anonymous one is refused', async () => {
     if (!available)
       return

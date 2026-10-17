@@ -2432,6 +2432,11 @@ decisions.
       carried all the way to the runner and computed by nothing.
 - [x] Cancel a run and cancel a job, cooperative first and forced after a deadline (phase 9)
 
+      Run cancellation shares one audited domain operation between the authorized HTTP action
+      and trusted local instance operators. Its guarded state update must win before any job
+      changes; a competing completion or cancellation cannot revoke jobs or claim a second audit
+      event. Completed jobs retain their actual results.
+
       The run has been cancellable since phase 9. `POST /api/repos/workflow-runs/cancel-job` is the
       other half, and the case the first cannot serve: one job stuck on a machine that has gone
       quiet, and nine others that are work nobody wants to throw away.

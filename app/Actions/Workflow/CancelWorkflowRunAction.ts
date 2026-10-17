@@ -1,11 +1,7 @@
 import { Action } from '@stacksjs/actions'
-import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
-import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import type { RunState } from './states'
-import { canRunMove, isTerminalRun } from './states'
-import { announceRunIfMoved } from './announce'
+import { cancelRun } from './cancel'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
@@ -75,85 +71,14 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0)
       return response.json({ error: 'A run number is required' }, 422)
 
-    const run = await db
-      .selectFrom('workflow_runs')
-      .select(['id', 'state'])
-      .where('repository_id', '=', repository.id)
-      .where('number', '=', number)
-      .executeTakeFirst()
+    const result = await cancelRun({
+      repositoryId: Number(repository.id), number,
+      reason: String(request.get('reason') ?? ''),
+      actor: { actorId: auth.context.user?.id ?? null, ...await auditFrom(request) },
+    })
 
-    if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
-
-    const state = String(run.state) as RunState
-
-    if (isTerminalRun(state)) {
-      return response.json({
-        workflow_run: { number, state },
-        cancelled: false,
-        reason: 'This run had already finished.',
-      })
-    }
-
-    if (!canRunMove(state, 'cancelling')) {
-      return response.json({
-        workflow_run: { number, state },
-        cancelled: false,
-        reason: `A run that is ${state} cannot be cancelled.`,
-      }, 409)
-    }
-
-    const now = new Date().toISOString()
-    const reason = String(request.get('reason') ?? '').slice(0, 1000) || 'Cancelled by request'
-
-    await db
-      .updateTable('workflow_runs')
-      .set({ state: 'cancelling', conclusion_reason: reason })
-      .where('id', '=', Number(run.id))
-      // Guarded on the state we read. Two cancellations arriving together, or
-      // a run that finished between the read and the write, must not have this
-      // one overwrite what happened.
-      .where('state', '=', state)
-      .execute()
-
-    /*
-     * The jobs, in two groups and for two reasons.
-     *
-     * One that never started is `cancelled` outright - there is nothing to ask
-     * to stop. One that is running goes to `cancelling` and has its lease
-     * revoked, so whatever holds it can no longer report anything, whether or
-     * not it is still listening.
-     */
-    await db
-      .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now })
-      .where('workflow_run_id', '=', Number(run.id))
-      .where('state', 'in', ['blocked', 'queued'])
-      .execute()
-
-    await db
-      .updateTable('workflow_jobs')
-      .set({ state: 'cancelling', lease_expires_at: now })
-      .where('workflow_run_id', '=', Number(run.id))
-      .where('state', '=', 'running')
-      .execute()
-
-    // Programs first: something waiting on this run should hear that it was
-    // stopped before the person who stopped it has finished reading the page.
-    await announceRunIfMoved(Number(repository.id), Number(run.id), state, 'cancelling')
-
-    /*
-     * Recorded with who asked. A cancelled run is a check a branch rule was
-     * waiting on that will now never go green, and "who stopped it" is the
-     * question the next person asks.
-     */
-    await auditEvent('workflow:run-cancelled', {
-      subject: { type: 'workflow_run', id: Number(run.id) },
-      actorId: auth.context.user?.id ?? null,
-      ...await auditFrom(request),
-      repositoryId: Number(repository.id),
-      detail: { number, from: state, reason },
-    }).catch(() => null)
+    if (result.status !== 200 || !('cancelled' in result.body) || !result.body.cancelled)
+      return response.json(result.body, result.status)
 
     /*
      * A browser gets its page back; a program gets the row.
@@ -169,11 +94,7 @@ export default new Action({
       return response.redirect(`/${owner}/${String(repository.name)}/run/${number}`)
     }
 
-    return response.json({
-      workflow_run: { number, state: 'cancelling' },
-      cancelled: true,
-      reason,
-    })
+    return response.json(result.body, result.status)
   },
 })
 
