@@ -48,8 +48,8 @@ export interface EnvEntry {
  * and the failure is a push that writes objects into another repository's
  * directory.
  *
- * `PATH` and `HOME` are the process's own, read where this instance hands an
- * environment to something it spawns - a git hook, or a step on the local
+ * `PATH`, `HOME`, `USER` and `LOGNAME` are the process's own, read where this
+ * instance hands an environment to something it spawns - a git hook, or a step on the local
  * runner. Declaring them would mean an operator setting the shell's `HOME` in a
  * web application's configuration file, which is a worse idea than the missing
  * line this list exists to allow.
@@ -63,6 +63,8 @@ export const GIT_SET = new Set([
   'PATH',
   'HOME',
   'LANG',
+  'USER',
+  'LOGNAME',
 ])
 
 const GROUP_TITLES: Record<string, string> = {

@@ -3329,4 +3329,5 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       success with unverified buffered output.
 - [x] Host job environments carry the local USER and LOGNAME required by native
       build tools, independently of the workflow actor, while retaining the
-      control-plane environment boundary. Verified with XcodeGen generation.
+      control-plane environment boundary. Verified with XcodeGen generation;
+      standard host variables are included in the generated configuration reference.

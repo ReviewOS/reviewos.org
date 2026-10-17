@@ -1618,7 +1618,9 @@ writing objects into somebody else's directory.
 - `GIT_TERMINAL_PROMPT`
 - `HOME`
 - `LANG`
+- `LOGNAME`
 - `PATH`
+- `USER`
 
 ## Set where the work runs, not on the instance
 
