@@ -4,7 +4,8 @@
  * This is the entry point that `buddy build:runner` compiles into a single
  * binary. It is the *same* executor the local runner uses - not a second
  * implementation that drifts - and the whole reason it can be compiled is that
- * nothing under `Runner/` touches the framework or the database. A runner that
+ * nothing in its executor imports the control plane or a database. Portable
+ * Stacks storage and validation helpers supply its shared primitives. A runner that
  * needed a database connection would be a runner you could only run next to the
  * control plane, which is the opposite of a fleet.
  *
@@ -25,6 +26,8 @@ import process from 'node:process'
 import { runLoop, runOnce } from './localExecutor'
 import { defaultPolicy } from './actionRef'
 import { containerRuntime } from './container'
+import { maintainRunnerWorkspaces } from './workspaceMaintenance'
+import { PROTOCOL_HEADER, RUNNER_PROTOCOL } from './protocol'
 
 interface Options {
   url: string
@@ -38,6 +41,12 @@ interface Options {
   tags: string
   name: string
   idleTimeout: number
+  cleanWorkspaces: boolean
+  runnerId: number
+  journalRoot: string
+  ownerUid?: number
+  temporaryRoot?: string
+  apply: boolean
 }
 
 function parse(argv: readonly string[]): Options {
@@ -51,6 +60,10 @@ function parse(argv: readonly string[]): Options {
     tags: '',
     name: '',
     idleTimeout: 0,
+    cleanWorkspaces: false,
+    runnerId: 0,
+    journalRoot: '',
+    apply: false,
   }
 
   for (let index = 0; index < argv.length; index++) {
@@ -74,6 +87,18 @@ function parse(argv: readonly string[]): Options {
       options.tags = String(argv[++index] ?? '')
     else if (argument === '--name')
       options.name = String(argv[++index] ?? '')
+    else if (argument === '--clean-workspaces')
+      options.cleanWorkspaces = true
+    else if (argument === '--runner-id')
+      options.runnerId = Number(argv[++index])
+    else if (argument === '--journal-root')
+      options.journalRoot = String(argv[++index] ?? '')
+    else if (argument === '--owner-uid')
+      options.ownerUid = Number(argv[++index])
+    else if (argument === '--temporary-root')
+      options.temporaryRoot = String(argv[++index] ?? '')
+    else if (argument === '--apply')
+      options.apply = true
   }
 
   return options
@@ -104,6 +129,16 @@ const USAGE = `reviewos-runner - run a ReviewOS instance's jobs on this machine
             ephemeral runner: a machine that shuts itself down when the queue
             is empty costs nothing between builds, and it knows whether it is
             mid-job where a scaler outside it has to guess.
+  --clean-workspaces
+            Preview controller-confirmed terminal workspace retirement and exit.
+            Uses REVIEWOS_RUNNER_TOKEN; never registers another runner.
+  --runner-id ID --journal-root PATH
+            The registered runner and its private workspace-journals directory.
+  --owner-uid UID
+            Existing journal owner; only root can maintain another user.
+  --temporary-root PATH
+            The runner's original temporary root if different from this user's.
+  --apply   Retire verified workspaces; the default is a read-only preview.
 
 Where actions may come from is set here, in the environment, and the default is
 closed - local actions and nothing else:
@@ -146,6 +181,12 @@ function truthy(value: string | undefined): boolean {
 if (import.meta.main) {
   const options = parse(process.argv.slice(2))
 
+  if (options.cleanWorkspaces) {
+    const result = await maintainRunnerWorkspaces({ baseUrl: options.url, token: options.token, runnerId: options.runnerId, journalRoot: options.journalRoot, ownerUid: options.ownerUid, temporaryRoot: options.temporaryRoot, apply: options.apply })
+    console.log(JSON.stringify({ mode: options.apply ? 'apply' : 'preview', ...result }))
+    process.exit(0)
+  }
+
   if (!options.url || (!options.token && !options.registrationToken)) {
     console.error(USAGE)
     process.exit(options.url || options.token || options.registrationToken ? 1 : 0)
@@ -169,7 +210,7 @@ if (import.meta.main) {
         'Authorization': `Bearer ${options.registrationToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-Runner-Protocol': '1',
+        [PROTOCOL_HEADER]: String(RUNNER_PROTOCOL.current),
       },
       body: JSON.stringify({
         name: options.name || `runner-${process.pid}`,

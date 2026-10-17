@@ -88,7 +88,9 @@ export function listProcesses(): ProcessRow[] {
   const rows = new Map<number, ProcessRow>()
 
   try {
-    const table = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore' }).stdout.toString()
+    const result = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore' })
+    if (result.exitCode !== 0) throw new Error('Process enumeration failed')
+    const table = result.stdout.toString()
 
     for (const line of table.split('\n')) {
       const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
@@ -98,7 +100,7 @@ export function listProcesses(): ProcessRow[] {
     }
   }
   catch {
-    return []
+    throw new Error('The runner could not enumerate processes safely')
   }
 
   if (process.platform === 'linux') {
@@ -162,8 +164,17 @@ function alive(pid: number): boolean {
   catch (error) {
     // EPERM is a process that exists and belongs to somebody else - which,
     // having matched this job's id, it does not - so only ESRCH means gone.
-    return (error as NodeJS.ErrnoException)?.code === 'EPERM'
+    return (error as NodeJS.ErrnoException)?.code !== 'ESRCH'
   }
+}
+
+/** A failed stop is still live; check both discovered descendants and recorded processes. */
+export function remainingJobProcesses(trackingId: string, known: readonly ProcessRow[]): ProcessRow[] {
+  const remaining = new Map<number, ProcessRow>()
+  for (const row of [...survivors(trackingId), ...known]) {
+    if (alive(row.pid)) remaining.set(row.pid, row)
+  }
+  return [...remaining.values()]
 }
 
 /**
@@ -220,7 +231,15 @@ export async function cleanUpOrphans(
         // Exited between the check and the signal.
       }
 
-      await say(`Cleaning up orphan process: ${row.pid} (${row.name}) killed after ignoring SIGTERM for ${Math.round(graceMs / 1000)}s`)
+      // Signal delivery and parent reaping are asynchronous on both platforms.
+      // Confirm disappearance within a bound before recording successful cleanup.
+      const killDeadline = Date.now() + 1000
+      while (Date.now() < killDeadline && alive(row.pid))
+        await Bun.sleep(25)
+
+      await say(alive(row.pid)
+        ? `Orphan process ${row.pid} (${row.name}) is still present after SIGKILL; preserving its workspace`
+        : `Cleaning up orphan process: ${row.pid} (${row.name}) killed after ignoring SIGTERM for ${Math.round(graceMs / 1000)}s`)
     }
   }
 

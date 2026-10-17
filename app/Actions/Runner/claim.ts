@@ -303,6 +303,13 @@ export async function claimNextJob(
       const result: any = await update.execute()
       if (!changedSomething(result))
         throw lostClaim // Roll back the parent transition together with this claim.
+      // Keep prior ownership when a later claim changes workflow_jobs.runner_id.
+      // A claim without durable ownership rolls back with the parent transition.
+      await tx.insertInto('workflow_job_claims').values({
+        runner_id: Number(runner.id),
+        workflow_job_id: facts.id,
+        repository_id: facts.repositoryId,
+      }).execute()
       return { wasQueued: Boolean(started) }
     }).catch((error) => {
       if (error === lostClaim)

@@ -15262,10 +15262,91 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_job_claims",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "runner_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "runners",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "workflow_job_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "workflow_jobs",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_job_claims_runner_job_index",
+            "columns": [
+              "runner_id",
+              "workflow_job_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_job_claims_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "f0807b5ec1daa1c48dbcd9c41c4b91bd0faec961bd5dc889e746737c1334aa26",
+  "hash": "355ad5e9078d8a9412dcd7df484284e6f6489f6ed4df1a8945c58371cc743c3c",
   "dialect": "postgres",
-  "updatedAt": "2026-10-17T13:37:01.599Z"
+  "updatedAt": "2026-10-17T17:03:11.326Z"
 }

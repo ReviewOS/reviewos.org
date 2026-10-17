@@ -249,6 +249,7 @@
     "WorkflowArtifact": true,
     "WorkflowCacheEntry": true,
     "WorkflowJob": true,
+    "WorkflowJobClaim": true,
     "WorkflowJobLog": true,
     "WorkflowJournalEntry": true,
     "WorkflowNotificationRule": true,

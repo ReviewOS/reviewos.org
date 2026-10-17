@@ -382,5 +382,6 @@ function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
     // or podman is there is a fact about that host.
     || path.includes('Runner/container')
     || path.includes('Commands/ReportTests')
+    || path.includes('Commands/RunnerWorkspaces')
     || path.includes('Commands/Ci'))
 }

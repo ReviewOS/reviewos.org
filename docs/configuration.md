@@ -1184,7 +1184,7 @@ once. Nothing runs unless somebody starts the runner, so leaving this unset is
 the same as having no execution plane, which is the default this instance
 ships with.
 
-Read by `app/Actions/Runner/standalone.ts`, `app/Commands/RunnerLocal.ts`.
+Read by `app/Actions/Runner/standalone.ts`, `app/Commands/RunnerLocal.ts`, `app/Commands/RunnerWorkspaces.ts`.
 
 ### `REVIEWOS_ACTION_STORE`
 
@@ -1649,5 +1649,5 @@ has a command-line flag too, and the flag wins.
 - `REVIEWOS_REPOSITORY`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_TOKEN`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
-- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
+- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`
 - `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`

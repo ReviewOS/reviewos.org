@@ -1174,19 +1174,29 @@ async function applyCredentials(service: StartedService): Promise<string> {
  * Put a job's services away: stop each, remove its unit, and delete the data
  * it wrote.
  *
- * Every step is best-effort and none of them can fail the job - its result is
- * already decided. The data directory is deleted only when this job created
+ * A failed service removal preserves its data and throws so the caller keeps
+ * the workspace for inspection. The data directory is deleted only when this job created
  * it, which is what makes deleting it safe at all: a directory that existed
  * before the service started belongs to somebody else, however it came to
  * share the name.
  */
 export async function stopServices(services: readonly StartedService[]): Promise<void> {
+  const failures: Error[] = []
   for (const service of [...services].reverse()) {
-    await pantry(['services:remove', service.service], service.directory, 60_000)
+    const removed = await pantry(['services:remove', service.service], service.directory, 60_000)
+    if (!removed.ok) {
+      failures.push(new Error(`Could not stop ${service.service}; its workspace and data were preserved`))
+      continue
+    }
 
-    if (service.dataDirectory)
-      rmSync(service.dataDirectory, { recursive: true, force: true })
-
-    rmSync(service.directory, { recursive: true, force: true })
+    try {
+      if (service.dataDirectory)
+        rmSync(service.dataDirectory, { recursive: true, force: true })
+      rmSync(service.directory, { recursive: true, force: true })
+    }
+    catch {
+      failures.push(new Error(`Stopped ${service.service}, but its data could not be retired; the workspace was preserved`))
+    }
   }
+  if (failures.length) throw new AggregateError(failures, 'Service removal failed; affected workspaces and data were preserved')
 }

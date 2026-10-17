@@ -14,8 +14,9 @@ import process from 'node:process'
  * **It is the same executor `./buddy runner:local` uses**, which is the point.
  * A second implementation for remote machines would be a second set of bugs,
  * and the one that runs on the fleet would be the one nobody tests. It compiles
- * at all because nothing under `app/Actions/Runner/` touches the framework or
- * the database - a runner that needed a database connection could only run next
+ * at all because its executor imports no control-plane actions or database.
+ * Portable Stacks storage and validation helpers work on a fleet machine too;
+ * a runner that needed a database connection could only run next
  * to the control plane.
  */
 

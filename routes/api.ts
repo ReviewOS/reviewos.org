@@ -1157,6 +1157,7 @@ route.post('/repos/tests/monitors', 'Actions/Tests/MonitorTestsAction').middlewa
  * alive. Still finite: a runner in a loop is stopped, just not this one.
  */
 route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf().middleware('throttle:240,1m')
+route.post('/runner/workspaces/retirable', 'Actions/Runner/RetirableWorkspacesAction').skipCsrf().middleware('throttle:60,1m')
 route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf().middleware('throttle:60,1m')
 route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf().middleware('throttle:120,1m')
 route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf().middleware('throttle:1200,1m')

@@ -48,19 +48,23 @@ import { resolveServices, serviceEnvironment, servicesContext, startServices, st
 import type { ExpressionContext } from '../Workflow/expression'
 import { HASH_FILES, interpolate, shouldRun } from '../Workflow/expression'
 import { hashFilesIn } from './hashFiles'
-import { cleanUpOrphans, installStopHandlers, pruneGroup, recordGroup, TRACKING_VARIABLE, trackingIdFor } from './orphans'
+import { cleanUpOrphans, installStopHandlers, pruneGroup, recordGroup, remainingJobProcesses, TRACKING_VARIABLE, trackingIdFor } from './orphans'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
 import { RunnerLease } from './lease'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
 import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
+import { recoverWorkspaces, workspaceJournal } from './workspaceJournal'
+import { confirmRetirableWorkspaces, runnerRequest as post } from './httpClient'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
   baseUrl: string
   /** The runner's registration credential. */
   token: string
+  /** Stable identity supplied by the authenticated controller, independent of credential rotation. */
+  runnerId?: number
   /** How long to wait between empty claims, in milliseconds. */
   idleMs?: number
   /** Stop after this many jobs. Zero means keep going. */
@@ -77,6 +81,8 @@ export interface LocalRunnerOptions {
   idleTimeoutMs?: number
   /** Where to check code out. A temporary directory per job by default. */
   workspaceRoot?: string
+  /** Private recovery journal, outside job-controlled checkouts. */
+  workspaceJournalRoot?: string
   /**
    * Where this machine's own hooks live, outside repository control.
    *
@@ -292,6 +298,8 @@ export function installPlugins(workspace: string, job: any): InstalledPlugin[] {
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, {})
+  if (claim.ok && Number.isSafeInteger(claim.body?.runner_id) && claim.body.runner_id > 0)
+    options.runnerId = claim.body.runner_id
 
   if (!claim.ok || !claim.body?.job) {
     // The answer to "have you got work" carries the answer to "should I still
@@ -428,9 +436,19 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
   }
 
+  const journal = workspaceJournal(options)
+  if (!options.workspaceRoot && !journal) {
+    const reason = 'The controller did not return a stable runner identity; update it before running temporary jobs.'
+    await append(options.baseUrl, jobToken, 1, `${reason}\n`, 'stderr')
+    await report(options.baseUrl, jobToken, 'failed', reason)
+    return { jobId: Number(job.id), state: 'failed', reason }
+  }
+  const journaledWorkspace = journal?.create(String(job.id))
   const workspace = options.workspaceRoot
     ? join(options.workspaceRoot, `job-${job.id}`)
-    : mkdtempSync(join(tmpdir(), `reviewos-job-${job.id}-`))
+    : journaledWorkspace?.path
+
+  if (!workspace) throw new Error('The temporary job workspace could not be journaled')
 
   if (options.workspaceRoot)
     mkdirSync(workspace, { recursive: true })
@@ -1704,13 +1722,19 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     // Whatever an early way out left running - a failed hook, a refused
     // service, an exception. Said to the runner's own log, since the job's
     // has been concluded.
-    await cleanUpOrphans(job.tracking_id, line => say(`job ${job.id}: ${line}`)).catch(() => [])
+    let resourcesStopped = true
+    try {
+      const known = await cleanUpOrphans(job.tracking_id, line => say(`job ${job.id}: ${line}`))
+      await Bun.sleep(0)
+      resourcesStopped = remainingJobProcesses(job.tracking_id, known).length === 0
+    }
+    catch { resourcesStopped = false }
 
     if (jobServices.length > 0)
-      await stopServices(jobServices).catch(() => {})
+      await stopServices(jobServices).catch(() => { resourcesStopped = false })
 
-    if (!options.workspaceRoot)
-      rmSync(workspace, { recursive: true, force: true })
+    if (journal && journaledWorkspace && (!resourcesStopped || !journal.complete(journaledWorkspace)))
+      say(`job ${job.id}: workspace preserved for maintenance because resource shutdown or ownership could not be verified`)
   }
 
   /** Stop the heartbeat timer, whichever way this job ended. */
@@ -1758,13 +1782,24 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
 
   async function pollForJobs(): Promise<JobOutcome[]> {
   let idleSince = Date.now()
+  let recoveryDue = 0
 
   for (;;) {
+    if (Date.now() >= recoveryDue) {
+      recoveryDue = Date.now() + 60_000
+      try {
+        const recovered = await recoverWorkspaces(options, jobIds => confirmRetirableWorkspaces(options.baseUrl, options.token, options.runnerId, jobIds))
+        if (recovered.retired) options.say?.(`Retired ${recovered.retired} terminal job workspace(s)`)
+        if (recovered.preserved) options.say?.(`Preserved ${recovered.preserved} terminal workspace(s): process visibility or ownership needs operator inspection`)
+      }
+      catch { options.say?.('Workspace recovery could not be verified; existing workspaces were preserved') }
+    }
     const outcome = await runOnce(options)
 
     if (outcome) {
       outcomes.push(outcome)
       idleSince = Date.now()
+      recoveryDue = 0
 
       if (limit > 0 && outcomes.length >= limit)
         return outcomes
@@ -3539,33 +3574,6 @@ async function runStep(input: {
 }
 
 /* ------------------------------------------------------- the wire, verbatim */
-
-async function post(baseUrl: string, path: string, token: string, body: unknown): Promise<{ ok: boolean, body: any, status: number }> {
-  const answer = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      // The protocol version, which the server checks before the credential.
-      'X-Runner-Protocol': '1',
-    },
-    body: JSON.stringify(body ?? {}),
-    // A request that never answers must not hold the runner with it: a
-    // heartbeat stuck on a dead connection is a lease that lapses while the
-    // runner believes it is renewing it.
-    signal: AbortSignal.timeout(30_000),
-  })
-
-  const text = await answer.text()
-
-  try {
-    return { ok: answer.ok, body: text ? JSON.parse(text) : null, status: answer.status }
-  }
-  catch {
-    return { ok: false, body: { error: text.slice(0, 200) }, status: answer.status }
-  }
-}
 
 async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr'): Promise<void> {
   /*

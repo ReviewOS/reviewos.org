@@ -4,16 +4,16 @@ What a machine has to say to take work from this instance, and what it gets
 back. Everything here is HTTP and JSON: there is no SDK to install, and a runner
 written in an afternoon in any language is a supported runner.
 
-The whole surface is five endpoints. That is deliberate - a protocol an operator
-can hold in their head is one they can debug at three in the morning with
-`curl`.
+The core job lifecycle is claim, heartbeat, logs and report. Additional endpoints
+handle artifacts, caches, orchestration and workspace maintenance. Each uses
+ordinary HTTP so an operator can inspect a failed exchange with `curl`.
 
 **If you do not want to write one**, this instance ships a runner that speaks it:
 `./buddy build:runner --target linux-x64` compiles the executor into a single
 file with nothing to install on the machine that runs it. The compiled runner
 does not load `.env` or `bunfig.toml` from its working directory. Supply its URL
-and credential through command-line arguments or the runner service environment;
-application preload code must never execute before runner policy. See
+with `--url` and its credential through `REVIEWOS_RUNNER_TOKEN` in the runner
+service environment. Application preload code must never execute before runner policy. See
 [self-hosting](./self-hosting.md#a-fleet). The rest of this page is for the case
 where you would rather write your own, which is a supported thing to do.
 
@@ -314,3 +314,42 @@ same commit is served from storage without git running at all.
 What not to do: disabling `gc` on the runner's caches, or pointing many runners
 at one shared filesystem checkout. The first grows unbounded; the second turns
 a clone storm into a lock convoy, which is slower than the storm.
+
+## Recovering temporary workspaces
+
+The runner journals temporary workspaces outside the checkout, under
+`~/.local/share/reviewos/workspace-journals`. The namespace binds the controller
+URL and registered runner ID, so rotating a credential does not strand its
+journal. A completed live job disposes its own workspace only after stopping
+its tracked processes and services. A failed shutdown preserves the data.
+
+After a restart, recovery asks the authenticated controller which journaled jobs
+this runner actually claimed and which are now terminal. Claim history survives
+reassignment. The storage layer then checks directory identity, ownership,
+mounts and process references before removing anything. Active jobs, unknown
+directories, changed identities and unavailable inspection permissions are kept.
+An explicitly retained `REVIEWOS_WORKSPACE` is outside temporary recovery.
+
+For operator inspection, use the standalone binary's read-only preview. Set
+`REVIEWOS_RUNNER_TOKEN` through the runner's established secret configuration;
+the maintenance command uses that registered credential and never registers a
+new runner. It verifies the runner identity even when no journal exists.
+
+```sh
+reviewos-runner --clean-workspaces --url https://forge.example \
+  --runner-id 1 --journal-root /home/runner/.local/share/reviewos/workspace-journals
+```
+
+Add `--apply` to retire only the verified candidates. Buddy exposes the same
+operation as `buddy runner:workspaces:clean` with the same options. A preview
+does not create a missing journal directory.
+
+On Linux, protected same-user processes can make a runner unable to prove that
+a recovered workspace is unused. The preview reports preserved candidates in
+that case. An operator already running as root can inspect the existing owner's
+journal with `--owner-uid 1000` and the explicit journal root; it cannot create
+workspaces for that user. If the runner used a different temporary directory
+(including macOS per-user temporary roots), also name that original root with
+`--temporary-root`. Do not change process inspection permissions, disable
+the guard or delete directories by a filename pattern. Old workspaces without a
+journal require an explicit forensic ownership review.

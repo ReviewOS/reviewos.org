@@ -11,8 +11,47 @@
 // in a log nobody reads to the bottom.
 
 import { describe, expect, test } from 'bun:test'
-import { credentialsFor, freePort, imageMajor, mysqlSetup, normalizeImage, pantryScope, parsePortMapping, parseServiceOptions, portIsFree, postgresSetup, resolveServices, SERVICE_IMAGES, serviceEnvironment, servicesContext, shellWords, startServices } from '../../app/Actions/Runner/services'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { credentialsFor, freePort, imageMajor, mysqlSetup, normalizeImage, pantryScope, parsePortMapping, parseServiceOptions, portIsFree, postgresSetup, resolveServices, SERVICE_IMAGES, serviceEnvironment, servicesContext, shellWords, startServices, stopServices } from '../../app/Actions/Runner/services'
 import { parseWorkflow, servicesFrom } from '../../app/Actions/Workflow/parse'
+
+test('failed service removal preserves the owned workspace and database contents', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-stop-service-'))
+  const directory = join(root, 'service')
+  const dataDirectory = join(root, 'data')
+  const otherDirectory = join(root, 'other-service')
+  const otherDataDirectory = join(root, 'other-data')
+  mkdirSync(directory)
+  mkdirSync(dataDirectory)
+  mkdirSync(otherDirectory)
+  mkdirSync(otherDataDirectory)
+  writeFileSync(join(dataDirectory, 'sentinel'), 'still owned by the service')
+  writeFileSync(join(otherDataDirectory, 'sentinel'), 'still owned by the other service')
+  // A command-boundary fixture: no real service or host data is involved.
+  writeFileSync(join(root, 'pantry'), '#!/bin/sh\nprintf "%s\\n" "$2" > removal-requested\nexit 1\n', { mode: 0o700 })
+  const originalPath = process.env.PATH
+  try {
+    process.env.PATH = `${root}:${originalPath ?? ''}`
+    const resolved = resolveServices([{ name: 'database', image: 'postgres:17', env: {} }, { name: 'cache', image: 'redis:7', env: {} }])
+    if (!resolved.ok || !resolved.services[0] || !resolved.services[1]) throw new Error('Expected supported services')
+    await expect(stopServices([
+      { ...resolved.services[0], directory, dataDirectory, binDirectory: root },
+      { ...resolved.services[1], directory: otherDirectory, dataDirectory: otherDataDirectory, binDirectory: root },
+    ])).rejects.toThrow('preserved')
+    expect(existsSync(directory)).toBe(true)
+    expect(readFileSync(join(dataDirectory, 'sentinel'), 'utf8')).toBe('still owned by the service')
+    expect(readFileSync(join(otherDataDirectory, 'sentinel'), 'utf8')).toBe('still owned by the other service')
+    expect(readFileSync(join(directory, 'removal-requested'), 'utf8').trim()).toBe('postgres')
+    expect(readFileSync(join(otherDirectory, 'removal-requested'), 'utf8').trim()).toBe('redis')
+  }
+  finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 describe('reading the key', () => {
   test('a job\'s services survive parsing, with their names', () => {

@@ -211,10 +211,10 @@ export default new Action({
           .where('id', '=', runner.facts.id)
           .execute()
 
-        return runnerJson({ job: null, stop })
+        return runnerJson({ job: null, stop, runner_id: runner.facts.id })
       }
 
-      return runnerJson({ job: null })
+      return runnerJson({ job: null, runner_id: runner.facts.id })
     }
 
     // Read after the claim rather than joined into it: the claim is a guarded
@@ -489,7 +489,7 @@ export default new Action({
         .where('id', '=', claimed.jobId)
         .execute()
 
-      return runnerJson({ job: null })
+      return runnerJson({ job: null, runner_id: runner.facts.id })
     }
 
     // The operator's first, then the workflow's: a fleet-wide profiler wraps
@@ -510,7 +510,7 @@ export default new Action({
           .where('id', '=', claimed.jobId)
           .execute()
 
-        return runnerJson({ job: null })
+        return runnerJson({ job: null, runner_id: runner.facts.id })
       }
 
       const located = context ? repositoryPath(await ownerHandleOf(context), String(context.repository)) : { path: null as string | null }
@@ -603,6 +603,7 @@ export default new Action({
     })
 
     return runnerJson({
+      runner_id: runner.facts.id,
       job: {
         id: claimed.jobId,
         key: claimed.jobKey,

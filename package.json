@@ -68,27 +68,27 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
-    "@stacksjs/actions": "0.75.205",
-    "@stacksjs/api": "0.75.205",
-    "@stacksjs/buddy": "0.75.205",
+    "@stacksjs/actions": "0.75.212",
+    "@stacksjs/api": "0.75.212",
+    "@stacksjs/buddy": "0.75.212",
     "@stacksjs/bunpress": "^0.2.14",
-    "@stacksjs/database": "0.75.205",
-    "@stacksjs/docs": "0.75.205",
-    "@stacksjs/env": "0.75.205",
-    "@stacksjs/events": "0.75.205",
-    "@stacksjs/faker": "0.75.205",
-    "@stacksjs/orm": "0.75.205",
-    "@stacksjs/queue": "0.75.205",
-    "@stacksjs/search-engine": "0.75.205",
-    "@stacksjs/router": "0.75.205",
-    "@stacksjs/server": "0.75.205",
+    "@stacksjs/database": "0.75.212",
+    "@stacksjs/docs": "0.75.212",
+    "@stacksjs/env": "0.75.212",
+    "@stacksjs/events": "0.75.212",
+    "@stacksjs/faker": "0.75.212",
+    "@stacksjs/orm": "0.75.212",
+    "@stacksjs/queue": "0.75.212",
+    "@stacksjs/search-engine": "0.75.212",
+    "@stacksjs/router": "0.75.212",
+    "@stacksjs/server": "0.75.212",
     "@stacksjs/stx": "0.2.553",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.13",
     "mermaid": "^12.1.0",
     "pickier": "^0.1.67",
-    "stacks": "0.75.205",
+    "stacks": "0.75.212",
     "ts-git-lfs": "^0.1.3",
     "ts-images": "^0.2.25",
     "ts-pantry": "^0.11.69",
@@ -108,7 +108,7 @@
     "commit-msg": "bun x gitlint --edit \"$1\""
   },
   "devDependencies": {
-    "@stacksjs/image": "0.75.205",
+    "@stacksjs/image": "0.75.212",
     "better-dx": "^0.2.37"
   },
   "overrides": {
@@ -119,7 +119,7 @@
     "stx-router": "0.2.553",
     "bun-plugin-stx": "0.2.553",
     "@stacksjs/components": "0.2.553",
-    "@stacksjs/ts-cloud": "^0.16.47",
-    "@stacksjs/buddy": "0.75.205"
+    "@stacksjs/ts-cloud": "^0.16.58",
+    "@stacksjs/buddy": "0.75.212"
   }
 }

@@ -838,3 +838,8 @@ Each one is committed and pushed in the repository named.
   values. The normal suite passes against private Pantry-managed Postgres 17.10
   and Typesense services with pinned Bun 1.4.2; a local feature-off setting no
   longer disables the public-diff surface the test suite deliberately exercises.
+
+- [x] Adopt published Stacks 0.75.212 for temporary workspace journals, public
+      defaults package imports and flushed deployment diagnostics. Native
+      generation preserves registry names and produces identical bytes across
+      independent runs; the consumer resolves the published exports directly.

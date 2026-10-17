@@ -2827,6 +2827,15 @@ declare module '@stacksjs/database' {
       restores: number
       workflow_run_id: number
     }
+    workflow_job_claims: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      runner_id: number
+      workflow_job_id: number
+      repository_id: number
+    }
     workflow_job_logs: {
       // columns
       id: number

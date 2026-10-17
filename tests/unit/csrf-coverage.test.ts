@@ -33,8 +33,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 17,
-    because: 'the Apple social callback, the MCP endpoint, the mirror webhook, the nine runner routes, and the '
+    count: 18,
+    because: 'the Apple social callback, the MCP endpoint, the mirror webhook, the twelve runner routes, and the '
       + 'three GitHub-compatible paths an action posts to. '
       + 'Apple posts cross-site and cannot carry the double-submit token; its '
       + 'one-time OAuth state is returned in the form and compared to the '
@@ -66,7 +66,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'whole of its scoping. The tenth is the other half of that call: the '
       + 'result the program reports when the step finishes, on the same '
       + 'credential, and the entry it names is checked against that run rather '
-      + 'than believed.',
+      + 'than believed. The workspace-retirement query uses the registered runner token '
+      + 'and checks durable claim ownership and terminal job state; it accepts no session cookie.',
   },
   {
     file: 'routes/actions.ts',
@@ -195,6 +196,6 @@ describe('what is not exempt', () => {
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(17)
+    expect(await skipCount('routes/api.ts')).toBe(18)
   })
 })

@@ -14,7 +14,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 
 | Phase | What it covers | State |
 |---|---|---|
-| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (63/63) |
+| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (64/64) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (77/77) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (136/136) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (39/39) |
@@ -29,7 +29,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Complete (47/47) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | Complete (171/171) |
-| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (202/203) |
+| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (203/204) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (36/36) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (13/13) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (25/25) |

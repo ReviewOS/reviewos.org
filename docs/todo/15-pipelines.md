@@ -2042,6 +2042,13 @@ guards it.
       `runner-reclaim.test.ts`, where it also proves the attempt cap: three machines going quiet on
       one job stops it being handed out rather than passing it round the fleet forever.
 
+- [x] Journal temporary runner workspaces through Stacks storage and persist each
+      authenticated job claim. Retire only controller-confirmed terminal jobs
+      owned by that runner, after process and service shutdown are verified.
+      Share the preview/apply maintenance command with the standalone binary,
+      preserve unknown or busy workspaces, and compile without working-directory
+      dotenv or preload execution.
+
 ### Runner hooks
 
 Buildkite's hook set is the extension point that makes the agent adaptable without a plugin, and the
