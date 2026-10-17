@@ -198,7 +198,6 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
       values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: Number(repository.id),
-        number: await nextNumber(Number(repository.id)),
         state: 'queued',
         event: 'schedule',
         event_ref: ref,
@@ -224,16 +223,4 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
      */
     return false
   }
-}
-
-async function nextNumber(repositoryId: number): Promise<number> {
-  const row = await db
-    .selectFrom('workflow_runs')
-    .select(['number'])
-    .where('repository_id', '=', repositoryId)
-    .orderBy('number', 'desc')
-    .limit(1)
-    .executeTakeFirst()
-
-  return Number(row?.number ?? 0) + 1
 }

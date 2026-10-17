@@ -201,14 +201,11 @@ export default new Action({
      */
     const correlation = requestIdOf(request as any)
 
-    const number = await nextNumber(Number(repository.id))
-
     const runId = await startRunFor({
       values: {
         ...withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: Number(repository.id),
-          number,
           state: 'queued',
           event: 'workflow_dispatch',
           event_ref: ref,
@@ -250,6 +247,9 @@ export default new Action({
      * person: a run started by a program is the case where "who did this" has
      * no other answer.
      */
+    const started = await db.selectFrom('workflow_runs').select(['number', 'state']).where('id', '=', runId).executeTakeFirstOrThrow()
+    const number = Number(started.number)
+
     await auditEvent('workflow:run-dispatched', {
       subject: { type: 'workflow_run', id: runId },
       actorId: auth.context.user?.id ?? null,
@@ -276,7 +276,7 @@ export default new Action({
     return response.json({
       workflow_run: {
         number,
-        state: 'queued',
+        state: String(started.state),
         event: 'workflow_dispatch',
         inputs: checked.values,
         /**
@@ -343,19 +343,6 @@ function suppliedFrom(request: RequestInstance): Record<string, unknown> {
   }
 
   return values
-}
-
-/** The next run number for this repository. Per repository, so "run 42" means one run. */
-async function nextNumber(repositoryId: number): Promise<number> {
-  const row = await db
-    .selectFrom('workflow_runs')
-    .select(['number'])
-    .where('repository_id', '=', repositoryId)
-    .orderBy('number', 'desc')
-    .limit(1)
-    .executeTakeFirst()
-
-  return Number(row?.number ?? 0) + 1
 }
 
 /**

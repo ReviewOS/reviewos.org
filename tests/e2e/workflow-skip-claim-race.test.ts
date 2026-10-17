@@ -93,7 +93,10 @@ jobs:
         return
       }
       dispatch = dispatchPush({ repositoryId, event: { ref: 'refs/heads/main' }, headSha: 'c'.repeat(40) })
-      await until(async () => (await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', repositoryId).execute()).length === 2)
+      // The new graph is uncommitted until group admission completes. Wait
+      // for replacement to reach the parent lock instead of requiring a
+      // partially admitted graph to be visible to a runner.
+      await until(async () => Number((await diagnostic`SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%workflow_runs%'`)[0].n) > 0)
       release()
       await held
       const [taken] = await Promise.all([claim, dispatch])

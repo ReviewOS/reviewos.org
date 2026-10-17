@@ -190,8 +190,8 @@ function newestPerWorkflow(rows: readonly any[]): any[] {
  * alternative is a sequence per repository, which is a row nobody else needs.
  * Worth revisiting when runs are frequent enough for it to matter.
  */
-async function nextNumber(repositoryId: number): Promise<number> {
-  const row = await db
+async function nextNumber(client: Executor, repositoryId: number): Promise<number> {
+  const row = await client
     .selectFrom('workflow_runs')
     .select(['number'])
     .where('repository_id', '=', repositoryId)
@@ -307,7 +307,6 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
         values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
-          number: await nextNumber(input.repositoryId),
           state: 'queued',
           event: input.event,
           /*
@@ -324,15 +323,6 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
         }),
         versionId: Number(version.id),
         context,
-      })
-
-      await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
-      await holdForGroup({
-        repositoryId: input.repositoryId,
-        runId,
-        group,
-        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
-        intermediate: String(version.intermediate ?? 'run'),
       })
 
       result.created.push(runId)
@@ -413,7 +403,6 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
         values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
-          number: await nextNumber(input.repositoryId),
           state: 'queued',
           event: 'repository_dispatch',
           /*
@@ -440,15 +429,6 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
         }),
         versionId: Number(version.id),
         context,
-      })
-
-      await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
-      await holdForGroup({
-        repositoryId: input.repositoryId,
-        runId,
-        group,
-        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
-        intermediate: String(version.intermediate ?? 'run'),
       })
 
       result.created.push(runId)
@@ -554,7 +534,6 @@ export async function dispatchWorkflowRun(input: {
         values: withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: Number(finished.repository_id),
-          number: await nextNumber(Number(finished.repository_id)),
           state: 'queued',
           event: 'workflow_run',
           // The run that started this one, so two finishes of the same
@@ -581,15 +560,6 @@ export async function dispatchWorkflowRun(input: {
         }),
         versionId: Number(version.id),
         context,
-      })
-
-      await supersede(Number(finished.repository_id), runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
-      await holdForGroup({
-        repositoryId: Number(finished.repository_id),
-        runId,
-        group,
-        cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
-        intermediate: String(version.intermediate ?? 'run'),
       })
 
       result.created.push(runId)
@@ -710,7 +680,6 @@ async function createPullRequestRun(
       values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
-        number: await nextNumber(input.repositoryId),
         state: approval.required ? 'waiting' : 'queued',
         approval_state: approval.required ? 'required' : 'not-required',
         conclusion_reason: approval.required ? approval.reason : null,
@@ -775,15 +744,6 @@ async function createPullRequestRun(
       await announceActionRequiredFor(input.repositoryId, runId, 'approval').catch(() => null)
     }
 
-    await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
-    await holdForGroup({
-      repositoryId: input.repositoryId,
-      runId,
-      group,
-      cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
-      intermediate: String(version.intermediate ?? 'run'),
-    })
-
     return runId
   }
   catch (error) {
@@ -822,7 +782,6 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
       values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
-        number: await nextNumber(input.repositoryId),
         state: 'queued',
         event: 'push',
         event_ref: input.event.ref,
@@ -841,15 +800,6 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
       }),
       versionId: Number(version.id),
       context,
-    })
-
-    await supersede(input.repositoryId, runId, group, cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context), String(version.intermediate ?? 'run'))
-    await holdForGroup({
-      repositoryId: input.repositoryId,
-      runId,
-      group,
-      cancelInProgress: cancelsInProgress(version.cancel_in_progress, version.cancel_in_progress_expression, context),
-      intermediate: String(version.intermediate ?? 'run'),
     })
 
     return runId
@@ -883,6 +833,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
  * settler when the run ahead finishes.
  */
 async function supersede(
+  client: Executor,
   repositoryId: number,
   runId: number,
   group: string | null,
@@ -904,7 +855,7 @@ async function supersede(
    * queued ones would produce two nobody will.
    */
   if (intermediate === 'skip') {
-    const waiting = await db
+    const waiting = await client
       .selectFrom('workflow_runs')
       .select(['id'])
       .where('repository_id', '=', repositoryId)
@@ -918,7 +869,7 @@ async function supersede(
       .execute()
 
     for (const run of waiting) {
-      const cancelled = await db
+      const cancelled = await client
         .updateTable('workflow_runs')
         .set({
           state: 'cancelled',
@@ -935,7 +886,7 @@ async function supersede(
       if (!cancelled)
         continue
 
-      await db
+      await client
         .updateTable('workflow_jobs')
         .set({ state: 'cancelled', finished_at: new Date().toISOString() })
         .where('workflow_run_id', '=', Number(run.id))
@@ -949,7 +900,7 @@ async function supersede(
   if (!cancelInProgress && intermediate !== 'cancel')
     return
 
-  await db
+  await client
     .updateTable('workflow_runs')
     .set({ state: 'cancelling' })
     .where('repository_id', '=', repositoryId)
@@ -980,7 +931,7 @@ async function supersede(
  * that released whichever run happened to be polled first would deploy the
  * older commit last.
  */
-async function holdForGroup(input: {
+async function holdForGroup(client: Executor, input: {
   repositoryId: number
   runId: number
   group: string | null
@@ -993,23 +944,12 @@ async function holdForGroup(input: {
   if (!input.group || input.cancelInProgress || input.intermediate === 'cancel')
     return false
 
-  const ahead = await db
-    .selectFrom('workflow_runs')
-    .select(['id', 'number'])
-    .where('repository_id', '=', input.repositoryId)
-    .where('concurrency_group', '=', input.group)
-    .where('id', '<', input.runId)
-    // Live: something that will still produce a result. A finished run holds
-    // nothing back, and a cancelling one is on its way out.
-    .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
-    .orderBy('id')
-    .executeTakeFirst()
-    .catch(() => null)
+  const ahead = await blockingRunInGroup(client, input)
 
   if (!ahead)
     return false
 
-  await db
+  await client
     .updateTable('workflow_runs')
     .set({
       state: 'waiting',
@@ -1023,6 +963,29 @@ async function holdForGroup(input: {
     .execute()
 
   return true
+}
+
+/** The oldest live predecessor, shared by admission and the settler. */
+async function blockingRunInGroup(client: Executor, input: { repositoryId: number, runId: number, group: string | null }) {
+  return await client
+    .selectFrom('workflow_runs')
+    .select(['id', 'number'])
+    .where('repository_id', '=', input.repositoryId)
+    .where('concurrency_group', '=', input.group)
+    .where('id', '<', input.runId)
+    // Live: something that will still produce a result. A finished run holds
+    // nothing back, and a cancelling one is on its way out.
+    .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
+    .orderBy('id')
+    .executeTakeFirst()
+}
+
+/** A concurrency hold must survive settling control-plane jobs too. */
+export async function isConcurrencyHeld(runId: number): Promise<boolean> {
+  const run = await db.selectFrom('workflow_runs').select(['state', 'repository_id', 'concurrency_group']).where('id', '=', runId).executeTakeFirst()
+  if (run?.state !== 'waiting' || !run.concurrency_group)
+    return false
+  return Boolean(await blockingRunInGroup(db, { repositoryId: Number(run.repository_id), runId, group: String(run.concurrency_group) }))
 }
 
 /**
@@ -1126,19 +1089,19 @@ export function isDuplicate(error: unknown): boolean {
  * run until every job and step under it is there, which is the only form of
  * this rule that does not have to be repeated in each reader.
  *
- * ## What is deliberately outside it
- *
- * `supersede`, `holdForGroup` and the settler run after the commit, as they
- * did before. They are about this run's relationship to *other* runs, they
- * update rows this transaction has no business holding locks on, and a run
- * that exists with its graph is a correct state to be in while they decide.
+ * Group admission belongs to the same transaction. A complete queued graph
+ * was still claimable before supersede/holdForGroup finished, so a runner
+ * could start a second deployment while replacement was blocked on an older
+ * pending run. Lock the repository first to serialize grouped dispatches,
+ * and commit the graph only after it is admitted or held. The settler and
+ * announcements stay outside: neither may publish an uncommitted result.
  *
  * The jobs are copied rather than referenced, as they always were: the run has
  * to stay readable when the definition changes, and a job's state belongs to
  * the run rather than to the workflow.
  */
 async function createRunWithGraph(input: {
-  /** The run row, already assembled by the caller that knows its event. */
+  /** Event-specific run columns; the transaction allocates the run number. */
   values: Record<string, unknown>
   versionId: number
   context?: ConcurrencyContext
@@ -1153,15 +1116,43 @@ async function createRunWithGraph(input: {
      * the cast is here, once, where the transaction is opened.
      */
     const tx = handle as unknown as Executor
+    const group = String(input.values.concurrency_group ?? '').trim()
+    const repositoryId = Number(input.values.repository_id)
+
+    // Allocate numbers and admit groups under one repository lock, including
+    // when no earlier run exists. Reading the number before waiting for this
+    // lock lets concurrent distinct events reuse the same stale number.
+    // The guarded write takes a transaction-owned lock on PostgreSQL/MySQL
+    // and a write lock on SQLite, without changing the repository identity.
+    await tx.updateTable('repositories').set({ id: repositoryId })
+      .where('id', '=', repositoryId).execute()
 
     const run: any = await tx
       .insertInto('workflow_runs')
-      .values(input.values as any)
+      .values({ ...input.values, number: await nextNumber(tx, repositoryId) } as any)
       .returning(['id'])
       .executeTakeFirst()
 
     const runId = Number(run?.id)
 
+    if (group) {
+      const version = await tx.selectFrom('workflow_versions')
+        .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+        .select(['workflow_versions.cancel_in_progress', 'workflow_versions.cancel_in_progress_expression', 'workflow_versions.intermediate', 'workflows.name as workflow_name', 'workflows.path as workflow_path'])
+        .where('workflow_versions.id', '=', input.versionId).executeTakeFirstOrThrow()
+      const context = input.context ?? {
+        workflow: String(version.workflow_name || version.workflow_path || ''),
+        eventName: String(input.values.event ?? ''),
+        ref: String(input.values.event_ref ?? ''),
+        sha: String(input.values.head_sha ?? ''),
+      }
+      const cancelInProgress = cancelsInProgress(version.cancel_in_progress, String(version.cancel_in_progress_expression ?? ''), context)
+      const intermediate = String(version.intermediate ?? 'run')
+      await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate)
+      await holdForGroup(tx, { repositoryId, runId, group, cancelInProgress, intermediate })
+    }
+
+    // Parent admission precedes job cancellation: claims lock parent then job.
     await createJobs(tx, runId, input.versionId, input.context)
 
     return runId

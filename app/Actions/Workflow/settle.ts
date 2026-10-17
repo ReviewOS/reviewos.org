@@ -20,7 +20,7 @@
 import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
-import { dispatchWorkflowRun, releaseGroup, startRun } from './dispatch'
+import { dispatchWorkflowRun, isConcurrencyHeld, releaseGroup, startRun } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { alreadySent, waitPlan, waitSettingsOf } from './awaits'
 import type { ChecksState } from './environments'
@@ -193,7 +193,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
    * exactly why they are eligible - and the hold would be a state on a row that
    * nothing enforced.
    */
-  if (await awaitingApproval(runId))
+  if (await awaitingApproval(runId) || await isConcurrencyHeld(runId))
     return false
 
   let moved = false
@@ -577,7 +577,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
    * Its jobs are blocked, so the computed state would be `queued` - which reads
    * as "a runner will get to this" and is the opposite of what is true.
    */
-  if (await awaitingApproval(runId))
+  if (await awaitingApproval(runId) || await isConcurrencyHeld(runId))
     return from
 
   /*
@@ -793,19 +793,10 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     return
   }
 
-  const previous = await db
-    .selectFrom('workflow_runs')
-    .select(['number'])
-    .where('repository_id', '=', Number(run.repository_id))
-    .orderBy('number', 'desc')
-    .limit(1)
-    .executeTakeFirst()
-
   const startedId = await startRun({
     values: withRedeliveryKey({
       workflow_version_id: Number(version.id),
       repository_id: Number(run.repository_id),
-      number: Number(previous?.number ?? 0) + 1,
       state: 'queued',
       /*
        * Its own event name rather than `workflow_dispatch`.
