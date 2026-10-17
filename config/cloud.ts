@@ -20,6 +20,10 @@ import { env } from '@stacksjs/env'
  */
 const API_PORT = 3073
 
+// These are runtime objects, never contents of a deployment tarball. The
+// production environment points every process at the same absolute blob root.
+const BLOB_STORAGE_PATHS = ['storage/artifacts', 'storage/attachments', 'storage/lfs', 'storage/release-assets', 'storage/wal']
+
 /**
  * Stacks Cloud Configuration
  *
@@ -1001,7 +1005,7 @@ export const tsCloud: TsCloudConfig = {
       // mirror fetches into them, and pushes land in them. Packaging a local
       // copy turned a 2 MB release into a 195 MB one and would have replaced
       // live repository storage with whatever this machine happened to have.
-      exclude: ['storage/repos'],
+      exclude: ['storage/repos', ...BLOB_STORAGE_PATHS],
       // Postgres runs on the box itself, reached over loopback. Declared here
       // rather than left to the deployer's defaults because a release .env
       // without these is not a misconfigured database, it is no database at
@@ -1209,7 +1213,7 @@ export const tsCloud: TsCloudConfig = {
         'deleted="$(dirname "$(readlink -f storage/repos)")/repos-deleted"; mkdir -p "$deleted"; rm -rf storage/repos-deleted; ln -sfn "$deleted" storage/repos-deleted',
       ],
 
-      exclude: ['storage/repos'],
+      exclude: ['storage/repos', ...BLOB_STORAGE_PATHS],
 
       // The same database, the same key, the same token. `mergeSiteDeployEnv`
       // folds the resolved production values in underneath these, so the two

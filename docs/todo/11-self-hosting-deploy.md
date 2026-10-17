@@ -29,8 +29,11 @@ promise, so the operational story is a feature and not an afterthought.
   running on the machine that wrote it - and the guide says so rather than implying otherwise.
 - [x] Persist repositories and uploads on volumes, and document exactly which paths hold state
 
-  Two directories and one database, and the guide names them in a table with what losing each costs.
-  `storage/repos` is the one that cannot be rebuilt from anything else.
+  The guide names repositories, blob objects and the database in a table with what losing each costs.
+  `storage/repos` is the one that cannot be rebuilt from anything else. Native blob storage uses
+  one absolute `BLOB_LOCAL_ROOT` outside disposable releases in production; the same root reaches
+  the API, page server and workers. Runtime blob namespaces are excluded from deploy packages.
+  A real separate-process test removes the writer release before reading its evidence from the next one.
 
   Said in three places that cannot drift far apart: `VOLUME` in the Dockerfile, so `docker inspect`
   reports it; named volumes in the compose file, so `docker compose down` does not take them; and

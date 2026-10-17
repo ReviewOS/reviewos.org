@@ -781,6 +781,9 @@ supported driver forever - an instance on one box needs none of the rest.
 already keeps its bytes under `storage/<something>`, so a key of
 `artifacts/aa/bb/<digest>` lands exactly where artifacts have always been.
 Pointing this somewhere new makes every file already on disk read as missing.
+Atomic deployments must use one absolute directory outside releases, shared
+by the API, page server and workers. Copy and verify existing blobs before
+changing it, then reconcile the old roots after every old process has stopped.
 
 Read by `app/Actions/Git/blobs.ts`.
 

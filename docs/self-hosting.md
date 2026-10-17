@@ -192,21 +192,32 @@ a memory one.
 
 ## What holds state
 
-**Two directories and one database.** Everything else in a deployment is
-reproducible from the source, and these three are not.
+The repository tree, blob objects and database carry durable state.
 
 | Path | What is in it | What losing it costs |
 |---|---|---|
 | `storage/repos` | Every bare git repository, as `{owner}/{name}.git` | The code. This is the one that cannot be rebuilt from anything else. |
-| `storage/app` | Uploads and attachments | Images in issues and comments. |
+| `BLOB_LOCAL_ROOT` (default `storage`) | `artifacts`, `attachments`, `lfs`, `release-assets`, `wal` | CI evidence, attachments, large files, releases and recovery bundles. |
 | The database | Everything else: accounts, pull requests, reviews, threads, tokens | The conversation around the code. |
 
 Everything under `storage/framework/` is a build artifact and a cache. It is
 safe to delete and is rebuilt on the next boot, so do not back it up and do not
 put it on the expensive volume.
 
-`compose.yaml` mounts the two directories as named volumes, and the `Dockerfile`
-declares them, so `docker inspect` reports the same list this table does.
+For atomic deployments, set `BLOB_LOCAL_ROOT` in the deployed environment to
+one absolute directory outside every release. All API, page and worker processes
+must receive the same value. This production deployment uses
+`/var/www/reviewos-shared/blobs`. The local store already supports this root;
+it never searches old releases when an object is missing.
+
+Before changing an existing root, copy its objects to the new root and verify
+each relative key, byte count and SHA-256. Preserve the originals and refuse
+different bytes at an existing destination key. After deploying every process,
+reconcile the explicitly inventoried old roots again to capture writes that
+finished during the cutover. Confirm existing artifacts can be read through the
+normal store before retiring any release. Back up this root with the database
+and repositories, or configure the supported S3 driver instead.
+
 
 ## Configuration
 
