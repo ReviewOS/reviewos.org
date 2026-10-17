@@ -61,6 +61,14 @@ export default defineModel({
       factory: faker => faker.helpers.arrayElement(['approved', 'changes_requested', 'commented']),
     },
 
+    /** Identity of a mirrored review, so a later sync does not import it twice. */
+    external_id: {
+      fillable: true,
+      nullable: true,
+      validation: { rule: schema.string().max(255) },
+      factory: () => null,
+    },
+
     body: {
       order: 4,
       fillable: true,

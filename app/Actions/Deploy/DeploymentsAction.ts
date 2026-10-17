@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
-import { schema } from '@stacksjs/validation'
+import { schema, parseEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
@@ -316,7 +316,7 @@ export default new Action({
       if (!existing)
         return response.json({ error: 'No such deployment' }, 404)
 
-      const state = operation === 'deactivate' ? 'inactive' : String(request.get('state') ?? 'active')
+      const state = operation === 'deactivate' ? 'inactive' : parseEnumInput(request.get('state') ?? 'active', 'state', ['active', 'failed', 'in_progress', 'inactive'])
       const reason = String(request.get('reason') ?? '').slice(0, 500)
 
       await db
@@ -377,6 +377,8 @@ export default new Action({
      * them pointing at URLs that no longer answer - and the pull request shows
      * whichever the query happened to order first.
      */
+    const state = parseEnumInput(request.get('state') ?? 'in_progress', 'state', ['active', 'failed', 'in_progress', 'inactive'])
+
     if (pullRequest) {
       await db
         .updateTable('deployments')
@@ -398,7 +400,7 @@ export default new Action({
         pull_request_id: pullRequest,
         workflow_run_id: Number(request.get('run')) || null,
         url: String(request.get('url') ?? '').slice(0, 500),
-        state: String(request.get('state') ?? 'in_progress'),
+        state,
         created_by_id: auth.context.user?.id ?? null,
         /*
          * The rollout, stored as written. A plan is a sentence about intent,
@@ -413,7 +415,7 @@ export default new Action({
     await recordStatus({
       deploymentId: Number(created?.id ?? 0),
       repositoryId,
-      state: String(request.get('state') ?? 'in_progress'),
+      state,
       description: String(request.get('description') ?? ''),
       url: String(request.get('url') ?? ''),
       actorId: auth.context.user?.id ?? null,

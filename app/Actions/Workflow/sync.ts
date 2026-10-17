@@ -221,7 +221,7 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
      * quietly resurrect a workflow that was turned off on purpose, which is the
      * whole reason `removed` is a state of its own.
      */
-    const revived = String(found.state) === 'removed' ? { state: 'active' } : {}
+    const revived = String(found.state) === 'removed' ? { state: 'active' as const } : {}
 
     await db.updateTable('workflows').set({ name, ...revived }).where('id', '=', Number(found.id)).execute()
     return Number(found.id)

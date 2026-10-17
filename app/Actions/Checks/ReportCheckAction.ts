@@ -1,6 +1,6 @@
 import type { CheckDetail } from '../../Webhooks/payloads'
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { notifyProgramsOnly } from '../../Notifications/emit'
 import { authorizeRepository } from '../Repo/authorize'
@@ -144,7 +144,7 @@ async function reportStatus(request: any, about: About, sha: string, creatorId: 
   if (!context)
     return response.json({ error: 'A status needs a context, for example ci/build.' }, 422)
 
-  if (!['pending', 'success', 'failure', 'error'].includes(state))
+  if (!isEnumInput(state, ['pending', 'success', 'failure', 'error']))
     return response.json({ error: 'state must be pending, success, failure or error.' }, 422)
 
   const created = await db
@@ -195,10 +195,12 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
   if (!name)
     return response.json({ error: 'A check run needs a name.' }, 422)
 
-  if (!(status in STATUS_ORDER))
+  if (!isEnumInput(status, ['queued', 'in_progress', 'completed']))
     return response.json({ error: 'status must be queued, in_progress or completed.' }, 422)
 
   const conclusion = String(request.get('conclusion') ?? '').trim() || null
+  if (conclusion !== null && !isEnumInput(conclusion, ['success', 'failure', 'neutral', 'cancelled', 'timed_out', 'action_required', 'skipped', 'stale']))
+    return response.json({ error: 'Unknown check conclusion.' }, 422)
 
   if (status === 'completed' && !conclusion)
     return response.json({ error: 'A completed check run needs a conclusion.' }, 422)

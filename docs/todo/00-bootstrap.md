@@ -827,3 +827,14 @@ Each one is committed and pushed in the repository named.
   around 5ms where bash measures it in microseconds, so the shell-side parent walk that other shells
   use would spend most of a second per `cd` deciding a directory is not a project. It forks
   `pantry shell:lookup` once instead and lets native code walk.
+
+- [x] Adopt the published Stacks 0.75.205 and query-builder 0.3.13 cohort through
+      normal package installation, with exact enum validation and model-driven
+      mirrored-review identities. CI uses the fixed native Buddy typecheck path.
+
+  Generated database types, the nullable review identity migration and its
+  Postgres snapshot, auto-imports and OpenAPI clients come from Buddy. STX pages
+  compute dynamic lookups on the server and interpolate individual attribute
+  values. The normal suite passes against private Pantry-managed Postgres 17.10
+  and Typesense services with pinned Bun 1.4.2; a local feature-off setting no
+  longer disables the public-diff surface the test suite deliberately exercises.

@@ -1,3 +1,4 @@
+import { isEnumInput } from '@stacksjs/validation'
 /**
  * Move a run's graph forward, from wherever it now is.
  *
@@ -861,7 +862,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
  * would ever look at it again.
  */
 export async function settleAwaitingTriggers(runId: number, state: string, now: Date = new Date()): Promise<void> {
-  if (!['succeeded', 'failed', 'cancelled'].includes(state))
+  if (!isEnumInput(state, ['succeeded', 'failed', 'cancelled']))
     return
 
   const waiting = await db

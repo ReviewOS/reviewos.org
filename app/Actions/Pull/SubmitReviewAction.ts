@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { refusal, spendFor } from '../../Api/token-limits'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 
 const STATES = ['approved', 'changes_requested', 'commented'] as const
@@ -79,7 +79,7 @@ export default new Action({
       return refusal('reviews', budget.limit, budget.verdict)
 
     const state = String(request.get('state') ?? 'commented')
-    if (!(STATES as readonly string[]).includes(state))
+    if (!isEnumInput(state, STATES))
       return response.json({ error: 'Unknown review state' }, 422)
 
     const number = Number(request.get('number'))
@@ -257,7 +257,7 @@ export default new Action({
       // that produced it.
       await db
         .updateTable('pull_request_reviews')
-        .set({ external_id: upstream.externalId })
+        .set({ external_id: String(upstream.externalId) })
         .where('id', '=', reviewId)
         .execute()
         .catch(() => undefined)

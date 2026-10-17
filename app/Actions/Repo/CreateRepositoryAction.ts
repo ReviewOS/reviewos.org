@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
@@ -121,7 +121,7 @@ export default new Action({
     const asked = String(request.get('visibility') ?? '').trim()
     const visibility = asked || await setting('default_repository_visibility')
 
-    if (!['public', 'private', 'internal'].includes(visibility))
+    if (!isEnumInput(visibility, ['public', 'private', 'internal']))
       return response.json({ error: 'Unknown visibility' }, 422)
 
     const defaultBranch = String(request.get('default_branch') ?? 'main')

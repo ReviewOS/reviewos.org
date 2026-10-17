@@ -1,3 +1,4 @@
+import { isEnumInput } from '@stacksjs/validation'
 /**
  * Unsubscribing from a link in an email, without signing in.
  *
@@ -28,7 +29,7 @@ export interface Scope {
   id: number
 }
 
-const TYPES: readonly string[] = ['repository', 'organization', 'issue', 'pull_request']
+const TYPES = ['repository', 'organization', 'issue', 'pull_request'] as const
 
 /** Thirty days. Long enough that an archived email still works months later. */
 export const UNSUBSCRIBE_TTL = 30 * 24 * 60 * 60
@@ -48,7 +49,7 @@ export function scopeString(scope: Scope): string {
  * malformed link turns into a silent global opt-out.
  */
 export function parseScope(scope: string | undefined | null): Scope | null {
-  if (!scope)
+  if (typeof scope !== 'string' || !scope)
     return null
 
   const separator = scope.lastIndexOf(':')
@@ -58,10 +59,10 @@ export function parseScope(scope: string | undefined | null): Scope | null {
   const type = scope.slice(0, separator)
   const id = Number(scope.slice(separator + 1))
 
-  if (!TYPES.includes(type) || !Number.isInteger(id) || id <= 0)
+  if (!isEnumInput(type, TYPES) || !Number.isSafeInteger(id) || id <= 0)
     return null
 
-  return { type: type as SubjectType, id }
+  return { type, id }
 }
 
 /**

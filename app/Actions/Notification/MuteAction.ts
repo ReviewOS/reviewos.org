@@ -1,6 +1,6 @@
-import type { MuteDuration, SubjectType } from './settings'
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
+import { setSubjectMute } from './muteSubject'
 import { currentUser } from '../Identity/lookup'
 import { MUTE_DURATIONS, muteExpiry } from './settings'
 import { coerced } from '../inputs'
@@ -41,24 +41,24 @@ export default new Action({
       return response.json({ error: 'Unauthenticated' }, 401)
 
     const subjectType = String(request.get('subject_type') ?? '')
-    if (!(SUBJECTS as readonly string[]).includes(subjectType))
+    if (!isEnumInput(subjectType, SUBJECTS))
       return response.json({ error: 'A subject is a repository, organization, issue, or pull request' }, 422)
 
     const subjectId = Number(request.get('subject_id'))
     if (!Number.isInteger(subjectId) || subjectId <= 0)
       return response.json({ error: 'A subject is required' }, 422)
 
-    const existing = await db
-      .selectFrom('notification_mutes')
-      .select(['id'])
-      .where('user_id', '=', user.id)
-      .where('subject_type', '=', subjectType as SubjectType)
-      .where('subject_id', '=', subjectId)
-      .executeTakeFirst()
-
     // Unmuting deletes the row rather than expiring it. There is nothing worth
     // keeping about a mute somebody has ended.
     if (request.get('muted') === false || String(request.get('muted') ?? '') === 'false') {
+      const existing = await db
+        .selectFrom('notification_mutes')
+        .select(['id'])
+        .where('user_id', '=', user.id)
+        .where('subject_type', '=', subjectType)
+        .where('subject_id', '=', subjectId)
+        .executeTakeFirst()
+
       if (existing) {
         await db
           .deleteFrom('notification_mutes')
@@ -70,7 +70,7 @@ export default new Action({
     }
 
     const duration = String(request.get('duration') ?? 'forever')
-    if (!(MUTE_DURATIONS as readonly string[]).includes(duration))
+    if (!isEnumInput(duration, MUTE_DURATIONS))
       return response.json({ error: `A duration is one of ${MUTE_DURATIONS.join(', ')}` }, 422)
 
     const schedule = await db
@@ -80,37 +80,20 @@ export default new Action({
       .executeTakeFirst()
 
     const expiresAt = muteExpiry(
-      duration as MuteDuration,
+      duration,
       String(schedule?.timezone ?? 'UTC'),
       Date.now(),
     )
 
     const expiresAtText = expiresAt === null ? null : new Date(expiresAt).toISOString()
 
-    if (existing) {
-      await db
-        .updateTable('notification_mutes')
-        .set({ expires_at: expiresAtText })
-        .where('id', '=', Number(existing.id))
-        .execute()
-    }
-    else {
-      await db
-        .insertInto('notification_mutes')
-        .values({
-          user_id: user.id,
-          subject_type: subjectType as SubjectType,
-          subject_id: subjectId,
-          expires_at: expiresAtText,
-        })
-        .execute()
-    }
+    const created = await setSubjectMute(user.id, { type: subjectType, id: subjectId }, expiresAtText)
 
     return response.json({
       subject_type: subjectType,
       subject_id: subjectId,
       muted: true,
       expires_at: expiresAtText,
-    }, existing ? 200 : 201)
+    }, created ? 201 : 200)
   },
 })

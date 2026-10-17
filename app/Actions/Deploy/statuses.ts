@@ -1,3 +1,4 @@
+import { isEnumInput } from '@stacksjs/validation'
 /**
  * A deployment's history, and telling programs about it.
  *
@@ -18,7 +19,7 @@ import { notifyProgramsOnly } from '../../Notifications/emit'
 /** What a status may say. Wider than a deployment's own state, and deliberately. */
 export type StatusState = 'queued' | 'in_progress' | 'active' | 'failed' | 'inactive' | 'rolled_back'
 
-const STATES: readonly string[] = ['queued', 'in_progress', 'active', 'failed', 'inactive', 'rolled_back']
+const STATES = ['queued', 'in_progress', 'active', 'failed', 'inactive', 'rolled_back'] as const
 
 /**
  * Write down what just happened to a deployment.
@@ -40,7 +41,8 @@ export async function recordStatus(input: {
   if (!Number.isInteger(input.deploymentId) || input.deploymentId <= 0)
     return
 
-  const state = STATES.includes(String(input.state)) ? String(input.state) : 'in_progress'
+  const state = input.state
+  if (!isEnumInput(state, STATES)) return
 
   await db
     .insertInto('deployment_statuses')

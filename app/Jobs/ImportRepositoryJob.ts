@@ -974,7 +974,7 @@ async function advanceCounter(repositoryId: number): Promise<void> {
  * failed. Written on every stage boundary rather than every row, because an
  * import of forty thousand comments should not be forty thousand updates.
  */
-async function report(operationId: number, progress: ImportProgress, status = 'running'): Promise<void> {
+async function report(operationId: number, progress: ImportProgress, status: 'running' | 'succeeded' = 'running'): Promise<void> {
   if (!operationId)
     return
 

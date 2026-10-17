@@ -1723,6 +1723,7 @@ declare module '@stacksjs/database' {
       pull_request_id: number
       reviewer_id: number
       state: "pending" | "approved" | "changes_requested" | "commented" | "dismissed"
+      external_id: string | null
       body: string
       commit_sha: string
       submitted_at: string

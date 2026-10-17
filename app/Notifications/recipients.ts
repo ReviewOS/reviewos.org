@@ -18,7 +18,7 @@
  *   out, and reading it as anything other than final would waste that.
  */
 
-import type { NotificationEvent } from './definitions'
+import type { NotificationEvent, SubscriptionReason } from './definitions'
 import { reasonsFor } from './definitions'
 
 export interface Recipient {
@@ -105,7 +105,7 @@ export async function subscribe(options: {
   userId: number
   subjectType: 'issue' | 'pull_request' | 'repository'
   subjectId: number
-  reason: string
+  reason: SubscriptionReason
 }): Promise<void> {
   if (!options.userId || !options.subjectId)
     return

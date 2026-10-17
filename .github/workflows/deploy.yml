@@ -59,21 +59,14 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Type check
-        # `tsc` directly rather than `./buddy typecheck`, which is the same
-        # check through a wrapper that does not survive this runner: a dispatch
-        # on 2026-08-19 sat in that step for fourteen minutes and took the
-        # twenty-minute job cap with it, so the deploy never ran. CI's own
-        # typecheck job gets away with the wrapper because it has the Pantry
-        # toolchain and a warm `node_modules` cache; this job has neither, and a
-        # deploy path that only works with a cache is a deploy path that fails
-        # when it is needed most.
-        run: bun x --bun tsc --noEmit -p tsconfig.json --pretty false
+        # Use the same fixed Stacks CLI and pinned Bun as the CI path.
+        run: ./buddy typecheck
 
       - name: Test
         run: bun test tests/unit/

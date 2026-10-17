@@ -1,3 +1,5 @@
+import { parseEnumInput } from '@stacksjs/validation'
+import { REPOSITORY_SCOPES } from '../../TokenScopes'
 /**
  * The credential a repair gets, which is the smallest one that can do the job.
  *
@@ -102,7 +104,7 @@ export async function mintRepairCredential(input: {
   for (const [scope, level] of Object.entries(REPAIR_GRANTS)) {
     await db
       .insertInto('access_token_permissions')
-      .values({ access_token_id: Number(row.id), scope, level })
+      .values({ access_token_id: Number(row.id), scope: parseEnumInput(scope, 'permission scope', REPOSITORY_SCOPES), level })
       .execute()
       .catch(() => null)
   }

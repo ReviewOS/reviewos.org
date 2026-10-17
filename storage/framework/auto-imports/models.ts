@@ -120,6 +120,7 @@ export { default as Campaign } from '../../../node_modules/@stacksjs/defaults/ap
 export { default as CampaignSend } from '../../../node_modules/@stacksjs/defaults/app/Models/CampaignSend'
 export { default as CampaignVariant } from '../../../node_modules/@stacksjs/defaults/app/Models/CampaignVariant'
 export { default as Card } from '../../../node_modules/@stacksjs/defaults/app/Models/Card'
+export { default as CardAttachment } from '../../../node_modules/@stacksjs/defaults/app/Models/CardAttachment'
 export { default as CardComment } from '../../../node_modules/@stacksjs/defaults/app/Models/CardComment'
 export { default as Comment } from '../../../node_modules/@stacksjs/defaults/app/Models/Comment'
 export { default as CommunicationSuppression } from '../../../node_modules/@stacksjs/defaults/app/Models/CommunicationSuppression'
@@ -131,6 +132,7 @@ export { default as EmailSuppression } from '../../../node_modules/@stacksjs/def
 export { default as EmailWebhookEvent } from '../../../node_modules/@stacksjs/defaults/app/Models/EmailWebhookEvent'
 // Skipped 'Error' - would shadow a built-in global. Import directly if needed.
 // export { default as Error } from '../../../node_modules/@stacksjs/defaults/app/Models/Error'
+export { default as FeedbackToken } from '../../../node_modules/@stacksjs/defaults/app/Models/FeedbackToken'
 export { default as GdprRequest } from '../../../node_modules/@stacksjs/defaults/app/Models/GdprRequest'
 export { default as Label } from '../../../node_modules/@stacksjs/defaults/app/Models/Label'
 export { default as Log } from '../../../node_modules/@stacksjs/defaults/app/Models/Log'

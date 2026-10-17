@@ -153,7 +153,7 @@ export default new Action({
           start_line: annotation.startLine,
           end_line: annotation.endLine,
           side: 'right',
-          level: annotation.level,
+          level: annotation.level === 'error' ? 'failure' : annotation.level,
           title: annotation.title,
           message: annotation.message,
         })

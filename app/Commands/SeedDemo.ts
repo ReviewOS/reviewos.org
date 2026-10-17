@@ -692,7 +692,7 @@ async function ensureReview(
   pullRequestId: number,
   repositoryId: number,
   reviewerId: number,
-  state: string,
+  state: 'pending' | 'approved' | 'changes_requested' | 'commented' | 'dismissed',
   body: string,
   commitSha: string,
 ): Promise<void> {

@@ -58,6 +58,7 @@ const reachLabels: Record<string, string> = {
   selected: 'scoped to a repository here',
   membership: 'reaches everything its owner can',
 }
+const tokenRows = tokens.map(token => ({ ...token, reachLabel: reachLabels[token.via] }))
 
 if (!visible)
   setStatus(404)
@@ -123,7 +124,7 @@ if (!visible)
             Never used first, then least recently used. The reason to open this
             page is to find what should not be here.
           --}}
-          @foreach (tokens as token)
+          @foreach (tokenRows as token)
             <li class="person-row">
               <span class="i-hugeicons-key-01 person-icon" aria-hidden="true"></span>
 
@@ -132,7 +133,7 @@ if (!visible)
                 <span class="token-prefix mono muted">{{ token.prefix }}</span>
                 <span class="person-meta muted">
                   <a href="/{{ token.ownerHandle }}">{{ token.ownerHandle }}</a>
-                  &middot; {{ reachLabels[token.via] }}
+                  &middot; {{ token.reachLabel }}
                   @if (token.repositoryNames.length > 0)
                     &middot; {{ token.repositoryNames.join(', ') }}
                   @endif

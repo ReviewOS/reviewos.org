@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { CONDITIONS, evaluateMonitors } from './monitors'
@@ -85,7 +85,7 @@ export default new Action({
       const condition = String(request.get('condition') ?? 'fail_rate')
       const threshold = Number(request.get('threshold'))
 
-      if (!(condition in CONDITIONS))
+      if (!isEnumInput(condition, ['flaky', 'fail_rate', 'duration']))
         return response.json({ error: 'Unknown condition', allowed: Object.keys(CONDITIONS) }, 422)
 
       if (!Number.isFinite(threshold) || threshold < 0)

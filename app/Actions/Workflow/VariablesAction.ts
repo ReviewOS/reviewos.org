@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveVariables, settingsFor } from './variables'
@@ -106,6 +106,8 @@ export default new Action({
     }
 
     const scope = String(request.get('scope') ?? 'repository').trim()
+    if (!isEnumInput(scope, ['instance', 'owner', 'repository']))
+      return response.json({ error: 'Unknown variable scope' }, 422)
 
     /*
      * An instance-wide variable reaches every repository on the server,

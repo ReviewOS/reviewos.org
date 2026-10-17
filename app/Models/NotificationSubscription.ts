@@ -1,3 +1,4 @@
+import { SUBSCRIPTION_REASONS } from '../Notifications/definitions'
 import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
 
@@ -61,15 +62,7 @@ export default defineModel({
       order: 4,
       fillable: true,
       validation: {
-        rule: schema.enum([
-          'review_requested',
-          'assigned',
-          'mentioned',
-          'team_mention',
-          'author',
-          'participating',
-          'watching',
-        ]),
+        rule: schema.enum(SUBSCRIPTION_REASONS),
       },
       factory: faker => faker.helpers.arrayElement(['author', 'participating', 'watching', 'mentioned']),
     },

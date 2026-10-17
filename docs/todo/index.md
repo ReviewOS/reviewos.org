@@ -14,7 +14,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 
 | Phase | What it covers | State |
 |---|---|---|
-| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (62/62) |
+| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (63/63) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (77/77) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (136/136) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (39/39) |
@@ -25,7 +25,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (121/122) |
 | [10 - Federation](./10-federation.md) | AT Protocol identity: resolution, linking and OAuth sign-in | Complete (17/17) |
-| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (55/55) |
+| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (56/56) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Complete (47/47) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | Complete (171/171) |

@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { canInOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
@@ -39,7 +39,7 @@ export default new Action({
     const organizationId = Number(request.get('organization_id'))
     const role = String(request.get('role') ?? 'member')
 
-    if (!['owner', 'admin', 'member'].includes(role))
+    if (!isEnumInput(role, ['owner', 'admin', 'member']))
       return response.json({ error: 'Unknown role' }, 422)
 
     const actorRole = await organizationRoleOf(organizationId, actor.id)

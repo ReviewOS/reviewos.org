@@ -1,3 +1,5 @@
+import { parseEnumInput } from '@stacksjs/validation'
+import { REPOSITORY_SCOPES } from '../../TokenScopes'
 import { db } from '@stacksjs/database'
 import { generateToken } from '../Tokens/secret'
 import { resolvePermissions } from './permissions'
@@ -131,7 +133,7 @@ export async function mintJobToken(input: {
   for (const [scope, level] of Object.entries(grants.granted)) {
     await db
       .insertInto('access_token_permissions')
-      .values({ access_token_id: Number(row.id), scope, level })
+      .values({ access_token_id: Number(row.id), scope: parseEnumInput(scope, 'permission scope', REPOSITORY_SCOPES), level })
       .execute()
       .catch(() => null)
   }

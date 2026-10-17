@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { pingPayload, WEBHOOK_EVENTS } from '../../Webhooks/payloads'
 import { inspectUrl } from './ssrf'
@@ -138,6 +138,8 @@ export default new Action({
       return response.json({ error: 'Events must be * or a list this product sends' }, 422)
 
     const contentType = String(request.get('content_type') ?? 'application/json')
+    if (!isEnumInput(contentType, ['application/json', 'application/x-www-form-urlencoded']))
+      return response.json({ error: 'Unsupported webhook content type' }, 422)
     const active = request.get('active') === undefined ? true : (readFlag(request.get('active')) ?? false)
 
     if (operation === 'update') {

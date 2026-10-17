@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { globMatches } from './notifyRules'
@@ -118,7 +118,7 @@ export default new Action({
     const job = String(request.get('job') ?? '').trim()
     const condition = String(request.get('condition') ?? 'failure').trim()
 
-    if (!['failure', 'success', 'recovery', 'always'].includes(condition)) {
+    if (!isEnumInput(condition, ['failure', 'success', 'recovery', 'always'])) {
       return response.json({
         error: 'That is not a condition this instance has',
         reason: '`failure`, `success`, `recovery` - the first success after a failure - or `always`.',

@@ -291,8 +291,9 @@ async function recordStepAttempt(
     .executeTakeFirst()
     .catch(() => null)
 
-  const state = ['succeeded', 'failed', 'cancelled'].includes(String(step.state ?? 'succeeded'))
-    ? String(step.state ?? 'succeeded')
+  const reportedState = String(step.state ?? 'succeeded')
+  const state: ReportInput['state'] = reportedState === 'succeeded' || reportedState === 'failed' || reportedState === 'cancelled'
+    ? reportedState
     : 'succeeded'
 
   const values = {

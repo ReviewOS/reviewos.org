@@ -771,6 +771,7 @@ const fileSummaries = files.map((file: any) => ({
 const statePill = pullRequest
   ? (pullRequest.state === 'merged' ? 'merged' : (pullRequest.state === 'closed' ? 'closed' : (pullRequest.draft ? 'draft' : 'open')))
   : 'draft'
+const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
 </script>
 
 @layout('app')
@@ -1115,8 +1116,8 @@ const statePill = pullRequest
               same rows is how a diff ends up looking one way on this page and
               another on the screen built for reading it.
             --}}
-            @foreach (files as file)
-              {!! diffHtmlByPath[file.path] ?? '' !!}
+            @foreach (renderedDiffs as diffHtml)
+              {!! diffHtml !!}
             @endforeach
           @endif
         </div>

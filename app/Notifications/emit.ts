@@ -1,3 +1,4 @@
+import type { SubscriptionReason } from './definitions'
 /**
  * Emitting a domain event, from the one place the state changed.
  *
@@ -57,7 +58,7 @@ export interface EmitOptions extends EventSubject {
    * joining it - closing a stale issue should not sign you up for the rest of
    * the conversation.
    */
-  subscribeActor?: string | false
+  subscribeActor?: SubscriptionReason | false
 }
 
 export async function notify(event: NotificationEvent, options: EmitOptions): Promise<void> {

@@ -12,8 +12,8 @@
 //   - An address with no account must be answered the same as one with, or the
 //     endpoint becomes a way to test whether somebody has an account here.
 //
-// Like the rest of tests/e2e it needs a database, and skips itself loudly when
-// there is not one.
+// This security regression needs the configured test database; setup failures
+// fail the suite rather than reporting unexecuted assertions as passes.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
@@ -84,8 +84,8 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
-    console.warn(`[unsubscribe] skipping: ${error instanceof Error ? error.message : String(error)}`)
-    available = false
+    console.error(`[unsubscribe] setup failed: ${error instanceof Error ? error.message : String(error)}`)
+    throw error
   }
 }, 120_000)
 
@@ -95,6 +95,7 @@ afterAll(async () => {
   try {
     if (db && created.userId) {
       await db.deleteFrom('notification_subscriptions').where('user_id', '=', created.userId).execute()
+      await db.deleteFrom('notification_mutes').where('user_id', '=', created.userId).execute()
       await db.deleteFrom('users').where('id', '=', created.userId).execute()
     }
   }
@@ -148,6 +149,19 @@ describe('pressing the button', () => {
     // The single fastest way to teach people that unsubscribing here does not
     // work would be to delete the row and let the next comment recreate it.
     expect(await subscriptionState()).toBe(true)
+  })
+})
+
+describe('organization unsubscribe', () => {
+  test('records a permanent organization mute instead of an invalid thread subscription', async () => {
+    if (!available) throw new Error('The organization unsubscribe regression requires its test database')
+    const token = mint(created.email, 3600, `organization:${created.subjectId}`)
+    expect((await call('POST', `/unsubscribe/${token}`)).status).toBe(200)
+    const db = (globalThis as any).db
+    const mute = await db.selectFrom('notification_mutes').select(['expires_at'])
+      .where('user_id', '=', created.userId).where('subject_type', '=', 'organization').where('subject_id', '=', created.subjectId).executeTakeFirst()
+    expect(mute).toBeDefined()
+    expect(mute?.expires_at).toBeNull()
   })
 })
 

@@ -48,9 +48,9 @@
     one long scroll. The streamed review screen keeps its own door - the
     same files, built for very large diffs. --}}
 <nav class="tabs" aria-label="Pull request sections">
-  <a class="tab" {{ tab === 'conversation' ? 'aria-current="page"' : '' }} href="?tab=conversation">Conversation</a>
-  <a class="tab" {{ tab === 'commits' ? 'aria-current="page"' : '' }} href="?tab=commits">Commits</a>
-  <a class="tab" {{ tab === 'checks' ? 'aria-current="page"' : '' }} href="?tab=checks">Checks</a>
-  <a class="tab" {{ tab === 'files' ? 'aria-current="page"' : '' }} href="?tab=files">Files changed</a>
+  <a class="tab" aria-current="{{ tab === 'conversation' ? 'page' : 'false' }}" href="?tab=conversation">Conversation</a>
+  <a class="tab" aria-current="{{ tab === 'commits' ? 'page' : 'false' }}" href="?tab=commits">Commits</a>
+  <a class="tab" aria-current="{{ tab === 'checks' ? 'page' : 'false' }}" href="?tab=checks">Checks</a>
+  <a class="tab" aria-current="{{ tab === 'files' ? 'page' : 'false' }}" href="?tab=files">Files changed</a>
   <a class="muted tab" href="/{{ owner }}/{{ repository }}/pull/{{ number }}/files">Review screen</a>
 </nav>

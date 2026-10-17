@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
+import { schema, isEnumInput } from '@stacksjs/validation'
 import { safeRedirect, wantsHtml } from '../Auth/session'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
@@ -84,7 +84,7 @@ export default new Action({
       return response.json({ watching: false, subscription: null })
     }
 
-    if (!(SUBSCRIPTIONS as readonly string[]).includes(raw))
+    if (!isEnumInput(raw, SUBSCRIPTIONS))
       return response.json({ error: 'No such subscription' }, 422)
 
     const existing = await db

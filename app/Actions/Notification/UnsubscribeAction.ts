@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { parseScope } from './unsubscribe'
+import { setSubjectMute } from './muteSubject'
 
 /**
  * Stop notifying somebody about one thread, from a link in an email.
@@ -85,6 +86,11 @@ export default new Action({
     // anyway.
     if (!user)
       return respond(request, { unsubscribed: true })
+
+    if (scope.type === 'organization') {
+      await setSubjectMute(Number(user.id), scope, null)
+      return respond(request, { unsubscribed: true })
+    }
 
     const existing = await db
       .selectFrom('notification_subscriptions')

@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { encrypt } from '@stacksjs/security'
-import { schema } from '@stacksjs/validation'
+import { schema, parseEnumInput } from '@stacksjs/validation'
 import { dbTimestamp } from '../Support/sql'
 import { GitHubClient } from './github-client'
 
@@ -51,7 +51,7 @@ export default new Action({
       return response.json({ error: 'Sign in first.' }, 401)
 
     const operation = String(request.get('operation') ?? 'list')
-    const provider = String(request.get('provider') ?? 'github')
+    const provider = parseEnumInput(request.get('provider') ?? 'github', 'provider', ['gitea', 'github', 'gitlab'])
     const host = String(request.get('host') ?? 'github.com').trim().toLowerCase()
 
     if (operation === 'list') {

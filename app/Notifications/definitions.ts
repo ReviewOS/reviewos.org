@@ -13,6 +13,9 @@ import type { CheckDetail, JobDetail, MonitorDetail, RunDetail, SuiteDetail, Tes
  * what they are told is this, and it is testable without one.
  */
 
+export const SUBSCRIPTION_REASONS = ['review_requested', 'assigned', 'mentioned', 'team_mention', 'author', 'participating', 'watching'] as const
+export type SubscriptionReason = typeof SUBSCRIPTION_REASONS[number]
+
 /** The events that produce a notification. */
 export type NotificationEvent =
   | 'pr:opened'
@@ -148,7 +151,7 @@ export function describe(event: NotificationEvent, subject: EventSubject): Notif
  * a repository watcher wants to hear that a pull request opened, and does not
  * want every comment on it.
  */
-export function reasonsFor(event: NotificationEvent): 'all' | string[] {
+export function reasonsFor(event: NotificationEvent): 'all' | SubscriptionReason[] {
   switch (event) {
     case 'review:requested':
       return 'all'

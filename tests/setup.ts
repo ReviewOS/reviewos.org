@@ -24,8 +24,7 @@ if (!Bun.env.STRIPE_SECRET_KEY)
  * off behaviour through a server; that it is off by default is a property of
  * `config/publicdiff.ts`, which is read there rather than exercised here.
  */
-if (!Bun.env.PUBLIC_DIFF_ENABLED)
-  Bun.env.PUBLIC_DIFF_ENABLED = 'true'
+Bun.env.PUBLIC_DIFF_ENABLED = 'true'
 
 /**
  * Mail goes nowhere, immediately, and always fails.

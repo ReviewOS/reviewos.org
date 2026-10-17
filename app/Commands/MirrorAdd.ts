@@ -187,7 +187,7 @@ async function resolveOwner(handle: string): Promise<{ id: number, handle: strin
 }
 
 async function upsertRepository(
-  owner: { id: number, handle: string, type: string },
+  owner: Awaited<ReturnType<typeof resolveOwner>>,
   name: string,
   diskPath: string,
   visibility: 'public' | 'private',

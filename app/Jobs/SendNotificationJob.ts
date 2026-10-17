@@ -296,7 +296,7 @@ function absolute(url: string): string {
  */
 async function record(
   userId: number,
-  channel: Channel,
+  channel: Extract<Channel, 'email' | 'push'>,
   recipient: string,
   payload: { title: string, url: string },
   status: 'sent' | 'failed' | 'skipped' | 'pending',
