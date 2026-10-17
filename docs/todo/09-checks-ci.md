@@ -1527,7 +1527,7 @@ gate, in order.
 
       The mode it protects now runs real jobs - source, actions and secrets all reach the guest - so
       this is a policy in front of something rather than in front of nothing.
-- [x] Permit native Android factory images under the bounded default file ceiling: 8 GiB permits the 6 GiB data image. A real sparse-file regression exercises the inherited kernel limit; explicit smaller operator limits remain enforced.
+- [x] Permit native build files under a bounded 32 GiB default: Android creates a 6 GiB device image and Xcode maps a 24 GiB sparse compilation cache. Real sparse-file regressions exercise the inherited kernel limit on macOS and Linux, including their different shell block units; explicit smaller operator limits remain enforced.
 
 - [x] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 

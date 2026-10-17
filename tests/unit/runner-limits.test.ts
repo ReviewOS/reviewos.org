@@ -30,7 +30,7 @@ describe('the settings', () => {
     const limits = limitsFrom({})
 
     expect(limits.memoryMb).toBe(4096)
-    expect(limits.fileSizeMb).toBe(8192)
+    expect(limits.fileSizeMb).toBe(32768)
   })
 
   test('and the process ceiling is off, because it counts the whole user rather than the step', () => {
@@ -57,7 +57,7 @@ describe('the settings', () => {
   test('with an explicit zero meaning no ceiling, rather than falling back to the default', () => {
     // Otherwise "turn this off" would be a setting that cannot be expressed.
     expect(limitsFrom({ CI_STEP_FILE_SIZE_MB: '0' }).fileSizeMb).toBe(0)
-    expect(limitsFrom({ CI_STEP_FILE_SIZE_MB: 'lots' }).fileSizeMb).toBe(8192)
+    expect(limitsFrom({ CI_STEP_FILE_SIZE_MB: 'lots' }).fileSizeMb).toBe(32768)
   })
 })
 
@@ -127,14 +127,17 @@ describe('the argv path, which has no shell', () => {
 })
 
 describe('what the ceilings actually do', () => {
-  test('the default permits the factory Android device data image without allocating its contents', async () => {
-    // API 35 creates a 6 GiB raw data image. Extending a sparse file exercises
-    // the inherited kernel ceiling without booting a VM or consuming 6 GiB.
+  test.each([
+    { name: 'factory Android device data image', bytes: 6442450944 },
+    { name: 'Xcode compilation cache', bytes: 25769803776 },
+  ])('the default permits the $name without allocating its contents', async ({ bytes }) => {
+    // Android creates a 6 GiB raw image; Xcode maps a 24 GiB sparse cache.
+    // Exercise the inherited kernel ceiling without allocating the contents.
     const program = `
       const { openSync, ftruncateSync, fstatSync, closeSync } = require('node:fs')
       const fd = openSync('userdata.img', 'w')
       try {
-        ftruncateSync(fd, 6 * 1024 ** 3)
+        ftruncateSync(fd, ${bytes})
         const stat = fstatSync(fd)
         console.log(JSON.stringify({ size: stat.size, blocks: stat.blocks }))
       }
@@ -155,7 +158,7 @@ describe('what the ceilings actually do', () => {
 
     expect(error).toBe('')
     expect(code).toBe(0)
-    expect(JSON.parse(output)).toEqual({ size: 6442450944, blocks: 0 })
+    expect(JSON.parse(output)).toEqual({ size: bytes, blocks: 0 })
   })
 
   test('a step cannot write a file larger than it was allowed', async () => {

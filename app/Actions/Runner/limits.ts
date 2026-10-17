@@ -68,9 +68,9 @@ export function limitsFrom(env: Record<string, string | undefined> = process.env
     // Off by default: see the note on the field. A per-user ceiling applied to
     // a build counts everything else the user is doing.
     processes: positive(env.CI_STEP_PROCESSES, 0),
-    // Native Android devices create a 6 GiB raw data image before booting.
-    // Keep a bounded ceiling that permits that ordinary build workload.
-    fileSizeMb: positive(env.CI_STEP_FILE_SIZE_MB, 8192),
+    // Android creates a 6 GiB raw device image, and Xcode maps a 24 GiB
+    // sparse compilation cache. Bound files without rejecting native builds.
+    fileSizeMb: positive(env.CI_STEP_FILE_SIZE_MB, 32768),
     // Zero by default: CPU seconds and wall time bound different things, and a
     // build that legitimately uses eight cores for two minutes has spent
     // sixteen CPU minutes without being slow. An operator who wants this knows
@@ -118,8 +118,9 @@ function positive(value: string | undefined, fallback: number): number {
 export function limitPrelude(limits: StepLimits): string {
   const lines: string[] = []
 
-  // Blocks of 1024 bytes for `-f`, kilobytes for `-v`: both are historical and
-  // both are what every shell means by those flags.
+  // macOS ships bash 3 as /bin/sh, whose file blocks are 1024 bytes.
+  // Linux /bin/sh uses POSIX 512-byte blocks. Address-space units are KiB.
+  const fileBlocksPerMb = process.platform === 'darwin' ? 1024 : 2048
   if (limits.memoryMb > 0)
     lines.push(`ulimit -v ${limits.memoryMb * 1024} 2>/dev/null || true`)
 
@@ -127,7 +128,7 @@ export function limitPrelude(limits: StepLimits): string {
     lines.push(`ulimit -u ${limits.processes} 2>/dev/null || true`)
 
   if (limits.fileSizeMb > 0)
-    lines.push(`ulimit -f ${limits.fileSizeMb * 1024} 2>/dev/null || true`)
+    lines.push(`ulimit -f ${limits.fileSizeMb * fileBlocksPerMb} 2>/dev/null || true`)
 
   if (limits.cpuSeconds > 0)
     lines.push(`ulimit -t ${limits.cpuSeconds} 2>/dev/null || true`)

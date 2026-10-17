@@ -1017,7 +1017,7 @@ Read by `app/Actions/Runner/limits.ts`.
 
 ### `CI_STEP_FILE_SIZE_MB`
 
-Default: `8192`, and the line is commented out.
+Default: `32768`, and the line is commented out.
 
 Read by `app/Actions/Runner/limits.ts`.
 
