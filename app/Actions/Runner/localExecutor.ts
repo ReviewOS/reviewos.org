@@ -3555,7 +3555,22 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
    * the job carries on: losing a line is bad, and stalling a machine is worse.
    */
   for (let attempt = 0; attempt < 5; attempt++) {
-    const answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
+    let answer: Awaited<ReturnType<typeof post>>
+
+    try {
+      answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
+    }
+    catch {
+      // A transport error must not escape into the output pump: that stops
+      // reading the pipe and eventually blocks the command writing to it.
+      if (attempt === 4) {
+        console.error(`Could not deliver log sequence ${sequence} after five attempts; continuing to drain command output.`)
+        return
+      }
+
+      await Bun.sleep(Math.min(2000, 200 * 2 ** attempt))
+      continue
+    }
 
     if (answer.ok || !answer.body?.retry_after_ms)
       return
