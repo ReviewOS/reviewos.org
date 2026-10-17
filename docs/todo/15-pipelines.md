@@ -2440,6 +2440,8 @@ decisions.
       and trusted local instance operators. Its guarded state update must win before any job
       changes; a competing completion or cancellation cannot revoke jobs or claim a second audit
       event. Completed jobs retain their actual results.
+      Queued cancellations immediately use the shared graph settler: when no worker ever started,
+      the child and its awaiting parent still conclude and release the next concurrency-group run.
 
       The run has been cancellable since phase 9. `POST /api/repos/workflow-runs/cancel-job` is the
       other half, and the case the first cannot serve: one job stuck on a machine that has gone

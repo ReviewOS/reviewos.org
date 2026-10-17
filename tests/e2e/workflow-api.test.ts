@@ -401,6 +401,52 @@ describe('cancelling', () => {
     expect(job.lease_expires_at).toBeTruthy()
   })
 
+  test('a queued cancellation settles without waiting for a nonexistent worker', async () => {
+    if (!available)
+      return
+
+    const number = await makeRun('queued', crypto.randomUUID().replaceAll('-', '').padEnd(40, '0'))
+    const child: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    const parentNumber = await makeRun('running', crypto.randomUUID().replaceAll('-', '').padEnd(40, '0'))
+    const parent: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', parentNumber).executeTakeFirst()
+    await db.updateTable('workflow_jobs').set({ kind: 'trigger', triggered_run_id: Number(child.id) })
+      .where('workflow_run_id', '=', Number(parent.id)).execute()
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${number}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ cancelled: true, workflow_run: { state: 'cancelled' } })
+    const run: any = await db.selectFrom('workflow_runs').select(['state', 'finished_at'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    expect(run.state).toBe('cancelled')
+    expect(run.finished_at).toBeTruthy()
+    const afterParent: any = await db.selectFrom('workflow_runs').select(['state'])
+      .where('id', '=', Number(parent.id)).executeTakeFirst()
+    expect(afterParent.state).toBe('cancelled')
+  })
+
+  test('cancelling an empty queued graph does not reopen it', async () => {
+    if (!available)
+      return
+
+    const number = await makeRun('queued', crypto.randomUUID().replaceAll('-', '').padEnd(40, '0'))
+    const run: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    await db.deleteFrom('workflow_jobs').where('workflow_run_id', '=', Number(run.id)).execute()
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${number}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ cancelled: true, workflow_run: { state: 'cancelled' } })
+    const after: any = await db.selectFrom('workflow_runs').select(['state'])
+      .where('id', '=', Number(run.id)).executeTakeFirst()
+    expect(after.state).toBe('cancelled')
+  })
+
   test('cancelling one that already finished is not an error', async () => {
     if (!available)
       return
@@ -471,7 +517,7 @@ describe('cancelling', () => {
       .where('number', '=', number)
       .executeTakeFirst()
 
-    expect(String(run.state)).toBe('cancelling')
+    expect(String(run.state)).toBe('cancelled')
   })
 })
 

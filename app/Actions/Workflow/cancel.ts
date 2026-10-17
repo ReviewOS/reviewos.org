@@ -3,6 +3,7 @@ import type { AuditPayload } from '../../Audit/events'
 import { auditEvent } from '../../Audit/events'
 import { rowsChanged } from '../Support/sql'
 import { announceRunIfMoved } from './announce'
+import { settleRun } from './settle'
 import type { RunState } from './states'
 import { canRunMove, isTerminalRun } from './states'
 
@@ -77,6 +78,13 @@ export async function cancelRun(input: {
       ...input.actor, subject: { type: 'workflow_run', id: outcome.runId }, repositoryId: input.repositoryId,
       reason, detail: { number: input.number, from: outcome.from, reason },
     })
+    // Queued jobs are already terminal. No worker will report back to settle
+    // their run, close an awaiting parent trigger, or release its group.
+    // Running jobs still settle to cancelling until their lease is acknowledged.
+    const next = await settleRun(outcome.runId)
+    await announceRunIfMoved(input.repositoryId, outcome.runId, 'cancelling', next)
+    if ('workflow_run' in outcome.result.body)
+      outcome.result.body.workflow_run.state = next
   }
   return outcome.result
 }

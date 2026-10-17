@@ -566,10 +566,14 @@ export async function gateFor(runId: number, job: any, now: Date): Promise<GateD
  */
 async function recordRunState(runId: number, now: Date): Promise<string> {
   const settled = await jobsOfRun(runId)
-  const state = runStateFromJobs(graphRows(settled).map(effectiveState))
 
   const run = await db.selectFrom('workflow_runs').select(['state', 'paused_at']).where('id', '=', runId).executeTakeFirst()
   const from = String(run?.state ?? 'queued')
+  // An empty graph normally waits for work. Once explicitly cancelled there
+  // is no worker to acknowledge it, and settling must not reopen it as queued.
+  const state = from === 'cancelling' && settled.length === 0
+    ? 'cancelled'
+    : runStateFromJobs(graphRows(settled).map(effectiveState))
 
   /*
    * And a held run stays `waiting`, whatever its rows say.
