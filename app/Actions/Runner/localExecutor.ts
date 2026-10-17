@@ -512,7 +512,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
 
     if (kept.length > 0)
-      await append(options.baseUrl, jobToken, sequence++, `${kept.join('\n')}\n`, stream)
+      await append(options.baseUrl, jobToken, sequence++, `${kept.join('\n')}\n`, stream, lease)
   }
 
   /** Anything left in the buffer when a step ends, which is a line without its newline. */
@@ -528,7 +528,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       annotations.push(result.annotation)
 
     if (result.line !== null)
-      await append(options.baseUrl, jobToken, sequence++, `${result.line}\n`, stream)
+      await append(options.baseUrl, jobToken, sequence++, `${result.line}\n`, stream, lease)
   }
 
   /**
@@ -3601,7 +3601,7 @@ async function runStep(input: {
 
 /* ------------------------------------------------------- the wire, verbatim */
 
-async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr'): Promise<void> {
+async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr', lease?: RunnerLease): Promise<void> {
   /*
    * Retried when the instance asks this runner to slow down.
    *
@@ -3615,6 +3615,7 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
    * must not turn an unverified result into a successful job.
    */
   for (let attempt = 0; attempt < 5; attempt++) {
+    lease?.signal.throwIfAborted()
     let answer: Awaited<ReturnType<typeof post>>
     try {
       answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
@@ -3629,8 +3630,13 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
 
     if (answer.ok) return
 
-    if (!answer.body?.retry_after_ms && answer.status < 500 && ![408, 429].includes(answer.status))
+    if (!answer.body?.retry_after_ms && answer.status < 500 && ![408, 429].includes(answer.status)) {
+      // A cancellation can revoke output before the next heartbeat arrives.
+      // Revoke locally before unwinding, so the runner acknowledges cancelled
+      // instead of reporting a failure against an expired lease.
+      lease?.refuse(answer.status, refusalText(answer.body?.error) || 'step output was refused')
       throw new Error(`The instance refused step output (HTTP ${answer.status}).`)
+    }
 
     if (attempt === 4)
       throw new Error('The instance did not accept step output after five attempts.')

@@ -213,6 +213,11 @@ stopped - and a runner that heard the cancellation, stopped, and came back to
 say so is still the holder. "I stopped" cannot fabricate a verdict the way "I
 succeeded" can, so that one is accepted and nothing else is.
 
+The host runner treats a definitive refusal of its log upload as a lease
+revocation too. Output can arrive before the next heartbeat, so it stops the
+process tree and reports `cancelled` immediately. Recoverable transport errors
+and proxy backpressure keep their bounded retries.
+
 A run whose runner never acknowledges is ended by the control plane two lease
 periods after the request. Cooperative first, forceful after a deadline.
 

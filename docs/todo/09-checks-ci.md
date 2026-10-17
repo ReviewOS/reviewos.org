@@ -1475,6 +1475,9 @@ gate, in order.
       pipeline, tap and filter setup - needs a Linux host with KVM and is not written, because a tap
       device attached to the wrong bridge looks exactly like one attached to the right bridge.
 
+- [x] A definitive output-delivery refusal revokes the host runner's lease immediately, so a
+      cancellation arriving through logs is acknowledged as cancelled before the next heartbeat.
+      Transient proxy failures retain their bounded output retries.
 - [x] The default address-space ceiling allows Bun production rendering's virtual reservations,
       with an 8 GiB finite ceiling and explicit operator overrides retained. Verified with the
       unchanged production bundle and full marketing-page suite after 4 GiB CSS allocation failures.

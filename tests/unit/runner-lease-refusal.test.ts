@@ -60,7 +60,7 @@ test('an initially revoked lease executes no repository commands', async () => {
   }
 })
 
-test('revocation stops an active process tree and never dispatches the next always step', async () => {
+for (const channel of ['heartbeat', 'logs']) test(`revocation through ${channel} stops an active process tree and never dispatches the next always step`, async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-revoked-lease-'))
   let claimed = false
   let beats = 0
@@ -76,13 +76,15 @@ test('revocation stops an active process tree and never dispatches the next alwa
         repository_full_name: 'acme/widgets',
         run: { id: 1, number: 1, event: 'push', ref: 'refs/heads/main', head_sha: 'abc' },
         steps: [
-          { name: 'Long operation', timeout_minutes: 0.5, run: 'sleep 120 & echo $! > child.pid; wait' },
+          { name: 'Long operation', timeout_minutes: 0.5, run: 'sleep 120 & echo $! > child.pid; printf "LEASE-ACTIVE\\n"; wait' },
           { name: 'Must not execute', if: 'always()', run: 'touch revoked-work-ran' },
         ],
       } })
     }
-    if (path === '/api/runner/heartbeat' && ++beats > 1)
+    if (channel === 'heartbeat' && path === '/api/runner/heartbeat' && ++beats > 1)
       return Response.json({ error: 'This job is no longer yours' }, { status: 409 })
+    if (channel === 'logs' && path === '/api/runner/logs' && String(body.content).split('\n').includes('LEASE-ACTIVE'))
+      return Response.json({ error: 'This job is no longer yours' }, { status: 401 })
     if (path === '/api/runner/report') reports.push(body)
     return Response.json({ ok: true, held: true })
   } })
