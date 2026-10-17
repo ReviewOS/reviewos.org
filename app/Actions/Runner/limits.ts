@@ -64,7 +64,9 @@ export interface StepLimits {
  */
 export function limitsFrom(env: Record<string, string | undefined> = process.env): StepLimits {
   return {
-    memoryMb: positive(env.CI_STEP_MEMORY_MB, 4096),
+    // Bun's production renderer reserves multi-GiB virtual arenas beyond its
+    // resident heap. A 4 GiB address ceiling can reject ordinary CSS rendering.
+    memoryMb: positive(env.CI_STEP_MEMORY_MB, 8192),
     // Off by default: see the note on the field. A per-user ceiling applied to
     // a build counts everything else the user is doing.
     processes: positive(env.CI_STEP_PROCESSES, 0),

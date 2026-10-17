@@ -29,7 +29,7 @@ describe('the settings', () => {
   test('are generous by default, because a limit that trips on ordinary work is one an operator removes', () => {
     const limits = limitsFrom({})
 
-    expect(limits.memoryMb).toBe(4096)
+    expect(limits.memoryMb).toBe(8192)
     expect(limits.fileSizeMb).toBe(32768)
   })
 

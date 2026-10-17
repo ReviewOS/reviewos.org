@@ -1006,7 +1006,7 @@ can never leave is not a ceiling.
 
 ### `CI_STEP_MEMORY_MB`
 
-Default: `4096`, and the line is commented out.
+Default: `8192`, and the line is commented out.
 
 Ceilings a step cannot raise, applied before its first instruction.
 

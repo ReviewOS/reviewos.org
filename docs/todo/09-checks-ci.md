@@ -1475,6 +1475,9 @@ gate, in order.
       pipeline, tap and filter setup - needs a Linux host with KVM and is not written, because a tap
       device attached to the wrong bridge looks exactly like one attached to the right bridge.
 
+- [x] The default address-space ceiling allows Bun production rendering's virtual reservations,
+      with an 8 GiB finite ceiling and explicit operator overrides retained. Verified with the
+      unchanged production bundle and full marketing-page suite after 4 GiB CSS allocation failures.
 - [x] Host checkout retains only the job's lease-bound, read-only credential in an origin-scoped
       Git helper, so later origin reads and production freshness checks work for private repositories.
       Clone askpass files are removed immediately; operator credentials never enter the checkout and
