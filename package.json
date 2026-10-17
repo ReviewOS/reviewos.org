@@ -68,7 +68,7 @@
     "typecheck:app": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
+    "@anthropic-ai/sdk": "^0.135.0",
     "@stacksjs/actions": "0.75.217",
     "@stacksjs/api": "0.75.217",
     "@stacksjs/buddy": "0.75.217",
@@ -87,7 +87,7 @@
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.13",
-    "mermaid": "^12.1.0",
+    "mermaid": "^12.2.0",
     "pickier": "^0.1.67",
     "stacks": "0.75.217",
     "ts-git-lfs": "^0.1.3",
