@@ -23,8 +23,10 @@ import type { ServerConfig } from '@stacksjs/types'
  * Nothing logged it, because from the page server's side it was an ordinary
  * request for a page.
  *
- * `/git/` is the fix, and a prefix is the only wildcard this configuration
- * has. `routes/git.ts` answers under it as well as at the root, `parseGitUrl`
+ * `/git/` is the local page-server fallback. Production's cloud gateway sends
+ * this mount directly to the API so page-server restarts cannot sever Git
+ * transfers. A prefix is the only wildcard this configuration has.
+ * `routes/git.ts` answers under it as well as at the root, `parseGitUrl`
  * takes the mount off, `cloneUrlFor` advertises it, and `git` is a reserved
  * handle so the mount can never collide with somebody's namespace.
  */

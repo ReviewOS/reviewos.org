@@ -5,6 +5,12 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Deployment
 
+- [x] Route the production `/git` mount directly to the existing authenticated API
+      through the typed cloud gateway, so page-server stalls and restarts cannot
+      interrupt clones, pushes or CI checkouts. Keep the mount and authorization
+      headers intact; test authentication and an in-flight streamed response
+      while the page server is stopped.
+
 - [x] Dockerfile that builds and runs the application, and a compose file bringing up Postgres,
       Meilisearch, and the queue worker alongside it
 

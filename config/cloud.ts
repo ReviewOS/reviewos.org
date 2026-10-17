@@ -766,6 +766,16 @@ export const tsCloud: TsCloudConfig = {
    * static `/` site for stacksjs.com or it will compete with the app route.
    */
   sites: {
+    // Git belongs to the API process. A page-rendering stall or a page-server
+    // restart must not sever a CI checkout or a user's clone/push mid-stream.
+    // Keep the mount intact: routes/git.ts authenticates and serves /git/**.
+    // This gateway-only site shares the API upstream without shipping a second
+    // release, starting another process, or introducing a separate auth gate.
+    git: {
+      domain: env.APP_DOMAIN || 'reviewos.org',
+      path: '/git',
+      proxyTo: `127.0.0.1:${API_PORT}`,
+    },
     reviewos: {
       // ReviewOS itself, added to the shared production box alongside the
       // sites already on it. Its own port, so it cannot collide with theirs —
