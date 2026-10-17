@@ -442,6 +442,13 @@ page anybody who can read the repository can open.
 Twenty globs and two hundred files per job. An artifact nobody opens is storage
 the instance pays for.
 
+Collection honors the controller's `Retry-After` on HTTP 429/503, retrying the
+same buffered file up to twice through Stacks' HTTP helper. The whole collection
+has a five-minute budget, including retry waits, and stops when its job lease is
+cancelled. Permanent upload refusals remain visible in the log. Upload retries
+keep the same run, name and content so an accepted request with a lost response
+does not create another artifact or overwrite different content.
+
 **Actions has an equivalent** in `actions/upload-artifact`, as a step - which
 means `if: always()` and remembering it.
 

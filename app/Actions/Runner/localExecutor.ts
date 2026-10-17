@@ -26,6 +26,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir, userInfo } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { fetchWithBudget } from '@stacksjs/http'
 import { fetchAction } from './actionCache'
 import { verifyWork } from '../Workflow/stepSignature'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
@@ -1573,7 +1574,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         failed = outcome.reason
     }
 
-    await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send })
+    await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send, signal: lease.signal })
 
     /*
      * `post-artifact`, then `pre-exit` - which runs whatever happened, and is
@@ -2300,6 +2301,9 @@ fi
 /** The most files one job publishes automatically. Past this, say so and stop. */
 export const MAX_COLLECTED_FILES = 200
 
+/** Collection is finite even if the controller keeps refusing uploads. */
+const ARTIFACT_PUBLICATION_MS = 5 * 60_000
+
 /**
  * What matched the job's `artifact-paths:`, relative to the workspace.
  *
@@ -2348,9 +2352,10 @@ export async function collectArtifacts(workspace: string, globs: readonly string
  * the run with the screenshot in it. So this happens after the steps, before
  * the conclusion, on both paths.
  *
- * Nothing here can fail the job. The work is done and reported either way; an
+ * Ordinary upload failures do not fail the job. The work is reported either way; an
  * upload that 413s or a disk that vanished is worth a line in the log, not a
- * red build for a build that was green.
+ * red build for a build that was green. Losing the job lease still stops this
+ * runner, including a wait imposed by the controller's artifact quota.
  */
 async function publishArtifacts(input: {
   job: any
@@ -2358,6 +2363,7 @@ async function publishArtifacts(input: {
   baseUrl: string
   jobToken: string
   say: (line: string) => Promise<void>
+  signal?: AbortSignal
 }): Promise<void> {
   const globs = Array.isArray(input.job?.artifact_paths) ? input.job.artifact_paths.map(String) : []
 
@@ -2374,12 +2380,27 @@ async function publishArtifacts(input: {
     return
   }
 
+  const deadline = Date.now() + ARTIFACT_PUBLICATION_MS
+  const budget = AbortSignal.timeout(ARTIFACT_PUBLICATION_MS)
+  const signal = input.signal ? AbortSignal.any([input.signal, budget]) : budget
+
   for (const file of files) {
+    input.signal?.throwIfAborted()
+    if (budget.aborted) {
+      await input.say('artifact publication reached its five-minute budget\n')
+      return
+    }
     try {
       const bytes = readFileSync(join(input.workspace, file))
 
-      const answer = await fetch(`${input.baseUrl.replace(/\/$/, '')}/api/runner/artifacts`, {
+      // Artifact storage is idempotent on run/name/content. Replaying these
+      // exact bytes after 429/503 preserves the evidence without raising the
+      // controller's quota or silently replacing different content.
+      const answer = await fetchWithBudget(`${input.baseUrl.replace(/\/$/, '')}/api/runner/artifacts`, {
         method: 'POST',
+        signal,
+        timeoutMs: Math.max(1, deadline - Date.now()),
+        retry: 2,
         headers: {
           'Authorization': `Bearer ${input.jobToken}`,
           'Content-Type': 'application/octet-stream',
@@ -2396,11 +2417,15 @@ async function publishArtifacts(input: {
         body: bytes,
       })
 
+      await answer.body?.cancel()
       if (!answer.ok)
         await input.say(`could not publish ${file}: ${answer.status}\n`)
     }
     catch (error) {
+      input.signal?.throwIfAborted()
       await input.say(`could not publish ${file}: ${error instanceof Error ? error.message : String(error)}\n`)
+      if (budget.aborted)
+        return
     }
   }
 }

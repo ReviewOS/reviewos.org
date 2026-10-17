@@ -1135,7 +1135,7 @@ describe('a job that uploads steps', () => {
 })
 
 describe('artifact-paths', () => {
-  test('a failing job still publishes what it produced', async () => {
+  test('a failing job retains every artifact through controller throttling', async () => {
     if (!available)
       return
 
@@ -1164,7 +1164,7 @@ describe('artifact-paths', () => {
 
     // Writes its evidence, then fails - the ordinary shape of a browser test.
     for (const step of [
-      { position: 0, name: 'Produce', command: 'mkdir -p out && echo "the evidence" > out/report.txt && echo "junk" > out/ignored.log' },
+      { position: 0, name: 'Produce', command: 'mkdir -p out && echo "the evidence" > out/report.txt && echo "junk" > out/ignored.log && : > out/empty.txt && i=1; while [ "$i" -le 125 ]; do echo "diagnostic" > "out/$i.txt"; i=$((i+1)); done' },
       { position: 1, name: 'Fail', command: 'exit 1' },
     ]) {
       await db.insertInto('workflow_version_steps').values({
@@ -1198,6 +1198,7 @@ describe('artifact-paths', () => {
     const outcome = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
 
     expect(outcome?.state).toBe('failed')
+    expect(outcome?.reason).toBe('Fail exited 1')
 
     const artifacts: any[] = await db
       .selectFrom('workflow_artifacts')
@@ -1211,8 +1212,13 @@ describe('artifact-paths', () => {
      * separator becomes a dash - so two `report.txt` files in two directories
      * do not collide.
      */
-    expect(artifacts.map(row => String(row.name))).toEqual(['out-report.txt'])
-    expect(Number(artifacts[0]?.size_bytes)).toBeGreaterThan(0)
+    const names = artifacts.map(row => String(row.name))
+    expect(artifacts).toHaveLength(126)
+    expect(names).toContain('out-report.txt')
+    expect(names).toContain('out-125.txt')
+    expect(names).not.toContain('out-ignored.log')
+    expect(names).not.toContain('out-empty.txt')
+    expect(artifacts.every(row => Number(row.size_bytes) > 0)).toBe(true)
 
     const logs: any[] = await db
       .selectFrom('workflow_job_logs')
@@ -1221,10 +1227,73 @@ describe('artifact-paths', () => {
       .orderBy('sequence')
       .execute()
 
-    // And nothing about the collection failed the job, which had already
-    // failed on its own terms.
-    expect(logs.map(row => String(row.content ?? '')).join('')).not.toContain('could not publish')
+    // The permanent empty-body refusal is visible without changing the
+    // command's failure. Quota backpressure must not discard later files.
+    const output = logs.map(row => String(row.content ?? '')).join('')
+    expect(output).toContain('could not publish out/empty.txt: 422')
+    expect(output).not.toMatch(/could not publish .*: 429/)
   }, 180_000)
+
+  test('lease cancellation stops artifact backpressure before another upload', async () => {
+    if (!available)
+      return
+
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+    const { cancelRun } = await import('../../app/Actions/Workflow/cancel')
+    const version: any = await db.selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id']).where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc').executeTakeFirst()
+    const job: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 31, runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(job.id), position: 0, name: 'Produce', command: 'mkdir -p out && echo "diagnostic" > out/report.txt',
+    } as any).execute()
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id), repository_id: created.repositoryId, number: 701, state: 'queued', event: 'push',
+      event_ref: 'refs/heads/cancel-collection', head_sha: created.headSha, definition_sha: created.headSha, trusted: true,
+    }).returning(['id']).executeTakeFirst()
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 0, state: 'queued', runs_on: 'ubuntu-latest',
+      settings: JSON.stringify({ artifactPaths: ['out/*.txt'] }),
+    }).execute()
+
+    let uploads = 0
+    let cancelledAt = 0
+    const proxy = Bun.serve({
+      hostname: '127.0.0.1', port: 0,
+      async fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname === '/api/runner/artifacts') {
+          uploads++
+          if (uploads === 1) {
+            // The normal domain operation cancels this fixture's run. The
+            // runner learns through its real heartbeat, not a mocked lease.
+            const result = await cancelRun({ repositoryId: created.repositoryId, number: 701, reason: 'Fixture cancelled during artifact wait', actor: { actorId: created.ownerId } })
+            expect(result.status).toBe(200)
+            cancelledAt = performance.now()
+            return new Response('slow down', { status: 429, headers: { 'Retry-After': '60' } })
+          }
+        }
+        // Forward the original wire bytes, including any content encoding.
+        return fetch(new Request(new URL(url.pathname + url.search, baseUrl), request), { decompress: false })
+      },
+    })
+    try {
+      const outcome = await runOnce({ baseUrl: proxy.url.origin, token: created.token, reposRoot: 'storage/repos' })
+      expect(outcome?.state).toBe('cancelled')
+      expect(outcome?.reason).toContain('lease')
+      expect(cancelledAt).toBeGreaterThan(0)
+      expect(performance.now() - cancelledAt).toBeLessThan(35_000)
+      expect(uploads).toBe(1)
+      const artifacts = await db.selectFrom('workflow_artifacts').select(['id']).where('workflow_run_id', '=', Number(run.id)).execute()
+      expect(artifacts).toHaveLength(0)
+    }
+    finally {
+      proxy.stop(true)
+    }
+  }, 60_000)
 })
 
 describe('checkout options', () => {

@@ -1512,6 +1512,12 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       match, because a symlink the build created can point anywhere and a job that can publish
       `/etc/` can put the machine's secrets on a page. A glob that matches nothing says so in the
       log rather than failing a job that had already finished.
+
+      Collection uses Stacks' bounded HTTP retries for the controller's 429/503 responses,
+      retaining the exact run/name/content identity and honoring `Retry-After` without changing
+      the quota. The complete collection has one five-minute budget and follows lease cancellation.
+      The real runner/controller regression retains all 126 small files from a failed job across
+      the existing 120-per-minute quota; permanent refusals are still logged.
 - [x] `plugins`, the extension point, with its own section below
 
       `reviewos: { plugins: [acme/docker-login#v1.2.0: { registry: ghcr.io }] }`. Parsed here for
