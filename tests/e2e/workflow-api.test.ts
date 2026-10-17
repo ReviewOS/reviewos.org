@@ -401,7 +401,7 @@ describe('cancelling', () => {
     expect(job.lease_expires_at).toBeTruthy()
   })
 
-  test('a queued cancellation settles without waiting for a nonexistent worker', async () => {
+  test.each([false, true])('a queued cancellation settles without waiting for a nonexistent worker (parent cancelling: %s)', async (cancelParent) => {
     if (!available)
       return
 
@@ -413,6 +413,14 @@ describe('cancelling', () => {
       .where('repository_id', '=', created.repositoryId).where('number', '=', parentNumber).executeTakeFirst()
     await db.updateTable('workflow_jobs').set({ kind: 'trigger', triggered_run_id: Number(child.id) })
       .where('workflow_run_id', '=', Number(parent.id)).execute()
+    if (cancelParent) {
+      const cancellation = await api(
+        `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${parentNumber}`,
+        { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+      )
+      expect(cancellation.status).toBe(200)
+      expect(cancellation.body).toMatchObject({ cancelled: true, workflow_run: { state: 'cancelling' } })
+    }
     const { status, body } = await api(
       `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${number}`,
       { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },

@@ -13,6 +13,8 @@
  * not worth more than the thing it describes.
  */
 
+import { db } from '@stacksjs/database'
+
 export interface AuditEntry {
   action: string
   subject?: { type: string, id: number } | null

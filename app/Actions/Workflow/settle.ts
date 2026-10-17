@@ -869,23 +869,28 @@ export async function settleAwaitingTriggers(runId: number, state: string, now: 
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id'])
     .where('triggered_run_id', '=', runId)
-    .where('state', '=', 'running')
+    .where('state', 'in', ['running', 'cancelling'])
     .execute()
 
   for (const job of waiting) {
-    await db
-      .updateTable('workflow_jobs')
-      .set({
-        // The triggered run's verdict, carried back. A trigger that waited and
-        // then reported success whatever happened would be a gate that is not
-        // one.
-        state: state === 'succeeded' ? 'succeeded' : state,
-        finished_at: now.toISOString(),
-        condition_reason: `The run this triggered ${state}.`,
-      })
-      .where('id', '=', Number(job.id))
-      .where('state', '=', 'running')
-      .execute()
+    // This server-owned job has no runner to acknowledge cancellation. Once
+    // its child is terminal, it can close too. Try running before cancelling:
+    // a cancellation racing the first compare-and-swap is caught by the next,
+    // and cancellation never turns a child's success into a successful parent.
+    for (const from of ['running', 'cancelling'] as const) {
+      await db
+        .updateTable('workflow_jobs')
+        .set({
+          state: from === 'cancelling' ? 'cancelled' : state,
+          finished_at: now.toISOString(),
+          condition_reason: from === 'cancelling'
+            ? 'Cancelled while waiting for the triggered run, which has now finished.'
+            : `The run this triggered ${state}.`,
+        })
+        .where('id', '=', Number(job.id))
+        .where('state', '=', from)
+        .execute()
+    }
 
     await settleRun(Number(job.workflow_run_id), now)
   }

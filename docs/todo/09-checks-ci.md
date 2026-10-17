@@ -1475,6 +1475,10 @@ gate, in order.
       pipeline, tap and filter setup - needs a Linux host with KVM and is not written, because a tap
       device attached to the wrong bridge looks exactly like one attached to the right bridge.
 
+- [x] Cancelling an awaiting trigger closes its server-owned job when the child ends,
+      including a cancellation racing child settlement, and releases the concurrency group.
+- [x] Trusted local workflow operations import the audit and webhook database dependency
+      explicitly, so cancellation retains its audit trail outside the HTTP server's auto-imports.
 - [x] A definitive output-delivery refusal revokes the host runner's lease immediately, so a
       cancellation arriving through logs is acknowledged as cancelled before the next heartbeat.
       Transient proxy failures retain their bounded output retries.

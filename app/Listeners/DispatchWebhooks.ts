@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 import type { EventSubject, NotificationEvent } from '../Notifications/definitions'
 import { subscribes, webhookPayload } from '../Webhooks/payloads'
 
