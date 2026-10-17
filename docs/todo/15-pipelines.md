@@ -1758,6 +1758,8 @@ output, which covers the common case and nothing else.
       remaining jobs if a runner claims it during replacement. Claim the parent
       and job in one transaction, with the parent locked first; a deterministic
       PostgreSQL job-lock regression reproduces the old cancelled-run handoff.
+- [x] Identify the blocking run by its repository run number in concurrency
+      wait messages, rather than its instance-wide database id.
 - [x] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
       minute on the same branch, do not run all three
 

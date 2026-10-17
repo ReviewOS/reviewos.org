@@ -778,7 +778,7 @@ jobs:
 `)
 
     const runsFor = async (): Promise<any[]> => runsOf('.reviewos/workflows/skipper.yml')
-      .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.conclusion_reason as reason'])
+      .select(['workflow_runs.id as id', 'workflow_runs.number as number', 'workflow_runs.state as state', 'workflow_runs.conclusion_reason as reason'])
       .orderBy('workflow_runs.id')
       .execute()
 
@@ -818,10 +818,13 @@ jobs:
     // An active build holds later commits in `waiting`, not `queued`.
     // A fourth commit should replace that pending third commit while leaving
     // the active build and its remaining jobs alone.
-    await db.updateTable('workflow_runs').set({ state: 'running' }).where('id', '=', Number(both[1].id)).execute()
+    // Run numbers are scoped to a repository; database ids are instance-wide.
+    const activeNumber = Number(both[1].number) + 1000
+    await db.updateTable('workflow_runs').set({ state: 'running', number: activeNumber }).where('id', '=', Number(both[1].id)).execute()
     await push('skip/three.txt', 'three\n')
     const held = await waitFor(runsFor, (rows: any[]) => rows.length === 3 && String(rows[2].state) === 'waiting')
     expect(held[2].state).toBe('waiting')
+    expect(String(held[2].reason)).toContain(`Waiting for run #${activeNumber} `)
     await push('skip/four.txt', 'four\n')
     const latest = await waitFor(runsFor, (rows: any[]) => rows.length === 4 && String(rows[2].state) === 'cancelled')
     expect(latest.map(row => String(row.state))).toEqual(['cancelled', 'running', 'cancelled', 'waiting'])

@@ -995,7 +995,7 @@ async function holdForGroup(input: {
 
   const ahead = await db
     .selectFrom('workflow_runs')
-    .select(['id'])
+    .select(['id', 'number'])
     .where('repository_id', '=', input.repositoryId)
     .where('concurrency_group', '=', input.group)
     .where('id', '<', input.runId)
@@ -1016,7 +1016,7 @@ async function holdForGroup(input: {
       // Said on the run, because "queued" with nothing happening for twenty
       // minutes is the most expensive screen in a forge. A reader should learn
       // that this is the concurrency key working, not a runner that is missing.
-      conclusion_reason: `Waiting for run #${Number(ahead.id)} in concurrency group \`${input.group}\`.`,
+      conclusion_reason: `Waiting for run #${Number(ahead.number)} in concurrency group \`${input.group}\`.`,
     })
     .where('id', '=', input.runId)
     .where('state', '=', 'queued')
