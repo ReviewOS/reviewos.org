@@ -298,7 +298,7 @@ export const RUNNER_PROTOCOL = {
   /** The oldest a runner may speak. Raising this retires a runner version. */
   minimum: 1,
   /** The newest this server knows. Raising it is how a new field ships. */
-  current: 1,
+  current: 2,
 } as const
 
 /** The header a runner sends, and the one this server answers with. */

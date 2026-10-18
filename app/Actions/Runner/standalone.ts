@@ -140,6 +140,11 @@ const USAGE = `reviewos-runner - run a ReviewOS instance's jobs on this machine
             The runner's original temporary root if different from this user's.
   --apply   Retire verified workspaces; the default is a read-only preview.
 
+Set REVIEWOS_RUNNER_MIN_FREE_DISK_MB on the runner to require free MiB on both
+workspace and temp filesystems before claiming. Zero disables the floor; choose
+a floor that includes checkout/build growth and host headroom. A held runner
+still receives stop requests. Deploy a protocol 2 controller before this runner.
+
 Where actions may come from is set here, in the environment, and the default is
 closed - local actions and nothing else:
 

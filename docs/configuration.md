@@ -1629,8 +1629,8 @@ writing objects into somebody else's directory.
 
 Two programs read their configuration somewhere else: the runner, compiled into a binary and
 copied to a machine that is not this one, and `buddy tests:report`, run by whatever CI a
-repository already uses. These are set *there* rather than in this instance's `.env`. Each
-has a command-line flag too, and the flag wins.
+repository already uses. These are set *there* rather than in this instance's `.env`.
+Command-line flags, where provided, take precedence.
 
 - `BUILDKITE_BRANCH`, read by `app/Commands/ReportTests.ts`
 - `BUILDKITE_BUILD_ID`, read by `app/Commands/ReportTests.ts`
@@ -1650,6 +1650,7 @@ has a command-line flag too, and the flag wins.
 - `REVIEWOS_REF_NAME`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
 - `REVIEWOS_REPOSITORY`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
+- `REVIEWOS_RUNNER_MIN_FREE_DISK_MB`, read by `app/Actions/Runner/capacity.ts`
 - `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_TOKEN`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`

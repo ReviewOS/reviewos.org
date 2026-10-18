@@ -1411,8 +1411,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/runner/claim
    */
-  postRunnerClaim(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/runner/claim", {}, [], false, options)
+  postRunnerClaim(input?: { body?: { "accept_work"?: boolean } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/claim", input ?? {}, [], true, options)
   },
 
   /**

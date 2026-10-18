@@ -9,8 +9,10 @@ test('the compiled runner ignores application preload code and dotenv credential
   const directory = join(root, 'binary')
   const marker = join(root, 'application-preload-ran')
   const authorizations: Array<string | null> = []
-  const server = Bun.serve({ port: 0, fetch(request) {
+  const polls: Array<{ protocol: string | null, body: unknown }> = []
+  const server = Bun.serve({ port: 0, async fetch(request) {
     authorizations.push(request.headers.get('authorization'))
+    polls.push({ protocol: request.headers.get('x-runner-protocol'), body: await request.json() })
     return Response.json({})
   } })
   try {
@@ -27,8 +29,8 @@ test('the compiled runner ignores application preload code and dotenv credential
     writeFileSync(join(root, 'bunfig.toml'), 'preload = ["./application-preload.ts"]\n')
     writeFileSync(join(root, 'application-preload.ts'), `await Bun.write(${JSON.stringify(marker)}, 'unexpected'); throw new Error('Application code must not run in the runner');\n`)
     const environment = Object.fromEntries(['HOME', 'PATH', 'TMPDIR', 'LANG', 'CI'].flatMap(name => process.env[name] ? [[name, process.env[name]!]] : []))
-    const invoke = async (args: string[]) => {
-      const child = Bun.spawn([binary, ...args], { cwd: root, env: environment, stdout: 'pipe', stderr: 'pipe' })
+    const invoke = async (args: string[], policy: Record<string, string> = {}) => {
+      const child = Bun.spawn([binary, ...args], { cwd: root, env: { ...environment, ...policy }, stdout: 'pipe', stderr: 'pipe' })
       const [stdout, stderr, status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
       return { status, output: stdout + stderr }
     }
@@ -45,6 +47,14 @@ test('the compiled runner ignores application preload code and dotenv credential
     expect(explicit.status, explicit.output).toBe(0)
     expect(explicit.output).toContain('nothing to run')
     expect(authorizations).toEqual(['Bearer explicit-runner-token'])
+    const argumentsForPoll = ['--once', '--url', `http://127.0.0.1:${server.port}`, '--token', 'explicit-runner-token']
+    const held = await invoke(argumentsForPoll, { REVIEWOS_RUNNER_MIN_FREE_DISK_MB: '1000000000' })
+    expect(held.status, held.output).toBe(0)
+    expect(held.output).toContain('Runner capacity hold')
+    expect(polls.at(-1)).toEqual({ protocol: '2', body: { accept_work: false } })
+    const resumed = await invoke(argumentsForPoll, { REVIEWOS_RUNNER_MIN_FREE_DISK_MB: '1' })
+    expect(resumed.status, resumed.output).toBe(0)
+    expect(polls.at(-1)).toEqual({ protocol: '2', body: {} })
     expect(existsSync(marker)).toBe(false)
   }
   finally {

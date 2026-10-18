@@ -1,5 +1,9 @@
 # 15 - Pipelines
 
+- [x] Admit host-runner jobs only after an operator-configured workspace and temp
+      free-space floor is met; preserve control polling and graceful stop while
+      held, with protocol negotiation and real-controller regression coverage.
+
 [Phase 9](./09-checks-ci.md) builds the machinery: a check API, a durable workflow control plane, a
 runner contract, and a gate in front of ever executing somebody else's code. This phase is the
 product that machinery has to add up to.

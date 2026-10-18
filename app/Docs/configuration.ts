@@ -350,8 +350,8 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
       '',
       'Two programs read their configuration somewhere else: the runner, compiled into a binary and',
       'copied to a machine that is not this one, and `buddy tests:report`, run by whatever CI a',
-      'repository already uses. These are set *there* rather than in this instance\'s `.env`. Each',
-      'has a command-line flag too, and the flag wins.',
+      'repository already uses. These are set *there* rather than in this instance\'s `.env`.',
+      'Command-line flags, where provided, take precedence.',
       '',
       ...runnerRead.map(name => `- \`${name}\`, read by ${(reads.get(name) ?? []).map(path => `\`${path}\``).join(', ')}`),
       '',
@@ -377,6 +377,7 @@ function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
 
   return paths.length > 0 && paths.every(path =>
     path.includes('Runner/standalone')
+    || path === 'app/Actions/Runner/capacity.ts'
     // The runner's own container support, which is configuration of the
     // machine that runs the work rather than of this instance: whether docker
     // or podman is there is a fact about that host.

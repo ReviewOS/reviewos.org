@@ -707,7 +707,7 @@ describe('speaking the same protocol', () => {
 
     const claim = await call('/runner/claim', {})
 
-    expect(claim.supported).toBe(String(RUNNER_PROTOCOL.current))
+    expect(claim.supported).toBe('1 to 2')
   })
 
   test('a runner from the future is refused with 426, not 400 or 401', async () => {
@@ -721,7 +721,7 @@ describe('speaking the same protocol', () => {
 
     expect(answer.status).toBe(426)
     expect(String(answer.body.error)).toContain('upgrade the server')
-    expect(answer.supported).toBe(String(RUNNER_PROTOCOL.current))
+    expect(answer.supported).toBe('1 to 2')
   })
 
   test('and is refused before its credential is even looked at', async () => {

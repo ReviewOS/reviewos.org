@@ -83,6 +83,27 @@ upload takes the file itself as the body, for the reason given there.
 
 Authenticated with the **registration token**. Asks for one job.
 
+Protocol 2 also accepts `{ "accept_work": false }` for a capacity hold. The
+controller updates the runner's last-seen time and delivers a requested stop,
+but does not select or lease a job. Protocol 1 runners remain supported. Deploy
+the controller before the new runner: a protocol 1 controller refuses version 2
+with 426 before it could ignore the hold and lease work.
+
+Set `REVIEWOS_RUNNER_MIN_FREE_DISK_MB` in the runner's own environment to require
+that many MiB free before each claim. The portable and Buddy runners use the same
+policy. Zero, the compatibility default, disables the floor. Invalid explicit
+settings and failed filesystem measurements hold work. The configured workspace
+root must already exist when a floor is enabled. The measurement uses blocks
+available to the runner's user on both its workspace and process temp filesystems.
+
+Choose a floor that includes checkout, installation and build growth before a
+native tool boots, as well as host headroom. For example, a native pool can set
+`REVIEWOS_RUNNER_MIN_FREE_DISK_MB=12288` after checking its workload. This is
+admission, not a reservation or disk quota: other host processes can still spend
+space after the claim. The operator must provide sustained real headroom. A held
+runner continues safe terminal-workspace recovery and control polls, logs its
+hold at most once per minute, and resumes ordinary claims when capacity returns.
+
 ```json
 { "job": null }
 ```

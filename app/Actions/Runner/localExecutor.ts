@@ -58,6 +58,7 @@ import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
 import { recoverWorkspaces, workspaceJournal } from './workspaceJournal'
 import { confirmRetirableWorkspaces, runnerRequest as post } from './httpClient'
+import { runnerCapacity } from './capacity'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -82,6 +83,10 @@ export interface LocalRunnerOptions {
   idleTimeoutMs?: number
   /** Where to check code out. A temporary directory per job by default. */
   workspaceRoot?: string
+  /** Operator-configured admission floor in MiB, before checkout and build. */
+  minimumFreeDiskMb?: number
+  /** Temporary workspace filesystem, shared with recovery journal placement. */
+  workspaceTemporaryRoot?: string
   /** Private recovery journal, outside job-controlled checkouts. */
   workspaceJournalRoot?: string
   /**
@@ -296,9 +301,28 @@ export function installPlugins(workspace: string, job: any): InstalledPlugin[] {
 }
 
 
+const capacityNotifications = new WeakMap<LocalRunnerOptions, number>()
+
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
-  const claim = await post(options.baseUrl, '/api/runner/claim', options.token, {})
+  const capacity = runnerCapacity(options)
+  const lastNotification = capacityNotifications.get(options)
+  if (!capacity.acceptWork) {
+    if (lastNotification === undefined || Date.now() - lastNotification >= 60_000) {
+      say(`Runner capacity hold: ${capacity.reason}`)
+      capacityNotifications.set(options, Date.now())
+    }
+  }
+  else if (lastNotification !== undefined) {
+    say('Runner disk capacity restored; accepting work')
+    capacityNotifications.delete(options)
+  }
+  const claim = await post(options.baseUrl, '/api/runner/claim', options.token, capacity.acceptWork ? {} : { accept_work: false })
+  if (claim.status === 426)
+    throw new Error(String(claim.body?.error ?? 'The controller does not support this runner protocol; upgrade the controller'))
+  // A capacity hold never executes work, even if a broken controller sends it.
+  if (!capacity.acceptWork && claim.body?.job)
+    throw new Error('The controller leased work during a capacity hold; upgrade or repair the controller')
   if (claim.ok && Number.isSafeInteger(claim.body?.runner_id) && claim.body.runner_id > 0)
     options.runnerId = claim.body.runner_id
 

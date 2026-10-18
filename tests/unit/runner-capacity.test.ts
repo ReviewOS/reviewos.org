@@ -1,0 +1,111 @@
+// Existing runner HTTP seam: observe admission on the wire using the real
+// workspace filesystem. This cannot prove a controller leaves leases untouched;
+// that belongs to the real-controller runner-local suite.
+import { expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { runOnce, takeStopRequest } from '../../app/Actions/Runner/localExecutor'
+import { negotiate } from '../../app/Actions/Runner/protocol'
+
+test('insufficient workspace space holds work but still receives a graceful stop', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-capacity-'))
+  const polls: Array<{ protocol: string | null, body: any }> = []
+  const messages: string[] = []
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    async fetch(request) {
+      expect(new URL(request.url).pathname).toBe('/api/runner/claim')
+      polls.push({ protocol: request.headers.get('X-Runner-Protocol'), body: await request.json() })
+      return Response.json({ job: null, runner_id: 5, stop: 'graceful' })
+    },
+  })
+  try {
+    const outcome = await runOnce({
+      baseUrl: `http://127.0.0.1:${server.port}`,
+      token: 'capacity-fixture',
+      workspaceRoot: root,
+      // An impossible floor exercises real statfs without filling the disk.
+      minimumFreeDiskMb: 1_000_000_000,
+      say: line => messages.push(line),
+    })
+    expect(outcome).toBeNull()
+    expect(polls).toEqual([{ protocol: '2', body: { accept_work: false } }])
+    expect(takeStopRequest()).toBe('graceful')
+    expect(messages.join('\n')).toContain('disk')
+  }
+  finally {
+    takeStopRequest()
+    server.stop(true)
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('unmeasurable workspace space holds work and an older controller refuses the new contract', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-capacity-old-'))
+  const polls: any[] = []
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+    const decision = negotiate(request.headers.get('X-Runner-Protocol') ?? '', { minimum: 1, current: 1 })
+    polls.push(await request.json())
+    expect(decision.ok).toBe(false)
+    return Response.json({ error: decision.reason }, { status: 426 })
+  } })
+  try {
+    await expect(runOnce({
+      baseUrl: `http://127.0.0.1:${server.port}`, token: 'capacity-fixture',
+      workspaceRoot: join(root, 'missing'), minimumFreeDiskMb: 1,
+    })).rejects.toThrow('upgrade the server')
+    expect(polls).toEqual([{ accept_work: false }])
+  }
+  finally {
+    server.stop(true)
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('resumes normal polling after capacity returns without logging every held poll', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-capacity-resume-'))
+  const polls: any[] = []
+  const messages: string[] = []
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+    polls.push(await request.json())
+    return Response.json({ job: null, runner_id: 5 })
+  } })
+  const options = {
+    baseUrl: `http://127.0.0.1:${server.port}`, token: 'capacity-fixture',
+    workspaceRoot: root, minimumFreeDiskMb: 1_000_000_000,
+    say: (line: string) => messages.push(line),
+  }
+  try {
+    await runOnce(options)
+    await runOnce(options)
+    expect(messages).toHaveLength(1)
+    options.minimumFreeDiskMb = 1
+    await runOnce(options)
+    expect(polls).toEqual([{ accept_work: false }, { accept_work: false }, {}])
+    expect(messages.at(-1)).toContain('restored')
+  }
+  finally {
+    server.stop(true)
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 0.5, Number.MAX_SAFE_INTEGER])('invalid capacity floor %s cannot enable work', async (minimumFreeDiskMb) => {
+  const polls: unknown[] = []
+  const messages: string[] = []
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+    polls.push(await request.json())
+    return Response.json({ job: null, runner_id: 5 })
+  } })
+  try {
+    expect(await runOnce({
+      baseUrl: `http://127.0.0.1:${server.port}`, token: 'capacity-fixture', minimumFreeDiskMb,
+      say: line => messages.push(line),
+    })).toBeNull()
+    expect(polls).toEqual([{ accept_work: false }])
+    expect(messages.join('\n')).toContain('setting')
+  }
+  finally { server.stop(true) }
+})

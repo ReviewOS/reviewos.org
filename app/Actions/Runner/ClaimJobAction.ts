@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { changedPathsFromColumn } from '../Workflow/dispatch'
 import { envFrom, resolveEnv } from '../Workflow/env'
@@ -156,6 +157,10 @@ export default new Action({
   description: 'Take the next job this runner may run',
   method: 'POST',
 
+  validations: {
+    accept_work: { rule: schema.boolean(), required: false },
+  },
+
   responses: {
     426: {
       description: 'This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.',
@@ -188,7 +193,9 @@ export default new Action({
     if (!runner)
       return runnerJson({ error: 'Unknown runner' }, 401)
 
-    const claimed = await claimNextJob(runner.facts)
+    // Protocol 2 makes a held poll safe: an older server rejects the version
+    // before authentication rather than ignoring this flag and leasing work.
+    const claimed = request.get('accept_work') === false ? null : await claimNextJob(runner.facts)
 
     if (!claimed) {
       /*

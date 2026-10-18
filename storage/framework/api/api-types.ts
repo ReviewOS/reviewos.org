@@ -4382,7 +4382,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "accept_work"?: boolean } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "401": { content: never }

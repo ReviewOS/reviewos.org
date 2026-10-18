@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-207 of the 219 operations below declare their inputs on the action, and this page
+208 of the 219 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -3130,7 +3130,9 @@ Response headers: `X-Cache-Scope`, `X-Cache-Exact`, `X-Cache-Digest`.
 
 ### `POST /api/runner/claim`
 
-_Takes no parameters._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `accept_work` | body | optional | boolean |
 
 | Status | Means |
 |---|---|

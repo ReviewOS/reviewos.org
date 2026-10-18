@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { RUNNER_PROTOCOL } from '../../app/Actions/Runner/protocol'
 import { maintainRunnerWorkspaces } from '../../app/Actions/Runner/workspaceMaintenance'
 
 test('maintenance verifies the registered identity without creating a missing journal or registering a runner', async () => {
@@ -12,7 +13,7 @@ test('maintenance verifies the registered identity without creating a missing jo
   const server = Bun.serve({ port: 0, hostname: '127.0.0.1', async fetch(request) {
     requests.push({ path: new URL(request.url).pathname, body: await request.json() })
     expect(request.headers.get('authorization')).toBe(`Bearer ${token}`)
-    expect(request.headers.get('x-runner-protocol')).toBe('1')
+    expect(request.headers.get('x-runner-protocol')).toBe(String(RUNNER_PROTOCOL.current))
     return Response.json({ runner_id: runnerId, retirable: [] })
   } })
   const journalRoot = join(root, 'missing')

@@ -1586,3 +1586,49 @@ describe('runner hooks', () => {
     expect(log).toContain('the real step ran')
   }, 180_000)
 })
+
+// Run after the shared workflow fixtures above so this extra version cannot
+// change the version selected by their deliberately sequential scenarios.
+describe('runner capacity admission', () => {
+  test('a capacity hold keeps the runner healthy without leasing, honors stop, then resumes real work', async () => {
+    if (!available)
+      throw new Error('The real-controller capacity regression requires the configured test database')
+    const { syncWorkflowFile } = await import('../../app/Actions/Workflow/sync')
+    const { dispatchPush } = await import('../../app/Actions/Workflow/dispatch')
+    const { runOnce, takeStopRequest } = await import('../../app/Actions/Runner/localExecutor')
+    // This scenario can also run alone, while the main fixture is queued.
+    await db.updateTable('runners').set({ labels: 'capacity-regression' }).where('id', '=', created.runnerId).execute()
+    await git(created.diskPath, 'update-ref', 'refs/heads/capacity', created.headSha)
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId,
+      path: '.reviewos/workflows/capacity.yml', sha: created.headSha,
+      source: 'name: Capacity\non:\n  push:\n    branches: [capacity]\njobs:\n  check:\n    runs-on: capacity-regression\n    steps:\n      - run: echo capacity-restored\n',
+    })
+    const dispatched = await dispatchPush({
+      repositoryId: created.repositoryId, event: { ref: 'refs/heads/capacity' }, headSha: created.headSha,
+    })
+    expect(dispatched.created).toHaveLength(1)
+    const runId = dispatched.created[0]!
+    const jobs = () => db.selectFrom('workflow_jobs')
+      .select(['state', 'runner_id', 'job_token_hash', 'lease_expires_at', 'started_at'])
+      .where('workflow_run_id', '=', runId).execute()
+    const queued = await jobs()
+    expect(queued).toEqual([expect.objectContaining({ state: 'queued', runner_id: null, job_token_hash: null })])
+    const workspaceRoot = join(created.temp, 'capacity-workspaces')
+    mkdirSync(workspaceRoot)
+    const options = { baseUrl, token: created.token, reposRoot: 'storage/repos', workspaceRoot, minimumFreeDiskMb: 1_000_000_000 }
+    expect(await runOnce(options)).toBeNull()
+    expect(await jobs()).toEqual(queued)
+    const seen = await db.selectFrom('runners').select(['last_seen_at']).where('id', '=', created.runnerId).executeTakeFirst()
+    expect(seen.last_seen_at).toBeTruthy()
+    await db.updateTable('runners').set({ stop_requested: 'graceful' }).where('id', '=', created.runnerId).execute()
+    expect(await runOnce(options)).toBeNull()
+    expect(takeStopRequest()).toBe('graceful')
+    expect(await jobs()).toEqual(queued)
+    const stopped = await db.selectFrom('runners').select(['stop_requested']).where('id', '=', created.runnerId).executeTakeFirst()
+    expect(stopped.stop_requested).toBeNull()
+    options.minimumFreeDiskMb = 1
+    expect(await runOnce(options)).toEqual(expect.objectContaining({ state: 'succeeded' }))
+    expect((await jobs())[0].state).toBe('succeeded')
+  }, 60_000)
+})
