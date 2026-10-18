@@ -54,7 +54,7 @@ export default new Job({
     // Done first, and separately: a job asked to stop is not a job to hand to
     // somebody else, and reclaiming it would put cancelled work back in the
     // queue for a second machine to run.
-    const forced = await forceStalledCancellations(now)
+    const forced = await forceStalledCancellations(now) + await finishUnclaimedCancellations(now)
 
     // And before the reclaim, because a job that ran out of time is not one to
     // give back to the queue: requeuing it would start the same overrun again
@@ -300,6 +300,53 @@ async function forceStalledCancellations(now: Date): Promise<number> {
     if (changed(result)) {
       count += 1
       runs.add(Number(job.workflow_run_id))
+    }
+  }
+
+  for (const runId of runs)
+    await settle(runId)
+
+  return count
+}
+
+/**
+ * Finish runs stuck in `cancelling` with work no runner ever took.
+ *
+ * A run is cancelled in two halves: its queued jobs end `cancelled` at once,
+ * and its running ones are told and acknowledge. A run moved to `cancelling`
+ * without the first half (a superseded run before the dispatch did both)
+ * kept `queued` jobs that no claim hands out and no runner will report on, so
+ * nothing ever settled it: it sat in `cancelling`, holding its concurrency
+ * group, with its commit's status pending upstream. Ending those jobs and
+ * settling the run is the half that was missing; the run's running jobs, if
+ * any, are left to `forceStalledCancellations`.
+ */
+async function finishUnclaimedCancellations(now: Date): Promise<number> {
+  const stranded = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.id as id', 'workflow_jobs.workflow_run_id as run_id'])
+    .where('workflow_runs.state', '=', 'cancelling')
+    .where('workflow_jobs.state', 'in', ['queued', 'blocked'])
+    .execute()
+
+  if (stranded.length === 0)
+    return 0
+
+  const runs = new Set<number>()
+  let count = 0
+  for (const job of stranded) {
+    const result = await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: now.toISOString() })
+      .where('id', '=', Number(job.id))
+      // A claim that won between the read and the write keeps its job.
+      .where('state', 'in', ['queued', 'blocked'])
+      .execute()
+
+    if (changed(result)) {
+      count += 1
+      runs.add(Number(job.run_id))
     }
   }
 

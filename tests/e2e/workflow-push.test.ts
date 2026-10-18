@@ -739,13 +739,40 @@ jobs:
      */
     const both = await waitFor(
       runsFor,
-      (rows: any[]) => rows.length >= 2 && String(rows[0].state) === 'cancelling',
+      (rows: any[]) => rows.length >= 2 && String(rows[0].state) === 'cancelled',
     )
 
     expect(both).toHaveLength(2)
-    expect(both[0].state).toBe('cancelling')
+    /*
+     * `cancelled`, settled at once: no runner had taken any of its jobs, so
+     * there is nobody to tell and nothing to wait for. It used to stop at
+     * `cancelling` with its jobs still `queued`, which nothing ever moved on:
+     * the run held its group, and a mirror's commit said "waiting for a
+     * runner" for good.
+     */
+    expect(both[0].state).toBe('cancelled')
+    const jobs: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['state'])
+      .where('workflow_run_id', '=', Number(both[0].id))
+      .execute()
+    expect(jobs.length).toBeGreaterThan(0)
+    expect(jobs.every(job => String(job.state) === 'cancelled')).toBe(true)
     // And the one that superseded it is untouched.
     expect(both[1].state).toBe('queued')
+
+    // A run a runner is on is told rather than declared over: its job goes to
+    // `cancelling` with its lease revoked, and the run waits for the runner.
+    const runningJob: any = await db.selectFrom('workflow_jobs').select(['id']).where('workflow_run_id', '=', Number(both[1].id)).executeTakeFirst()
+    await db.updateTable('workflow_runs').set({ state: 'running' }).where('id', '=', Number(both[1].id)).execute()
+    await db.updateTable('workflow_jobs').set({ state: 'running', lease_expires_at: new Date(Date.now() + 600_000).toISOString() }).where('id', '=', Number(runningJob.id)).execute()
+    await push('deploy/three.txt', 'three\n')
+    const three = await waitFor(runsFor, (rows: any[]) => rows.length >= 3 && String(rows[1].state) === 'cancelling')
+    expect(three[1].state).toBe('cancelling')
+    const told: any = await db.selectFrom('workflow_jobs').select(['state', 'lease_expires_at']).where('id', '=', Number(runningJob.id)).executeTakeFirst()
+    expect(told.state).toBe('cancelling')
+    expect(Date.parse(String(told.lease_expires_at))).toBeLessThanOrEqual(Date.now())
+    expect(three[2].state).toBe('queued')
   }, 30_000)
 
   /*

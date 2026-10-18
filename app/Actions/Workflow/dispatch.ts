@@ -822,11 +822,18 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
  * would throw away work somebody is watching. Turning it on is what makes a
  * branch's pipeline stop spending runners on commits nobody is waiting for.
  *
- * `cancelling` rather than `cancelled`, because a run that has been handed to
- * a runner has to be told, and the runner has to acknowledge - see phase 9. A
- * run nothing has picked up is moved on by the execution plane in the same
- * sweep; writing `cancelled` here would mean the control plane claiming an
- * outcome it cannot yet observe.
+ * The same steps as `cancelRun` (cancel.ts), because a superseded run is a
+ * cancelled run: `cancelling`, its jobs no runner has taken end `cancelled`
+ * at once, and a running job is told through its lease and acknowledges.
+ * Only touching the run row left its queued jobs queued, and a run whose jobs
+ * no runner holds has nothing that will ever report back: it sat in
+ * `cancelling` for good, holding its group's slot.
+ *
+ * Returns what it moved and from where. It runs inside the dispatch's
+ * transaction, so it cannot settle or announce: the caller does both once the
+ * transaction commits (`finishSuperseded`), which is also what reports the
+ * cancellation upstream - a mirror's commit otherwise kept "Run N is waiting
+ * for a runner" on GitHub after the run was gone.
  *
  * The other half - queueing the newer run *behind* the older one when
  * `cancel-in-progress` is false - is `holdForGroup` below, released by the
@@ -839,9 +846,10 @@ async function supersede(
   group: string | null,
   cancelInProgress: boolean,
   intermediate: string = 'run',
-): Promise<void> {
+): Promise<SupersededRun[]> {
+  const moved: SupersededRun[] = []
   if (!group)
-    return
+    return moved
 
   /*
    * `skip` and `cancel` differ in one thing: whether a build that has already
@@ -857,7 +865,7 @@ async function supersede(
   if (intermediate === 'skip') {
     const waiting = await client
       .selectFrom('workflow_runs')
-      .select(['id'])
+      .select(['id', 'state'])
       .where('repository_id', '=', repositoryId)
       .where('concurrency_group', '=', group)
       // Dispatch callbacks can finish out of order. An older callback must
@@ -892,17 +900,19 @@ async function supersede(
         .where('workflow_run_id', '=', Number(run.id))
         .where('state', 'in', ['blocked', 'queued'])
         .execute()
+
+      moved.push({ id: Number(run.id), from: String(run.state) })
     }
 
-    return
+    return moved
   }
 
   if (!cancelInProgress && intermediate !== 'cancel')
-    return
+    return moved
 
-  await client
-    .updateTable('workflow_runs')
-    .set({ state: 'cancelling' })
+  const live = await client
+    .selectFrom('workflow_runs')
+    .select(['id', 'state'])
     .where('repository_id', '=', repositoryId)
     .where('concurrency_group', '=', group)
     .where('id', '!=', runId)
@@ -910,6 +920,68 @@ async function supersede(
     // being cancelled does not need telling twice.
     .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
     .execute()
+
+  const now = new Date().toISOString()
+  for (const run of live) {
+    const changed = await client
+      .updateTable('workflow_runs')
+      .set({ state: 'cancelling', conclusion_reason: `Cancelled: run in concurrency group \`${group}\` replaced by a newer one.` })
+      .where('id', '=', Number(run.id))
+      .where('state', '=', String(run.state))
+      .returning(['id'])
+      .executeTakeFirst()
+
+    // A report moved it first; whatever it moved to is its own story.
+    if (!changed)
+      continue
+
+    await client
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: now })
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('state', 'in', ['blocked', 'queued'])
+      .execute()
+    await client
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling', lease_expires_at: now })
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('state', '=', 'running')
+      .execute()
+
+    moved.push({ id: Number(run.id), from: String(run.state) })
+  }
+
+  return moved
+}
+
+/** A run `supersede` moved, and the state it was in before. */
+interface SupersededRun {
+  id: number
+  from: string
+}
+
+/**
+ * Settle and announce the runs a new run replaced, after its transaction
+ * committed. Settling finishes one with no job left on a runner (`cancelled`)
+ * and releases its group; announcing tells the instance and, for a CI mirror,
+ * the upstream commit. Never throws: the new run is already committed, and a
+ * webhook outage must not fail the push that created it.
+ */
+async function finishSuperseded(repositoryId: number, moved: SupersededRun[]): Promise<void> {
+  if (!moved.length)
+    return
+  const { settleRun } = await import('./settle')
+  const { announceRunIfMoved } = await import('./announce')
+  for (const run of moved) {
+    try {
+      const current: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', run.id).executeTakeFirst()
+      const next = String(current?.state ?? '') === 'cancelled' ? 'cancelled' : await settleRun(run.id)
+      await announceRunIfMoved(repositoryId, run.id, run.from, next)
+    }
+    catch {
+      // The sweep settles it later; an announcement is a courtesy.
+    }
+  }
 }
 
 /**
@@ -1106,7 +1178,8 @@ async function createRunWithGraph(input: {
   versionId: number
   context?: ConcurrencyContext
 }): Promise<number> {
-  return await db.transaction(async (handle) => {
+  let superseded: SupersededRun[] = []
+  const created = await db.transaction(async (handle) => {
     /*
      * The two handles do not share a type. The pooled one is generated against
      * this instance's schema; a transaction's is the builder's own generic
@@ -1148,7 +1221,7 @@ async function createRunWithGraph(input: {
       }
       const cancelInProgress = cancelsInProgress(version.cancel_in_progress, String(version.cancel_in_progress_expression ?? ''), context)
       const intermediate = String(version.intermediate ?? 'run')
-      await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate)
+      superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate)
       await holdForGroup(tx, { repositoryId, runId, group, cancelInProgress, intermediate })
     }
 
@@ -1157,6 +1230,9 @@ async function createRunWithGraph(input: {
 
     return runId
   })
+  // Committed: the runs it replaced can be settled and announced now.
+  await finishSuperseded(Number(input.values.repository_id), superseded)
+  return created
 }
 
 /**

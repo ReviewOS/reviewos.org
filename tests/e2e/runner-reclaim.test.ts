@@ -324,6 +324,28 @@ describe('a cancellation nobody acknowledged', () => {
     expect(String((await buildJob(runId)).state)).not.toBe('queued')
   })
 
+  /*
+   * A run moved to `cancelling` with work no runner ever took. Its queued jobs
+   * are not handed out and nothing will report on them, so without this the
+   * run stayed `cancelling` for good: holding its concurrency group, and its
+   * commit's status pending upstream (HQ's run 261, 2026-10-18).
+   */
+  test('a cancelling run whose jobs no runner took is finished, not left waiting', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun(sha('6'))
+    const job = await buildJob(runId)
+    expect(String(job.state)).toBe('queued')
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+
+    await sweep.handle()
+
+    expect(String((await buildJob(runId)).state)).toBe('cancelled')
+    expect(await runState(runId)).toBe('cancelled')
+  })
+
   test('a job with no lease recorded at all is ended rather than waited on', async () => {
     if (!available)
       return
