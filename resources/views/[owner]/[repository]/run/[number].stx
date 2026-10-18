@@ -542,7 +542,7 @@ const jobs = jobRows.map((job) => {
      * with nothing else on the row reads as "somebody pressed cancel", which is
      * wrong when it was `fail-fast` or a timeout that stopped it.
      */
-    reason: job.condition_reason ? String(job.condition_reason) : '',
+    reason: job.error ? String(job.error) : job.condition_reason ? String(job.condition_reason) : '',
     /*
      * What kind of job this is. `command` is the only one a machine runs; the
      * rest are the control plane's own work and read differently on a screen -

@@ -117,6 +117,17 @@ When there is work, the answer carries what the job is, the steps to run, and a
 with that, not with the registration token: the registration token is installed
 once and never rotated, and it must not be the thing travelling on every call.
 
+Run commands inherit shell and working directory independently from the pinned
+workflow and job, then apply explicit step overrides. A called job resolves the
+nearest call's immutable version, including nested calls. Generated jobs retain
+their uploaded step values. A missing or inconsistent called definition fails
+the claimed job before credentials or commands are delivered; that failure is
+neither retried nor tolerated. A stale claim cannot fail a replacement lease.
+
+Failures before a step starts are retained on the job itself, bounded to 2000
+characters and redacted with that job's delivered secrets. Run detail includes
+this error even when no step attempt exists.
+
 It carries no repository secret. By [the threat model](./ci-threat-model.md) an
 untrusted run - a pull request from a fork - never receives one at all.
 

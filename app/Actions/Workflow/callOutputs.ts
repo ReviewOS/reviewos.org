@@ -167,10 +167,11 @@ export function callMarkerOf(settings: unknown): { versionId: number, prefix: st
     const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings
     const call = (parsed as { call?: { versionId?: unknown, prefix?: unknown } } | null)?.call
 
-    if (!call || !Number(call.versionId) || typeof call.prefix !== 'string')
+    if (!call || typeof call.versionId !== 'number' || !Number.isSafeInteger(call.versionId)
+      || call.versionId < 1 || typeof call.prefix !== 'string' || !call.prefix.trim())
       return null
 
-    return { versionId: Number(call.versionId), prefix: String(call.prefix) }
+    return { versionId: call.versionId, prefix: call.prefix }
   }
   catch {
     return null

@@ -130,6 +130,14 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** Failure before or outside a step, retained on the job that failed. */
+    error: {
+      order: 63,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
     /** Job ids this waits on, copied from the definition. */
     /**
      * The matrix values this job was created for, as JSON.

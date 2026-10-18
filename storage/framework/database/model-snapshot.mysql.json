@@ -12641,6 +12641,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "error",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -15346,7 +15354,7 @@
       }
     ]
   },
-  "hash": "69c9cfae87989ad7a79bc89759494092f0d95b36cd1bd1d1aa71a7c14967df3b",
+  "hash": "47999e869b64edb760d3599518ee51235cbd7b4652d0e05abd6eba9a8120b9ce",
   "dialect": "mysql",
-  "updatedAt": "2026-10-17T17:22:56.949Z"
+  "updatedAt": "2026-10-18T18:25:06.899Z"
 }

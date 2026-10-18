@@ -27,6 +27,8 @@ import { considerRepair } from '../Workflow/repairHook'
 import { DROPPED_MARK } from '../Workflow/reuse'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
+import { hashToken } from './authenticate'
+import type { ClaimedJob } from './claim'
 
 export interface ReportInput {
   jobId: number
@@ -374,20 +376,35 @@ export interface ReportOutcome {
   runState?: string
 }
 
-/** A runner can send as much as it likes; the column cannot take it. */
-function trimmed(value: string | null | undefined, limit = 4000): string | null {
-  const text = String(value ?? '').trim()
-  if (!text)
-    return null
-
-  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text
-}
-
 export async function reportJob(
   runner: RunnerFacts,
   input: ReportInput,
   now: Date = new Date(),
 ): Promise<ReportOutcome> {
+  return recordJobReport(runner, input, now, { kind: 'execution' })
+}
+
+/** A definition refused before any work or API credential reached the runner. */
+export async function failJobDefinition(
+  runner: RunnerFacts,
+  claim: Pick<ClaimedJob, 'jobId' | 'jobToken'>,
+  reason: string,
+  now: Date = new Date(),
+): Promise<ReportOutcome> {
+  return recordJobReport(runner, { jobId: claim.jobId, state: 'failed', error: reason }, now, {
+    kind: 'definition', claimHash: hashToken(claim.jobToken),
+  })
+}
+
+type ReportOrigin = { kind: 'execution' } | { kind: 'definition', claimHash: string }
+
+async function recordJobReport(
+  runner: RunnerFacts,
+  input: ReportInput,
+  now: Date,
+  origin: ReportOrigin,
+): Promise<ReportOutcome> {
+  const definitionFailure = origin.kind === 'definition'
   const row = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
@@ -399,6 +416,7 @@ export async function reportJob(
       'workflow_jobs.runner_id as runner_id',
       'workflow_jobs.lease_expires_at as lease_expires_at',
       'workflow_jobs.settings as settings',
+      'workflow_jobs.job_token_hash as job_token_hash',
       'workflow_jobs.workflow_run_id as run_id',
       'workflow_runs.repository_id as repository_id',
       'repositories.owner_id as owner_id',
@@ -408,6 +426,9 @@ export async function reportJob(
 
   if (!row)
     return { ok: false, reason: 'no such job', duplicate: false }
+
+  if (origin.kind === 'definition' && (row.job_token_hash !== origin.claimHash || String(row.state) !== 'running'))
+    return { ok: false, reason: 'this job claim is no longer active', duplicate: false }
 
   const facts = {
     id: Number(row.id),
@@ -445,7 +466,7 @@ export async function reportJob(
    * about to run again has not failed, and recording a failure first would put
    * a red cross on a commit for something the workflow said to expect.
    */
-  if (input.state === 'failed') {
+  if (input.state === 'failed' && !definitionFailure) {
     const retry = await retryDecision(facts.id, input.exitStatus ?? null)
 
     if (retry.retrying) {
@@ -487,7 +508,7 @@ export async function reportJob(
    * finds out the linter has been failing for a month.
    */
   const soft = softFailOf(facts.settings)
-  const tolerated = input.state === 'failed'
+  const tolerated = input.state === 'failed' && !definitionFailure
     ? softFailOutcome(soft, input.exitStatus ?? null)
     : { tolerated: false, reason: '' }
 
@@ -500,11 +521,22 @@ export async function reportJob(
       .catch(() => null)
   }
 
-  await db
+  const error = input.error
+    ? boundedValue(redactSecrets(String(input.error), await secretsOfJob(facts.id)), 2000).slice(0, 2000)
+    : null
+
+  let terminal = db
     .updateTable('workflow_jobs')
     .set({
       state: input.state,
+      error,
       finished_at: now.toISOString(),
+      ...(definitionFailure ? {
+        // A definition that could not be delivered did not execute a command
+        // whose failure the workflow may retry or tolerate.
+        continue_on_error: false,
+        condition_reason: (error ?? 'The job definition could not be resolved').slice(0, 1000),
+      } : {}),
       /*
        * The outputs travel with the conclusion rather than in a call of their
        * own.
@@ -535,23 +567,17 @@ export async function reportJob(
     })
     .where('id', '=', facts.id)
     .where('runner_id', '=', String(runner.id))
-    .execute()
 
-  if (input.error) {
-    await db
-      .insertInto('workflow_step_attempts')
-      .values({
-        workflow_step_id: null,
-        repository_id: facts.repositoryId,
-        attempt: 1,
-        state: input.state === 'succeeded' ? 'succeeded' : 'failed',
-        runner_id: String(runner.id),
-        error: trimmed(input.error),
-        finished_at: now.toISOString(),
-      })
-      .execute()
-      .catch(() => null)
+  if (origin.kind === 'definition') {
+    // Runner identity alone cannot distinguish a later lease reclaimed by
+    // the same runner. Guard the write, not only the preceding read.
+    terminal = terminal.where('state', '=', 'running')
+      .where('job_token_hash', '=', origin.claimHash)
+      .where('lease_expires_at', '>', new Date(Math.max(now.getTime(), Date.now())).toISOString())
   }
+  const changed = await terminal.execute()
+  if (definitionFailure && !rowsChanged(changed))
+    return { ok: false, reason: 'this job claim is no longer active', duplicate: false }
 
   /*
    * The job's API token dies with the job.
@@ -632,7 +658,7 @@ export async function reportJob(
    * own errors on purpose: a runner's report is the only record that this job
    * happened, and losing it to a feature nobody turned on would be a poor trade.
    */
-  if (input.state === 'failed') {
+  if (input.state === 'failed' && !definitionFailure) {
     await considerRepair({
       jobId: facts.id,
       runId: Number(row.run_id),

@@ -522,6 +522,12 @@ written down here so it does not get relitigated:
       have; inventing a default here would also be impossible to tell apart from a workflow that
       asked for it. An empty string is treated as a mistake rather than an answer, so
       `shell: ''` falls through to the level that meant something.
+      Claims now resolve these values from the immutable definition, including
+      nested called workflows and the legacy step fallback. Signed payloads
+      cover inherited directories; inconsistent call provenance fails before
+      work is delivered and cannot overwrite a later lease.
+- [x] Retain and redact job-level failures before any step starts, with generated
+      PostgreSQL and MySQL schema migrations and run-detail diagnostics.
 - [x] `env:` at workflow, job, and step level with Actions' precedence order.
 
       Stored at all three levels rather than merged at parse time, because the precedence is a rule

@@ -402,6 +402,7 @@ export const actions = {
   'Actions/Runner/archiveSafety': '../../../app/Actions/Runner/archiveSafety.ts',
   'Actions/Runner/authenticate': '../../../app/Actions/Runner/authenticate.ts',
   'Actions/Runner/cacheClient': '../../../app/Actions/Runner/cacheClient.ts',
+  'Actions/Runner/capacity': '../../../app/Actions/Runner/capacity.ts',
   'Actions/Runner/checkout': '../../../app/Actions/Runner/checkout.ts',
   'Actions/Runner/claim': '../../../app/Actions/Runner/claim.ts',
   'Actions/Runner/commands': '../../../app/Actions/Runner/commands.ts',

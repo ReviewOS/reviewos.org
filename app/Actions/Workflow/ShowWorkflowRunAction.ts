@@ -127,7 +127,7 @@ export default new Action({
     const jobs = await db
       .selectFrom('workflow_jobs')
       .select([
-        'id', 'job_id', 'name', 'position', 'state', 'needs',
+        'id', 'job_id', 'name', 'position', 'state', 'needs', 'error',
         'runs_on', 'runner_id', 'queued_at', 'started_at', 'finished_at',
         // Where this attempt was told to begin, so a client can say why the
         // first steps of a job show a result nothing on this attempt produced.
@@ -314,6 +314,7 @@ export default new Action({
             ? waitingFor(job, Number(run.repository_id), Number(repository.owner_id ?? 0), runnerFacts)
             : null,
           name: job.name ?? null,
+          error: job.error ?? null,
           state: String(job.state),
           needs: String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean),
           runs_on: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean),

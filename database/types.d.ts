@@ -2894,6 +2894,7 @@ declare module '@stacksjs/database' {
       state: "blocked" | "queued" | "running" | "cancelling" | "cancelled" | "failed" | "skipped" | "succeeded" | "paused" | "sleeping"
       condition: string
       condition_reason: string
+      error: string
       matrix_values: string
       concurrency_group: string
       outputs: string

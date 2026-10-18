@@ -3,6 +3,9 @@ import { schema } from '@stacksjs/validation'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { changedPathsFromColumn } from '../Workflow/dispatch'
 import { envFrom, resolveEnv } from '../Workflow/env'
+import { defaultsOf, resolveDefaults } from '../Workflow/defaults'
+import type { DefaultsInput } from '../Workflow/defaults'
+import { callMarkerOf } from '../Workflow/callOutputs'
 import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJobDetailed } from '../Workflow/secrets'
 import { isOwnerDefined } from '../Workflow/ownerWorkflows'
@@ -10,6 +13,7 @@ import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob, stopRequestedFor } from './claim'
+import { failJobDefinition } from './report'
 import { eventPayload } from '../Workflow/eventPayload'
 import { signWork } from '../Workflow/stepSignature'
 import { environmentFor as pluginEnvironment, hookScriptsFor, poolPlugins, poolVerdict, preparedPluginsOf } from '../Plugin/prepare'
@@ -93,6 +97,61 @@ function readJson(value: unknown): Record<string, unknown> {
   }
   catch {
     return {}
+  }
+}
+
+interface ExecutingDefinition {
+  id: number
+  workflow: DefaultsInput['workflow']
+  job: DefaultsInput['job']
+}
+
+class JobDefinitionError extends Error {}
+
+/** The immutable definition a called job actually expanded from. */
+async function calledDefinition(runId: number, jobKey: string): Promise<ExecutingDefinition> {
+  const barriers = await db
+    .selectFrom('workflow_jobs')
+    .select(['job_id', 'settings'])
+    .where('workflow_run_id', '=', runId)
+    .where('kind', '=', 'wait')
+    .execute()
+  // Nested calls have several enclosing barriers. Only the nearest one
+  // identifies this job's version; the root run identifies the caller.
+  const barrier = barriers
+    .filter(row => jobKey.startsWith(`${row.job_id}/`))
+    .sort((left, right) => String(right.job_id).length - String(left.job_id).length)[0]
+  const marker = callMarkerOf(barrier?.settings)
+  const key = barrier ? jobKey.slice(String(barrier.job_id).length + 1) : ''
+  if (!marker || marker.prefix !== String(barrier?.job_id)
+    || !Number.isSafeInteger(marker.versionId) || marker.versionId < 1
+    || !/^[A-Za-z_][\w-]*$/.test(key)) {
+    throw new JobDefinitionError(`Cannot resolve the pinned called definition for job ${jobKey}`)
+  }
+
+  const definition = await db
+    .selectFrom('workflow_version_jobs')
+    .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_version_jobs.workflow_version_id')
+    .select([
+      'workflow_version_jobs.id as id',
+      'workflow_version_jobs.default_shell as default_shell',
+      'workflow_version_jobs.default_working_directory as default_working_directory',
+      'workflow_versions.default_shell as workflow_shell',
+      'workflow_versions.default_working_directory as workflow_directory',
+    ])
+    .where('workflow_version_jobs.workflow_version_id', '=', marker.versionId)
+    .where('workflow_version_jobs.job_id', '=', key)
+    .executeTakeFirst()
+  if (!definition)
+    throw new JobDefinitionError(`The pinned called definition is missing for job ${jobKey}`)
+
+  return {
+    id: Number(definition.id),
+    workflow: {
+      shell: typeof definition.workflow_shell === 'string' ? definition.workflow_shell : null,
+      workingDirectory: typeof definition.workflow_directory === 'string' ? definition.workflow_directory : null,
+    },
+    job: defaultsOf(definition),
   }
 }
 
@@ -270,7 +329,11 @@ export default new Action({
       .selectFrom('workflow_versions')
       .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_versions.id')
-      .select(['workflows.name as name', 'workflows.path as path', 'workflow_versions.permissions as permissions'])
+      .select([
+        'workflows.name as name', 'workflows.path as path', 'workflow_versions.permissions as permissions',
+        'workflow_versions.default_shell as default_shell',
+        'workflow_versions.default_working_directory as default_working_directory',
+      ])
       .where('workflow_runs.id', '=', claimed.runId)
       .executeTakeFirst()
 
@@ -320,14 +383,38 @@ export default new Action({
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
       .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_version_jobs.workflow_version_id')
       .select([
+        'workflow_version_jobs.id as id',
         'workflow_version_jobs.outputs as outputs',
         'workflow_version_jobs.env as env',
         'workflow_versions.env as workflow_env',
         'workflow_version_jobs.permissions as permissions',
+        'workflow_version_jobs.default_shell as default_shell',
+        'workflow_version_jobs.default_working_directory as default_working_directory',
       ])
       .where('workflow_runs.id', '=', claimed.runId)
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
       .executeTakeFirst()
+
+    // Generated jobs own their steps. For a called job, resolve the exact
+    // version pinned by its barrier, including runs queued before this fix.
+    // Keep this execution context separate from the root run's display and
+    // permission context above.
+    let executingDefinition: ExecutingDefinition | null
+    try {
+      executingDefinition = jobRow?.uploaded_by_job_id
+        ? null
+        : claimed.jobKey.includes('/')
+          ? await calledDefinition(claimed.runId, claimed.jobKey)
+          : definitionJob
+            ? { id: Number(definitionJob.id), workflow: defaultsOf(workflow), job: defaultsOf(definitionJob) }
+            : null
+    }
+    catch (error) {
+      if (!(error instanceof JobDefinitionError))
+        throw error
+      const failed = await failJobDefinition(runner.facts, claimed, error.message)
+      return runnerJson({ job: null, runner_id: runner.facts.id, error: failed.ok ? error.message : failed.reason }, failed.ok ? 200 : 409)
+    }
 
     /*
      * A generated job's steps come from the run, not from a definition.
@@ -360,15 +447,8 @@ export default new Action({
      * should go once no such run can still be claimed, because two answers to
      * "what does this job run" is one more than there should be.
      */
-    const steps: any[] = own.length > 0 ? own : await db
+    const steps: any[] = own.length > 0 ? own : executingDefinition ? await db
       .selectFrom('workflow_version_steps')
-      .innerJoin(
-        'workflow_version_jobs',
-        'workflow_version_jobs.id',
-        '=',
-        'workflow_version_steps.workflow_version_job_id',
-      )
-      .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
       .select([
         'workflow_version_steps.position as position',
         'workflow_version_steps.name as name',
@@ -386,10 +466,9 @@ export default new Action({
         'workflow_version_steps.env as env',
         'workflow_version_steps.timeout_minutes as timeout_minutes',
       ])
-      .where('workflow_runs.id', '=', claimed.runId)
-      .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
+      .where('workflow_version_steps.workflow_version_job_id', '=', executingDefinition.id)
       .orderBy('workflow_version_steps.position')
-      .execute()
+      .execute() : []
 
     /*
      * The token this job talks to the API with.
@@ -425,43 +504,51 @@ export default new Action({
       steps.length,
     ))
 
-    const runnerSteps = steps.map(step => ({
-      position: Number(step.position ?? 0),
-      /*
-       * A step the restart kept, and what it produced.
-       *
-       * Sent rather than dropped from the list: the runner reports positions,
-       * and a list with holes in it would renumber every step after the skip.
-       * It carries its outputs so `steps.<id>.outputs` still answers, and its
-       * `reused` flag so the machine does not run it.
-       */
-      reused: Number(step.position ?? 0) < resumeFrom,
-      outputs: Number(step.position ?? 0) < resumeFrom ? (readJson(step.outputs) ?? {}) : null,
-      name: step.name ?? null,
-      /*
-       * The step's own id and condition.
-       *
-       * The id is what `steps.<id>.outputs` is keyed on, and the condition
-       * is evaluated by the runner rather than here: a step's `if:` reads
-       * what the steps before it produced, which does not exist until they
-       * have run.
-       */
-      id: step.step_id ?? null,
-      if: step.condition ?? null,
-      run: step.command ?? null,
-      uses: step.uses ?? null,
-      working_directory: step.working_directory ?? null,
-      shell: step.shell ?? null,
-      // `with:` and `env:` are JSON as stored; a runner should not have to
-      // know that, so they are sent as objects.
-      with: readJson(step.inputs),
-      env: readJson(step.env),
-      continue_on_error: isTrue(step.continue_on_error),
-      // The narrow timeout, which the runner applies to this step alone.
-      timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
-        ? null
-        : Number(step.timeout_minutes),
-    }))
+    const runnerSteps = steps.map((step) => {
+      const defaults = resolveDefaults({
+        workflow: executingDefinition?.workflow,
+        job: executingDefinition?.job,
+        step: { shell: step.shell, workingDirectory: step.working_directory },
+      })
+      return {
+        position: Number(step.position ?? 0),
+        /*
+         * A step the restart kept, and what it produced.
+         *
+         * Sent rather than dropped from the list: the runner reports positions,
+         * and a list with holes in it would renumber every step after the skip.
+         * It carries its outputs so `steps.<id>.outputs` still answers, and its
+         * `reused` flag so the machine does not run it.
+         */
+        reused: Number(step.position ?? 0) < resumeFrom,
+        outputs: Number(step.position ?? 0) < resumeFrom ? (readJson(step.outputs) ?? {}) : null,
+        name: step.name ?? null,
+        /*
+         * The step's own id and condition.
+         *
+         * The id is what `steps.<id>.outputs` is keyed on, and the condition
+         * is evaluated by the runner rather than here: a step's `if:` reads
+         * what the steps before it produced, which does not exist until they
+         * have run.
+         */
+        id: step.step_id ?? null,
+        if: step.condition ?? null,
+        run: step.command ?? null,
+        uses: step.uses ?? null,
+        // defaults.run applies to commands, never to an action's own execution.
+        working_directory: step.command != null ? defaults.workingDirectory : step.working_directory ?? null,
+        shell: step.command != null ? defaults.shell : step.shell ?? null,
+        // `with:` and `env:` are JSON as stored; a runner should not have to
+        // know that, so they are sent as objects.
+        with: readJson(step.inputs),
+        env: readJson(step.env),
+        continue_on_error: isTrue(step.continue_on_error),
+        // The narrow timeout, which the runner applies to this step alone.
+        timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
+          ? null
+          : Number(step.timeout_minutes),
+      }
+    })
 
     /*
      * The job's plugins: the pool's half of the policy, then the hook scripts.
