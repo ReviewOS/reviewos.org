@@ -130,3 +130,18 @@ test.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 0.5, Number.MAX_SAFE_INTEGE
   }
   finally { server.stop(true) }
 })
+
+test('SIGUSR2 finishes what the runner holds and stops it before the next claim', async () => {
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, '../fixtures/runner-drain-signal.fixture.ts')], {
+    stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(10_000),
+  })
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
+  ])
+  if (code !== 0) throw new Error(stderr)
+  const result = JSON.parse(stdout.trim().split('\n').at(-1)!)
+  // One poll, then the signal: the loop leaves instead of claiming again.
+  expect(result.claims).toBe(1)
+  expect(result.messages.join('\n')).toContain('SIGUSR2')
+  expect(result.messages.join('\n')).toContain('stopping before the next claim')
+}, 15_000)

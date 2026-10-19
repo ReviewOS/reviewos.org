@@ -168,6 +168,19 @@ export interface JobOutcome {
  */
 let stopRequested: string | null = null
 
+/**
+ * Ask this runner, from its own machine, to finish what it holds and leave.
+ *
+ * The local half of the instance's graceful `stop-runner`: `SIGUSR2` calls
+ * it, so whoever provisions the box can swap the binary on disk and say
+ * `systemctl --user kill -s SIGUSR2 reviewos-runner` - the job in progress
+ * finishes, the loop leaves, and the service manager starts the new binary.
+ * An instance's own request, if there is one, is kept.
+ */
+export function requestLocalStop(reason: string = 'local'): void {
+  stopRequested = stopRequested ?? reason
+}
+
 /** What the instance last asked this runner to do, and clears it. */
 export function takeStopRequest(): string | null {
   const stop = stopRequested
@@ -1804,10 +1817,17 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
    */
   await runFleetHook('runner-startup', options)
 
+  const drain = (): void => {
+    requestLocalStop('SIGUSR2')
+    options.say?.('SIGUSR2: finishing the current job, then stopping')
+  }
+  process.on('SIGUSR2', drain)
+
   try {
     return await pollForJobs()
   }
   finally {
+    process.off('SIGUSR2', drain)
     await runFleetHook('runner-shutdown', options)
   }
 
@@ -1816,6 +1836,13 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
   let recoveryDue = 0
 
   for (;;) {
+    // A stop that arrived while idle is honoured before the next claim, not after it.
+    const pending = takeStopRequest()
+    if (pending) {
+      options.say?.(`stopping before the next claim (${pending})`)
+      return outcomes
+    }
+
     if (Date.now() >= recoveryDue) {
       recoveryDue = Date.now() + 60_000
       try {
