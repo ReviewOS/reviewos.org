@@ -1,5 +1,6 @@
 import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
+import { boxes } from '../cloud/boxes'
 import { servers } from '../cloud/servers'
 import { env } from '@stacksjs/env'
 
@@ -344,6 +345,12 @@ export const tsCloud: TsCloudConfig = {
       // web: servers.web,
       // cache: servers.cache,
     } as NonNullable<TsCloudConfig['infrastructure']>['servers'],
+
+    /**
+     * Dedicated machines: this instance's runners. See `cloud/boxes.ts`;
+     * converged with `buddy runner:provision`.
+     */
+    boxes,
 
     /**
      * Jump Box / Bastion Host

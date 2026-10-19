@@ -1608,6 +1608,21 @@ Actions secret and deploy to apply a replacement; see
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Hcloud
+
+### `HCLOUD_TOKEN`
+
+Default: unset.
+
+The Hetzner Cloud project a runner's machine lives in, for
+`buddy runner:provision` (and ts-cloud's own deploys).
+
+Only the operator who provisions runner boxes needs it, on the machine they
+run that command from: the instance itself never reads it. The boxes are
+declared in `cloud/boxes.ts`; this is only the credential to reach them.
+
+Read by `app/Commands/RunnerProvision.ts`.
+
 ## Set by git, not by you
 
 Git hands these to a hook on every push, per repository. A value for one of them in `.env`

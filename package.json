@@ -121,7 +121,7 @@
     "stx-router": "0.2.553",
     "bun-plugin-stx": "0.2.553",
     "@stacksjs/components": "0.2.553",
-    "@stacksjs/ts-cloud": "^0.16.58",
+    "@stacksjs/ts-cloud": "^0.16.62",
     "@stacksjs/buddy": "0.75.217"
   }
 }

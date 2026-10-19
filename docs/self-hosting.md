@@ -671,6 +671,32 @@ to guess.
 Anything else that speaks [the runner protocol](./runner-protocol.md) works too:
 it is five HTTP endpoints and no SDK.
 
+#### Declaring the machine
+
+A runner's machine is declared like the rest of the infrastructure, in
+`cloud/boxes.ts`, and converged by ts-cloud:
+
+```sh
+./buddy runner:provision hq-runner --dry-run     # what would change
+./buddy runner:provision hq-runner --binary dist/runner/reviewos-runner
+```
+
+ts-cloud finds the server by name (an existing one is adopted), applies its
+firewall, installs the declared pantry packages into `/opt/pantry` and writes
+the runner's systemd user unit. Re-running it changes only what differs, and
+it never restarts a runner in the middle of a job. Packages reach jobs through
+the unit's PATH, so a step finds the box's browser with `command -v
+google-chrome-stable` instead of installing one into every workspace. A box
+declaring pantry's Chrome also gets the AppArmor profile Ubuntu 23.10+ needs
+before Chrome may create its sandbox. A converge refuses to install packages
+when the disk has less than the declared `minFreeDiskGb` free.
+
+`--binary` replaces the runner when it differs from the one on the box and
+keeps the old one beside it. Then `SIGUSR2` asks the running runner to finish
+its job and leave, and the service manager starts the new binary. A `resize:`
+in the declaration drains with the same signal before the box is powered off.
+
+
 When a run sits at "queued", the run page says why rather than spinning - no
 runner registered, none that reaches this repository, or none carrying the labels
 the job asked for, with the labels that *would* have matched listed next to it.
