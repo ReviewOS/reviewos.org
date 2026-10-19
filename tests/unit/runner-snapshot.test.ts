@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { snapshotKey } from '../../app/Actions/Workflow/cacheKey'
+import { forgetTooLargeSnapshots, restoreCache, saveCache } from '../../app/Actions/Runner/cacheClient'
 import { keyFor, lockfilesIn, NEVER_SNAPSHOT, packSnapshot, unpackSnapshot, worthCaching } from '../../app/Actions/Runner/snapshot'
 
 const root = join(
@@ -146,5 +147,68 @@ describe('the key a workspace produces', () => {
 
     expect(worthCaching(source)).toBe(true)
     expect(worthCaching(bare)).toBe(false)
+  })
+})
+
+/*
+ * A snapshot the instance cannot accept is not worth packing.
+ *
+ * Found on HQ's runner: every successful job spent two minutes compressing a
+ * node_modules far past the 128 MiB the instance's HTTP server accepts, only for
+ * the upload to come back 413 - and the next job of the same run did it again.
+ */
+describe('a snapshot past what the instance accepts', () => {
+  const big = join(source, 'node_modules', 'incompressible.bin')
+
+  beforeAll(() => {
+    writeFileSync(big, crypto.getRandomValues(new Uint8Array(64 * 1024)))
+  })
+
+  afterAll(() => {
+    rmSync(big, { force: true })
+    forgetTooLargeSnapshots()
+  })
+
+  test('stops packing once the archive passes the limit, and leaves nothing behind', async () => {
+    const packed = await packSnapshot(source, archive, 4096)
+
+    expect(packed.ok).toBe(false)
+    expect(packed.tooLarge).toBe(true)
+    expect(String(packed.reason)).toContain('MiB this instance accepts')
+    expect(existsSync(archive)).toBe(false)
+  })
+
+  test('is packed once per key on a runner, and never uploaded', async () => {
+    let uploads = 0
+    const server = Bun.serve({ port: 0, fetch: () => { uploads++; return new Response(null, { status: 201 }) } })
+
+    try {
+      const input = { baseUrl: `http://127.0.0.1:${server.port}`, jobToken: 't', key: 'too-large-key', workspace: source, scratch: root, maxBytes: 4096 }
+      const first = await saveCache(input)
+      const second = await saveCache(input)
+
+      expect(first.saved).toBe(false)
+      expect(String(first.reason)).toContain('MiB this instance accepts')
+      expect(second.saved).toBe(false)
+      expect(String(second.reason)).toContain('earlier job on this runner')
+      expect(uploads).toBe(0)
+    }
+    finally {
+      server.stop(true)
+    }
+  })
+
+  test('the limit comes from the instance\'s restore answer, even on a miss', async () => {
+    const server = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204, headers: { 'X-Cache-Max-Bytes': '1234' } }) })
+
+    try {
+      const restored = await restoreCache({ baseUrl: `http://127.0.0.1:${server.port}`, jobToken: 't', key: 'k', workspace: target, scratch: root })
+
+      expect(restored.restored).toBe(false)
+      expect(restored.maxBytes).toBe(1234)
+    }
+    finally {
+      server.stop(true)
+    }
   })
 })

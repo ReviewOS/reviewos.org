@@ -31,7 +31,7 @@
  * fresh checkout with the source that happened to populate the cache.
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs'
 import process from 'node:process'
 import { join } from 'node:path'
 import { lockfileDigest, LOCKFILE_NAMES, snapshotKey } from '../Workflow/cacheKey'
@@ -46,6 +46,8 @@ export interface SnapshotResult {
   digest?: string
   sizeBytes?: number
   reason?: string
+  /** Set when packing stopped because the archive passed `maxBytes`. */
+  tooLarge?: boolean
 }
 
 /**
@@ -112,7 +114,7 @@ export function worthCaching(workspace: string): boolean {
  * that has tar, and `--zstd` is not. The trade is a few seconds of CPU against
  * a runner that cannot cache at all on a base image from before 2021.
  */
-export async function packSnapshot(workspace: string, into: string): Promise<SnapshotResult> {
+export async function packSnapshot(workspace: string, into: string, maxBytes: number = Number.POSITIVE_INFINITY): Promise<SnapshotResult> {
   const inventory = Bun.spawn(['git', 'ls-files', '--others', '--directory', '--no-empty-directory', '-z'], {
     cwd: workspace,
     stdout: 'pipe',
@@ -129,7 +131,15 @@ export async function packSnapshot(workspace: string, into: string): Promise<Sna
   // this cache is for. NUL framing preserves spaces, newlines and tar syntax
   // in filenames; the ./ prefix also prevents a name becoming an option.
   const entries = paths.split('\0').filter(path => path && !NEVER_SNAPSHOT.some(name => path === name || path.startsWith(`${name}/`)))
-  const packed = Bun.spawn(['tar', '-czf', into, '--null', '-T', '-'], {
+  /*
+   * Streamed through here rather than written by tar itself, so the archive
+   * can be stopped the moment it passes what the instance will accept.
+   *
+   * A workspace whose snapshot can never be uploaded otherwise cost the whole
+   * compression - minutes for a large `node_modules` - at the end of every job,
+   * only for the upload to be refused.
+   */
+  const packed = Bun.spawn(['tar', '-czf', '-', '--null', '-T', '-'], {
     cwd: workspace,
     stdin: 'pipe',
     stdout: 'pipe',
@@ -138,8 +148,33 @@ export async function packSnapshot(workspace: string, into: string): Promise<Sna
   packed.stdin.write(entries.map(path => `./${path}\0`).join(''))
   packed.stdin.end()
 
-  const failure = await new Response(packed.stderr).text()
+  const failing = new Response(packed.stderr).text()
+  const sink = Bun.file(into).writer()
+  let written = 0
+  let tooLarge = false
+
+  for await (const chunk of packed.stdout as ReadableStream<Uint8Array>) {
+    written += chunk.byteLength
+
+    if (written > maxBytes) {
+      tooLarge = true
+      packed.kill()
+      break
+    }
+
+    sink.write(chunk)
+  }
+
+  await sink.end()
+
+  const failure = await failing
   const status = await packed.exited
+
+  if (tooLarge) {
+    try { unlinkSync(into) }
+    catch { /* nothing was flushed */ }
+    return { ok: false, tooLarge: true, reason: `the snapshot passed the ${Math.round(maxBytes / 1024 / 1024)} MiB this instance accepts, so it was not packed further` }
+  }
 
   if (status !== 0)
     return { ok: false, reason: `tar exited ${status}: ${failure.slice(0, 400)}` }

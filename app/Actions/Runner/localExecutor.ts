@@ -807,6 +807,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       : null
 
     let cacheWasExact = false
+    let cacheMaxBytes: number | undefined
 
     if (cacheKey) {
       const restored = await restoreCache({
@@ -818,6 +819,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       })
 
       cacheWasExact = restored.exact
+      cacheMaxBytes = restored.maxBytes
 
       /*
        * Said in the log, always, hit or miss.
@@ -1695,6 +1697,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         key: cacheKey,
         workspace,
         scratch: join(workspace, '.reviewos-runner'),
+        maxBytes: cacheMaxBytes,
       })
 
       await send(saved.saved

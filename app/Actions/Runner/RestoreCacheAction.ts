@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { blobStore } from '../Git/blobs'
 import { db } from '@stacksjs/database'
-import { findRestorable, markRestored, runFactsFor } from '../Workflow/cache'
+import { findRestorable, MAX_UPLOAD_SNAPSHOT_BYTES, markRestored, runFactsFor } from '../Workflow/cache'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
@@ -54,6 +54,7 @@ export default new Action({
     'X-Cache-Scope': { description: 'Which scope the snapshot came from.', schema: { type: 'string' } },
     'X-Cache-Exact': { description: '`true` when it came from the run\'s own scope rather than the default branch.', schema: { type: 'string' } },
     'X-Cache-Digest': { description: 'SHA-256 of the archive, so a runner can check what it unpacks.', schema: { type: 'string' } },
+    'X-Cache-Max-Bytes': { description: 'The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.', schema: { type: 'string' } },
   },
 
   async handle(request: any) {
@@ -103,7 +104,7 @@ export default new Action({
     await countLookup(held.jobId, Boolean(hit))
 
     if (!hit)
-      return new Response(null, { status: 204 })
+      return new Response(null, { status: 204, headers: { 'X-Cache-Max-Bytes': String(MAX_UPLOAD_SNAPSHOT_BYTES) } })
 
     const stream = await blobStore().then(store => store.get(hit.blobKey)).catch(() => null)
 
@@ -115,7 +116,7 @@ export default new Action({
      * installs from scratch, which is what it would have done a second earlier.
      */
     if (!stream)
-      return new Response(null, { status: 204 })
+      return new Response(null, { status: 204, headers: { 'X-Cache-Max-Bytes': String(MAX_UPLOAD_SNAPSHOT_BYTES) } })
 
     // Counted before the body is sent rather than after. A restore that the
     // network cut in half still says this entry is one runs reach for, which is
@@ -130,6 +131,7 @@ export default new Action({
         'X-Cache-Scope': hit.scope,
         'X-Cache-Exact': hit.exact ? 'true' : 'false',
         'X-Cache-Digest': hit.digest,
+        'X-Cache-Max-Bytes': String(MAX_UPLOAD_SNAPSHOT_BYTES),
       },
     })
   },

@@ -33,6 +33,19 @@ import type { RunFacts } from './cacheScope'
  */
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024 * 1024
 
+/**
+ * The most one request body may carry to this instance.
+ *
+ * Bun's default `maxRequestBodySize`, which the Stacks server does not raise.
+ * A larger snapshot is refused with a 413 before the save action reads a byte,
+ * so this - not `MAX_SNAPSHOT_BYTES` - is what a runner can actually upload, and
+ * it is what the restore answer tells the runner so it stops packing past it.
+ */
+export const MAX_REQUEST_BODY_BYTES = 128 * 1024 * 1024
+
+/** The largest snapshot a runner can save here. */
+export const MAX_UPLOAD_SNAPSHOT_BYTES = Math.min(MAX_SNAPSHOT_BYTES, MAX_REQUEST_BODY_BYTES)
+
 /** Where a snapshot's bytes live. Content-addressed, so identical installs share one file. */
 export function snapshotBlobKey(repositoryId: number, digest: string): string {
   const clean = String(digest ?? '').toLowerCase()
