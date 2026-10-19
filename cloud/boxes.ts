@@ -44,6 +44,13 @@ export const boxes: Record<string, BoxConfig> = {
         exec: '%h/reviewos-runner',
         workingDirectory: '%h/work',
         environmentFile: '%h/.config/reviewos-runner.env',
+        // Where `uses:` actions come from: github.com only, pinned to a full
+        // commit. Was a hand-written drop-in (pantry-actions.conf, same values).
+        environment: {
+          REVIEWOS_ACTION_HOSTS: 'github.com',
+          REVIEWOS_ACTION_DEFAULT_HOST: 'github.com',
+          REVIEWOS_ACTION_PINNED: '1',
+        },
         // Finish the job in hand, claim no other, exit (runner 83b4f4c3+).
         // A resize drains with it before powering the box off.
         drainSignal: 'SIGUSR2',
