@@ -23,7 +23,8 @@ import { fairOrder, fleetLoad, withinQuota } from './quota'
 import { fairQueueing } from '../../../config/ci-quotas'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
-import { isTrue } from '../Support/sql'
+import { raw } from 'bun-query-builder'
+import { isTrue, speaksMysql } from '../Support/sql'
 
 /**
  * A credential good for one job.
@@ -139,18 +140,37 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
 
   return query
     /*
-     * Priority first, then age.
+     * Priority first, then the default branch, then age.
      *
      * `reviewos: { priority: 10 }` on a deploy is what stops it waiting behind
      * two hundred pull request checks, and the deploy is the one somebody is
      * watching. Age breaks the tie, so equal-priority work is still first in,
      * first out - a queue that reorders equal jobs is a queue where somebody's
      * build can starve.
+     *
+     * Between them, at equal priority, the repository's default branch goes
+     * first. That branch is what deploys: with feature branches qualified on
+     * the same runners, a branch's half-hour of end-to-end tests used to hold
+     * every main run in the queue behind it, and production stopped moving
+     * while CI was busy proving branches nobody had merged (HQ, 2026-10-19).
+     * It is a tie-break, not a priority: a job that asked for more still
+     * leaves first, and among branch jobs the order is still first in, first
+     * out.
      */
     .orderBy('workflow_jobs.priority', 'desc')
+    .orderByRaw(raw(defaultBranchFirst()))
     .orderBy('workflow_jobs.id', 'asc')
     .limit(limit)
     .execute()
+}
+
+/**
+ * `ORDER BY` term: 0 for a run on its repository's default branch, else 1.
+ * `||` is string concatenation everywhere but MySQL, where it is OR.
+ */
+export function defaultBranchFirst(mysql = speaksMysql()): string {
+  const ref = mysql ? `CONCAT('refs/heads/', repositories.default_branch)` : `'refs/heads/' || repositories.default_branch`
+  return `CASE WHEN workflow_runs.event_ref = ${ref} THEN 0 ELSE 1 END ASC`
 }
 
 function factsOf(row: any): JobFacts {

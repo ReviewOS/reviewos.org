@@ -183,6 +183,44 @@ describe('claiming', () => {
   })
 
   /*
+   * The default branch first, at equal priority. With feature branches
+   * qualified on the same runners, a branch's long end-to-end job used to hold
+   * every main run behind it, and main is what deploys.
+   */
+  test('at equal priority the default branch leaves the queue before a branch that was queued first', async () => {
+    if (!available)
+      return
+
+    // A board with nothing else on it: earlier tests leave queued work here.
+    const earlier: any[] = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    if (earlier.length) {
+      await db.updateTable('workflow_jobs').set({ state: 'cancelled' })
+        .where('state', 'in', ['queued', 'blocked'])
+        .where('workflow_run_id', 'in', earlier.map(row => Number(row.id)))
+        .execute()
+    }
+
+    const push = async (ref: string, sha: string) => (await dispatchPush({ repositoryId: created.repositoryId, event: { ref }, headSha: sha })).created[0]!
+    const branchFirst = await push('refs/heads/feature/one', 'c1'.repeat(20))
+    const branchSecond = await push('refs/heads/feature/two', 'c2'.repeat(20))
+    const main = await push('refs/heads/main', 'c3'.repeat(20))
+    const runner = await runnerFacts(await makeRunner({ scope_type: 'repository', scope_id: created.repositoryId }))
+
+    // Main's build, though both branches were queued before it.
+    expect((await claimNextJob(runner))!.runId).toBe(main)
+    // Then the branches, oldest first.
+    expect((await claimNextJob(runner))!.runId).toBe(branchFirst)
+
+    // A branch job that asked for more still goes first: a tie-break, not a priority.
+    const later = await push('refs/heads/feature/three', 'c4'.repeat(20))
+    const mainAgain = await push('refs/heads/main', 'c5'.repeat(20))
+    await db.updateTable('workflow_jobs').set({ priority: 5 }).where('workflow_run_id', '=', later).where('job_id', '=', 'build').execute()
+    expect((await claimNextJob(runner))!.runId).toBe(later)
+    expect((await claimNextJob(runner))!.runId).toBe(mainAgain)
+    expect((await claimNextJob(runner))!.runId).toBe(branchSecond)
+  })
+
+  /*
    * The race. Two runners polling at the same instant both read the job as
    * free; the guard is in the `WHERE`, so exactly one write matches and the
    * other finds nothing left to take.
