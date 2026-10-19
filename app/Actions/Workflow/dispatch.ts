@@ -970,12 +970,18 @@ interface SupersededRun {
 async function finishSuperseded(repositoryId: number, moved: SupersededRun[]): Promise<void> {
   if (!moved.length)
     return
-  const { settleRun } = await import('./settle')
+  const { settleAwaitingTriggers, settleRun } = await import('./settle')
   const { announceRunIfMoved } = await import('./announce')
   for (const run of moved) {
     try {
       const current: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', run.id).executeTakeFirst()
-      const next = String(current?.state ?? '') === 'cancelled' ? 'cancelled' : await settleRun(run.id)
+      const cancelled = String(current?.state ?? '') === 'cancelled'
+      const next = cancelled ? 'cancelled' : await settleRun(run.id)
+      // The settle is skipped for a run already written cancelled, and the
+      // settle is what closes an `await: true` trigger waiting on it from
+      // another run - which would otherwise hold that run open for good.
+      if (cancelled)
+        await settleAwaitingTriggers(run.id, 'cancelled')
       await announceRunIfMoved(repositoryId, run.id, run.from, next)
     }
     catch {

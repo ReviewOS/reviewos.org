@@ -416,6 +416,116 @@ describe('a trigger that cannot resolve', () => {
 })
 
 /*
+ * A triggered run belongs to its own workflow's concurrency group.
+ *
+ * Found on HQ's native QA: CI triggered it after every deploy, its runner was a
+ * laptop that was busy all morning, and because triggered runs had no group the
+ * target workflow's `intermediate: skip` never applied - every push added one
+ * more stale run for that laptop to work through in order.
+ */
+describe('a triggered run and its concurrency group', () => {
+  const NATIVE = `name: Native
+on: workflow_dispatch
+concurrency:
+  group: native-\${{ github.ref }}
+reviewos:
+  intermediate: skip
+jobs:
+  device:
+    runs-on: [self-hosted, macos]
+    steps:
+      - run: ./on-a-phone
+`
+
+  async function triggerFrom(number: number, sha: string, awaiting: boolean): Promise<{ parent: number, job: any }> {
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number,
+      state: 'queued',
+      event: 'push',
+      event_ref: 'refs/heads/main',
+      head_sha: sha,
+      definition_sha: sha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'native',
+      name: 'Native',
+      position: 0,
+      state: 'blocked',
+      kind: 'trigger',
+      settings: JSON.stringify({ workflow: 'Native', inputs: {}, await: awaiting }),
+    }).execute()
+
+    await settleRun(Number(run.id))
+
+    return { parent: Number(run.id), job: jobNamed(await jobsOf(Number(run.id)), 'native') }
+  }
+
+  async function runFacts(id: number): Promise<any> {
+    return db.selectFrom('workflow_runs').select(['state', 'concurrency_group']).where('id', '=', id).executeTakeFirst()
+  }
+
+  test('resolves the started workflow\'s group against the branch, and skips the stale waiting run', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/native.yml',
+      source: NATIVE,
+      sha: 'e'.repeat(40),
+    })
+
+    const first = await triggerFrom(910, '91'.repeat(20), false)
+    const firstChild = Number(first.job.triggered_run_id)
+
+    // The branch, not the `#trigger/...` key that keeps two triggers apart.
+    expect(String((await runFacts(firstChild)).concurrency_group)).toBe('native-refs/heads/main')
+
+    // The device picks the first one up, so it is a run somebody is waiting on.
+    const device = await makeRunner('self-hosted\nmacos')
+    const claim = await claimNextJob(device)
+
+    expect(claim!.jobKey).toBe('device')
+    expect(String((await runFacts(firstChild)).state)).toBe('running')
+
+    const second = await triggerFrom(911, '92'.repeat(20), true)
+    const secondChild = Number(second.job.triggered_run_id)
+
+    expect(String((await runFacts(secondChild)).state)).toBe('waiting')
+
+    // An awaiting parent stays open while its child waits for the group.
+    expect(String(second.job.state)).toBe('running')
+
+    const third = await triggerFrom(912, '93'.repeat(20), false)
+    const thirdChild = Number(third.job.triggered_run_id)
+
+    // The newest push replaces the one still waiting; the one already admitted keeps going.
+    expect(String((await runFacts(secondChild)).state)).toBe('cancelled')
+    expect(String((await runFacts(thirdChild)).state)).toBe('waiting')
+    expect(String((await runFacts(firstChild)).state)).toBe('running')
+
+    // And the parent that awaited the skipped run is closed with it, rather than holding its own run open.
+    expect(String(jobNamed(await jobsOf(second.parent), 'native').state)).toBe('cancelled')
+    expect(await runState(second.parent)).not.toBe('running')
+  }, 120_000)
+})
+
+/*
  * The monorepository case, which is the one that decides whether a big
  * repository is usable here at all: the workflow runs on every push, and what
  * it *runs* depends on what moved.

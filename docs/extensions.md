@@ -203,7 +203,7 @@ run it started finishes, and carries that run's verdict back - a trigger that
 waited and then reported success whatever happened would be a gate that is not
 one.
 
-Three rules worth knowing:
+Four rules worth knowing:
 
 - A triggered run is **trusted because the run that triggered it was**. A fork's
   pull request cannot trigger a trusted run: a trigger cannot raise its own trust
@@ -214,6 +214,10 @@ Three rules worth knowing:
 - A trigger that cannot resolve **fails** with the reason on the job. A pipeline
   whose deploy stage silently did nothing, and a green run to go with it, is the
   failure this whole feature exists to avoid.
+- A triggered run is in **the started workflow's own `concurrency:` group**,
+  resolved with `github.ref` as the branch the trigger ran on. So
+  `reviewos.intermediate: skip` there keeps one pending run rather than one per
+  push, and an `await: true` job whose run was skipped is closed with it.
 
 **Actions reaches part of this** through `workflow_call` (which runs the called
 workflow's jobs inside your run, rather than starting a run of its own) and

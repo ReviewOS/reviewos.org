@@ -21,6 +21,8 @@ import { isEnumInput } from '@stacksjs/validation'
 import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
+import type { ConcurrencyContext } from './concurrency'
+import { resolveGroup } from './concurrency'
 import { dispatchWorkflowRun, isConcurrencyHeld, releaseGroup, startRun } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { alreadySent, waitPlan, waitSettingsOf } from './awaits'
@@ -788,7 +790,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
 
   const version = await db
     .selectFrom('workflow_versions')
-    .select(['id'])
+    .select(['id', 'concurrency_group'])
     .where('workflow_id', '=', Number(target.id))
     .orderBy('id', 'desc')
     .executeTakeFirst()
@@ -797,6 +799,26 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     await fail(`\`${wanted}\` has no parsed version to run.`)
     return
   }
+
+  /*
+   * The started workflow's own `concurrency:`, resolved like every other way a
+   * run starts.
+   *
+   * Without it a triggered run belonged to no group, so `intermediate: skip`
+   * and `cancel-in-progress` never applied: one trigger per push queued one
+   * more run of the target, and a target whose runner was busy for a morning
+   * collected a backlog of stale commits it would then work through in order.
+   * The ref is the branch the parent ran on, which is what `github.ref` reads
+   * inside the started run too - the `#trigger/...` suffix only keeps two
+   * triggers from one push apart.
+   */
+  const context: ConcurrencyContext = {
+    workflow: String(target.name || target.path || ''),
+    eventName: 'workflow_trigger',
+    ref: String(run.event_ref ?? '').split('#')[0] ?? '',
+    sha: String(run.head_sha ?? ''),
+  }
+  const group = resolveGroup(version.concurrency_group, context)
 
   const startedId = await startRun({
     values: withRedeliveryKey({
@@ -825,11 +847,13 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
       trusted: true,
       actor_id: run.actor_id ?? null,
       trigger_depth: depth + 1,
+      concurrency_group: group,
       dispatch_inputs: settings.inputs && Object.keys(settings.inputs as object).length > 0
         ? JSON.stringify(settings.inputs)
         : null,
     }),
     versionId: Number(version.id),
+    context,
   })
 
   /*
