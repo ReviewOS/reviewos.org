@@ -1651,6 +1651,7 @@ Command-line flags, where provided, take precedence.
 - `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
 - `REVIEWOS_REPOSITORY`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_RUNNER_MIN_FREE_DISK_MB`, read by `app/Actions/Runner/capacity.ts`
+- `REVIEWOS_RUNNER_MAX_LOAD_PER_CPU`, read by `app/Actions/Runner/capacity.ts`
 - `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_TOKEN`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`

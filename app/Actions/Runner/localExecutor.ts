@@ -85,6 +85,8 @@ export interface LocalRunnerOptions {
   workspaceRoot?: string
   /** Operator-configured admission floor in MiB, before checkout and build. */
   minimumFreeDiskMb?: number
+  /** Operator-configured one-minute host load ceiling per available CPU. */
+  maximumLoadPerCpu?: number
   /** Temporary workspace filesystem, shared with recovery journal placement. */
   workspaceTemporaryRoot?: string
   /** Private recovery journal, outside job-controlled checkouts. */
@@ -314,7 +316,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     }
   }
   else if (lastNotification !== undefined) {
-    say('Runner disk capacity restored; accepting work')
+    say('Runner capacity restored; accepting work')
     capacityNotifications.delete(options)
   }
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, capacity.acceptWork ? {} : { accept_work: false })

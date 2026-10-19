@@ -3373,3 +3373,6 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       build tools, independently of the workflow actor, while retaining the
       control-plane environment boundary. Verified with XcodeGen generation;
       standard host variables are included in the generated configuration reference.
+- [x] Host runners can hold new job admission on excessive one-minute load per
+      available CPU, independently of disk space. Invalid or unavailable enabled
+      measurements refuse work while stop requests and automatic recovery remain live.

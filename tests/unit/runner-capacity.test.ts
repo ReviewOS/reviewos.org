@@ -8,6 +8,27 @@ import { join } from 'node:path'
 import { runOnce, takeStopRequest } from '../../app/Actions/Runner/localExecutor'
 import { negotiate } from '../../app/Actions/Runner/protocol'
 
+test('host load holds job admission while stop requests and recovery remain live', async () => {
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, '../fixtures/runner-host-load.fixture.ts')], {
+    stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(10_000),
+  })
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
+  ])
+  if (code !== 0) throw new Error(stderr)
+  const result = JSON.parse(stdout.trim().split('\n').at(-1)!)
+  expect(result.polls).toEqual([{ accept_work: false }, {}])
+  expect(result.stop).toBe('graceful')
+  expect(result.messages[0]).toContain('load')
+  expect(result.messages.at(-1)).toContain('capacity restored')
+  expect(result.decisions).toEqual({
+    atLimit: true, invalidLoad: false, invalidCpus: false, unreadable: false,
+    unsupported: false, disabled: true, defaultDisabled: true,
+    'invalidPolicy:': false, 'invalidPolicy:invalid': false,
+    'invalidPolicy:-1': false, 'invalidPolicy:Infinity': false,
+  })
+}, 15_000)
+
 test('insufficient workspace space holds work but still receives a graceful stop', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-capacity-'))
   const polls: Array<{ protocol: string | null, body: any }> = []

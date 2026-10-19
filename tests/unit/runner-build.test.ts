@@ -55,6 +55,13 @@ test('the compiled runner ignores application preload code and dotenv credential
     const resumed = await invoke(argumentsForPoll, { REVIEWOS_RUNNER_MIN_FREE_DISK_MB: '1' })
     expect(resumed.status, resumed.output).toBe(0)
     expect(polls.at(-1)).toEqual({ protocol: '2', body: {} })
+    const loadHeld = await invoke(argumentsForPoll, { REVIEWOS_RUNNER_MAX_LOAD_PER_CPU: 'invalid' })
+    expect(loadHeld.status, loadHeld.output).toBe(0)
+    expect(loadHeld.output).toContain('maximum host load setting')
+    expect(polls.at(-1)).toEqual({ protocol: '2', body: { accept_work: false } })
+    const loadDisabled = await invoke(argumentsForPoll, { REVIEWOS_RUNNER_MAX_LOAD_PER_CPU: '0' })
+    expect(loadDisabled.status, loadDisabled.output).toBe(0)
+    expect(polls.at(-1)).toEqual({ protocol: '2', body: {} })
     expect(existsSync(marker)).toBe(false)
   }
   finally {

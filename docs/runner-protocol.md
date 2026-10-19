@@ -104,6 +104,14 @@ space after the claim. The operator must provide sustained real headroom. A held
 runner continues safe terminal-workspace recovery and control polls, logs its
 hold at most once per minute, and resumes ordinary claims when capacity returns.
 
+Set `REVIEWOS_RUNNER_MAX_LOAD_PER_CPU` to hold admission when the one-minute
+host load divided by available logical CPUs exceeds that value. For example,
+`1.5` allows a load of at most 6 on four available CPUs. Zero, the default,
+disables this additional policy. Invalid settings, unavailable measurements,
+and Windows hosts with an enabled load policy refuse work. Control polls and
+automatic recovery remain active during a hold. This guards admission only;
+operators must still coordinate other host workloads after a job starts.
+
 ```json
 { "job": null }
 ```

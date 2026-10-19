@@ -145,6 +145,11 @@ workspace and temp filesystems before claiming. Zero disables the floor; choose
 a floor that includes checkout/build growth and host headroom. A held runner
 still receives stop requests. Deploy a protocol 2 controller before this runner.
 
+Set REVIEWOS_RUNNER_MAX_LOAD_PER_CPU to also hold admission above that one-minute
+load per available logical CPU. Zero disables it. An explicit ceiling refuses
+work if the host cannot report load; Windows does not provide this measurement.
+Both admission settings belong to the operator, outside a job's environment.
+
 Where actions may come from is set here, in the environment, and the default is
 closed - local actions and nothing else:
 
