@@ -3376,3 +3376,6 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
 - [x] Host runners can hold new job admission on excessive one-minute load per
       available CPU, independently of disk space. Invalid or unavailable enabled
       measurements refuse work while stop requests and automatic recovery remain live.
+- [x] Provisioning a replacement runner sends its drain signal only to the service's
+      main process, so active job children can finish. The binary-install regression
+      verifies the signal target and install-before-drain ordering.

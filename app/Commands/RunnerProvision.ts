@@ -80,7 +80,7 @@ export default function (cli: CLI) {
     })
 }
 
-async function installBinary(
+export async function installBinary(
   box: any,
   host: string,
   binary: string,
@@ -115,7 +115,8 @@ async function installBinary(
   console.log(`  installed runner ${local.slice(0, 12)} (was ${remote.slice(0, 12) || 'none'})`)
 
   if (restart === 'signal') {
-    await ssh.sshExecOrThrow(host, `sudo -u ${user} XDG_RUNTIME_DIR=/run/user/$(id -u ${user}) systemctl --user kill -s SIGUSR2 ${service}.service`, options)
+    // Only the runner handles draining; its active job children must keep running.
+    await ssh.sshExecOrThrow(host, `sudo -u ${user} XDG_RUNTIME_DIR=/run/user/$(id -u ${user}) systemctl --user kill --kill-who=main -s SIGUSR2 ${service}.service`, options)
     console.log(`  asked ${service} to finish its job and restart onto it`)
   }
   else {
