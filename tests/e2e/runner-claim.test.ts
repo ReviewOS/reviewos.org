@@ -628,3 +628,67 @@ describe('what each step did, as rows', () => {
     expect(String(step.state)).toBe('pending')
   })
 })
+
+/*
+ * A run that replaces waiting runs takes over their place in line. Without it,
+ * each push to a busy branch started a low-priority check over at the back, so
+ * it never waited long enough for the claim to stop letting fresh work pass.
+ * Last in the file: a second workflow changes what every push dispatches.
+ */
+describe('a replacement keeps its place in line', () => {
+  const CHECKS = `name: Checks
+on: push
+concurrency:
+  group: checks-\${{ github.ref }}
+reviewos:
+  intermediate: skip
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    reviewos:
+      priority: -10
+    steps:
+      - run: ./check
+`
+
+  test('queued since the oldest run it replaced, so it is not overtaken forever', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({ repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId, path: '.github/workflows/checks.yml', source: CHECKS, sha: 'e'.repeat(40) })
+
+    const clear = async () => {
+      const runs: any[] = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+      // Running too: a job an earlier test left with a lapsed lease is claimable again.
+      await db.updateTable('workflow_jobs').set({ state: 'cancelled' }).where('state', 'in', ['queued', 'blocked', 'running']).where('workflow_run_id', 'in', runs.map(row => Number(row.id))).execute()
+    }
+    const checkRun = async (sha: string): Promise<number> => {
+      const { created: runs } = await dispatchPush({ repositoryId: created.repositoryId, event: { ref: 'refs/heads/main' }, headSha: sha })
+      for (const id of runs) {
+        const job: any = await db.selectFrom('workflow_jobs').select(['id']).where('workflow_run_id', '=', id).where('job_id', '=', 'check').executeTakeFirst()
+        if (job)
+          return id
+      }
+      throw new Error('no Checks run')
+    }
+
+    await clear()
+    const first = await checkRun('e1'.repeat(20))
+    const since = new Date(Date.now() - 40 * 60_000)
+    await db.updateTable('workflow_jobs').set({ queued_at: null, created_at: since.toISOString().slice(0, 19).replace('T', ' ') } as any).where('workflow_run_id', '=', first).execute()
+
+    const second = await checkRun('e2'.repeat(20))
+    const replaced: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', first).executeTakeFirst()
+    expect(String(replaced.state)).toBe('cancelled')
+
+    const job: any = await db.selectFrom('workflow_jobs').select(['queued_at']).where('workflow_run_id', '=', second).where('job_id', '=', 'check').executeTakeFirst()
+    expect(Math.abs(Date.parse(String(job.queued_at)) - since.getTime())).toBeLessThan(2000)
+
+    // Fresh work that asked for less than nothing but more than the check did:
+    // without its inherited place in line, the check would wait behind it.
+    const mine: any[] = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    await db.updateTable('workflow_jobs').set({ priority: -5 }).where('state', '=', 'queued').where('job_id', '!=', 'check').where('workflow_run_id', 'in', mine.map(row => Number(row.id))).execute()
+    const runner = await runnerFacts(await makeRunner({ scope_type: 'repository', scope_id: created.repositoryId }))
+    expect((await claimNextJob(runner))!.runId).toBe(second)
+  })
+})

@@ -960,6 +960,52 @@ interface SupersededRun {
   from: string
 }
 
+/** A stored timestamp as epoch milliseconds: a Date, an ISO string, or a zone-less UTC `YYYY-MM-DD HH:MM:SS`. */
+function instantOf(value: unknown): number {
+  if (value instanceof Date)
+    return value.getTime()
+  const text = String(value ?? '').trim()
+  if (!text)
+    return Number.NaN
+  return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text.replace(' ', 'T')}Z`)
+}
+
+/**
+ * A run that replaced runs still waiting to start takes over their place in
+ * line: the newest commit, queued since the oldest of the ones it replaced.
+ *
+ * Without it, a workflow with `intermediate: skip` on a busy branch kept
+ * starting over at the back - each push replaced the waiting run with a fresh
+ * one - so a low-priority check never reached the age at which the claim stops
+ * letting fresh work overtake it (HQ's marketing checks, 2026-10-19).
+ */
+async function inheritPlaceInLine(client: Executor, runId: number, replaced: number[]): Promise<void> {
+  if (!replaced.length)
+    return
+
+  const rows: any[] = await client.selectFrom('workflow_jobs')
+    .select(['queued_at', 'created_at'])
+    .where('workflow_run_id', 'in', replaced)
+    .execute()
+
+  let earliest = Number.POSITIVE_INFINITY
+
+  for (const row of rows) {
+    const since = row.queued_at ? instantOf(row.queued_at) : instantOf(row.created_at)
+    if (Number.isFinite(since) && since < earliest)
+      earliest = since
+  }
+
+  if (!Number.isFinite(earliest))
+    return
+
+  await client.updateTable('workflow_jobs')
+    .set({ queued_at: new Date(earliest).toISOString() })
+    .where('workflow_run_id', '=', runId)
+    .where('state', '=', 'queued')
+    .execute()
+}
+
 /**
  * Settle and announce the runs a new run replaced, after its transaction
  * committed. Settling finishes one with no job left on a runner (`cancelled`)
@@ -1233,6 +1279,8 @@ async function createRunWithGraph(input: {
 
     // Parent admission precedes job cancellation: claims lock parent then job.
     await createJobs(tx, runId, input.versionId, input.context)
+
+    await inheritPlaceInLine(tx, runId, superseded.filter(run => run.from === 'queued' || run.from === 'waiting').map(run => run.id))
 
     return runId
   })
