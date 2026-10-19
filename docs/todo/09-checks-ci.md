@@ -328,6 +328,36 @@ where the sharing actually happens, this is exactly what the line describes.
 
 This much makes ReviewOS usable with any existing CI. Ship it independently of the workflow engine.
 
+- [x] A seeded instance has checks on it, which it never had. The whole surface could only be seen
+      empty: the checks tab on every pull request said "Nothing has reported on this commit",
+      "Nothing has reported test results for this commit" and "No checks are required on this
+      branch" at the same time, and `/runs`, `/workflows` and `/tests` had nothing to list. Not
+      because anything was broken - `tests/e2e/checks-page.test.ts` builds its own rows and passes -
+      but because `CheckRun` asked for 25 rows through `useSeeder` and a factory cannot know a sha.
+      It invented them, so all 25 pointed at commits no pull request had, and the panel keys on
+      `(repository_id, head_sha)`. Worse than seeding nothing: the table was not empty, so the
+      numbers looked seeded and the screen looked broken. Every other model in the family carried
+      `useSeeder: { count: 0 }`, which is at least honest.
+- [x] `database/seeders/Pipelines.ts` writes the lot against commits that exist: a workflow and one
+      version per repository, a run per pull request with a job per declared job, check runs and a
+      commit status at the pull request's real head sha, annotations on a path and line that are in
+      the tree, a test suite with executions including one flaky test, and `required_checks` on the
+      branch rules that were already there. Both report shapes deliberately, because the panel
+      merges them and they arrive by different routes - a check run through the checks API from
+      something that knows about jobs, a commit status as the older shape an external service posts.
+      Which check fails, which run is still going and which test is flaky are decided by position
+      rather than at random: with eight repositories a coin flip reliably delivers all green or all
+      red, and a green instance demonstrates nothing about how a failure reads.
+- [x] And two things that only a seeder finds. `workflow_versions.content_digest` is `varchar(64)`,
+      so the convention there is bare SHA-256 hex and a `sha256:`-prefixed value - which is the
+      convention one layer down in `vmImage.ts` - is 71 characters and is rejected outright; the
+      digest is now hashed from the definition the seeder claims the runs came from, rather than
+      being a literal that stands for nothing. And a seeder is not a transaction: the first run
+      failed partway through on exactly that length and left two repositories holding a workflow
+      with no version, which the run-based idempotence gate would have handed a *second* workflow on
+      the next seed. Partial state has to converge, so the workflow and its version are now looked
+      up before they are inserted.
+
 - [x] `app/Models/CommitStatus.ts`: `repository_id`, `sha`, `context`, `state` (pending, success,
       failure, error), `target_url`, `description`, `creator_id`
 

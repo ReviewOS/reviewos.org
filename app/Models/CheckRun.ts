@@ -10,7 +10,7 @@ import { schema } from '@stacksjs/validation'
  *
  * Runs are recorded against a commit rather than a pull request, so the same
  * report serves every pull request whose head is that commit, and a run stays
- * meaningful after the branch moves — see `staleRunsFor`, which is how a force
+ * meaningful after the branch moves - see `staleRunsFor`, which is how a force
  * push stops inheriting the previous head's green ticks.
  */
 export default defineModel({
@@ -37,7 +37,20 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
-    useSeeder: { count: 25 },
+    /*
+     * No `useSeeder`, and `database/seeders/Pipelines.ts` instead.
+     *
+     * It was `{ count: 25 }`, and all 25 rows were invisible. A check run is
+     * read by `(repository_id, head_sha)` - that is what `checksPanel` keys on,
+     * and what the index on this table exists for - and a factory cannot know
+     * a sha, because it is handed `faker` and its own row rather than a
+     * database. So it invented one, every row pointed at a commit no pull
+     * request had, and the checks tab reported "Nothing has reported on this
+     * commit" on an instance holding 25 check runs.
+     *
+     * Worse than producing nothing, because the table was not empty: the
+     * numbers looked seeded and the screen looked broken.
+     */
   },
 
   belongsTo: [{ model: 'Repository', onDelete: 'cascade' }],
