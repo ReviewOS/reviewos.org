@@ -23,9 +23,16 @@ import type { BoxConfig } from '@stacksjs/ts-cloud'
 export const boxes: Record<string, BoxConfig> = {
   'hq-runner': {
     name: 'reviewos-runner-hq',
-    // A larger type only applies with `resize:` (it powers the box off).
-    size: 'cx23',
+    // 8 cores, 16 GB, 160 GB: HQ's api-e2e holds two cores at 100% for 15
+    // minutes and every other job queued behind it on the cx23's two.
+    size: 'cx43',
     location: 'fsn1',
+    // Applying this drains the runner (it finishes the job it holds), powers
+    // the box off and changes its type. The cx line often shows no stock;
+    // placement is asked anyway, and when it refuses (412
+    // resource_unavailable, 2026-10-19) the box comes back as it was after
+    // about a minute.
+    resize: { attemptUnavailable: true, whenUnavailable: 'keep-current' },
     pantryVersion: '0.11.99',
     packages: ['bun.sh@1.4.3', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84'],
     // Chrome's pantry tree is about 9 GB on Linux; a job needs room of its own after it.
