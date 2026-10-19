@@ -221,6 +221,44 @@ describe('claiming', () => {
   })
 
   /*
+   * A job that asked to go last does not go last forever. HQ's marketing
+   * checks (priority -10) never left the queue on a day of pushes every few
+   * minutes, because every push queued fresh deploy-path work ahead of them.
+   */
+  test('a low-priority job that has waited past the starvation window goes before fresh work', async () => {
+    if (!available)
+      return
+
+    const earlier: any[] = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    if (earlier.length) {
+      await db.updateTable('workflow_jobs').set({ state: 'cancelled' })
+        .where('state', 'in', ['queued', 'blocked'])
+        .where('workflow_run_id', 'in', earlier.map(row => Number(row.id)))
+        .execute()
+    }
+
+    const push = async (sha: string) => (await dispatchPush({ repositoryId: created.repositoryId, event: { ref: 'refs/heads/main' }, headSha: sha })).created[0]!
+    const runner = await runnerFacts(await makeRunner({ scope_type: 'repository', scope_id: created.repositoryId }))
+    const stamp = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString().slice(0, 19).replace('T', ' ')
+
+    // Asked to go last, and has waited forty minutes.
+    const starved = await push('d1'.repeat(20))
+    await db.updateTable('workflow_jobs').set({ priority: -10, queued_at: null, created_at: stamp(40) } as any).where('workflow_run_id', '=', starved).execute()
+    const fresh = await push('d2'.repeat(20))
+
+    expect((await claimNextJob(runner))!.runId).toBe(starved)
+    expect((await claimNextJob(runner))!.runId).toBe(fresh)
+
+    // Asked to go last and has only just been queued: it still goes last.
+    const patient = await push('d3'.repeat(20))
+    await db.updateTable('workflow_jobs').set({ priority: -10 }).where('workflow_run_id', '=', patient).execute()
+    const urgent = await push('d4'.repeat(20))
+
+    expect((await claimNextJob(runner))!.runId).toBe(urgent)
+    expect((await claimNextJob(runner))!.runId).toBe(patient)
+  })
+
+  /*
    * The race. Two runners polling at the same instant both read the job as
    * free; the guard is in the `WHERE`, so exactly one write matches and the
    * other finds nothing left to take.

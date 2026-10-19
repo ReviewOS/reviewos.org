@@ -156,12 +156,44 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
      * It is a tie-break, not a priority: a job that asked for more still
      * leaves first, and among branch jobs the order is still first in, first
      * out.
+     *
+     * And a job that asked to go last does not go last forever: see
+     * `effectivePriority`.
      */
-    .orderBy('workflow_jobs.priority', 'desc')
+    .orderByRaw(raw(effectivePriority()))
     .orderByRaw(raw(defaultBranchFirst()))
     .orderBy('workflow_jobs.id', 'asc')
     .limit(limit)
     .execute()
+}
+
+/**
+ * How long a job that asked to go last may be overtaken by fresh work.
+ *
+ * `priority: -10` means "after everything else", and on a busy repository
+ * there is always something else: HQ's marketing checks never left the queue on
+ * a day of pushes every few minutes, because each push queued new deploy-path
+ * jobs ahead of them (2026-10-19).
+ */
+export const STARVATION_MINUTES = 30
+
+/**
+ * `ORDER BY` term: the job's priority, except that a job that asked to go last
+ * and has been claimable for longer than `STARVATION_MINUTES` competes at 0 -
+ * where age decides, and it is the oldest. A job that asked for *more* than 0
+ * still goes first.
+ *
+ * Claimable since `queued_at`, or `created_at` for a job queued when its run
+ * was made. Each is compared with a cutoff in its own column's format (an ISO
+ * string, a `YYYY-MM-DD HH:MM:SS` UTC timestamp), which every dialect orders
+ * the same way. The cutoffs come from a Date, never from input.
+ */
+export function effectivePriority(now: Date = new Date(), minutes: number = STARVATION_MINUTES): string {
+  const cutoff = new Date(now.getTime() - minutes * 60_000)
+  const iso = cutoff.toISOString()
+  const stamp = iso.slice(0, 19).replace('T', ' ')
+  const waited = `(workflow_jobs.queued_at IS NOT NULL AND workflow_jobs.queued_at < '${iso}') OR (workflow_jobs.queued_at IS NULL AND workflow_jobs.created_at < '${stamp}')`
+  return `CASE WHEN workflow_jobs.priority < 0 AND (${waited}) THEN 0 ELSE workflow_jobs.priority END DESC`
 }
 
 /**
