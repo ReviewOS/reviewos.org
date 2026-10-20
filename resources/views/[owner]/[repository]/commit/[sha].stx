@@ -78,6 +78,12 @@ const files = allFiles.slice(0, MAX_LISTED_ROWS)
 const unlisted = allFiles.length - files.length
 const listCut = unlisted > 0 || Boolean(commit?.truncated)
 
+// And the commit without its file list, which the template never reads from
+// it. Every condition copies the objects in scope; a commit carrying all its
+// files made each row copy all of them (stx before 0.2.612 had no loop cache).
+if (commit)
+  commit.files = []
+
 // One commit, one gpg process. Affordable here and not in a list of thirty,
 // which is why the history has no badge - see `app/Actions/Git/signatures.ts`.
 // Never throws: a page that renders a commit must not fail because a key is
