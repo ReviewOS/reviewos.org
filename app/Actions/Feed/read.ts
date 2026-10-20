@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 import { describeEntry } from '../../Activity/verbs'
 
 /**

@@ -71,6 +71,10 @@ because that is what actually listens.
   hide.
 - [x] A Discover feed of public activity, with trending and recently active repositories beside it
 
+      The shared feed reader imports its database binding explicitly, so static rendering does not
+      depend on application preloader globals. A fresh-process regression uses a local adapter
+      fixture without a database service; normal preview CI also renders against migrated Postgres.
+
   The event's recorded visibility and the repository's current visibility both
   matter. The first stops a repository made public today from exposing events
   written while it was private. The second stops a repository made private
