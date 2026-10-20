@@ -6,6 +6,11 @@
 // builds and reading logs.
 
 import { describe, expect, test } from 'bun:test'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 import { checkoutPlan, shellQuote } from '../../app/Actions/Runner/checkout'
 
 const BARE = '/srv/reviewos/repos/acme/api.git'
@@ -48,6 +53,7 @@ describe('the default', () => {
     // The history belongs to the instance, not to this machine.
     expect(plan.commands.join(' ')).toContain('--depth 1')
     expect(plan.commands.at(-1)).toBe('git checkout --quiet FETCH_HEAD')
+    expect(plan.summary).toBe('depth 1')
   })
 })
 
@@ -72,6 +78,52 @@ describe('depth', () => {
     expect(plan.commands[0]).toContain('git clone')
     expect(plan.commands.join(' ')).not.toContain('file://')
   })
+
+  for (const onHost of [false, true]) {
+    test(`depth zero retains real ancestors on ${onHost ? 'a populated local workspace' : 'a remote runner'}`, () => {
+      const directory = mkdtempSync(join(tmpdir(), 'reviewos-checkout-history-'))
+      const source = join(directory, 'source')
+      const bare = join(directory, 'origin.git')
+      const workspace = join(directory, 'workspace')
+      const environment = {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'Checkout fixture', GIT_AUTHOR_EMAIL: 'checkout@example.test',
+        GIT_COMMITTER_NAME: 'Checkout fixture', GIT_COMMITTER_EMAIL: 'checkout@example.test',
+        GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0',
+      }
+      const run = (args: string[], cwd: string) => {
+        const child = Bun.spawnSync(args, { cwd, env: environment, stdout: 'pipe', stderr: 'pipe' })
+        expect(child.exitCode, child.stderr.toString()).toBe(0)
+        return child.stdout.toString().trim()
+      }
+      try {
+        mkdirSync(source)
+        mkdirSync(workspace)
+        run(['git', 'init', '--quiet', '--initial-branch=main'], source)
+        let oldest = ''
+        for (let index = 0; index < 3; index++) {
+          writeFileSync(join(source, 'README.md'), `revision ${index}\n`)
+          run(['git', 'add', 'README.md'], source)
+          run(['git', 'commit', '--quiet', '-m', `revision ${index}`], source)
+          if (index === 0) oldest = run(['git', 'rev-parse', 'HEAD'], source)
+        }
+        const sha = run(['git', 'rev-parse', 'HEAD'], source)
+        run(['git', 'clone', '--quiet', '--bare', source, bare], directory)
+        writeFileSync(join(workspace, 'hook-cache.txt'), 'preserve me\n')
+        const plan = checkoutPlan({
+          source: onHost ? bare : pathToFileURL(bare).href,
+          sha, onHost, empty: false, options: { depth: 0 },
+        })
+        run(['sh', '-c', plan.commands.join(' && ')], workspace)
+        expect(run(['git', 'rev-parse', '--is-shallow-repository'], workspace)).toBe('false')
+        expect(run(['git', 'rev-list', '--count', 'HEAD'], workspace)).toBe('3')
+        run(['git', 'merge-base', '--is-ancestor', oldest, 'HEAD'], workspace)
+        expect(readFileSync(join(workspace, 'hook-cache.txt'), 'utf8')).toBe('preserve me\n')
+        expect(plan.summary).toBe('full history')
+      }
+      finally { rmSync(directory, { recursive: true, force: true }) }
+    })
+  }
 })
 
 describe('sparse paths', () => {

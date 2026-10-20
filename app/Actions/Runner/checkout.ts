@@ -20,7 +20,7 @@ import { GIT_MOUNT } from '../Git/storage'
 export interface CheckoutOptions {
   /** Don't check anything out. For a job that only calls an API. */
   skip?: boolean
-  /** Commits of history to fetch. 0 means all of it, which is the default. */
+  /** Commits of history to fetch. 0 requests all history; omission uses the runner's default. */
   depth?: number
   /** `true` for the top level, `'recursive'` for submodules of submodules. */
   submodules?: boolean | 'recursive'
@@ -88,6 +88,8 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
     return { commands: [], summary: 'skipped, because the workflow asked for no checkout' }
 
   const depth = Number.isInteger(options.depth) && Number(options.depth) > 0 ? Number(options.depth) : 0
+  const fullHistoryClone = input.onHost && depth === 0 && input.empty !== false
+  const fetchDepth = depth > 0 ? depth : options.depth === 0 ? 0 : 1
   const sparse = (options.sparse ?? []).map(one => String(one ?? '').trim()).filter(Boolean)
   const commands: string[] = []
   const notes: string[] = []
@@ -103,7 +105,7 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
    */
   const source = input.onHost && depth > 0 ? `file://${input.source}` : input.source
 
-  if (input.onHost && depth === 0 && input.empty !== false) {
+  if (fullHistoryClone) {
     // `--no-hardlinks` so a step running `git gc` cannot write into the object
     // store everybody pushes to.
     commands.push(`git clone --no-hardlinks --quiet ${shellQuote(source)} .`)
@@ -125,14 +127,15 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
     if (sparse.length > 0)
       commands.push(...sparseCommands(sparse))
 
-    // A shallow fetch of the one commit is what a remote runner actually needs:
-    // the history belongs to the instance, not to this machine.
-    commands.push(`git fetch --quiet ${depth > 0 ? `--depth ${depth}` : '--depth 1'} origin ${shellQuote(input.sha)}`)
+    // Fetch one commit by default, while honoring an explicit full-history
+    // request for steps that need ancestry, tags or deployment verification.
+    commands.push(`git fetch --quiet${fetchDepth > 0 ? ` --depth ${fetchDepth}` : ''} origin ${shellQuote(input.sha)}`)
     commands.push('git checkout --quiet FETCH_HEAD')
   }
 
-  if (depth > 0)
-    notes.push(`depth ${depth}`)
+  const effectiveDepth = fullHistoryClone ? 0 : fetchDepth
+  if (effectiveDepth > 0)
+    notes.push(`depth ${effectiveDepth}`)
 
   if (sparse.length > 0)
     notes.push(`${sparse.length} sparse path${sparse.length === 1 ? '' : 's'}`)

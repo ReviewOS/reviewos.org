@@ -1519,6 +1519,9 @@ gate, in order.
       Git helper, so later origin reads and production freshness checks work for private repositories.
       Clone askpass files are removed immediately; operator credentials never enter the checkout and
       microVM payloads remain credential-free.
+- [x] Explicit checkout depth zero retains full commit ancestry on remote runners and populated
+      workspaces. Real Git regressions verify complete history and preserve files written by hooks;
+      omitted depth retains the existing runner defaults and reports the effective history depth.
 - [x] Ephemeral workspace per job, immutable base image, read-only source checkout where possible,
       no host socket, no sibling process visibility, and no repository storage mounted into a job
 
