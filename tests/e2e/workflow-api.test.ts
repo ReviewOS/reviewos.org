@@ -6,11 +6,18 @@
 // than 403 - a 403 confirms it exists, which is the one thing it must not say.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { workflowRepository } from '../helpers/workflowRepository'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
+import { createCommit } from '../../app/Actions/Git/write'
+import { runGit } from '../../app/Actions/Git/git'
 import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', versionId: 0, token: '' }
 
 let available = false
+let databaseReady = false
+let gitDirectory = ''
+let initialCommit = ''
 let db: any = null
 let server: any = null
 let port = 0
@@ -78,6 +85,7 @@ beforeAll(async () => {
     await injectGlobalAutoImports()
     db = (globalThis as any).db
     await db.selectFrom('users').select(['id']).limit(1).execute()
+    databaseReady = true
 
     created.handle = unique('wfa')
     const owner: any = await db.insertInto('users')
@@ -97,6 +105,9 @@ beforeAll(async () => {
       })
       .returning(['id']).executeTakeFirst()
     created.repositoryId = Number(repository?.id)
+    const gitFixture = await workflowRepository(created.handle, created.name)
+    gitDirectory = gitFixture.path
+    initialCommit = gitFixture.sha
 
     const workflow: any = await db.insertInto('workflows')
       .values({
@@ -112,7 +123,7 @@ beforeAll(async () => {
     const version: any = await db.insertInto('workflow_versions')
       .values({
         workflow_id: Number(workflow.id),
-        source_sha: 'a'.repeat(40),
+        source_sha: initialCommit,
         source_path: '.github/workflows/ci.yml',
         content_digest: unique('digest'),
         on_push: true,
@@ -148,6 +159,7 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
+    if (databaseReady) throw error
     console.warn(`[workflow-api] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
@@ -155,6 +167,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try { server?.stop?.(true) } catch { /* already gone */ }
+  if (gitDirectory) {
+    removeRepositoryDirectory(gitDirectory)
+    removeRepositoryOwnerDirectory(gitDirectory)
+  }
 
   try {
     if (created.repositoryId)
@@ -920,6 +936,30 @@ describe('dispatching a workflow by hand', () => {
     expect(byName.status).toBe(201)
   })
 
+  test('a moved Main uses current code while keeping the registered definition provenance', async () => {
+    if (!available) return
+    await makeDispatchable(null)
+    const advanced = await createCommit(gitDirectory, { branch: 'main', parentSha: initialCommit, message: 'App-only change', author: { name: 'Workflow fixture', email: 'workflow@example.test' }, files: { 'README.md': 'New app code, same workflow definition\n' } })
+    expect(advanced.ok).toBe(true)
+    if (!advanced.ok) throw new Error(advanced.error)
+    const answer = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, { ...authorized(), body: JSON.stringify({ ref: 'refs/heads/main' }) })
+    expect(answer.status).toBe(201)
+    const run = await db.selectFrom('workflow_runs').select(['head_sha', 'definition_sha', 'event_ref', 'actor_id']).where('repository_id', '=', created.repositoryId).where('number', '=', Number(answer.body.workflow_run.number)).executeTakeFirst()
+    expect(run.head_sha).toBe(advanced.sha)
+    expect(run.definition_sha).toBe(initialCommit)
+    expect(run.event_ref).toBe('refs/heads/main')
+    expect(Number(run.actor_id)).toBe(created.ownerId)
+  })
+
+  test('a missing requested ref creates no run', async () => {
+    if (!available) return
+    const before = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    const answer = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, { ...authorized(), body: JSON.stringify({ ref: 'refs/heads/absent-dispatch-branch' }) })
+    expect(answer.status).toBe(404)
+    const after = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    expect(after).toEqual(before)
+  })
+
   test('the inputs are checked against what the workflow declared', async () => {
     if (!available)
       return
@@ -1008,10 +1048,14 @@ describe('a dispatch that must not happen twice', () => {
     const key = unique('idem')
     const query = `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml&key=${key}`
 
-    const first = await api(query, authorized())
-    const second = await api(query, authorized())
-
+    const ref = `refs/heads/${unique('dispatch-retry-')}`
+    expect((await runGit(gitDirectory, ['update-ref', ref, initialCommit])).ok).toBe(true)
+    const request = { ...authorized(), body: JSON.stringify({ ref }) }
+    const first = await api(query, request)
     expect(first.status).toBe(201)
+    // A lost-response retry must still return its run after the branch is deleted.
+    expect((await runGit(gitDirectory, ['update-ref', '-d', ref])).ok).toBe(true)
+    const second = await api(query, request)
 
     /*
      * A dispatch repeats on purpose - a nightly job runs at the same ref every

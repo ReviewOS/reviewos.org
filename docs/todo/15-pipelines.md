@@ -552,6 +552,11 @@ written down here so it does not get relitigated:
       read before the fork check has happened, and by [the threat
       model](../ci-threat-model.md) that decision belongs at injection - a fork's pull request gets
       no secrets whatever any `secrets:` line says.
+- [x] Manual dispatch resolves the requested named branch or tag to its current immutable code
+      commit, independently of the registered workflow definition's older provenance. Missing or
+      ambiguous refs create no run; authorization, declared inputs, audit attribution and keyed
+      retries remain on the normal endpoint. Real Git and HTTP regressions cover Main advancing
+      without a workflow edit, and a retry after its branch has been deleted.
 - [x] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.
 

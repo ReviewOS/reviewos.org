@@ -13,10 +13,15 @@
 // the attribution missing.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { workflowRepository } from '../helpers/workflowRepository'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 const created = { ownerId: 0, repositoryId: 0, workflowId: 0, versionId: 0, tokenId: 0, runNumber: 0, handle: '', name: '', token: '' }
 
 let available = false
+let databaseReady = false
+let gitDirectory = ''
+let initialCommit = ''
 let db: any = null
 let server: any = null
 let port = 0
@@ -70,6 +75,7 @@ beforeAll(async () => {
     await injectGlobalAutoImports()
     db = (globalThis as any).db
     await db.selectFrom('users').select(['id']).limit(1).execute()
+    databaseReady = true
 
     created.handle = unique('ciaudit')
     const owner: any = await db
@@ -94,6 +100,9 @@ beforeAll(async () => {
       .returning(['id'])
       .executeTakeFirst()
     created.repositoryId = Number(repository?.id)
+    const gitFixture = await workflowRepository(created.handle, created.name)
+    gitDirectory = gitFixture.path
+    initialCommit = gitFixture.sha
 
     const workflow: any = await db
       .insertInto('workflows')
@@ -113,7 +122,7 @@ beforeAll(async () => {
       .insertInto('workflow_versions')
       .values({
         workflow_id: created.workflowId,
-        source_sha: 'c'.repeat(40),
+        source_sha: initialCommit,
         source_path: '.github/workflows/deploy.yml',
         content_digest: unique('digest'),
         on_dispatch: true,
@@ -156,6 +165,7 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
+    if (databaseReady) throw error
     console.warn(`[ci-audit] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
@@ -163,6 +173,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try { server?.stop?.(true) } catch { /* already gone */ }
+  if (gitDirectory) {
+    removeRepositoryDirectory(gitDirectory)
+    removeRepositoryOwnerDirectory(gitDirectory)
+  }
 
   try {
     if (created.repositoryId) {

@@ -6,6 +6,8 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
+import { servablePathFor } from '../Git/access'
+import { resolveDispatchRef } from '../Git/dispatchRef'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
 import { dispatchKey, withRedeliveryKey } from './redelivery'
@@ -153,16 +155,6 @@ export default new Action({
       return response.json({ error: 'These inputs do not match the workflow', problems: checked.errors }, 422)
     }
 
-    const ref = String(request.get('ref') ?? '').trim() || `refs/heads/${repository.default_branch ?? 'main'}`
-    const sha = String(version.source_sha ?? '')
-
-    const group = resolveGroup(version.concurrency_group, {
-      workflow: String(workflow.name || workflow.path || ''),
-      eventName: 'workflow_dispatch',
-      ref,
-      sha,
-    })
-
     /*
      * The caller's key, and the run it already made.
      *
@@ -191,6 +183,25 @@ export default new Action({
       }
     }
 
+    const requestedRef = String(request.get('ref') ?? '').trim() || `refs/heads/${repository.default_branch ?? 'main'}`
+    const gitDir = await servablePathFor(String(request.get('owner') ?? '').trim().toLowerCase(), String(repository.name))
+    if (!gitDir)
+      return response.json({ error: 'The repository is not available.' }, 404)
+    const target = await resolveDispatchRef(gitDir, requestedRef)
+    if (!target.ok)
+      return response.json({ error: target.error }, target.status)
+    const { ref, sha } = target
+    // A content-deduplicated definition may predate the code being tested.
+    // Keep its provenance; the named ref chooses the current checkout commit.
+    const definitionSha = String(version.source_sha ?? '')
+
+    const group = resolveGroup(version.concurrency_group, {
+      workflow: String(workflow.name || workflow.path || ''),
+      eventName: 'workflow_dispatch',
+      ref,
+      sha,
+    })
+
     /*
      * The caller's own id for this request, kept if they sent one.
      *
@@ -210,7 +221,7 @@ export default new Action({
           event: 'workflow_dispatch',
           event_ref: ref,
           head_sha: sha,
-          definition_sha: sha,
+          definition_sha: definitionSha,
           /*
            * Trusted: whoever asked has write access to this repository, and the
            * workflow is the one the repository has registered. This is not the
@@ -255,7 +266,7 @@ export default new Action({
       actorId: auth.context.user?.id ?? null,
       ...await auditFrom(request),
       repositoryId: Number(repository.id),
-      detail: { workflow: String(workflow.path), number, ref, inputs: checked.values },
+      detail: { workflow: String(workflow.path), number, ref, head_sha: sha, definition_sha: definitionSha, inputs: checked.values },
     }).catch(() => null)
 
     /*
