@@ -1574,6 +1574,8 @@ gate, in order.
 
       The mode it protects now runs real jobs - source, actions and secrets all reach the guest - so
       this is a policy in front of something rather than in front of nothing.
+- [x] Supply pull-request preview builds with a migrated, disposable Postgres database so database-backed server blocks build under the normal strict failure checks; invoke the tracked publication script through Bash.
+
 - [x] Permit native build files under a bounded 32 GiB default: Android creates a 6 GiB device image and Xcode maps a 24 GiB sparse compilation cache. Real sparse-file regressions exercise the inherited kernel limit on macOS and Linux, including their different shell block units; explicit smaller operator limits remain enforced.
 
 - [x] CPU, memory, process, disk, output, and wall-time limits enforced outside the job

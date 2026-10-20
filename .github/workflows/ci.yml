@@ -1001,6 +1001,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # The normal app build renders database-backed server blocks. Give those
+    # pages the same disposable Postgres schema as the test suite, rather than
+    # silently weakening server-script failures or reading production data.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reviewos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_CONNECTION: postgres
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: reviewos
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      APP_URL: https://reviewos.test
+      STACKS_DEFAULT_ROUTES: none
+      APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
+
     steps:
       - uses: actions/checkout@v6
 
@@ -1035,8 +1064,11 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
+      - name: Migrate the preview database
+        run: DB_MIGRATIONS_PATH="$PWD/database/migrations" ./buddy migrate
+
       - name: Build
         run: bun run build
 
       - name: Publish Commit
-        run: ./storage/framework/scripts/publish-commit
+        run: bash ./storage/framework/scripts/publish-commit
