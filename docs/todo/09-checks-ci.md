@@ -2450,3 +2450,8 @@ failed evidence into success.
       whole ladder: a fork gets nothing, an environment's secrets wait for the gate, and another
       environment's never apply. Rollback is in `previews.test.ts`, where the restored deployment's
       status names what it put back.
+
+- [x] Declare the HQ runner's isolated Pantry Chrome project roots and consume the published
+      policy-only cloud renderer. This prepares its sandbox configuration without provisioning,
+      resizing or restarting the runner; host application and browser acceptance are separate
+      operational checks.

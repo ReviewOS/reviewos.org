@@ -37,6 +37,7 @@ export const boxes: Record<string, BoxConfig> = {
     resize: { whenUnavailable: 'keep-current' },
     pantryVersion: '0.11.99',
     packages: ['bun.sh@1.4.3', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84'],
+    sandboxedPackageProjects: ['/tmp/reviewos-job-*'],
     // Chrome's pantry tree is about 9 GB on Linux; a job needs room of its own after it.
     minFreeDiskGb: 12,
     user: { name: 'runner', groups: ['docker'] },
