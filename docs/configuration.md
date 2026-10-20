@@ -890,6 +890,16 @@ is pushing, and is the whole difference when four teams push at once. Set
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_QUEUE_TIMEOUT_HOURS`
+
+Default: `24`, and the line is commented out.
+
+How long a job may wait for a machine before it is cancelled. Actions' 24
+hours by default: a job whose labels match no online runner otherwise stays
+queued, and its commit status pending, forever. Set 0 for no limit.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ### `CI_REPAIR_MODEL`
 
 Default: `claude-opus-5`, and the line is commented out.

@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { fairOrder, withinQuota } from '../../app/Actions/Runner/quota'
-import { fairQueueing, maxRunningPerOwner, maxRunningPerRepository } from '../../config/ci-quotas'
+import { DEFAULT_QUEUE_TIMEOUT_HOURS, fairQueueing, maxRunningPerOwner, maxRunningPerRepository, queueTimeoutHours } from '../../config/ci-quotas'
 
 function load(byRepository: Record<number, number>, byOwner: Record<number, number> = {}) {
   return {
@@ -116,5 +116,24 @@ describe('fair queueing', () => {
     const rows = [{ id: 1, repository_id: 7 }, { id: 2, repository_id: 7 }]
 
     expect(fairOrder(rows, load({})).map(one => one.id)).toEqual([1, 2])
+  })
+})
+
+describe('the queue timeout', () => {
+  test('is Actions\' 24 hours when nobody sets one', () => {
+    expect(DEFAULT_QUEUE_TIMEOUT_HOURS).toBe(24)
+    expect(queueTimeoutHours({})).toBe(24)
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: ' ' })).toBe(24)
+  })
+
+  test('takes an operator\'s value, fractions included', () => {
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: '6' })).toBe(6)
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: '0.5' })).toBe(0.5)
+  })
+
+  test('and is off for zero or anything that is not a positive number', () => {
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: '0' })).toBe(0)
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: '-3' })).toBe(0)
+    expect(queueTimeoutHours({ CI_QUEUE_TIMEOUT_HOURS: 'soon' })).toBe(0)
   })
 })

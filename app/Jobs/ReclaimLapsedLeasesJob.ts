@@ -3,6 +3,9 @@ import { db } from '@stacksjs/database'
 import { rowsChanged as changed } from '../Actions/Support/sql'
 import { settleRun } from '../Actions/Workflow/settle'
 import { announceRunIfMoved } from '../Actions/Workflow/announce'
+import { claimableSince } from '../Actions/Runner/claim'
+import { queueTimeoutHours } from '../../config/ci-quotas'
+import { raw } from 'bun-query-builder'
 
 /**
  * How long a runner is given to acknowledge a cancellation before it is made
@@ -61,6 +64,10 @@ export default new Job({
     // on a different machine.
     const timedOut = await stopOverrunJobs(now)
 
+    // Work nobody took is ended before the reclaim below puts more back in the
+    // queue, so a job requeued this pass starts its wait from now.
+    const unclaimed = await cancelUnclaimedJobs(now)
+
     const lapsed = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at', 'attempt'])
@@ -76,7 +83,7 @@ export default new Job({
     })
 
     if (expired.length === 0)
-      return { ok: true, reclaimed: 0, cancelled: forced, timedOut }
+      return { ok: true, reclaimed: 0, cancelled: forced, timedOut, unclaimed }
 
     const runs = new Set<number>()
 
@@ -147,7 +154,7 @@ export default new Job({
     for (const runId of runs)
       await settle(runId)
 
-    return { ok: true, reclaimed: runs.size > 0 ? expired.length : 0, cancelled: forced, timedOut }
+    return { ok: true, reclaimed: runs.size > 0 ? expired.length : 0, cancelled: forced, timedOut, unclaimed }
   },
 })
 
@@ -236,6 +243,70 @@ async function stopOverrunJobs(now: Date): Promise<number> {
     if (changed(result)) {
       count += 1
       runs.add(Number(job.workflow_run_id))
+    }
+  }
+
+  for (const runId of runs)
+    await settle(runId)
+
+  return count
+}
+
+/**
+ * Cancel the jobs no runner took within the queue timeout.
+ *
+ * A job whose labels match no machine that is online, or whose only machine is
+ * held for other work, is never claimed - and until this existed it was never
+ * anything else either. The run stayed `queued` or `running`, holding its
+ * concurrency group, and the commit status it reports upstream stayed pending
+ * for as long as anybody cared to look (HQ's native QA job, waiting on a Mac
+ * that only ever runs builds, 2026-10-20).
+ *
+ * `cancelled`, as Actions does for a self-hosted job queued past 24 hours: the
+ * work did not fail, it never started, and the reason on the job says which.
+ * Only jobs a claim could hand out count - a run held in its concurrency group
+ * or waiting on an approval is waiting on a person, not a machine. The clock is
+ * the one the claim orders by, so a job a lost runner gave back waits from the
+ * moment it was requeued.
+ */
+async function cancelUnclaimedJobs(now: Date): Promise<number> {
+  const hours = queueTimeoutHours()
+  if (hours <= 0)
+    return 0
+
+  const cutoff = new Date(now.getTime() - hours * 3_600_000)
+  const waiting = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.id as id', 'workflow_jobs.workflow_run_id as run_id'])
+    .where('workflow_jobs.state', '=', 'queued')
+    .where('workflow_runs.state', 'in', ['queued', 'running'])
+    .whereRaw(raw(`(${claimableSince(cutoff)})`))
+    .execute()
+
+  if (waiting.length === 0)
+    return 0
+
+  const runs = new Set<number>()
+  let count = 0
+  const limit = Number.isInteger(hours) ? `${hours} hour${hours === 1 ? '' : 's'}` : `${hours} hours`
+
+  for (const job of waiting) {
+    const result = await db
+      .updateTable('workflow_jobs')
+      .set({
+        state: 'cancelled',
+        finished_at: now.toISOString(),
+        condition_reason: `No runner took this job within ${limit}. Check that a runner with matching labels is online and not held for other work.`,
+      })
+      .where('id', '=', Number(job.id))
+      // A claim that won between the read and the write keeps its job.
+      .where('state', '=', 'queued')
+      .execute()
+
+    if (changed(result)) {
+      count += 1
+      runs.add(Number(job.run_id))
     }
   }
 

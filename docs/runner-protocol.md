@@ -120,6 +120,13 @@ operators must still coordinate other host workloads after a job starts.
 a mistake, and an error status for the common case fills a fleet's logs with red
 that means nothing.
 
+A job no runner claims within `CI_QUEUE_TIMEOUT_HOURS` (24 by default, as in
+Actions) is cancelled by the scheduled lease sweep, with the reason on the job,
+and its run settles. The wait counts from when the job last entered the queue,
+so a job a lost runner gave back starts again. A run held in its concurrency
+group or waiting on an approval is not timed out: it is waiting on a person,
+not a machine.
+
 When there is work, the answer carries what the job is, the steps to run, and a
 **credential minted for this claim alone**. Everything afterwards authenticates
 with that, not with the registration token: the registration token is installed

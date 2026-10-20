@@ -38,6 +38,8 @@ export interface CiQuotasConfig {
   maxRunningPerOwner: number
   /** Whether a repository holding fewer machines is offered work first. */
   fairQueueing: boolean
+  /** How long a job may stay queued before it is cancelled. Zero for no limit. */
+  queueTimeoutHours: number
 }
 
 /** A ceiling per repository, off unless an operator sets one. */
@@ -71,8 +73,29 @@ export function fairQueueing(env: Record<string, string | undefined> = process.e
   return String(env.CI_FAIR_QUEUEING ?? '').trim().toLowerCase() !== 'off'
 }
 
+/**
+ * How long a job may wait for a machine before it is given up on.
+ *
+ * Actions' 24 hours. Without it a job no runner can take - its labels match
+ * nothing that is online, or the only machine that could is held for other
+ * work - stays queued for as long as the instance exists, and the commit
+ * status it reports upstream stays pending with it. Ending it says what
+ * happened; waiting forever says nothing. Zero turns the limit off.
+ */
+export function queueTimeoutHours(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.CI_QUEUE_TIMEOUT_HOURS
+  if (raw === undefined || raw.trim() === '')
+    return DEFAULT_QUEUE_TIMEOUT_HOURS
+
+  const hours = Number(raw)
+  return Number.isFinite(hours) && hours > 0 ? hours : 0
+}
+
+export const DEFAULT_QUEUE_TIMEOUT_HOURS = 24
+
 export default {
   maxRunningPerRepository: maxRunningPerRepository(),
   maxRunningPerOwner: maxRunningPerOwner(),
   fairQueueing: fairQueueing(),
+  queueTimeoutHours: queueTimeoutHours(),
 } satisfies CiQuotasConfig

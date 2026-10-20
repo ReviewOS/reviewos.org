@@ -189,11 +189,20 @@ export const STARVATION_MINUTES = 30
  * the same way. The cutoffs come from a Date, never from input.
  */
 export function effectivePriority(now: Date = new Date(), minutes: number = STARVATION_MINUTES): string {
-  const cutoff = new Date(now.getTime() - minutes * 60_000)
+  const waited = claimableSince(new Date(now.getTime() - minutes * 60_000))
+  return `CASE WHEN workflow_jobs.priority < 0 AND (${waited}) THEN 0 ELSE workflow_jobs.priority END DESC`
+}
+
+/**
+ * SQL condition: the job has been claimable since before `cutoff`.
+ *
+ * Shared by the starvation rule above and the queue timeout in
+ * `ReclaimLapsedLeasesJob`, so "how long has this waited" has one answer.
+ */
+export function claimableSince(cutoff: Date): string {
   const iso = cutoff.toISOString()
   const stamp = iso.slice(0, 19).replace('T', ' ')
-  const waited = `(workflow_jobs.queued_at IS NOT NULL AND workflow_jobs.queued_at < '${iso}') OR (workflow_jobs.queued_at IS NULL AND workflow_jobs.created_at < '${stamp}')`
-  return `CASE WHEN workflow_jobs.priority < 0 AND (${waited}) THEN 0 ELSE workflow_jobs.priority END DESC`
+  return `(workflow_jobs.queued_at IS NOT NULL AND workflow_jobs.queued_at < '${iso}') OR (workflow_jobs.queued_at IS NULL AND workflow_jobs.created_at < '${stamp}')`
 }
 
 /**

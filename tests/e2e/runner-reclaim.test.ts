@@ -442,3 +442,72 @@ describe('a job that keeps losing its runner', () => {
     expect(Number(after.attempt)).toBe(3)
   }, 60_000)
 })
+
+describe('a job no runner ever takes', () => {
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+
+  async function queuedSince(jobId: number, at: string): Promise<void> {
+    await db.updateTable('workflow_jobs').set({ state: 'queued', queued_at: at }).where('id', '=', jobId).execute()
+  }
+
+  test('is cancelled after the queue timeout, saying why, and its run settles', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('e1'.repeat(20))
+    const job = await buildJob(runId)
+    await queuedSince(Number(job.id), hoursAgo(25))
+
+    await sweep.handle({})
+
+    const after = await buildJob(runId)
+    expect(after.state).toBe('cancelled')
+    expect(String(after.condition_reason)).toContain('No runner took this job within 24 hours')
+
+    // The run is terminal, so its concurrency group is free and the status it
+    // reports upstream stops being pending.
+    const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+    expect(run.state).toBe('cancelled')
+  })
+
+  test('counts from when it was queued, falling back to when it was made', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('e2'.repeat(20))
+    const job = await buildJob(runId)
+    const made = hoursAgo(25).slice(0, 19).replace('T', ' ')
+    await db.updateTable('workflow_jobs').set({ queued_at: null, created_at: made }).where('id', '=', Number(job.id)).execute()
+
+    await sweep.handle({})
+
+    expect((await buildJob(runId)).state).toBe('cancelled')
+  })
+
+  test('but a job that has waited less than that stays in line', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('e3'.repeat(20))
+    const job = await buildJob(runId)
+    await queuedSince(Number(job.id), hoursAgo(23))
+
+    await sweep.handle({})
+
+    expect((await buildJob(runId)).state).toBe('queued')
+  })
+
+  test('and a run waiting on a person, not a machine, is left alone', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('e4'.repeat(20))
+    const job = await buildJob(runId)
+    await queuedSince(Number(job.id), hoursAgo(25))
+    await db.updateTable('workflow_runs').set({ state: 'waiting' }).where('id', '=', runId).execute()
+
+    await sweep.handle({})
+
+    expect((await buildJob(runId)).state).toBe('queued')
+  })
+})
