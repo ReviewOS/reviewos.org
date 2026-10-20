@@ -28,11 +28,13 @@ export const boxes: Record<string, BoxConfig> = {
     size: 'cx43',
     location: 'fsn1',
     // Applying this drains the runner (it finishes the job it holds), powers
-    // the box off and changes its type. The cx line often shows no stock;
-    // placement is asked anyway, and when it refuses (412
-    // resource_unavailable, 2026-10-19) the box comes back as it was after
-    // about a minute.
-    resize: { attemptUnavailable: true, whenUnavailable: 'keep-current' },
+    // the box off and changes its type - but only once Hetzner lists cx43 in
+    // stock in fsn1. Until then every provision keeps the cx23 and converges
+    // as usual, so the retry costs nothing. (Asking placement out of stock was
+    // refused on 2026-10-19, 412 resource_unavailable, a minute of downtime.)
+    // Chris, 2026-10-19: wait for cx43 rather than pay for cpx42; an AWS
+    // runner is the plan once the AWS credits arrive.
+    resize: { whenUnavailable: 'keep-current' },
     pantryVersion: '0.11.99',
     packages: ['bun.sh@1.4.3', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84'],
     // Chrome's pantry tree is about 9 GB on Linux; a job needs room of its own after it.
