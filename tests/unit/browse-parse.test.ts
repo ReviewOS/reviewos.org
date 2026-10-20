@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { blameFile, commitDetail, compareRefs } from '../../app/Actions/Browse/load'
+import { blameFile, commitDetail, compareDiffText, compareRefs, wholeFiles } from '../../app/Actions/Browse/load'
 import {
   mergeChangeStatus,
   parseAheadBehind,
@@ -298,6 +298,29 @@ describe('against a real repository', () => {
     expect(await commitDetail(join(bare, '.git'), 'f'.repeat(40))).toBeNull()
   })
 
+  test('a commit\'s file list says when it was not cut', async () => {
+    expect((await commitDetail(join(bare, '.git'), 'main'))!.truncated).toBe(false)
+  })
+
+  test('a compare diff within its budget comes back whole', async () => {
+    const diff = await compareDiffText(join(bare, '.git'), firstSha, 'main', 'direct')
+
+    expect(diff.truncated).toBe(false)
+    expect(diff.text).toContain('diff --git a/a.txt b/b.txt')
+    expect(diff.text).toContain('new.txt')
+  })
+
+  test('and past it keeps only whole files, saying so', async () => {
+    const whole = await compareDiffText(join(bare, '.git'), firstSha, 'main', 'direct')
+    // Room for the first file and part of the second.
+    const second = whole.text.indexOf('\ndiff --git ', 1)
+    const cut = await compareDiffText(join(bare, '.git'), firstSha, 'main', 'direct', second + 20)
+
+    expect(cut.truncated).toBe(true)
+    expect(cut.text).toBe(whole.text.slice(0, second + 1))
+    expect(cut.text.match(/^diff --git /gm)?.length).toBe(1)
+  })
+
   test('comparing two branches diffs from where they parted', async () => {
     const comparison = await compareRefs(join(bare, '.git'), 'main', 'topic')
 
@@ -342,5 +365,16 @@ describe('against a real repository', () => {
 
     expect(blamed.lines).toHaveLength(3)
     expect(blamed.truncated).toBe(false)
+  })
+})
+
+describe('wholeFiles', () => {
+  test('drops the file a budget cut through', () => {
+    const patch = 'diff --git a/x b/x\n+one\ndiff --git a/y b/y\n+tw'
+    expect(wholeFiles(patch)).toBe('diff --git a/x b/x\n+one\n')
+  })
+
+  test('and is empty when not even the first file fits', () => {
+    expect(wholeFiles('diff --git a/x b/x\n+on')).toBe('')
   })
 })

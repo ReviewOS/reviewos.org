@@ -11,7 +11,7 @@
  */
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
-import { compareDiffText, compareRefs, parseCompareRefs } from '../../../../functions/browse'
+import { compareDiffText, compareRefs, MAX_COMPARED_FILES, parseCompareRefs } from '../../../../functions/browse'
 import { parseDiff, renderDiffFile, highlightDiffFile } from '../../../../functions/review'
 
 const owner = String(params.owner)
@@ -69,14 +69,20 @@ else if (request && (!comparison || !comparison.ok))
  * diffs tip to tip on purpose - that being different from the merge-base
  * answer is the whole reason the mode is labelled.
  */
-const raw = comparison?.ok && request && onDisk.ok && onDisk.path
+const patch = comparison?.ok && request && onDisk.ok && onDisk.path
   ? await compareDiffText(onDisk.path, request.base, request.head, request.mode)
-  : ''
+  : { text: '', truncated: false }
 
-const files = parseDiff(raw)
+const files = parseDiff(patch.text)
+
+// Drawn under a budget, bytes and files both (see COMPARE_DIFF_BYTE_LIMIT):
+// highlighting and rendering a whole diff is one long run on the only thread
+// that answers requests.
+const shownFiles = files.slice(0, MAX_COMPARED_FILES)
+const diffCut = patch.truncated || shownFiles.length < files.length
 
 const diffHtml: string[] = []
-for (const file of files) {
+for (const file of shownFiles) {
   diffHtml.push(renderDiffFile(file, {
     expandable: true,
     tokens: await highlightDiffFile(file),
@@ -96,7 +102,7 @@ const mayOpen = Boolean(
   && request
   && request.mode === 'merge-base'
   && comparison?.ok
-  && files.length > 0,
+  && (files.length > 0 || patch.truncated),
 )
 
 const title = repoRow && request
@@ -196,7 +202,7 @@ const title = repoRow && request
         </section>
       @endif
 
-      @if (files.length === 0)
+      @if (files.length === 0 && !patch.truncated)
         <p class="muted" style="padding: 24px 0;">
           There is nothing to compare: the refs point at the same tree.
         </p>
@@ -205,6 +211,16 @@ const title = repoRow && request
       @if (comparison.truncated)
         <p class="muted" style="padding: 8px 0;">
           This comparison changes more files than the page can list. The file list below is incomplete.
+        </p>
+      @endif
+
+      @if (diffCut)
+        <p class="muted" style="padding: 8px 0;">
+          @if (shownFiles.length === 0)
+            This diff is larger than the page renders. Open a pull request to review it.
+          @else
+            This diff is larger than the page renders, so it shows the first {{ shownFiles.length }} files. Open a pull request to review all of it.
+          @endif
         </p>
       @endif
 

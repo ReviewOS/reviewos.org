@@ -12,7 +12,7 @@
  */
 import { aboutFor, filesIn, mirrorFor, repositoryForView, repositoryHeaderActions, standingFor, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
-import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, highlightResumed, tokenClass, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
+import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, MAX_LISTED_ROWS, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, highlightResumed, tokenClass, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 /**
  * The status this page wants, asked for where the binding actually exists.
@@ -331,7 +331,10 @@ const blobRowsUrl = isFile
     + `&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(requestedPath)}`
   : ''
 
-const rows = treeRows(entries, base, ref, requestedPath, formatSize, shortSha)
+// The rows drawn, not the entries read: see MAX_LISTED_ROWS. A README or
+// license past the cut is still found, because those read `entries`.
+const rows = treeRows(entries.slice(0, MAX_LISTED_ROWS), base, ref, requestedPath, formatSize, shortSha)
+const unlistedEntries = Math.max(0, entries.length - MAX_LISTED_ROWS)
 const branchLinks = refLinks(branches, base, ref, requestedPath)
 const tagLinks = refLinks(tags, base, ref, requestedPath)
 
@@ -568,7 +571,7 @@ git push -u origin {{ defaultBranch }}</pre>
         @endif
 
         @if (isDirectory)
-          @if (listing.truncated)
+          @if (listing.truncated || unlistedEntries > 0)
             <p class="muted" style="margin: 8px 0;">This directory has more entries than the page can list. The listing below is incomplete.</p>
           @endif
 

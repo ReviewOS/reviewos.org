@@ -36,6 +36,32 @@ export const MAX_BLOB_BYTES = 512 * 1024
 export const LISTING_BYTE_LIMIT = 2 * 1024 * 1024
 
 /**
+ * How many changed files or directory entries one page renders.
+ *
+ * GitHub's thousand. The byte budget above bounds what git hands over; this
+ * bounds what a page draws, which is the expensive half: rendering is
+ * single-threaded, and a commit page drawing all 2,287 files of one import
+ * held the server for eight seconds while a crawler queued more behind it
+ * (ReviewOS, 2026-10-20). Totals still count every file - only the rows stop.
+ */
+export const MAX_LISTED_ROWS = 1000
+
+/**
+ * How much patch text a compare page renders.
+ *
+ * A compare renders and highlights the whole diff in one response, so its
+ * budget is a render budget rather than a memory one: a mebibyte is around
+ * twenty thousand lines, past what anybody reads on one page and short of what
+ * stalls the server. Without it the only bound was git's ten mebibytes, cut
+ * mid-file and rendered as though it were the whole change. A pull request's
+ * review screen streams any size, and the page says to open one.
+ */
+export const COMPARE_DIFF_BYTE_LIMIT = 1024 * 1024
+
+/** And how many files of it, the same three hundred an imported patch gets. */
+export const MAX_COMPARED_FILES = 300
+
+/**
  * Cut `-z` output back to its last complete record.
  *
  * A byte budget cuts mid-record, and a record cut mid-path is worse than one
@@ -238,6 +264,8 @@ export interface CommitWithChanges extends CommitDetail {
   deletions: number
   /** True when this is a merge and the file list is against the first parent. */
   isMerge: boolean
+  /** True when the file list was cut at the byte budget, for the view to say. */
+  truncated: boolean
 }
 
 export async function commitDetail(repositoryPath: string, revision: string): Promise<CommitWithChanges | null> {
@@ -259,13 +287,15 @@ export async function commitDetail(repositoryPath: string, revision: string): Pr
   // treats that as an empty change set.
   const base = ['diff-tree', '-r', '--root', '-z', '-M', '--first-parent', commit.sha]
 
+  // Bounded like a comparison: an import commit's file list is otherwise as
+  // long as the repository.
   const [numstat, nameStatus] = await Promise.all([
-    runGit(repositoryPath, [...base, '--numstat']),
-    runGit(repositoryPath, [...base, '--name-status']),
+    runGit(repositoryPath, [...base, '--numstat'], { maxBytes: LISTING_BYTE_LIMIT }),
+    runGit(repositoryPath, [...base, '--name-status'], { maxBytes: LISTING_BYTE_LIMIT }),
   ])
 
   const files = numstat.ok
-    ? mergeChangeStatus(parseNumstat(stripDiffTreeHeader(numstat.stdout)), nameStatus.ok ? parseNameStatus(stripDiffTreeHeader(nameStatus.stdout)) : [])
+    ? mergeChangeStatus(parseNumstat(stripDiffTreeHeader(completeRecords(numstat))), nameStatus.ok ? parseNameStatus(stripDiffTreeHeader(completeRecords(nameStatus))) : [])
     : []
 
   return {
@@ -274,6 +304,7 @@ export async function commitDetail(repositoryPath: string, revision: string): Pr
     additions: files.reduce((total, file) => total + file.additions, 0),
     deletions: files.reduce((total, file) => total + file.deletions, 0),
     isMerge,
+    truncated: numstat.truncated === true || nameStatus.truncated === true,
   }
 }
 
@@ -401,14 +432,21 @@ export async function compareRefs(repositoryPath: string, base: string, head: st
  * is the caller's job: the text alone looks identical, which is exactly the
  * problem with it.
  */
+export interface CompareDiff {
+  /** Whole files of patch text; every file when `truncated` is false. */
+  text: string
+  truncated: boolean
+}
+
 export async function compareDiffText(
   repositoryPath: string,
   base: string,
   head: string,
   mode: 'merge-base' | 'direct',
-): Promise<string> {
+  maxBytes = COMPARE_DIFF_BYTE_LIMIT,
+): Promise<CompareDiff> {
   if (!isSafeRevision(base) || !isSafeRevision(head))
-    return ''
+    return { text: '', truncated: false }
 
   const range = mode === 'merge-base' ? `${base}...${head}` : `${base}..${head}`
 
@@ -420,9 +458,26 @@ export async function compareDiffText(
     '--no-color',
     '--no-ext-diff',
     range,
-  ], { timeoutMs: 60_000 })
+  ], { timeoutMs: 60_000, maxBytes })
 
-  return result.ok ? result.stdout : ''
+  if (!result.ok)
+    return { text: '', truncated: false }
+
+  return result.truncated === true
+    ? { text: wholeFiles(result.stdout), truncated: true }
+    : { text: result.stdout, truncated: false }
+}
+
+/**
+ * Cut patch text back to the last file it holds whole.
+ *
+ * A file cut mid-hunk parses as a smaller change than the one made, which no
+ * reader can tell from the real thing - the same reason `completeRecords`
+ * drops a clipped path rather than keeping it.
+ */
+export function wholeFiles(patch: string): string {
+  const last = patch.lastIndexOf('\ndiff --git ')
+  return last === -1 ? '' : patch.slice(0, last + 1)
 }
 
 /** How many lines of one file may be blamed in a single request. */

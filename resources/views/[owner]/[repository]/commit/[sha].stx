@@ -11,7 +11,7 @@
  * lays it out.
  */
 import { repositoryForView, repositoryHeaderActions, verifySignature } from '../../../../functions/repo'
-import { commitDetail, relativeTime, shortSha, signatureBadge } from '../../../../functions/browse'
+import { commitDetail, MAX_LISTED_ROWS, relativeTime, shortSha, signatureBadge } from '../../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -72,7 +72,11 @@ const notFoundLinks = JSON.stringify([
   { href: `${base}/commits`, label: 'All commits' },
   { href: base, label: `${ownerHandle}/${repositoryName}` },
 ])
-const files = commit?.files ?? []
+const allFiles = commit?.files ?? []
+// The rows drawn, not the files counted: see MAX_LISTED_ROWS.
+const files = allFiles.slice(0, MAX_LISTED_ROWS)
+const unlisted = allFiles.length - files.length
+const listCut = unlisted > 0 || Boolean(commit?.truncated)
 
 // One commit, one gpg process. Affordable here and not in a list of thirty,
 // which is why the history has no badge - see `app/Actions/Git/signatures.ts`.
@@ -151,7 +155,7 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
       </article>
 
       <div class="commit-summary">
-        <span>{{ files.length }} {{ files.length === 1 ? 'file' : 'files' }} changed</span>
+        <span>{{ allFiles.length }}{{ commit.truncated ? '+' : '' }} {{ allFiles.length === 1 ? 'file' : 'files' }} changed</span>
         <span class="add">+{{ commit.additions }}</span>
         <span class="del">&minus;{{ commit.deletions }}</span>
 
@@ -165,6 +169,12 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
           <span class="muted">against the first parent</span>
         @endif
       </div>
+
+      @if (listCut)
+        <p class="muted" style="margin: 0 0 10px;">
+          Listing the first {{ files.length }} changed files{{ commit.truncated ? '' : ` of ${allFiles.length}` }}. The rest are in the commit itself; clone it or compare it to see every file.
+        </p>
+      @endif
 
       @if (files.length === 0)
         <div class="panel" style="padding: 28px; text-align: center;">
