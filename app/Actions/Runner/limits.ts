@@ -64,9 +64,10 @@ export interface StepLimits {
  */
 export function limitsFrom(env: Record<string, string | undefined> = process.env): StepLimits {
   return {
-    // Bun's production renderer reserves multi-GiB virtual arenas beyond its
-    // resident heap. A 4 GiB address ceiling can reject ordinary CSS rendering.
-    memoryMb: positive(env.CI_STEP_MEMORY_MB, 8192),
+    // Chrome reserves a roughly 1 TiB sandbox plus guard regions. Keep a finite
+    // 2 TiB virtual-address budget; an 8 GiB ceiling crashes ordinary startup.
+    // This is not an RSS/RAM limit. Explicit operator caps still take precedence.
+    memoryMb: positive(env.CI_STEP_MEMORY_MB, 2_097_152),
     // Off by default: see the note on the field. A per-user ceiling applied to
     // a build counts everything else the user is doing.
     processes: positive(env.CI_STEP_PROCESSES, 0),

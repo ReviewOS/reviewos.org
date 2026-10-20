@@ -29,8 +29,14 @@ describe('the settings', () => {
   test('are generous by default, because a limit that trips on ordinary work is one an operator removes', () => {
     const limits = limitsFrom({})
 
-    expect(limits.memoryMb).toBe(8192)
+    expect(limits.memoryMb).toBe(2_097_152)
     expect(limits.fileSizeMb).toBe(32768)
+  })
+
+  test('keeps explicit virtual-address caps, including an explicit opt-out', () => {
+    expect(limitsFrom({ CI_STEP_MEMORY_MB: '8192' }).memoryMb).toBe(8192)
+    expect(limitsFrom({ CI_STEP_MEMORY_MB: '2048' }).memoryMb).toBe(2048)
+    expect(limitsFrom({ CI_STEP_MEMORY_MB: '0' }).memoryMb).toBe(0)
   })
 
   test('and the process ceiling is off, because it counts the whole user rather than the step', () => {

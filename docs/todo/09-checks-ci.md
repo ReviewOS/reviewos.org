@@ -1512,9 +1512,9 @@ gate, in order.
 - [x] A definitive output-delivery refusal revokes the host runner's lease immediately, so a
       cancellation arriving through logs is acknowledged as cancelled before the next heartbeat.
       Transient proxy failures retain their bounded output retries.
-- [x] The default address-space ceiling allows Bun production rendering's virtual reservations,
-      with an 8 GiB finite ceiling and explicit operator overrides retained. Verified with the
-      unchanged production bundle and full marketing-page suite after 4 GiB CSS allocation failures.
+- [x] Bun production rendering's virtual reservations no longer hit the original 4 GiB ceiling.
+      The initial 8 GiB fix retained explicit operator overrides; the runtime sandbox budget below
+      supersedes that default to support Chrome too.
 - [x] Host checkout retains only the job's lease-bound, read-only credential in an origin-scoped
       Git helper, so later origin reads and production freshness checks work for private repositories.
       Clone askpass files are removed immediately; operator credentials never enter the checkout and
@@ -2455,3 +2455,11 @@ failed evidence into success.
       policy-only cloud renderer. This prepares its sandbox configuration without provisioning,
       resizing or restarting the runner; host application and browser acceptance are separate
       operational checks.
+
+- [x] Allow runtime sandbox reservations within a finite 2 TiB default virtual-address budget,
+      retaining explicit operator caps and the existing file, process and CPU ceilings. Linux
+      kernel regressions exercise both generated command paths, release a large address-only
+      arena, reject reservations above the cap and reject attempts to raise the hard cap.
+      Normal Linux CI also produces the standalone runner with binary, source and installed-version
+      provenance for a separately verified rollout. Resident-memory accounting remains a separate
+      OS responsibility.

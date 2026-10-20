@@ -1006,7 +1006,7 @@ can never leave is not a ceiling.
 
 ### `CI_STEP_MEMORY_MB`
 
-Default: `8192`, and the line is commented out.
+Default: `2097152`, and the line is commented out.
 
 Ceilings a step cannot raise, applied before its first instruction.
 
@@ -1015,6 +1015,16 @@ sandbox that would change that is gated by docs/ci-security-review.md. What
 these stop is the ordinary accident: a loop that writes a forty-gigabyte
 file, a build that spins a core forever. Generous on purpose, because a limit
 that trips on ordinary work is one an operator removes.
+Despite the legacy name, this ceiling is virtual address space in MiB
+(`RLIMIT_AS`), not RSS or physical RAM. The finite default is 2 TiB.
+Chrome's sandbox reserves about 1 TiB plus guard regions; the former 8 GiB
+default stopped startup. Reserving addresses does not allocate that much RAM.
+See [V8's sandbox documentation](https://v8.dev/blog/sandbox).
+
+Explicit values remain honored, including smaller caps and 0 to disable this
+ceiling. An existing explicit 8 GiB cap can still prevent Chrome from starting.
+macOS ignores this address-space limit. Resident-memory accounting and isolation
+require separate OS controls; this setting does not provide them.
 
 Read by `app/Actions/Runner/limits.ts`.
 

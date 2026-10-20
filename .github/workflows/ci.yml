@@ -635,7 +635,7 @@ jobs:
             echo 'yes=true' >> "$GITHUB_OUTPUT"
           else
             echo 'yes=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::compile: this app resolves the framework from npm and has no vendored storage/framework/core; nothing to compile.'
+            echo '::notice::compile: no vendored framework; skip Buddy compilation. The standalone runner is still built.'
           fi
 
       - name: Setup Pantry
@@ -668,6 +668,22 @@ jobs:
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile
+
+      # The application runner has its own entrypoint even when the framework
+      # comes from npm. Preserve an original Linux CI artifact for fleet rollout.
+      - name: Compile the standalone Linux runner
+        run: ./buddy build:runner --target linux-x64 --out dist/runner/linux-x64
+
+      - name: Record standalone runner provenance
+        run: bun --no-env-file .github/scripts/record-runner-artifact.ts
+
+      - name: Preserve the standalone Linux runner and its provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewos-runner-linux-x64-${{ github.sha }}
+          path: dist/runner/linux-x64/
+          if-no-files-found: error
+          retention-days: 14
 
       # The release job resolves through `pantry/`, not `node_modules`, and the
       # two lockfiles pin different versions — the first attempt at this check

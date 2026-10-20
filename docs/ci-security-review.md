@@ -102,6 +102,12 @@ writes a forty-gigabyte file, and it does nothing whatsoever about an attacker. 
 off by default because they count something wider than one step - `RLIMIT_NPROC` is per user, and
 CPU seconds are not wall time.
 
+The address-space default is a finite 2 TiB so modern runtime sandboxes can reserve
+their virtual arenas. This is `RLIMIT_AS`, not resident-memory accounting: it does
+not restrict a job to 2 TiB of physical RAM, reserve that much RAM for it, or provide
+a cgroup memory boundary. Explicit operator caps still apply unchanged. File,
+process and CPU ceilings are separate and retain their existing settings.
+
 **What does not exist on the host path**, and must not be read as existing:
 
 - No memory limit that holds on macOS: `-v` is accepted there and ignored. No disk *quota* - the
