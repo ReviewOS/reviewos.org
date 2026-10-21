@@ -96,7 +96,28 @@ export default defineModel({
       order: 3,
       fillable: true,
       validation: { rule: schema.string().required().min(1).max(100) },
-      factory: faker => faker.hacker.noun().toLowerCase(),
+      /*
+       * Unique by construction, because `repositories_owner_name_index` is
+       * unique over `(owner_type, owner_id, name)` and a colliding row is not
+       * retried, it fails the batch.
+       *
+       * This was `faker.hacker.noun()`, which draws from about twenty nouns,
+       * against an `owner_id` factory that picks from four. Eight seeded
+       * repositories collide on that pairing more often than not, and when they
+       * do the whole insert is rejected: one seed produced a single repository,
+       * no issues, and twenty-five consequent failures in the models that hang
+       * off them. It passed for weeks on luck.
+       *
+       * A factory cannot ask what is taken - it is handed `faker` and its own
+       * row, never a database (stacksjs/stacks#2951) - so the only fix
+       * available here is a name that does not need to ask. Same reasoning as
+       * the handle factories on `User` and `Organization`.
+       */
+      factory: (faker) => {
+        const noun = faker.hacker.noun().toLowerCase().replace(/[^a-z0-9-]/g, '') || 'repo'
+
+        return `${noun}-${faker.string.alphanumeric({ length: 5, casing: 'lower' })}`
+      },
     },
 
     description: {

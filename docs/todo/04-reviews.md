@@ -768,24 +768,43 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
 
 ## Known issues
 
-- [ ] `(repository_id, number)` carries no unique index on `pull_requests` or `issues`, so nothing in
-      the schema stops two changes sharing a URL. The allocator itself is correct: `allocateNumber`
-      in `app/Actions/Repo/authorize.ts` is a compare-and-swap on `repositories.issue_counter`,
-      reading the current value and updating `where issue_counter = current`, so two concurrent
-      allocations cannot both win a number and the loser retries. Production numbers are therefore
-      unique by construction, and this is defence in depth rather than a live bug.
-
-      It is worth closing anyway, because the invariant is a URL: `/{owner}/{repo}/pull/166` has to
-      identify one change, and the page resolves it with a single `where number = ...`, so a
-      duplicate makes one of the two permanently unreachable with no error anywhere. Every write
-      path that does not go through the allocator is a way in, and one already exists: the model
-      factory invents `number` as `faker.number.int({ min: 1, max: 200 })`, which produced two pull
-      requests numbered 166 in one seeded repository. Nothing objected, and the only reason it
-      surfaced is that `Pipelines` derived a unique key from the head sha and hit its own index.
-
-      Blocked on nothing except the dual-dialect regeneration: the index has to land in both the
-      Postgres and the MySQL corpora, and `generate:migrations` only updates the connection it is
-      run against (stacksjs/stacks#2949).
+- [x] `(repository_id, number)` is unique on `pull_requests` and on `issues`, in both dialect
+      corpora. The invariant is a URL: the page resolves a number with a single
+      `where number = ...`, so a duplicate does not error, it makes one of the two changes
+      permanently unreachable. `allocateNumber` in `app/Actions/Repo/authorize.ts` already
+      guaranteed it for the interface - a compare-and-swap on `repositories.issue_counter`, shared
+      between issues and pull requests, so two rows cannot be handed one number - and this is the
+      schema saying so for every write path that does not go through it.
+- [x] Which found four of those paths, all in seeded data, none of which the interface could have
+      produced:
+  - [x] The `number` factories were `faker.number.int({ min: 1, max: 200 })`, so one repository held
+        two changes numbered 166 and another held issue 96 beside pull request 96. A factory cannot
+        ask what a repository has already used (stacksjs/stacks#2951), so the numbering moved to
+        `database/seeders/IssueNumbers.ts`, which lays one sequence over both tables per repository
+        and sets the counter to match. At order 10, before everything that reads a number:
+        `TimelineEntries` stores a sibling's, `RepositoryGit` puts it in a branch name, `Pipelines`
+        keys off the commit that branch points at.
+  - [x] It renumbers in two passes, because assigning final numbers one row at a time collides with
+        the index halfway through - one row holding 5 while another is on its way to it. Rows that
+        move are parked above every number in use and then brought down, which is the index doing
+        its job and the reason the seeder failed the moment the index landed.
+  - [x] `StackedChange` numbered its changes correctly, by reading the highest and incrementing, and
+        never wrote `repositories.issue_counter`. It creates the repository, so the counter stayed
+        at 0 and the next pull request opened there through the interface would have been handed
+        number 1, which the stack already held. Before the index that was a second change on an
+        occupied number; now it is a failed insert, which is better and still wrong.
+  - [x] And a pre-existing one the index did not cause but did expose:
+        `repositories_owner_name_index` has been unique over `(owner_type, owner_id, name)` since
+        August, while the name factory drew from about twenty `faker.hacker.noun()` values against
+        an `owner_id` factory picking from four. Eight repositories collide on that pairing more
+        often than not, and when they do the batch is rejected: one seed produced a single
+        repository, no issues at all, and twenty-five consequent failures in the models hanging off
+        them. It had passed for weeks on luck. The name now carries a short random suffix, the same
+        fix the `User` and `Organization` handles needed.
+- [x] Both corpora, which is the part the tooling does not help with. `generate:migrations` only
+      updates the connection it is run against (stacksjs/stacks#2949), so the MySQL half needs a
+      MySQL database built from `database/migrations/mysql` first, exactly as CI does it, and then a
+      second generation against that connection. Three files each side, index-only and symmetric.
 
 - [x] The pull request view rendered its not-found branch against seeded data. Two causes, both
       now fixed: a multi-line `import` in a `<script server>` block silently broke the whole

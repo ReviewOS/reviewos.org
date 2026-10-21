@@ -3201,7 +3201,7 @@
               "repository_id",
               "number"
             ],
-            "type": "index"
+            "type": "unique"
           },
           {
             "name": "issues_repo_state_index",
@@ -5830,7 +5830,7 @@
               "repository_id",
               "number"
             ],
-            "type": "index"
+            "type": "unique"
           },
           {
             "name": "pull_requests_repo_state_index",
@@ -15354,7 +15354,7 @@
       }
     ]
   },
-  "hash": "b07b3b33c2160725335718a87c955659f2a890dbf17af2be46762f4fbcc2a953",
+  "hash": "8feefd67a3a9f094e364b04b15b8e76990b59565aabfb1c933cf5afbea99d68b",
   "dialect": "postgres",
-  "updatedAt": "2026-10-18T18:24:42.833Z"
+  "updatedAt": "2026-10-21T16:34:52.110Z"
 }

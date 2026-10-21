@@ -227,6 +227,24 @@ export default class StackedChange extends Seeder {
       baseSha = commit.sha
     }
 
+    /*
+     * And the repository's counter, which this seeder allocated out of.
+     *
+     * It numbers its changes by reading the highest one already there and
+     * incrementing, which is right, but it left `repositories.issue_counter` at
+     * whatever it was - 0 for a repository this seeder created. `allocateNumber`
+     * starts from that counter, so the next pull request opened here through the
+     * interface would be handed number 1, which this stack already holds. Before
+     * `(repository_id, number)` was unique that produced a second change on an
+     * occupied number and made one of the two unreachable; now it is a failed
+     * insert, which is better and still wrong.
+     */
+    await db
+      .updateTable('repositories')
+      .set({ issue_counter: number })
+      .where('id', '=', repositoryId)
+      .execute()
+
     console.error(`[seed] a stack of ${CHANGES.length} at ${handle}/${REPOSITORY}`)
   }
 }

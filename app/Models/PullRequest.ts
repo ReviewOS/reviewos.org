@@ -22,7 +22,21 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    { name: 'pull_requests_repo_number_index', columns: ['repository_id', 'number'] },
+    /*
+     * `(repository_id, number)` is unique, because a number is a URL.
+     *
+     * `allocateNumber` already guarantees it: one compare-and-swap sequence
+     * per repository, shared with issues, so two rows cannot be handed
+     * the same number. This is the schema saying so, for every write path that
+     * does not go through the allocator - an import, a mirror, a migration, a
+     * seeder. One already existed: the model factory invented `number`
+     * randomly, and a seeded repository ended up with two rows numbered 166.
+     *
+     * It matters because the page resolves a number with a single
+     * `where number = ...`, so a duplicate does not error, it makes one of the
+     * two permanently unreachable.
+     */
+    { name: 'pull_requests_repo_number_index', columns: ['repository_id', 'number'], unique: true },
     { name: 'pull_requests_repo_state_index', columns: ['repository_id', 'state'] },
     { name: 'pull_requests_stack_index', columns: ['stack_parent_id'] },
   ],
