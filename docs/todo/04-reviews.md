@@ -768,6 +768,25 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
 
 ## Known issues
 
+- [ ] `(repository_id, number)` carries no unique index on `pull_requests` or `issues`, so nothing in
+      the schema stops two changes sharing a URL. The allocator itself is correct: `allocateNumber`
+      in `app/Actions/Repo/authorize.ts` is a compare-and-swap on `repositories.issue_counter`,
+      reading the current value and updating `where issue_counter = current`, so two concurrent
+      allocations cannot both win a number and the loser retries. Production numbers are therefore
+      unique by construction, and this is defence in depth rather than a live bug.
+
+      It is worth closing anyway, because the invariant is a URL: `/{owner}/{repo}/pull/166` has to
+      identify one change, and the page resolves it with a single `where number = ...`, so a
+      duplicate makes one of the two permanently unreachable with no error anywhere. Every write
+      path that does not go through the allocator is a way in, and one already exists: the model
+      factory invents `number` as `faker.number.int({ min: 1, max: 200 })`, which produced two pull
+      requests numbered 166 in one seeded repository. Nothing objected, and the only reason it
+      surfaced is that `Pipelines` derived a unique key from the head sha and hit its own index.
+
+      Blocked on nothing except the dual-dialect regeneration: the index has to land in both the
+      Postgres and the MySQL corpora, and `generate:migrations` only updates the connection it is
+      run against (stacksjs/stacks#2949).
+
 - [x] The pull request view rendered its not-found branch against seeded data. Two causes, both
       now fixed: a multi-line `import` in a `<script server>` block silently broke the whole
       script (fixed upstream in stx v0.2.126), and `innerJoin` was called with three arguments

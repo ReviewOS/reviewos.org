@@ -206,7 +206,38 @@ export default class Pipelines extends Seeder {
 
         position += 1
 
+        // A run is per pull request: two changes at the same commit each had
+        // their own pipeline execution, and the run list shows both.
         runs += await this.run_(repositoryId, versionId, pull, outcome, index + 1)
+
+        /*
+         * Reports are per **commit**, not per pull request, so a second pull
+         * request pointing at the same head sha reuses them.
+         *
+         * Not a detail: `check_runs.idempotency_key` is unique, and keying it
+         * on `(repository, sha, name)` is right precisely because a check
+         * describes a commit. Two pull requests can share a head sha, and this
+         * seeder crashed on the duplicate key the first time two did -
+         * `pull_requests.number` is `faker.number.int({ min: 1, max: 200 })`
+         * and `(repository_id, number)` carries no unique index, so one
+         * repository ended up with two changes numbered 166, both of which
+         * `RepositoryGit` gave the same branch and therefore the same commit.
+         *
+         * Writing a second set of reports for the second pull request would be
+         * the wrong fix: it would mean two `lint` results on one commit, which
+         * is not a thing a forge should show. Skipping is what a real reporter
+         * does, through the same idempotency key.
+         */
+        const reported = await db
+          .selectFrom('check_runs')
+          .select(['id'])
+          .where('repository_id', '=', repositoryId)
+          .where('head_sha', '=', headSha)
+          .executeTakeFirst()
+
+        if (reported)
+          continue
+
         checks += await this.checks(repositoryId, headSha, pull, outcome)
 
         if (suiteId && managed.length > 0)
@@ -498,6 +529,27 @@ export default class Pipelines extends Seeder {
 
   /** One test suite per repository, which the managed tests and runs hang off. */
   private async suite(repositoryId: number, name: string): Promise<number | null> {
+    /*
+     * Looked up before it is inserted, for the reason `workflow()` is: this
+     * seeder is not a transaction, and `test_suites` carries a unique index per
+     * repository.
+     *
+     * The repository gate above keys on `workflow_runs`, so any state where the
+     * suite exists and the runs do not - a partial failure, or somebody
+     * clearing the run tables to re-report - sent a second insert at that index
+     * and took the whole seeder down with
+     * `duplicate key value violates unique constraint "test_suites_repository_index"`.
+     * Partial state has to converge.
+     */
+    const existing = await db
+      .selectFrom('test_suites')
+      .select(['id'])
+      .where('repository_id', '=', repositoryId)
+      .executeTakeFirst()
+
+    if (existing?.id)
+      return Number(existing.id)
+
     const suite = await db
       .insertInto('test_suites')
       .values({
@@ -514,6 +566,18 @@ export default class Pipelines extends Seeder {
 
   /** The tracked tests, one of them flaky so the trend screen has something to say. */
   private async managedTests(repositoryId: number, suiteId: number): Promise<number[]> {
+    // Same reasoning as the suite: reuse what the suite already tracks rather
+    // than tracking each test twice.
+    const already = await db
+      .selectFrom('managed_tests')
+      .select(['id'])
+      .where('test_suite_id', '=', suiteId)
+      .orderBy('id')
+      .execute()
+
+    if (already.length > 0)
+      return already.map(row => Number(row.id))
+
     const ids: number[] = []
 
     for (const [index, name] of TESTS.entries()) {

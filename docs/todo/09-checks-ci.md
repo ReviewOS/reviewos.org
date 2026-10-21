@@ -348,6 +348,18 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
       Which check fails, which run is still going and which test is flaky are decided by position
       rather than at random: with eight repositories a coin flip reliably delivers all green or all
       red, and a green instance demonstrates nothing about how a failure reads.
+- [x] Reports are keyed per **commit**, not per pull request, which is what `check_runs`'
+      unique `idempotency_key` already implies: a check describes a commit, so two pull requests at
+      the same head sha share one set. The seeder crashed on that duplicate key the first time two
+      of them did, and writing a second set would have been the wrong fix - two `lint` results on
+      one commit is not something a forge should show. A run stays per pull request, because each
+      change really did have its own pipeline execution, so the list shows both.
+- [x] And the same converge-before-insert rule now covers `test_suites` and `managed_tests`, which
+      were inserted unconditionally and only survived because the repository gate keys on
+      `workflow_runs`. Any state where the suite exists and the runs do not, which is what a partial
+      failure or a cleared run table leaves, took the whole seeder down with
+      `duplicate key value violates unique constraint "test_suites_repository_index"`. Third
+      instance of this in one file, which is the argument for the rule rather than for three fixes.
 - [x] And two things that only a seeder finds. `workflow_versions.content_digest` is `varchar(64)`,
       so the convention there is bare SHA-256 hex and a `sha256:`-prefixed value - which is the
       convention one layer down in `vmImage.ts` - is 71 characters and is rejected outright; the
