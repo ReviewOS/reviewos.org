@@ -16,7 +16,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (64/64) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (77/77) |
-| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (138/138) |
+| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (139/139) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (39/39) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (102/102) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | Done (52/52) |
@@ -31,7 +31,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | Complete (171/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (208/209) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (36/36) |
-| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (13/13) |
+| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (14/14) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (25/25) |
 
 Phases 16 through 18 were written after reading Cursor's

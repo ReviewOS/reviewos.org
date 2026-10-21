@@ -65,6 +65,24 @@ export default defineModel({
     subject_id: {
       order: 2,
       fillable: true,
+      /*
+       * `bigint`, to match the ids it indexes.
+       *
+       * A plain numeric attribute generates `integer`, and every table this
+       * column can name has a `bigint` primary key: `issues`, `issue_comments`
+       * and `review_comments`. Postgres compares the two happily, so the
+       * mismatch is invisible until an id passes two billion, at which point a
+       * reaction cannot be written for a comment that exists. The note on
+       * `ActivityEvent` spells out the same trap, where declaring `belongsTo`
+       * is what widens the column.
+       *
+       * It cannot be declared that way here. A `belongsTo` generates a foreign
+       * key, and a foreign key on a polymorphic column forbids two thirds of
+       * the values the column exists to hold - which is the reason this
+       * attribute has no relation and why `database/seeders/Reactions.ts`
+       * exists. So the width is stated outright instead.
+       */
+      type: 'bigint',
       validation: { rule: schema.number().required() },
       factory: () => null,
     },

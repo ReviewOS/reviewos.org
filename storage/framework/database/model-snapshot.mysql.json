@@ -6504,7 +6504,7 @@
           },
           {
             "name": "subject_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -15354,7 +15354,7 @@
       }
     ]
   },
-  "hash": "f94be876754b6cefee17e8d668e932663aa826bc2a3cf0a37ed7f8b14889691c",
+  "hash": "ce2661e4bc4e44908aa311109911e317e937d61d466ff5f097a014bf0414b219",
   "dialect": "mysql",
-  "updatedAt": "2026-10-21T16:35:51.488Z"
+  "updatedAt": "2026-10-21T17:26:49.218Z"
 }

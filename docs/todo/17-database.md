@@ -35,6 +35,25 @@ so the linearizer is built once, on the engine it will live on.
 
 ## Single-node MySQL
 
+- [x] `reactions.subject_id` is `bigint`, in both corpora, to match the ids it indexes. A plain
+      numeric attribute generates `integer`, and every table the column can name has a `bigint`
+      primary key: `issues`, `issue_comments`, `review_comments`. Postgres compares the two happily,
+      so the mismatch is invisible until an id passes two billion, at which point a reaction cannot
+      be written for a comment that exists. The note on `ActivityEvent` describes the same trap,
+      where declaring `belongsTo` is what widens the column - which is not available here, because a
+      foreign key on a polymorphic column forbids two thirds of the values the column exists to
+      hold. So the width is stated outright with `type: 'bigint'`.
+
+      This was reverted once, when `type: 'bigint'` produced a clean Postgres ALTER and no MySQL
+      counterpart, because shipping one half breaks the dialect parity this phase is about. What
+      changed is the procedure rather than the generator: `generate:migrations` still only updates
+      the connection it is run against (stacksjs/stacks#2949), so the MySQL half needs a MySQL
+      database built from `database/migrations/mysql` first, exactly as CI builds it, and then a
+      second generation against that connection. Postgres widens with
+      `ALTER COLUMN ... TYPE bigint USING ...::bigint` between a dropped default and a restored
+      `NOT NULL`; MySQL does it as one `MODIFY COLUMN ... bigint not null`. Verified from scratch on
+      both, and the eighty seeded reactions survive the Postgres cast.
+
 - [x] Dialect audit of the query layer: several hundred `selectFrom` sites in `app/Actions/` and
       the views. bun-query-builder abstracts the dialect, so the audit hunts raw SQL fragments and
       Postgres-isms: `ILIKE`, `RETURNING`, `ON CONFLICT`, JSON operators, enum types. Findings
