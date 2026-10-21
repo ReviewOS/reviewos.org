@@ -1,5 +1,6 @@
 import type { EmailTemplateReference } from '@stacksjs/email'
 import type { Channel } from '../Actions/Notification/delivery'
+import { db } from '@stacksjs/database'
 import { Job } from '@stacksjs/queue'
 import { deliveryFor } from '../Actions/Notification/settings'
 import { deliveryPreference } from '../Actions/Notification/preferences'

@@ -919,7 +919,17 @@ took effect. `overrides` pins a single version.
       `MeasureContributorsJob` used a bare `db` global rather than importing it, and the global is
       set on some bootstraps and not others: both worked under `buddy seed` and `buddy repo:measure`
       and threw `db is not defined` under `migrate:fresh --seed`, which is the command the seeders
-      exist to serve. They import it now, as the eight jobs that already did do. **Five more jobs
-      still read the ambient global** - `DeliverWebhookJob`, `MirrorMetadataSyncJob`,
-      `MirrorSyncJob`, `SendNotificationJob` and `WarnExpiringTokensJob` - and each is the same
-      failure waiting for the first caller whose bootstrap does not set it.
+      exist to serve. They import it now, as the eight jobs that already did do.
+- [x] And so do the other five. `DeliverWebhookJob`, `MirrorMetadataSyncJob`, `MirrorSyncJob`,
+      `SendNotificationJob` and `WarnExpiringTokensJob` each read the ambient global too, and each
+      was the same failure waiting for the first caller whose bootstrap does not install it. All
+      fifteen jobs now import `db` from `@stacksjs/database`, so none of them depends on which
+      command happened to load it.
+
+      Worth stating why this could not be found by reading or by checking:
+      `storage/framework/types/server-auto-imports.d.ts` declares `db` as a server global, so
+      `bun run typecheck` passes on the bare spelling and a reviewer has no reason to object. The
+      compiler endorses the version that breaks. Filed upstream as stacksjs/stacks#2952, where the
+      ask is either to install the globals on every path that runs app code or to stop declaring
+      what is not always there - the second of which would have turned these seven latent runtime
+      failures into seven type errors.
