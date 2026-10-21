@@ -15,6 +15,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { recordCrossReferences } from '../Issue/crossReferences'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { allocateNumber } from '../Repo/authorize'
 import { codeownersFor, ownersForPaths, resolveOwners } from './codeowners'
@@ -132,6 +133,27 @@ export async function openPullRequest(input: OpenPullRequestInput): Promise<Open
     })
     .returning(['id'])
     .executeTakeFirst()
+
+  /*
+   * What this change says it is about.
+   *
+   * The motivating case for cross references, in the words of
+   * `app/Actions/Issue/crossReferences.ts`: somebody on issue 12 has no other
+   * way to discover that a pull request three weeks later exists because of it.
+   * That is the sentence this call makes true. Until now no pull request path
+   * recorded a reference at all - only the four issue paths did - so a change
+   * whose body said `#12` left nothing on issue 12 and the link appeared only
+   * where it was written, which is the end that needed it least.
+   *
+   * Never throws and never fails the open, the same rule the issue side
+   * follows: a lost cross reference costs a line of history, and an error here
+   * would refuse a pull request that is already a row.
+   */
+  await recordCrossReferences(
+    { subject: { type: 'pull_request', id: Number(created?.id) }, number, repositoryId: input.repositoryId },
+    input.authorId ?? null,
+    String(input.body ?? ''),
+  )
 
   const requested = await requestCodeOwners({
     diskPath: input.diskPath,

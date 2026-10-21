@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { recordCrossReferences } from '../Issue/crossReferences'
 import { isSafeRef, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
@@ -111,6 +112,25 @@ export default new Action({
         .set(changes)
         .where('id', '=', Number(pullRequest.id))
         .execute()
+    }
+
+    /*
+     * A reference edited into the body counts, exactly as it does on an issue.
+     *
+     * Only when `body` was supplied: omitting it leaves the body alone, so
+     * scanning the old text again would be work with no possible result.
+     * Already-recorded references are not written twice, so editing a body for
+     * any other reason records nothing. See `UpdateIssueAction`, which this
+     * mirrors.
+     */
+    const editedBody = field(request, 'body')
+
+    if (editedBody !== undefined) {
+      await recordCrossReferences(
+        { subject: { type: 'pull_request', id: Number(pullRequest.id) }, number, repositoryId: repository.id },
+        user.id,
+        String(editedBody),
+      )
     }
 
     return response.json({

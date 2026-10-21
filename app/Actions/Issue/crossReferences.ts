@@ -70,46 +70,38 @@ export async function recordCommitReferences(
   const short = sha.slice(0, 7)
 
   try {
-    const targets = await db
-      .selectFrom('issues')
-      .select(['id', 'number', 'is_pull_request'])
-      .where('repository_id', '=', repositoryId)
-      .where('number', 'in', numbers)
-      .execute()
+    const targets = await targetsFor(repositoryId, numbers)
 
     if (targets.length === 0)
       return []
 
     // Already recorded, so a retried job does not say it twice. Matched on the
     // sha rather than on the pair, because the same commit reaching the same
-    // issue is the only duplicate this can produce.
+    // subject is the only duplicate this can produce.
     const existing = await db
       .selectFrom('timeline_entries')
-      .select(['subject_id'])
+      .select(['subject_type', 'subject_id'])
       .where('kind', '=', 'referenced')
-      .where('subject_id', 'in', targets.map(row => Number(row.id)))
+      .where('subject_id', 'in', targets.map(row => row.id))
       .where('subject_text', '=', short)
       .execute()
 
-    const already = new Set(existing.map(row => Number(row.subject_id)))
+    const already = new Set(existing.map(row => subjectKey(String(row.subject_type), row.subject_id)))
     const entries: Parameters<typeof recordMany>[0] = []
     const recorded: number[] = []
 
     for (const target of targets) {
-      if (already.has(Number(target.id)))
+      if (already.has(subjectKey(target.type, target.id)))
         continue
 
       entries.push({
-        subject: {
-          type: target.is_pull_request ? 'pull_request' : 'issue',
-          id: Number(target.id),
-        },
+        subject: { type: target.type, id: target.id },
         kind: 'referenced',
         actorId: null,
         detail: { text: short },
       })
 
-      recorded.push(Number(target.number))
+      recorded.push(target.number)
     }
 
     await recordMany(entries)
@@ -119,6 +111,60 @@ export async function recordCommitReferences(
   catch {
     return []
   }
+}
+
+/**
+ * The issues and pull requests a set of numbers names, in this repository.
+ *
+ * Both tables, because a number is allocated from one sequence per repository
+ * and either kind can hold it. This used to read `issues` alone and branch on
+ * `issues.is_pull_request`, which is the GitHub shape - there a pull request
+ * *is* an issue row - and is not this schema: a pull request is a row in
+ * `pull_requests`, nothing writes an `issues` row for one, and
+ * `is_pull_request` is false on every row in the database. So a reference
+ * naming a pull request found no target and recorded nothing, silently, on
+ * every write path that scans text.
+ *
+ * The table a row came from is the answer, so nothing has to branch on a
+ * column to decide what it is looking at.
+ */
+async function targetsFor(
+  repositoryId: number,
+  numbers: readonly number[],
+): Promise<{ id: number, number: number, type: 'issue' | 'pull_request' }[]> {
+  const [issues, pulls] = await Promise.all([
+    db
+      .selectFrom('issues')
+      .select(['id', 'number'])
+      .where('repository_id', '=', repositoryId)
+      .where('number', 'in', numbers)
+      .execute(),
+    db
+      .selectFrom('pull_requests')
+      .select(['id', 'number'])
+      .where('repository_id', '=', repositoryId)
+      .where('number', 'in', numbers)
+      .execute(),
+  ])
+
+  return [
+    ...issues.map(row => ({ id: Number(row.id), number: Number(row.number), type: 'issue' as const })),
+    ...pulls.map(row => ({ id: Number(row.id), number: Number(row.number), type: 'pull_request' as const })),
+  ]
+}
+
+/**
+ * A timeline subject as one comparable string.
+ *
+ * `subject_id` is polymorphic, so an id on its own does not identify a row:
+ * issue 5 and pull request 5 are different things. Every dedupe below keys on
+ * the pair. It was keyed on the id alone, which was safe only while every
+ * target was an issue - the moment both kinds can be returned, an issue id
+ * matching a pull request id would suppress a reference that was never
+ * recorded.
+ */
+function subjectKey(type: string, id: number | string): string {
+  return `${type}:${Number(id)}`
 }
 
 /**
@@ -160,12 +206,7 @@ export async function recordCrossReferences(
   try {
     // Only issues and pull requests that exist here. A reference to a number
     // nobody has opened yet is a typo far more often than it is a prediction.
-    const targets = await db
-      .selectFrom('issues')
-      .select(['id', 'number', 'is_pull_request'])
-      .where('repository_id', '=', source.repositoryId)
-      .where('number', 'in', numbers)
-      .execute()
+    const targets = await targetsFor(source.repositoryId, numbers)
 
     if (targets.length === 0)
       return []
@@ -185,31 +226,31 @@ export async function recordCrossReferences(
 
     const incoming = await db
       .selectFrom('timeline_entries')
-      .select(['subject_id'])
+      .select(['subject_type', 'subject_id'])
       .where('kind', '=', 'referenced')
-      .where('subject_id', 'in', targets.map(row => Number(row.id)))
+      .where('subject_id', 'in', targets.map(row => row.id))
       .where('reference_number', '=', source.number)
       .execute()
 
     const alreadyMentioned = new Set(outgoing.map(row => Number(row.reference_number)))
-    const alreadyReferenced = new Set(incoming.map(row => Number(row.subject_id)))
+    const alreadyReferenced = new Set(incoming.map(row => subjectKey(String(row.subject_type), row.subject_id)))
 
     const entries: Parameters<typeof recordMany>[0] = []
     const recorded: number[] = []
 
     for (const target of targets) {
-      const targetId = Number(target.id)
-      const targetNumber = Number(target.number)
-      const targetType = target.is_pull_request ? 'pull_request' as const : 'issue' as const
+      const targetId = target.id
+      const targetNumber = target.number
+      const targetType = target.type
 
-      if (alreadyReferenced.has(targetId) && alreadyMentioned.has(targetNumber))
+      if (alreadyReferenced.has(subjectKey(targetType, targetId)) && alreadyMentioned.has(targetNumber))
         continue
 
       recorded.push(targetNumber)
 
       // The incoming half, and the reason this exists: a reader on the other
       // issue learns that something over here is about it.
-      if (!alreadyReferenced.has(targetId)) {
+      if (!alreadyReferenced.has(subjectKey(targetType, targetId))) {
         entries.push({
           subject: { type: targetType, id: targetId },
           kind: 'referenced',

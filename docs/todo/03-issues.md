@@ -180,6 +180,37 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       changes, and merging them would mean one of the two lying about itself. Recording never fails
       the thing it describes - a lost entry costs a line of history, a thrown error would tell the
       caller their close did not happen when it did.
+- [x] A reference can name a pull request, which it could not. The resolution read `issues` alone
+      and branched on `issues.is_pull_request` - the GitHub shape, where a pull request *is* an
+      issue row - and that is not this schema: a pull request is a row in `pull_requests`, nothing
+      writes an `issues` row for one, and `is_pull_request` is false on every row in the database.
+      So `#5` naming a change found no target and recorded nothing, with no error and no reason
+      given, on every path that scans text. It resolves against both tables now, and the table a
+      row came from is the answer, so nothing branches on a column to decide what it is looking at.
+- [x] And a pull request records what it refers to. No pull request path called the recorder at all,
+      only the four issue paths did, so a change whose body said `#12` left nothing on issue 12 -
+      which is the exact sentence the module's own docblock gives as the motivating case
+      ("somebody on issue 12 has no other way to discover that a pull request three weeks later
+      exists because of it"). `app/Actions/Pull/open.ts` records on open, and
+      `UpdatePullRequestAction` records a reference edited into the body, mirroring
+      `CreateIssueAction` and `UpdateIssueAction`.
+- [x] Which required fixing a dedupe that was keyed on `subject_id` alone. `subject_id` is
+      polymorphic, so an id does not identify a row: issue 5 and pull request 5 are different
+      things. That was safe only while every target was an issue, and the moment both kinds can be
+      returned it would suppress a reference that had never been recorded. Every dedupe now keys on
+      the pair.
+
+      `tests/e2e/cross-reference-targets.test.ts` holds it, and the two tests that matter fail
+      against the old resolution: `tests/unit/cross-references.test.ts` only ever covered
+      `referencedNumbers`, which reads text and never touches the database, so the half that was
+      broken had no test at all.
+
+      Two things found alongside and deliberately left: the pull request page renders no timeline,
+      so an entry recorded **on** a change is correct data that nothing displays yet, and a pull
+      request has no conversation comment path - `CommentOnIssueAction` resolves its subject from
+      `issues`, the pull view never reads `issue_comments`, and all 61 comments in a seeded instance
+      are `commentable_type = 'issue'`. That is an unimplemented feature rather than a broken one,
+      and it wants a decision about whether a pull request gets an `issues` row at all.
 - [x] Cross references from another issue: writing `#12` in a body or a comment records an entry on
       both ends. Two kinds rather than one, because a single kind cannot say which direction a
       reader is looking along the link: `referenced` is the incoming half ("referenced this in #7"),
