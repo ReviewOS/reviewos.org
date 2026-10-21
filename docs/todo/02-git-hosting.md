@@ -902,3 +902,24 @@ took effect. `overrides` pins a single version.
   and **no repository on the explore or featured lists has ever shown a
   language**. The catch was there for an instance that had never run the
   measure; it hid a bug in the query instead.
+
+- [x] And a fourth, found a month later: with all three of those fixed, a seeded instance still
+      showed no language anywhere, because `repository_languages` was empty. Both measures are
+      derived rather than written at creation, and `ProcessPushJob` is what triggers them - the
+      seeders build their bare repositories by calling `initBare` and `createCommit` directly, so no
+      push ever happens and nothing ever measures them. So the symptom the query fix was meant to
+      cure was unchanged, and the next person to look would have gone hunting for a second query
+      bug. `database/seeders/RepositoryMeasures.ts` runs the two job handlers inline over the trees
+      the other seeders just built, which is what `buddy repo:measure` already does for an instance
+      whose repositories predate the measures. Nine repositories, eighteen language rows, and a
+      breakdown that cannot disagree with the tree because it is read from it: 99% TypeScript where
+      a repository has generated sources, 64% Markdown where its only file is a three-line
+      `greet.ts` next to the README.
+- [x] Which turned up a latent fault in the jobs themselves. `MeasureLanguagesJob` and
+      `MeasureContributorsJob` used a bare `db` global rather than importing it, and the global is
+      set on some bootstraps and not others: both worked under `buddy seed` and `buddy repo:measure`
+      and threw `db is not defined` under `migrate:fresh --seed`, which is the command the seeders
+      exist to serve. They import it now, as the eight jobs that already did do. **Five more jobs
+      still read the ambient global** - `DeliverWebhookJob`, `MirrorMetadataSyncJob`,
+      `MirrorSyncJob`, `SendNotificationJob` and `WarnExpiringTokensJob` - and each is the same
+      failure waiting for the first caller whose bootstrap does not set it.

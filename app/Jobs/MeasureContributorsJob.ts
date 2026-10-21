@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 import { Job } from '@stacksjs/queue'
 import { mergeTallies, parseShortlog } from '../Actions/Repo/contributors'
 import { runGit } from '../Actions/Git/git'
