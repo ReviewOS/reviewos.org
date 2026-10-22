@@ -299,3 +299,30 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       fixture now, verified by mutating the fixture and watching it fail. That is the second
       test-that-cannot-fail written in this codebase today, and both had the same shape: asserting a
       thing against itself.
+
+- [x] **The crawler policy moved out of a static file, which had been quietly contradicting the
+  sitemap.** `public/robots.txt` was hand-written, and Stacks serves a file in `public/` in
+  preference to its own generated one. A static file cannot know the origin it is served from, so
+  it named no `Sitemap:` at all - the framework warned about exactly that on every boot, and its
+  advice was to delete the file.
+
+  Deleting it would have been a regression. The generated /robots.txt carried one rule, `/api/`,
+  and none of the rules that were added after a crawler walked `/tree/` across every branch and
+  tag of every mirrored repository until the page process hit its memory ceiling and the site
+  stopped answering, twice. So the policy moved into `config/app.ts` under `seo.robots` first,
+  verified by rendering what the framework would serve, and the file went afterwards.
+
+  **That turned up a second problem nobody had reported.** Both generators read the same config,
+  so /sitemap.xml now excludes what /robots.txt disallows - and it had been listing **thirteen
+  URLs it simultaneously told crawlers not to fetch**: `/login`, `/register`, `/search`,
+  `/notifications`, `/reviews`, `/new`, `/forgot-password`, `/unsubscribed` and the five
+  `/settings/*` pages. That is the contradiction Search Console reports as "Submitted URL blocked
+  by robots.txt", and no static file could have fixed it, because the sitemap generator was never
+  reading the static one. 28 pages are listed now, all of them pages the site exists to be found
+  by.
+
+  `tests/unit/robots-txt.test.ts` now tests the generated output rather than a file in `public/`,
+  which nothing serves any more. Its last assertion was also inverted: it read *does not point at
+  a sitemap that is not there*, and the sitemap has always been there - `public/sitemap.xml` is
+  absent, so the generated one serves. The test had pinned a static file's limitation in place as
+  though it were the policy.

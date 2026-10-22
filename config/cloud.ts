@@ -808,8 +808,9 @@ export const tsCloud: TsCloudConfig = {
        *
        * The growth itself is fixed elsewhere: it was crawlers, not the
        * renderer. GoogleOther and Applebot were walking `/tree/` across every
-       * branch and every tag of every mirrored repository, and `public/robots.txt`
-       * now says not to. What is left here is the backstop.
+       * branch and every tag of every mirrored repository, and the robots
+       * policy in `config/app.ts` (`seo.robots`) now says not to, through the
+       * generated /robots.txt. What is left here is the backstop.
        *
        * `MemoryHigh` made a poor backstop, twice, for the same reason each
        * time. It is a throttle rather than a kill: the kernel reclaims the

@@ -1,8 +1,10 @@
+import { buildRobotsTxt, resolveSeoOrigin } from '@stacksjs/actions/seo'
 import { describe, expect, it } from 'bun:test'
+import app from '../../config/app'
 import { noIndex } from '../../resources/functions/meta'
 
 /**
- * `public/robots.txt` and `noIndex` say the same thing to two different
+ * The robots policy and `noIndex` say the same thing to two different
  * audiences, and only one of them arrives in time.
  *
  * `noIndex` writes a <meta name="robots"> tag, which a crawler reads once it
@@ -13,9 +15,26 @@ import { noIndex } from '../../resources/functions/meta'
  *
  * So the two must not drift. Anything the meta policy keeps out of an index
  * has to be something robots.txt keeps out of a crawl.
+ *
+ * ## Why this reads the generated file and not a static one
+ *
+ * The policy used to live in a hand-written `public/robots.txt`, which Stacks
+ * serves in preference to its own. A static file cannot know the origin it is
+ * served from, so it named no Sitemap, and every self-hoster would have had to
+ * either edit it or advertise ours. It now lives in `config/app.ts` under
+ * `seo.robots`, which both generators read: /robots.txt gets the rules and the
+ * instance's own sitemap URL, and /sitemap.xml stops listing pages the rules
+ * disallow. Thirteen were listed and blocked at the same time before this.
+ *
+ * So the subject here is what the framework *generates* from our config. A
+ * test against a file in `public/` would now be testing something nothing
+ * serves.
  */
 
-const robots = await Bun.file(new URL('../../public/robots.txt', import.meta.url)).text()
+const robots = buildRobotsTxt({
+  seo: (app as any).seo,
+  origin: resolveSeoOrigin({ seo: (app as any).seo, appUrl: (app as any).url }),
+} as any)
 
 const disallowed = robots
   .split('\n')
@@ -100,7 +119,16 @@ describe('robots.txt', () => {
     expect(robots).toMatch(/^User-agent:\s*\*$/m)
   })
 
-  it('does not point at a sitemap that is not there', () => {
-    expect(robots).not.toMatch(/^Sitemap:/m)
+  /*
+   * The inverse of what this asserted before.
+   *
+   * It read `does not point at a sitemap that is not there`, and the premise
+   * was wrong: nothing is at `public/sitemap.xml`, so Stacks serves a
+   * generated /sitemap.xml, and it has always been there. The old static
+   * robots.txt omitted the line because it could not name an origin, and the
+   * test pinned that limitation in place as though it were the policy.
+   */
+  it('points at the sitemap it has, at the origin it is served from', () => {
+    expect(robots).toMatch(/^Sitemap:\s*https?:\/\/\S+\/sitemap\.xml$/m)
   })
 })
