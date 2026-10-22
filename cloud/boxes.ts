@@ -35,8 +35,8 @@ export const boxes: Record<string, BoxConfig> = {
     // Chris, 2026-10-19: wait for cx43 rather than pay for cpx42; an AWS
     // runner is the plan once the AWS credits arrive.
     resize: { whenUnavailable: 'keep-current' },
-    pantryVersion: '0.11.99',
-    packages: ['bun.sh@1.4.3', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84'],
+    pantryVersion: '0.11.117',
+    packages: ['bun.sh@1.4.3', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84.1'],
     sandboxedPackageProjects: ['/tmp/reviewos-job-*'],
     // Chrome's pantry tree is about 9 GB on Linux; a job needs room of its own after it.
     minFreeDiskGb: 12,
