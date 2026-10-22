@@ -113,6 +113,7 @@ export const actions = {
   'Actions/Git/bypass': '../../../app/Actions/Git/bypass.ts',
   'Actions/Git/checkpoint': '../../../app/Actions/Git/checkpoint.ts',
   'Actions/Git/diffStream': '../../../app/Actions/Git/diffStream.ts',
+  'Actions/Git/dispatchRef': '../../../app/Actions/Git/dispatchRef.ts',
   'Actions/Git/download': '../../../app/Actions/Git/download.ts',
   'Actions/Git/git': '../../../app/Actions/Git/git.ts',
   'Actions/Git/hooks': '../../../app/Actions/Git/hooks.ts',

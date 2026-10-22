@@ -31,6 +31,8 @@ declare global {
   const commitHistory: typeof autoImports.commitHistory
   const commitDetail: typeof autoImports.commitDetail
   const compareRefs: typeof autoImports.compareRefs
+  const MAX_LISTED_ROWS: typeof autoImports.MAX_LISTED_ROWS
+  const MAX_COMPARED_FILES: typeof autoImports.MAX_COMPARED_FILES
   const parseCompareRefs: typeof autoImports.parseCompareRefs
   const compareDiffText: typeof autoImports.compareDiffText
   const highlightLines: typeof autoImports.highlightLines
