@@ -96,6 +96,31 @@ Each one is committed and pushed in the repository named.
   that those headings did not belong: they were `###` and `##` inside a `- [x]` item. They are bold
   lead-ins now, which is the house style everywhere else in these files and what the surrounding
   prose in that same entry already used.
+- [x] **pickier was installed three times, and the oldest copy was the one doing the linting.**
+      `package.json` declared `pickier` directly while `better-dx` already ships it, which AGENTS.md
+      forbids precisely because two ranges for one tool drift. They had: the direct `^0.1.67` pinned
+      the hoisted copy at `0.1.67`, so `@stacksjs/lint` (which wants `^0.1.70`) got a nested
+      `0.1.72` and `@stacksjs/logsmith` a nested `0.1.45`. Three copies, and `buddy lint` ran the
+      oldest of them.
+
+  Dropping the declaration alone changed nothing, because the lockfile still satisfied every range
+  with what it had. `bun update pickier` collapsed it: **one copy at `0.1.76`**, the two nested ones
+  and a transitive `clarity` under them gone, and no other package touched. The direct declaration
+  was in `dependencies` rather than `devDependencies`, so a linter was also a runtime dependency of
+  the application; the only reference to it anywhere is `import type { PickierOptions }` in
+  `config/code-style.ts`, which needs nothing at runtime and still typechecks.
+
+  **The stale pin was hiding a whole class of files from the linter.** `0.1.67` scanned 3,466 files
+  and `0.1.76` scans 3,513, and every one of the 13 files that had never been flagged lives under a
+  bracketed route directory - `[owner]/index.stx`, `[owner]/[repository]/pull/[number].stx`,
+  `.../run/[number].stx`, `.../settings.stx`, `view/[...target].stx`. Those are the application's
+  primary views, including the pull request page, and they had never been linted at all. 68 class
+  ordering warnings came out of them, verified as a permutation the same way as the first sweep:
+  identical class tokens on every line, byte-identical outside each `class` attribute.
+
+  So the markdown bug above was a symptom. The reason a fixed rule was still corrupting documents
+  here is that the tool doing the work was nine patch releases behind, held there by a declaration
+  that should not have existed.
 
   Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
   better code independently of the linter, and reverting structure to prove a tool is fixed is how

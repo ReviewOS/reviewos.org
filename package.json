@@ -90,7 +90,6 @@
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.13",
     "mermaid": "^12.1.0",
-    "pickier": "^0.1.67",
     "stacks": "0.75.217",
     "ts-git-lfs": "^0.1.3",
     "ts-images": "^0.2.25",
