@@ -514,7 +514,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
             and find the clone URL, work out that an empty repository has no
             branch to push to yet, and guess the rest. The commands are the
             page: they are what this screen is for. --}}
-        <div class="panel empty-repo">
+        <div class="empty-repo panel">
           <h2 class="empty-repo-title">This repository is empty</h2>
           <p class="muted">Push a commit and it appears here. Both routes start from a checkout on your machine.</p>
 
@@ -529,7 +529,7 @@ git push -u origin {{ defaultBranch }}</pre>
           <pre class="empty-repo-commands mono">git remote add origin {{ cloneUrl }}
 git push -u origin {{ defaultBranch }}</pre>
 
-          <p class="muted empty-repo-note">
+          <p class="empty-repo-note muted">
             Pushing needs a credential: a token from
             <a href="/settings/tokens">Settings, then Tokens</a>, as the password.
           </p>

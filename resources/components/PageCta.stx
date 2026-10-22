@@ -27,10 +27,10 @@ const actionList = typeof actionsJson === 'undefined'
 const spacing = typeof gap === 'undefined' ? '56' : String(gap ?? '56')
 </script>
 
-<section class="panel mt-[{{ spacing }}px] p-[30px] flex items-center gap-[20px] flex-wrap">
+<section class="flex flex-wrap gap-[20px] items-center mt-[{{ spacing }}px] p-[30px] panel">
   <div class="flex-1 min-w-[260px]">
     <h2 class="text-[21px]">{{ heading }}</h2>
-    <p class="muted mt-[8px] max-w-[54ch]">{{ line }}</p>
+    <p class="mt-[8px] max-w-[54ch] muted">{{ line }}</p>
   </div>
 
   @foreach (actionList as action)

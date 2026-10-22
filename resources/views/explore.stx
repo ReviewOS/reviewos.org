@@ -96,7 +96,7 @@ function windowHref(value) {
   <div class="page">
     <header class="explore-head">
       <h1 class="explore-title">Explore</h1>
-      <p class="muted explore-subtitle">
+      <p class="explore-subtitle muted">
         What is being worked on here. Public repositories only.
       </p>
     </header>
@@ -109,7 +109,7 @@ function windowHref(value) {
       </nav>
 
       @if (filteredRepositories.length === 0)
-        <div class="panel explore-empty">
+        <div class="explore-empty panel">
           <p>Nothing here yet.</p>
           <p class="muted">
             No public repository on this instance
@@ -143,7 +143,7 @@ function windowHref(value) {
         </div>
 
         @if (gaining.length === 0)
-          <div class="panel explore-empty">
+          <div class="explore-empty panel">
             <p class="muted">
               No public repository has gained a star in this window. Try a longer one, or look at
               what has been pushed to below.
@@ -162,7 +162,7 @@ function windowHref(value) {
         <h2 id="active-heading" class="explore-section-title">Recently active</h2>
 
         @if (active.length === 0)
-          <div class="panel explore-empty">
+          <div class="explore-empty panel">
             <p class="muted">Nothing has been pushed to a public repository here yet.</p>
           </div>
         @else

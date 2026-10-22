@@ -339,7 +339,7 @@ if (viewer?.is_admin || maintainsPools) {
             @endforeach
           </ul>
 
-          <p class="tok-hint muted" style="margin-top: 10px;">
+          <p class="muted tok-hint" style="margin-top: 10px;">
             Rotating issues a replacement and leaves the old token working for 24 hours, so the
             deploy that picks up the new one does not have to happen the same minute. Both appear
             in this list until the old one lapses.

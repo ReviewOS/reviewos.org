@@ -87,7 +87,7 @@ function tabHref(key) {
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
 
-      <p class="search-hint muted">
+      <p class="muted search-hint">
         Qualifiers work the way you expect: <code>is:open</code>, <code>author:someone</code>,
         <code>label:bug</code>, <code>org:acme</code>, <code>topic:git</code>. Put a phrase in quotes
         to match it whole, and prefix any of them with <code>-</code> to exclude.
@@ -124,17 +124,17 @@ function tabHref(key) {
         </p>
       </div>
     @else
-      <p class="search-count muted">
+      <p class="muted search-count">
         {{ outcome.total }} {{ outcome.total === 1 ? 'result' : 'results' }}
       </p>
 
-      <ul class="search-results panel">
+      <ul class="panel search-results">
         @foreach (results as hit)
           <li class="search-result">
             @if (onIssues)
               <div class="search-result-main">
                 <a class="search-result-title" href="/{{ hit.repository }}/issues/{{ hit.number }}">{{ hit.title }}</a>
-                <p class="search-result-meta muted">
+                <p class="muted search-result-meta">
                   <span class="mono">{{ hit.repository }}</span> #{{ hit.number }}
                   @if (hit.author)
                     &middot; opened by {{ hit.author }}
@@ -170,7 +170,7 @@ function tabHref(key) {
                 {{-- The separator belongs between two things. Written as a
                     prefix it renders as a dangling dot on every repository
                     with no topics on it, which is most of them. --}}
-                <p class="search-result-meta muted">
+                <p class="muted search-result-meta">
                   @if (hit.topics.length > 0)
                     @foreach (hit.topics as topic)
                       <span class="search-label">{{ topic }}</span>

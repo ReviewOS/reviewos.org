@@ -30,15 +30,15 @@ const links = typeof linksJson === 'undefined'
 const detailText = typeof detail === 'undefined' ? '' : String(detail ?? '')
 </script>
 
-<div class="panel p-[32px] text-center">
+<div class="p-[32px] text-center panel">
   <h1 class="text-[20px]">{{ title }}</h1>
 
   @if (detailText)
-    <p class="muted mt-[6px]">{{ detailText }}</p>
+    <p class="mt-[6px] muted">{{ detailText }}</p>
   @endif
 
   @if (links.length > 0)
-    <div class="mt-[18px] flex gap-2 justify-center flex-wrap">
+    <div class="flex flex-wrap gap-2 justify-center mt-[18px]">
       @foreach (links as link)
         <a class="btn" href="{{ link.href }}">{{ link.label }}</a>
       @endforeach

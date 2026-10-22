@@ -63,7 +63,7 @@ const signedIn = Boolean(viewer)
 </script>
 
 <header class="topbar">
-  <div class="shell topbar-inner">
+  <div class="topbar-inner shell">
     <a class="brand" href="/" aria-label="ReviewOS home">
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-word">ReviewOS</span>

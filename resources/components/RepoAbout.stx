@@ -124,7 +124,7 @@ const languages = listFrom(typeof languagesJson === 'undefined' ? facts.language
       </a>
 
       @if (about.release.when)
-        <p class="muted about-release-when">{{ about.release.when }}</p>
+        <p class="about-release-when muted">{{ about.release.when }}</p>
       @endif
 
       @if (about.releaseCount > 1)

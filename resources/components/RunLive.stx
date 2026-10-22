@@ -29,11 +29,11 @@
     an empty shell is one people learn to stop seeing, and then the once it
     matters it is invisible.
   --}}
-  <p class="runlive-line muted" x-show="summary && !finished" x-cloak>
+  <p class="muted runlive-line" x-show="summary && !finished" x-cloak>
     <span role="status" aria-live="polite" x-text="summary"></span>
   </p>
 
-  <div class="runlive-done panel" x-show="finished" x-cloak>
+  <div class="panel runlive-done" x-show="finished" x-cloak>
     <span role="status" aria-live="polite">
       This run <span x-text="finished"></span> while you were reading.
     </span>

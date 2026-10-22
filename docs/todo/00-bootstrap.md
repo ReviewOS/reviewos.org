@@ -72,6 +72,19 @@ Each one is committed and pushed in the repository named.
 - [x] **pickier** - `no-unused-vars` also missed a module-level `const` referenced before it is
       declared, which is ordinary and valid: the eight content constants in `SeedDemo.ts` were each
       reported as unused while being used. Also fixed in `0.1.49`.
+- [x] **pickier** - the `markdown/heading-start-left` **auto-fix corrupts a document** when the
+      heading it moves is nested inside a list item. It dedents the heading to column 0 and leaves
+      the prose under it at its original indent, which closes the list, promotes the heading out of
+      the item, and turns that prose into an indented code block.
+
+  Reproduced on a six-line fixture and confirmed by rendering both versions: the prose that read as
+  a paragraph inside the item comes back as `<pre><code>`. `--fix` reports success while doing it,
+  so a sweep across a repository full of roadmap prose is a silent content change. `pickier@0.1.67`.
+
+  The three warnings it fired on here were in `docs/todo/14-diff-engine.md`, and the rule is right
+  that those headings did not belong: they were `###` and `##` inside a `- [x]` item. They are bold
+  lead-ins now, which is the house style everywhere else in these files and what the surrounding
+  prose in that same entry already used.
 
   Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
   better code independently of the linter, and reverting structure to prove a tool is fixed is how

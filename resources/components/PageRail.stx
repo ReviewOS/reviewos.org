@@ -40,11 +40,11 @@ const relatedHeading = typeof relatedLabel === 'undefined' ? 'Related' : String(
 const prefix = typeof relatedPrefix === 'undefined' ? '/features' : String(relatedPrefix ?? '/features')
 </script>
 
-<aside class="sticky top-[92px] flex flex-col gap-[14px]">
+<aside class="flex sticky top-[92px] flex-col gap-[14px]">
   @if (summaryLines.length > 0)
-    <section class="panel p-[18px]">
-      <p class="text-[12px] uppercase tracking-[0.07em] font-semibold muted">{{ summaryHeading }}</p>
-      <ul class="mt-[11px] flex flex-col gap-[9px] text-sm">
+    <section class="p-[18px] panel">
+      <p class="font-semibold text-[12px] tracking-[0.07em] uppercase muted">{{ summaryHeading }}</p>
+      <ul class="flex flex-col gap-[9px] mt-[11px] text-sm">
         @foreach (summaryLines as line)
           <li class="muted">{{ line }}</li>
         @endforeach
@@ -53,11 +53,11 @@ const prefix = typeof relatedPrefix === 'undefined' ? '/features' : String(relat
   @endif
 
   @if (relatedItems.length > 0)
-    <section class="panel p-[18px]">
-      <p class="text-[12px] uppercase tracking-[0.07em] font-semibold muted">{{ relatedHeading }}</p>
-      <div class="mt-[10px] flex flex-col gap-[8px]">
+    <section class="p-[18px] panel">
+      <p class="font-semibold text-[12px] tracking-[0.07em] uppercase muted">{{ relatedHeading }}</p>
+      <div class="flex flex-col gap-[8px] mt-[10px]">
         @foreach (relatedItems as item)
-          <a href="{{ prefix }}/{{ item.slug }}" class="no-underline text-sm font-medium">{{ item.name }}</a>
+          <a href="{{ prefix }}/{{ item.slug }}" class="font-medium no-underline text-sm">{{ item.name }}</a>
         @endforeach
       </div>
     </section>

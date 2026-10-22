@@ -37,7 +37,7 @@ const users = typeof restrictUsers === 'undefined' ? '' : String(restrictUsers ?
 const teams = typeof restrictTeams === 'undefined' ? '' : String(restrictTeams ?? '')
 </script>
 
-<form class="rule-form grid" method="post" action="/api/repos/protected-branches">
+<form class="grid rule-form" method="post" action="/api/repos/protected-branches">
   <CsrfField />
   <input type="hidden" name="owner" value="{{ owner }}">
   <input type="hidden" name="repo" value="{{ repo }}">

@@ -65,10 +65,10 @@ const pills = [
 
   <p class="muted repo-card-meta">
     @if (gained)
-      <span class="repo-card-stat repo-card-gained">+{{ gained }} stars</span>
+      <span class="repo-card-gained repo-card-stat">+{{ gained }} stars</span>
     @endif
     @if (language)
-      <span class="repo-card-stat repo-card-language">{{ language }}</span>
+      <span class="repo-card-language repo-card-stat">{{ language }}</span>
     @endif
     @if (stars)
       <span class="repo-card-stat"><span class="i-hugeicons-star" aria-hidden="true"></span>{{ stars }}</span>

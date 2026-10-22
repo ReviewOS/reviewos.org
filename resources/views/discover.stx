@@ -37,7 +37,7 @@ function repositoryHref(entry) {
 @section('description', 'Repositories worth reading on this instance, and the reviews happening on them now.')
 
 @section('content')
-  <div class="shell discover-shell">
+  <div class="discover-shell shell">
     <header class="discover-head">
       <h1>Discover</h1>
       <p class="muted">Public work happening across this instance.</p>
@@ -50,7 +50,7 @@ function repositoryHref(entry) {
           <a href="/explore">Explore repositories</a>
         </div>
 
-        <div class="panel discover-feed">
+        <div class="discover-feed panel">
           <ActivityFeed
             :rows="feedRows"
             empty="No public activity yet. Open an issue, publish a release, or review a pull request and it will appear here."
@@ -65,14 +65,14 @@ function repositoryHref(entry) {
       </main>
 
       <aside class="discover-side" aria-label="Repository discovery">
-        <section class="panel discover-panel" aria-labelledby="trending-heading">
+        <section class="discover-panel panel" aria-labelledby="trending-heading">
           <div class="discover-section-head">
             <h2 id="trending-heading">Trending this week</h2>
             <a href="/explore?days=7">See all</a>
           </div>
 
           @if (gaining.length === 0)
-            <p class="muted discover-empty">No public repository gained a star this week.</p>
+            <p class="discover-empty muted">No public repository gained a star this week.</p>
           @else
             <ul class="discover-repositories">
               @foreach (gaining as entry)
@@ -85,14 +85,14 @@ function repositoryHref(entry) {
           @endif
         </section>
 
-        <section class="panel discover-panel" aria-labelledby="active-heading">
+        <section class="discover-panel panel" aria-labelledby="active-heading">
           <div class="discover-section-head">
             <h2 id="active-heading">Recently active</h2>
             <a href="/explore">See all</a>
           </div>
 
           @if (active.length === 0)
-            <p class="muted discover-empty">Nothing has been pushed to a public repository yet.</p>
+            <p class="discover-empty muted">Nothing has been pushed to a public repository yet.</p>
           @else
             <ul class="discover-repositories">
               @foreach (active as entry)

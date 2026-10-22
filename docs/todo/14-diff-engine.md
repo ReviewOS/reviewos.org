@@ -65,7 +65,7 @@ Numbers, so the work can be checked rather than argued about:
       The last file of the diff is reachable and reached: `scrollTop` finishes at 15,999,298 against
       a maximum of 15,999,297, with file 78,984 - the last - in the viewport.
 
-      ### How it was measured, and the one thing that was not
+      **How it was measured, and the one thing that was not.**
 
       In two halves, because a single run cannot be observed on this machine, and saying which half
       is which matters more than the numbers.
@@ -100,7 +100,7 @@ Numbers, so the work can be checked rather than argued about:
       file tree, hunks, syntax colour, the mechanical-hunk labels - against 80,610 files of real
       kernel history. Heap sits at 13MB while it does.
 
-      ## What used to stop this box being ticked, and what it took to find out
+      **What used to stop this box being ticked, and what it took to find out.**
 
       Two things, and the second is the one nobody had looked for. Both were found by driving a
       real browser at the real corpus rather than by reasoning about it, and the earlier notes in
@@ -185,7 +185,7 @@ Numbers, so the work can be checked rather than argued about:
       did not climb: 24MB at 20,000, 29MB at 39,000. Nothing here exhausts a laptop. What it does
       is stop.
 
-      ### The earlier readings, kept
+      **The earlier readings, kept.**
 
       Three diagnoses came before those, each replacing the last, and the shape of the error was the
       same every time: the symptom was slowness, and slowness reads as something being slow. The

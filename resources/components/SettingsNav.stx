@@ -34,7 +34,7 @@ const pages = [
 <nav class="settings-nav" aria-label="Settings">
   @foreach (pages as page)
     @if (page.key === active)
-      <a class="settings-nav-item is-current" href="{{ page.href }}" aria-current="page">{{ page.label }}</a>
+      <a class="is-current settings-nav-item" href="{{ page.href }}" aria-current="page">{{ page.label }}</a>
     @else
       <a class="settings-nav-item" href="{{ page.href }}">{{ page.label }}</a>
     @endif

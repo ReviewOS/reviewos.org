@@ -24,13 +24,13 @@
   x-init="handle = followJob($props.owner, $props.repository, Number($props.job), Number($props.after), (text) => { tail = tail + text }, (next) => { state = next })"
   x-destroy="handle?.stop()">
 
-  <pre class="log-body jobtail-body" x-show="tail" x-cloak x-text="tail"></pre>
+  <pre class="jobtail-body log-body" x-show="tail" x-cloak x-text="tail"></pre>
 
   {{--
     Said once the job ends, because the reader is looking at output that stops
     mid-sentence otherwise and has no way to tell whether more is coming.
   --}}
-  <p class="muted jobtail-note" x-show="state && ['succeeded','failed','cancelled','skipped'].includes(state)" x-cloak>
+  <p class="jobtail-note muted" x-show="state && ['succeeded','failed','cancelled','skipped'].includes(state)" x-cloak>
     This job <span x-text="state"></span>. Reload for its steps and timings.
   </p>
 </div>
