@@ -953,11 +953,25 @@ describe('dispatching a workflow by hand', () => {
 
   test('a missing requested ref creates no run', async () => {
     if (!available) return
-    const before = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+    /*
+     * Ordered, and compared as ids rather than as rows.
+     *
+     * This selected without an `order by` and compared the two arrays with
+     * `toEqual`, which is order-sensitive while the query is not: Postgres
+     * returns heap order for a scan, and `workflow_runs` is shared with every
+     * other suite that dispatches something, so the same query can hand back
+     * the same sixteen rows in a different sequence. It did, on CI, and the
+     * failure read as sixteen unexpected runs rather than as no change at all.
+     * MySQL never showed it, because InnoDB scans the clustered primary key.
+     */
+    const runIds = async (): Promise<number[]> =>
+      (await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).orderBy('id').execute())
+        .map((row: any) => Number(row.id))
+
+    const before = await runIds()
     const answer = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, { ...authorized(), body: JSON.stringify({ ref: 'refs/heads/absent-dispatch-branch' }) })
     expect(answer.status).toBe(404)
-    const after = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
-    expect(after).toEqual(before)
+    expect(await runIds()).toEqual(before)
   })
 
   test('the inputs are checked against what the workflow declared', async () => {
