@@ -208,6 +208,17 @@ export default class StackedChange extends Seeder {
           number,
           title: change.title,
           body: change.body,
+          /*
+           * The owner, because a change with no author renders as "by
+           * someone".
+           *
+           * This was left null, and these three were the only pull requests in
+           * a seeded instance without an author - the list said "opened 18
+           * minutes ago by someone" on the one repository built to demonstrate
+           * the product. Nothing errored, which is why it survived: a null
+           * author has a fallback, and the fallback is the word "someone".
+           */
+          author_id: owner.id,
           state: 'open',
           draft: false,
           head_branch: change.branch,

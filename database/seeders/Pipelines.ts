@@ -203,7 +203,7 @@ export default class Pipelines extends Seeder {
 
     const pulls = await db
       .selectFrom('pull_requests')
-      .select(['id', 'number', 'repository_id', 'head_sha', 'base_branch', 'author_id'])
+      .select(['id', 'number', 'repository_id', 'head_sha', 'base_branch', 'author_id', 'state'])
       .orderBy('id')
       .execute()
 
@@ -249,6 +249,20 @@ export default class Pipelines extends Seeder {
       if (!versionId)
         continue
 
+      /*
+       * Before the loop, because the loop needs to know the answer.
+       *
+       * A merge blocked by a failing required check is the state the whole
+       * gating feature exists for, and it was unreachable on a seeded
+       * instance: outcomes are assigned by position across every pull
+       * request, branch rules exist on only some repositories, and the
+       * intersection of "gates on checks", "still open" and "something failed"
+       * came out empty. Every open pull request in a guarded repository had
+       * passing checks, so nobody could see the one screen that matters.
+       */
+      const gated = await this.requireChecks(repositoryId, String(repository.default_branch || 'main'))
+      let forcedFailure = false
+
       const suiteId = await this.suite(repositoryId, String(repository.name))
       const managed = suiteId ? await this.managedTests(repositoryId, suiteId) : []
 
@@ -260,7 +274,20 @@ export default class Pipelines extends Seeder {
         if (headSha.length < 7)
           continue
 
-        const outcome = OUTCOMES[position % OUTCOMES.length]!
+        /*
+         * Position decides the outcome, with one exception: the first open
+         * pull request in a repository that gates on checks is made to fail,
+         * so the blocked-merge state always exists somewhere in the instance.
+         */
+        const open = String(pull.state) === 'open'
+        const force = gated && open && !forcedFailure
+
+        if (force)
+          forcedFailure = true
+
+        const outcome = force
+          ? OUTCOMES.find(one => one.label === 'failing')!
+          : OUTCOMES[position % OUTCOMES.length]!
 
         position += 1
 
@@ -302,7 +329,6 @@ export default class Pipelines extends Seeder {
           executions += await this.testRun(repositoryId, suiteId, managed, pull, outcome)
       }
 
-      await this.requireChecks(repositoryId, String(repository.default_branch || 'main'))
     }
 
     if (runs > 0)
@@ -728,7 +754,7 @@ export default class Pipelines extends Seeder {
    * empty array. Only rules that are already there are touched, so this does
    * not invent protection for a repository that has none.
    */
-  private async requireChecks(repositoryId: number, branch: string): Promise<void> {
+  private async requireChecks(repositoryId: number, branch: string): Promise<boolean> {
     const rule = await db
       .selectFrom('protected_branches')
       .select(['id', 'required_checks'])
@@ -737,20 +763,22 @@ export default class Pipelines extends Seeder {
       .executeTakeFirst()
 
     if (!rule?.id)
-      return
+      return false
 
     const current = String(rule.required_checks ?? '[]')
 
     // Already named some. A rule somebody configured is not this seeder's to
-    // rewrite.
+    // rewrite, and it still gates, so the caller is told so.
     if (current !== '[]' && current !== '' && current !== 'null')
-      return
+      return true
 
     await db
       .updateTable('protected_branches')
       .set({ required_checks: JSON.stringify(['lint', 'test']) })
       .where('id', '=', rule.id)
       .execute()
+
+    return true
   }
 }
 

@@ -2587,11 +2587,10 @@ decisions.
       whose stored inputs disagree with the file they claim to come from is a lie the page cannot
       detect.
 
-      One limit worth stating rather than glossing: the dispatch form is behind
-      `@if (workflow.dispatchable && canDispatch)`, so **an anonymous request never renders it**.
-      The runner, queue and pool names are confirmed on the page; the environment select is
-      confirmed only at the data layer, and seeing it needs a session with `workflow:dispatch`.
-      That is the gate working, and it is why driving these screens signed in is still worth doing.
+      The dispatch form is behind `@if (workflow.dispatchable && canDispatch)`, so an anonymous
+      request never renders it, which is the gate working. Confirmed signed in as the repository's
+      owner: all three inputs render, and the `environment` select is populated from the seeded
+      environments with `production` and `staging` as its options.
 
 ## Security
 

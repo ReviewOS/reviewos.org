@@ -768,6 +768,33 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
 
 ## Known issues
 
+- [x] A merge blocked by a failing required check is reachable on a seeded instance, which it was
+      not. That is the state the whole gating feature exists for, and the intersection that produces
+      it came out empty every time: outcomes are assigned by position across every pull request,
+      branch rules exist on only some repositories, and every open pull request in a guarded
+      repository happened to have passing checks. `Pipelines` now makes the first open pull request
+      in a repository that gates on checks fail, so the state always exists somewhere.
+
+      Confirmed by signing in and reading the page, because that is the only way this one can be
+      confirmed:
+
+      ```
+      MERGE - This cannot be merged yet.
+        2 more approvals are required
+        1 review thread must be resolved
+        Required check failed: test
+      ```
+
+      All three blockers enumerated together, with `Required` against the checks that gate. The same
+      pass also confirmed the opposite reading is correct rather than a bug: on a repository with no
+      branch rule the merge box says "Everything checks out" while two checks have failed, which is
+      right, because nothing there is required and the checks tab says so in as many words.
+- [x] And the three pull requests in the stack demonstration have an author. `StackedChange` never
+      set `author_id`, so they were the only three of thirty-seven without one, and the list and the
+      header both read "opened 18 minutes ago by **someone**" on the one repository built to show
+      the product off. Nothing errored: a null author has a fallback, and the fallback is the word
+      "someone".
+
 - [x] `(repository_id, number)` is unique on `pull_requests` and on `issues`, in both dialect
       corpora. The invariant is a URL: the page resolves a number with a single
       `where number = ...`, so a duplicate does not error, it makes one of the two changes
