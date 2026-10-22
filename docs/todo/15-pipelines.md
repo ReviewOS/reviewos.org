@@ -2542,6 +2542,57 @@ decisions.
 
 ---
 
+## Seeded fleet and environments
+
+- [x] A run says what executed it. The run page answers that by walking
+      `workflow_jobs.runner_id` to `runners`, then `runners.runner_queue_id` to `runner_queues`,
+      then `runner_queues.runner_pool_id` to `runner_pools`, and all three tables were empty, so the
+      block was skipped and a run never said where it ran. `database/seeders/RunnerFleet.ts` builds
+      two pools with three queues and four runners, and attributes every **finished** job to one.
+      The shapes are deliberate: a shared pool with two queues, a release pool whose single queue is
+      **paused with a reason**, and one disabled runner that was last seen three days ago, because
+      a fleet where everything is healthy demonstrates nothing about reading one that is not.
+- [x] Finished, and not merely started, which is the lesson this seeder cost two suites to learn.
+      A `running` job carries a lease, and `claim.ts` has a recovery path for one that has lapsed:
+      `state = 'running'` with a matching stale `runner_id` and `lease_expires_at`. A seeded running
+      job has a runner and a null lease, which reads as a lease that expired long ago, so the
+      claimer treats it as work to recover and hands it to whichever runner asks next. Two suites
+      driving a fake runner claimed eleven seeded jobs that way. A live lease is not the fix either,
+      because it expires during a long test run and the problem returns on a timer. A finished job
+      has nothing left to claim, so it is the only state where an attributed runner is inert. The
+      cost is that a running job shows no runner even though something is notionally executing it,
+      and that is the right trade: **seed data must not look like live work.**
+- [ ] A queued job cannot be seeded, and the state is therefore still unreachable on a seeded
+      instance. It is the one case where "no runner" is the answer rather than missing data, so it
+      is exactly what the run page's runner block exists to contrast against. A sixth outcome was
+      added to `Pipelines` to produce it and had to be taken back out: queued is not a display
+      state, it is **claimable work**. `claim.ts` selects on
+      `workflow_jobs.state in ('queued','running')` with `kind = 'command'`, `kind` defaults to
+      `command`, and an instance-scoped runner is scoped to everything, so a seeded queued job is a
+      job any runner will take. Two suites that drive a fake runner drained nine of them and
+      executed them, and the table came out of that run holding 53 succeeded jobs where the seed had
+      written 36. The same would happen to anybody pointing a real runner at their dev instance.
+      Nothing that makes the row unclaimable leaves it the same kind of row, so showing this state
+      needs either a fixture the claimer cannot see or a screen that can render a job the database
+      does not hold.
+- [x] `environments`, which the workflows page turns into the choice list for a `workflow_dispatch`
+      input of type `environment`. Two per repository, one gated and one not: `production` waits ten
+      minutes and requires its checks, `staging` does neither. An instance where every environment
+      is identical shows neither half of that rule.
+- [x] Which needed the dispatch form to exist at all. `workflow_versions.dispatch_inputs` was never
+      set, so every seeded workflow offered a bare button and the environments would have been
+      correct data that nothing reads. The seeded version now declares three inputs covering three
+      of the four render branches - an `environment` select, a `choice` with options, and a
+      `boolean` - and the YAML the digest is hashed from declares the same three, because a version
+      whose stored inputs disagree with the file they claim to come from is a lie the page cannot
+      detect.
+
+      One limit worth stating rather than glossing: the dispatch form is behind
+      `@if (workflow.dispatchable && canDispatch)`, so **an anonymous request never renders it**.
+      The runner, queue and pool names are confirmed on the page; the environment select is
+      confirmed only at the data layer, and seeing it needs a session with `workflow:dispatch`.
+      That is the gate working, and it is why driving these screens signed in is still worth doing.
+
 ## Security
 
 Phase 9's execution-plane gate covers sandboxing. This section is the part that applies even when

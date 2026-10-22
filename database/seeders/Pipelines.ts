@@ -51,6 +51,20 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy once the tests pass
+        type: environment
+        required: true
+      level:
+        description: How much of the suite to run
+        type: choice
+        default: full
+        options: [full, smoke]
+      verbose:
+        description: Print every command
+        type: boolean
+        default: 'false'
 
 jobs:
   lint:
@@ -68,6 +82,27 @@ jobs:
     steps:
       - run: ./buddy test
 `
+
+/**
+ * The dispatch form the workflow above declares, as the version stores it.
+ *
+ * `workflow_versions.dispatch_inputs` is the JSON the workflows page builds its
+ * `workflow_dispatch` form from, and it was never set, so every seeded workflow
+ * offered a bare button. Each of the four input types renders differently and
+ * one of them is the only place `environments` is used at all: an `environment`
+ * input becomes a select over the repository's environments, and falls back to
+ * a plain text box with an explanation when there are none. Seeding the
+ * environments without this would have been correct data that nothing reads.
+ *
+ * Kept in step with `DEFINITION` by hand, because the digest is a hash of that
+ * text and a version whose stored inputs disagree with the file they claim to
+ * come from is a lie the page has no way to detect.
+ */
+const DISPATCH_INPUTS = [
+  { name: 'environment', description: 'Where to deploy once the tests pass', type: 'environment', required: true, default: null },
+  { name: 'level', description: 'How much of the suite to run', type: 'choice', required: false, default: 'full', options: ['full', 'smoke'] },
+  { name: 'verbose', description: 'Print every command', type: 'boolean', required: false, default: 'false' },
+] as const
 
 /** The three jobs, in the order a pipeline would run them. */
 const JOBS = [
@@ -91,6 +126,29 @@ const OUTCOMES = [
   { label: 'running', conclusions: ['success', null, null], status: 'in_progress' },
   { label: 'cancelled', conclusions: ['success', 'cancelled', 'cancelled'], status: 'completed' },
   { label: 'neutral', conclusions: ['success', 'neutral', 'success'], status: 'completed' },
+  /*
+   * No queued outcome, deliberately, and it is worth saying why because the
+   * missing state is a real gap in what a seeded instance can show.
+   *
+   * A queued job is the one case where "no runner" is the answer rather than
+   * missing data, so it is exactly what the run page's runner block exists to
+   * contrast against. It was added here and had to come out: queued is not a
+   * display state, it is **claimable work**. `app/Actions/Runner/claim.ts`
+   * selects on `workflow_jobs.state in ('queued','running')` and
+   * `kind = 'command'`, `kind` defaults to `command`, and an instance-scoped
+   * runner is scoped to everything - so a seeded queued job is a job any
+   * runner will take.
+   *
+   * It did. Two suites that drive a fake runner drained nine seeded jobs and
+   * executed them, and the table came out of the run holding 53 succeeded jobs
+   * where the seed wrote 36. The same would happen to anybody who pointed a
+   * real runner at their dev instance.
+   *
+   * There is no honest way around it: anything that makes the row unclaimable
+   * also makes it a different kind of row. So the state stays unseeded, and
+   * `RunnerFleet` still guards against attributing a runner to one in case it
+   * ever arrives by another route.
+   */
 ] as const
 
 /** The run state that goes with each outcome, so the list and the tab agree. */
@@ -357,6 +415,7 @@ export default class Pipelines extends Seeder {
         on_push: true,
         on_pull_request: true,
         on_dispatch: true,
+        dispatch_inputs: JSON.stringify(DISPATCH_INPUTS),
         uuid: crypto.randomUUID(),
       })
       .returning(['id'])
