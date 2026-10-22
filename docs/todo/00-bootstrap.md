@@ -121,6 +121,27 @@ Each one is committed and pushed in the repository named.
   So the markdown bug above was a symptom. The reason a fixed rule was still corrupting documents
   here is that the tool doing the work was nine patch releases behind, held there by a declaration
   that should not have existed.
+- [x] **Swept the rest of what `better-dx` ships, and `@stacksjs/bunpress` had the same shape,
+      four copies deep.** Of the 14 packages better-dx bundles, exactly one other was declared
+      directly here: `@stacksjs/bunpress` at `^0.2.14`, which pinned the hoisted copy to `0.2.14`
+      while `@stacksjs/actions`, `@stacksjs/docs` and `@stacksjs/types` all want `^0.2.15`. They
+      each got their own nested `0.2.16`. One declaration, four installs.
+
+  Removing it resolved to a single `0.2.22`, and stx and crosswind stayed at one copy each
+  throughout, so the duplication had been confined to bunpress itself. The reference is
+  `import type { BunPressOptions }` in `config/docs.ts`, a type-only import again, and it still
+  typechecks with nothing declared.
+
+  **This one broke the docs build, which is how it earned its keep.** `0.2.22` validates markdown
+  links and `0.2.14` has no such check at all - verified by unpacking `0.2.14` and finding the
+  error string absent rather than by inferring it. Three links in `12-api-and-agents.md` pointed at
+  `./09-ci-cd.md`, a file that has never existed; phase 9 is `09-checks-ci.md`. Every one of them
+  was a dead link on the published site, and the old version walked past all three. Fixed, and the
+  docs build passes.
+
+  The pattern across both: a direct declaration of something `better-dx` already ships does not
+  just risk drift, it silently holds the whole tree at the oldest range in play, and what you lose
+  is whatever the newer versions had learned to catch.
 
   Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
   better code independently of the linter, and reverting structure to prove a tool is fixed is how

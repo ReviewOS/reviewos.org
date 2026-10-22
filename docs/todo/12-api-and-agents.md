@@ -349,7 +349,7 @@ vocabulary, and it is discoverable without reading the source.
   which stores the comma form, ever worked, which is exactly why it survived. The test now asserts
   against the model's own default so the two cannot drift apart again.
 
-  Checks are still absent, deliberately: they are [phase 9](./09-ci-cd.md) and there is nothing to
+  Checks are still absent, deliberately: they are [phase 9](./09-checks-ci.md) and there is nothing to
   emit yet. The same reasoning as the MCP tool that is not there.
 - [x] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
       a resource and status URL, poll cheaply with `ETag`, follow a cursor-based event or log stream,
@@ -382,7 +382,7 @@ vocabulary, and it is discoverable without reading the source.
 
   Mirror sync is the first user, and answering `{ queued: true }` is what it used to do. The event or
   log stream is the one piece not built: nothing here produces a stream yet, and inventing one before
-  [phase 9](./09-ci-cd.md)'s workflow logs would be guessing at its shape.
+  [phase 9](./09-checks-ci.md)'s workflow logs would be guessing at its shape.
 
   Building it found a defect in what was already shipped: `tokenIdFor` read
   `request._currentAccessToken`, which is the *framework's* token row from a different table with its
@@ -505,7 +505,7 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
   its environment, which is the deployment this design exists to avoid.
 
   Five tools, not six. `read_check_output` is deliberately absent: checks are
-  [phase 9](./09-ci-cd.md) and there is no endpoint behind it. Shipping the tool anyway would
+  [phase 9](./09-checks-ci.md) and there is no endpoint behind it. Shipping the tool anyway would
   advertise a capability that answers 404, and a model handed a tool that always fails does not
   conclude the tool is broken, it concludes the *task* is impossible and gives up on the whole line
   of work. An absent tool is a capability an agent works around; a broken one is a capability it
