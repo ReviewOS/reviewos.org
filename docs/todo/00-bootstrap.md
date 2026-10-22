@@ -79,7 +79,18 @@ Each one is committed and pushed in the repository named.
 
   Reproduced on a six-line fixture and confirmed by rendering both versions: the prose that read as
   a paragraph inside the item comes back as `<pre><code>`. `--fix` reports success while doing it,
-  so a sweep across a repository full of roadmap prose is a silent content change. `pickier@0.1.67`.
+  so a sweep across a repository full of roadmap prose is a silent content change.
+
+  **Already fixed upstream, and not filed for that reason.** It reproduces on the `0.1.67` this
+  repository resolves, and `0.1.76` neither flags nor rewrites the same fixture, while still
+  flagging and correctly dedenting a heading that is genuinely indented at the top level with no
+  list around it. So the fix is the targeted one rather than the rule being dropped, and the only
+  thing standing between us and it is a stale lock entry: the declared range already admits
+  `0.1.76`, and dependency updates here belong to buddy-bot.
+
+  Checking this before writing an issue is the whole point. Four upstream claims earlier in this
+  project did not survive the same check, one of them because it had been fixed a release after the
+  version in the lockfile.
 
   The three warnings it fired on here were in `docs/todo/14-diff-engine.md`, and the rule is right
   that those headings did not belong: they were `###` and `##` inside a `- [x]` item. They are bold
