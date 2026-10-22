@@ -148,7 +148,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
               <span class="run-main">
                 <span class="run-name">{{ run.workflowName }} <span class="muted">#{{ run.number }}</span></span>
-                <span class="run-meta muted">
+                <span class="muted run-meta">
                   {{ run.label }}
                   @if (run.branch)
                     · {{ run.isTag ? 'tag' : 'branch' }} {{ run.branch }}
@@ -159,7 +159,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 </span>
               </span>
 
-              <span class="run-when muted">
+              <span class="muted run-when">
                 @if (run.duration)
                   {{ run.duration }} ·
                 @endif

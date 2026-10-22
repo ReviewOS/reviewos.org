@@ -228,7 +228,7 @@ const base = `/${ownerHandle}/${repositoryName}`
           {{-- Said once, here, rather than as a footnote under every dash: a
               rate over four runs is the last four runs, not a rate, and a page
               that prints one teaches people to distrust the rest of it. --}}
-          <p class="muted checks-note">A dash means too few runs in this window to measure, not zero.</p>
+          <p class="checks-note muted">A dash means too few runs in this window to measure, not zero.</p>
         </section>
 
         <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
@@ -260,7 +260,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             {{-- Ranked by count rather than by rate: a job that fails a tenth
                 of four hundred runs costs forty red builds, and a job that
                 failed its only run has a rate of one. --}}
-            <p class="muted checks-note">Ranked by how many builds went red, not by rate.</p>
+            <p class="checks-note muted">Ranked by how many builds went red, not by rate.</p>
 
             <table class="insight-table">
               <thead>
@@ -290,7 +290,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 wait beside an idle fleet is a routing problem, and a long wait
                 beside a busy one is a shopping list. Split across two pages,
                 every long wait looks like the second. --}}
-            <p class="muted checks-note">Measured from when a runner could have taken the job, not from when the run started.</p>
+            <p class="checks-note muted">Measured from when a runner could have taken the job, not from when the run started.</p>
 
             <table class="insight-table">
               <thead>
@@ -336,7 +336,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             {{-- Nobody is billed here, which is exactly why this is worth
                 showing: the machines are somebody's line item and nothing else
                 itemises them. --}}
-            <p class="muted checks-note">Run minutes by queue. Nothing is billed; this is what the machines were doing.</p>
+            <p class="checks-note muted">Run minutes by queue. Nothing is billed; this is what the machines were doing.</p>
 
             <table class="insight-table">
               <thead>
@@ -368,7 +368,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 discovered was not costing anybody anything before it, and
                 counting it would make flakiness look worse every time
                 detection got better. --}}
-            <p class="muted checks-note">
+            <p class="checks-note muted">
               Counted only for tests marked flaky before the results arrived.
               <a href="{{ base }}/tests">See which ones</a>.
             </p>

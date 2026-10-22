@@ -132,7 +132,7 @@ if (!visible)
         </section>
       @endif
 
-      <ul class="people-list panel">
+      <ul class="panel people-list">
         @foreach (people as person)
           <li class="person-row">
             @if (person.avatarUrl)
@@ -143,7 +143,7 @@ if (!visible)
 
             <div class="person-main">
               <a class="person-name" href="/{{ person.handle }}">{{ person.name }}</a>
-              <span class="person-meta muted">
+              <span class="muted person-meta">
                 {{ person.handle }}
                 &middot; {{ person.role }}
                 @if (person.pending)
@@ -206,7 +206,7 @@ if (!visible)
             @endif
           </div>
 
-          <p class="muted machines-lede">
+          <p class="machines-lede muted">
             An account that holds tokens and cannot sign in. Better than a shared login with the
             password in a password manager, which is what happens otherwise.
           </p>
@@ -233,7 +233,7 @@ if (!visible)
               <div class="invite-actions">
                 <button type="submit" class="btn btn-primary">Create</button>
               </div>
-              <p class="muted machines-note">
+              <p class="machines-note muted">
                 It joins as a member, which grants nothing on its own. Give it a token, and grant
                 that token what it needs.
               </p>
@@ -245,14 +245,14 @@ if (!visible)
               <p class="muted">No machine accounts. CI and deploys are running as somebody.</p>
             </div>
           @else
-            <ul class="people-list panel">
+            <ul class="panel people-list">
               @foreach (machines as machine)
                 <li class="person-row">
                   <span class="i-hugeicons-robotic person-icon" aria-hidden="true"></span>
 
                   <div class="person-main">
                     <a class="person-name" href="/{{ machine.handle }}">{{ machine.name }}</a>
-                    <span class="person-meta muted">
+                    <span class="muted person-meta">
                       {{ machine.handle }} &middot; cannot sign in
                       @if (machine.joinedAt)
                         &middot; created {{ relativeTime(machine.joinedAt) }}

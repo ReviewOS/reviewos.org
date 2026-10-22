@@ -860,7 +860,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
             appears on the checks tab is a link most people never find.
           --}}
           @if (previews.length > 0)
-            <section class="panel pr-previews">
+            <section class="pr-previews panel">
               <h2 class="side-heading">Preview</h2>
 
               @foreach (previews as preview)
@@ -870,7 +870,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
                   @if (preview.state === 'in_progress')
                     <span class="muted">still deploying</span>
                   @endif
-                  <span class="muted mono">{{ preview.sha.slice(0, 10) }}</span>
+                  <span class="mono muted">{{ preview.sha.slice(0, 10) }}</span>
                 </p>
               @endforeach
             </section>
@@ -913,10 +913,10 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
                         @if (entry.required)
                           <span class="checks-badge">Required</span>
                         @endif
-                        <span class="muted checks-state">{{ entry.label }}</span>
+                        <span class="checks-state muted">{{ entry.label }}</span>
                       </div>
 
-                      <p class="muted checks-meta">
+                      <p class="checks-meta muted">
                         @if (entry.duration)
                           <span>{{ entry.duration }}</span>
                         @endif
@@ -943,7 +943,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
               @endif
 
               @if (requiredChecks.length === 0)
-                <p class="muted checks-note">No checks are required on this branch, so none of this blocks a merge.</p>
+                <p class="checks-note muted">No checks are required on this branch, so none of this blocks a merge.</p>
               @endif
             </section>
 
@@ -963,7 +963,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
               @endif
 
               @foreach (testSuites as suite)
-                <p class="muted checks-meta">
+                <p class="checks-meta muted">
                   <span class="mono">{{ suite.suite }}</span>
                   <span>{{ suite.passed }} passed</span>
                   <span>{{ suite.failed }} failed</span>
@@ -979,13 +979,13 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
               @foreach (shownFailures as failure)
                 <div class="checks-entry">
                   <div class="checks-entry-head">
-                    <span class="run-dot run-bad" aria-hidden="true"></span>
+                    <span class="run-bad run-dot" aria-hidden="true"></span>
                     <span class="checks-name">{{ failure.name }}</span>
                     @if (failure.muted)
                       <span class="checks-badge">Muted</span>
                     @endif
                   </div>
-                  <p class="muted checks-meta">
+                  <p class="checks-meta muted">
                     <span class="mono">{{ failure.scope }}</span>
                     @if (failure.message)
                       <span>{{ failure.message }}</span>
@@ -995,7 +995,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
               @endforeach
 
               @if (hiddenFailures > 0)
-                <p class="muted checks-note">and {{ hiddenFailures }} more failing.</p>
+                <p class="checks-note muted">and {{ hiddenFailures }} more failing.</p>
               @endif
 
               {{-- The finding worth the whole feature: this branch made these
@@ -1006,12 +1006,12 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
                   This branch made {{ testNewlyFlaky.length }} test@if (testNewlyFlaky.length !== 1)s@endif flaky
                 </p>
                 @foreach (testNewlyFlaky as one)
-                  <p class="muted checks-meta"><span class="mono">{{ one.scope }}</span> <span>{{ one.name }}</span></p>
+                  <p class="checks-meta muted"><span class="mono">{{ one.scope }}</span> <span>{{ one.name }}</span></p>
                 @endforeach
               @endif
 
               @if (testAlreadyFlaky.length > 0)
-                <p class="muted checks-note">
+                <p class="checks-note muted">
                   {{ testAlreadyFlaky.length }} unreliable test@if (testAlreadyFlaky.length !== 1)s were@else was@endif already flaky on {{ pullRequest.base_branch }}, so this branch did not cause @if (testAlreadyFlaky.length !== 1)them@else it@endif.
                 </p>
               @endif

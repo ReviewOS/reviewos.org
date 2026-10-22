@@ -135,7 +135,7 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
     This diff lives at <a href="{{ canonical }}">{{ canonical }}</a>.
   </p>
 @elseif (!publicDiffEnabled)
-  <section class="panel page-empty">
+  <section class="page-empty panel">
     <h1>The diff viewer is not enabled here</h1>
     <p>
       This instance has not turned on the public diff viewer. It fetches patches
@@ -143,7 +143,7 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
     </p>
   </section>
 @elseif (!target)
-  <section class="panel page-empty">
+  <section class="page-empty panel">
     <h1>That is not a diff URL</h1>
     <p>
       Swap <code>github.com</code> for this host on a pull request, a commit or
@@ -170,7 +170,7 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
   </header>
 
   @if (failed)
-    <section class="panel page-empty" data-view-failure>
+    <section class="page-empty panel" data-view-failure>
       <h1>{{ failureTitle }}</h1>
       <p>{{ failed.message }}</p>
     </section>
@@ -219,7 +219,7 @@ const counts = rendered?.ok ? `${rendered.files} ${rendered.files === 1 ? 'file'
       {!! diffHtml !!}
     </div>
   @else
-    <section class="panel page-empty" data-view-failure>
+    <section class="page-empty panel" data-view-failure>
       <h1>That diff could not be shown</h1>
       <p>Something went wrong reading it. Trying again usually works.</p>
     </section>

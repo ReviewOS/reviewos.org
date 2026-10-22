@@ -198,7 +198,7 @@ const base = `/${ownerHandle}/${repositoryName}`
           {{-- Ranked by total rather than by mean: a 40ms test that runs in
               every one of two thousand executions costs more than the one
               nine-second test, and the total is what the wall clock feels. --}}
-          <p class="muted checks-note">Ranked by total time over the window, not by the slowest single run.</p>
+          <p class="checks-note muted">Ranked by total time over the window, not by the slowest single run.</p>
 
           <table class="tests-table">
             <thead>
@@ -250,7 +250,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               executions is not a measurement, and a page that presents it as
               one teaches people to distrust the rest of it. --}}
           @if (thin > 0)
-            <p class="muted checks-note">{{ thin }} test@if (thin !== 1)s have@else has@endif too few runs in this window to rank.</p>
+            <p class="checks-note muted">{{ thin }} test@if (thin !== 1)s have@else has@endif too few runs in this window to rank.</p>
           @endif
         </section>
 
@@ -259,7 +259,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <h2 class="side-heading">Quarantined</h2>
 
             @foreach (quarantined as test)
-              <p class="muted checks-meta">
+              <p class="checks-meta muted">
                 <span class="mono">{{ test.scope }}</span>
                 <span>{{ test.name }}</span>
                 <span class="checks-badge">{{ test.state }}</span>

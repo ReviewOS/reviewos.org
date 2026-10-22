@@ -941,7 +941,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         and that is the wrong afternoon to send somebody on.
       --}}
       @if (runPaused)
-        <div class="panel notice">
+        <div class="notice panel">
           This run is held{{ pausedBy ? ` by ${pausedBy}` : '' }}. Nothing new will start until somebody
           resumes it; whatever was already on a machine is still running, because a build in progress
           cannot be politely interrupted.
@@ -958,7 +958,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         repository's.
       --}}
       @if (ownerDefined)
-        <div class="panel notice">
+        <div class="notice panel">
           This workflow belongs to <strong>{{ ownerHandle }}</strong> rather than to this repository, so
           there is no file for it here. It runs over this repository's code with the owner's secrets,
           and none of this repository's.
@@ -966,7 +966,7 @@ const base = `/${ownerHandle}/${repositoryName}`
       @endif
 
       @if (definitionDiffers)
-        <div class="panel notice">
+        <div class="notice panel">
           The workflow that ran came from <code>{{ shortSha(definitionSha) }}</code>, not from the
           commit under test. That is how a pull request from a fork runs: the definition is the base
           branch's, so a fork cannot supply its own.
@@ -974,7 +974,7 @@ const base = `/${ownerHandle}/${repositoryName}`
       @endif
 
       @if (!run.trusted)
-        <div class="panel notice">
+        <div class="notice panel">
           This run is untrusted, so it gets no secrets. A run from a fork stays untrusted until
           somebody with write access approves the exact commit.
         </div>
@@ -1006,7 +1006,7 @@ const base = `/${ownerHandle}/${repositoryName}`
       </form>
 
       @if (query)
-        <section class="panel log-matches">
+        <section class="log-matches panel">
           <h2 class="side-heading">{{ matches.length }} {{ matches.length === 1 ? 'line' : 'lines' }} matching “{{ query }}”</h2>
 
           @if (matches.length === 0)
@@ -1070,7 +1070,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               add machines or to change the pipeline. Adding runners does
               nothing for a run whose length is one chain of dependent jobs.
             --}}
-            <p class="muted checks-note">
+            <p class="checks-note muted">
               Longest chain: {{ criticalNames.join(' → ') }} · {{ criticalTotal }}, of which
               {{ criticalWait }} waiting for a machine
             </p>
@@ -1091,21 +1091,21 @@ const base = `/${ownerHandle}/${repositoryName}`
             <h3 class="job-group">{{ job.groupHeading }}</h3>
           @endif
 
-          <article class="panel job" id="job-{{ job.id }}">
+          <article class="job panel" id="job-{{ job.id }}">
             <header class="job-head">
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
-              <span class="muted job-state">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif@if (job.cache) · {{ job.cache }}@endif</span>
+              <span class="job-state muted">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif@if (job.cache) · {{ job.cache }}@endif</span>
               {{--
                 Waited, then ran. Two numbers rather than one, because a run
                 that is slow because nothing could take its jobs is a different
                 afternoon's work from one that is slow because the jobs are.
               --}}
               @if (job.queueTime)
-                <span class="muted job-time">waited {{ job.queueTime }}</span>
+                <span class="job-time muted">waited {{ job.queueTime }}</span>
               @endif
               @if (job.duration)
-                <span class="muted job-time">{{ job.queueTime ? 'ran' : '' }} {{ job.duration }}</span>
+                <span class="job-time muted">{{ job.queueTime ? 'ran' : '' }} {{ job.duration }}</span>
               @endif
             </header>
 
@@ -1125,7 +1125,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 shell command shown to every visitor is noise.
               --}}
               @if (canAdminister && job.waitingBecause.fix)
-                <p class="job-waiting job-fix">{{ job.waitingBecause.fix }}</p>
+                <p class="job-fix job-waiting">{{ job.waitingBecause.fix }}</p>
               @endif
             @endif
 
@@ -1141,7 +1141,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               <p class="job-waiting">This job failed and the workflow allows it to: continue-on-error is set, so the run is not failed by it.</p>
             @endif
 
-            <p class="muted job-meta">
+            <p class="job-meta muted">
               @if (job.waitingOn)
                 Waiting for {{ job.waitingOn }}
               @elseif (job.runsOn)
@@ -1228,17 +1228,17 @@ const base = `/${ownerHandle}/${repositoryName}`
                     <button class="button" type="submit">Approve</button>
                   </form>
                 @else
-                  <p class="muted job-gate-note">Somebody with write access to this repository can open this.</p>
+                  <p class="job-gate-note muted">Somebody with write access to this repository can open this.</p>
                 @endif
               </div>
             @endif
 
             @if (job.approvedBy)
-              <p class="muted job-meta">Opened by {{ job.approvedBy }}</p>
+              <p class="job-meta muted">Opened by {{ job.approvedBy }}</p>
             @endif
 
             @if (job.triggeredRun)
-              <p class="muted job-meta">
+              <p class="job-meta muted">
                 Started <a href="/{{ ownerHandle }}/{{ repositoryName }}/run/{{ job.triggeredRunNumber }}">run #{{ job.triggeredRunNumber }}</a>
               </p>
             @endif
@@ -1255,7 +1255,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               not, and the one a run screen usually cannot answer at all.
             --}}
             @if (job.runner)
-              <p class="muted checks-meta">
+              <p class="checks-meta muted">
                 ran on {{ job.runner }}@if (job.pool) · {{ job.pool }} pool@endif
               </p>
             @endif
@@ -1376,15 +1376,15 @@ const base = `/${ownerHandle}/${repositoryName}`
       </div>
 
       @if (artifactList.length > 0)
-        <section class="panel artifacts">
+        <section class="artifacts panel">
           <h2 class="artifacts-heading">Artifacts</h2>
           <ul class="artifact-list">
             @foreach (artifactList as artifact)
               <li class="artifact">
                 <a href="/api/repos/workflow-runs/artifact?owner={{ ownerHandle }}&repo={{ repositoryName }}&id={{ artifact.id }}">{{ artifact.name }}</a>
-                <span class="muted artifact-size">{{ artifact.size }}</span>
+                <span class="artifact-size muted">{{ artifact.size }}</span>
                 @if (artifact.expires)
-                  <span class="muted artifact-expiry">until {{ artifact.expires }}</span>
+                  <span class="artifact-expiry muted">until {{ artifact.expires }}</span>
                 @endif
               </li>
             @endforeach

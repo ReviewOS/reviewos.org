@@ -91,7 +91,7 @@ if (!visible)
       </header>
 
       @if (tokens.length > 0 && (viaMembership > 0 || neverUsed > 0))
-        <div class="token-summary panel">
+        <div class="panel token-summary">
           @if (viaMembership > 0)
             <p>
               <strong>{{ viaMembership }}</strong>
@@ -119,7 +119,7 @@ if (!visible)
           </p>
         </div>
       @else
-        <ul class="people-list panel">
+        <ul class="panel people-list">
           {{--
             Never used first, then least recently used. The reason to open this
             page is to find what should not be here.
@@ -130,15 +130,15 @@ if (!visible)
 
               <div class="person-main">
                 <span class="person-name">{{ token.name }}</span>
-                <span class="token-prefix mono muted">{{ token.prefix }}</span>
-                <span class="person-meta muted">
+                <span class="mono muted token-prefix">{{ token.prefix }}</span>
+                <span class="muted person-meta">
                   <a href="/{{ token.ownerHandle }}">{{ token.ownerHandle }}</a>
                   &middot; {{ token.reachLabel }}
                   @if (token.repositoryNames.length > 0)
                     &middot; {{ token.repositoryNames.join(', ') }}
                   @endif
                 </span>
-                <span class="person-meta muted">
+                <span class="muted person-meta">
                   {{--
                     Never used is said out loud rather than left as a blank. It
                     is how somebody spots the token issued for a job that was

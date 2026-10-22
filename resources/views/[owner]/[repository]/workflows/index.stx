@@ -297,7 +297,7 @@ const environments = repoRow
         </div>
 
         <h2 class="starters-title">Start with one of these</h2>
-        <p class="muted starters-note">
+        <p class="starters-note muted">
           Every one is a real GitHub Actions workflow. Copy it into your repository, push, and it
           runs here - and it would run there too, which is the point.
         </p>
@@ -307,9 +307,9 @@ const environments = repoRow
             <details class="starter panel">
               <summary class="starter-head">
                 <span class="starter-name">{{ template.name }}</span>
-                <span class="muted starter-path"><code>{{ template.path }}</code></span>
+                <span class="starter-path muted"><code>{{ template.path }}</code></span>
               </summary>
-              <p class="muted starter-description">{{ template.description }}</p>
+              <p class="starter-description muted">{{ template.description }}</p>
               <pre class="starter-code"><code>{{ template.content }}</code></pre>
             </details>
           @endforeach
@@ -317,17 +317,17 @@ const environments = repoRow
       @else
         <div class="workflows">
           @foreach (rows as workflow)
-            <section class="workflow panel">
+            <section class="panel workflow">
               <div class="workflow-head">
                 <div class="workflow-main">
                   <h2 class="workflow-name">{{ workflow.name }}</h2>
-                  <p class="workflow-path muted"><code>{{ workflow.path }}</code></p>
+                  <p class="muted workflow-path"><code>{{ workflow.path }}</code></p>
                 </div>
 
                 <span class="badge badge-{{ workflow.state }}">{{ workflow.state }}</span>
               </div>
 
-              <p class="workflow-meta muted">
+              <p class="muted workflow-meta">
                 @if (workflow.triggers.length > 0)
                   Runs on {{ workflow.triggers.join(', ') }}
                 @else
@@ -412,7 +412,7 @@ const environments = repoRow
                       </span>
 
                       @if (input.description)
-                        <span class="workflow-input-help muted">{{ input.description }}</span>
+                        <span class="muted workflow-input-help">{{ input.description }}</span>
                       @endif
 
                       @if (input.type === 'choice')
@@ -430,7 +430,7 @@ const environments = repoRow
                       @elseif (input.type === 'environment')
                         {{-- No environments configured, so a select would be one nobody can submit. --}}
                         <input type="text" name="inputs[{{ input.name }}]" value="{{ input.default ?? '' }}">
-                        <span class="workflow-input-help muted">This repository has no environments yet, so this is a plain name.</span>
+                        <span class="muted workflow-input-help">This repository has no environments yet, so this is a plain name.</span>
                       @elseif (input.type === 'boolean')
                         <select name="inputs[{{ input.name }}]">
                           <option value="false" {{ input.default === 'true' ? '' : 'selected' }}>false</option>

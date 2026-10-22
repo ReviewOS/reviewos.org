@@ -384,7 +384,7 @@ const pageDescription = found
                 one page and gets no tabs: a tab bar with a single tab is a
                 claim that there is somewhere else to go. --}}
             <nav class="profile-tabs" aria-label="Profile">
-              <a class="profile-tab is-current" href="/{{ handle }}">Overview</a>
+              <a class="is-current profile-tab" href="/{{ handle }}">Overview</a>
               <a class="profile-tab" href="/{{ handle }}/people">People <span class="profile-tab-count">{{ people.length }}</span></a>
             </nav>
           @endif
@@ -395,7 +395,7 @@ const pageDescription = found
             {{-- How the convention is learned. Only for somebody who could act
                 on it - a reader who cannot write the file does not need to know
                 it is missing. --}}
-            <p class="profile-hint muted">
+            <p class="muted profile-hint">
               Write this page: put a <code>README.md</code> in a repository called
               <a href="{{ profileRepositoryPath }}">{{ profileRepository }}</a> and it renders here.
               @if (isOrganization)

@@ -536,7 +536,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
           @if (branchRules.length > 0)
             @foreach (branchRules as rule)
               <div class="rule">
-                <h3 class="rule-title mono">{{ rule.pattern }}</h3>
+                <h3 class="mono rule-title">{{ rule.pattern }}</h3>
                 <BranchRuleForm
                   owner="{{ ownerHandle }}"
                   repo="{{ repositoryName }}"

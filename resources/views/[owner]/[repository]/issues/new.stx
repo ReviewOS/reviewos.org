@@ -162,7 +162,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         {{-- The form needs an account, so this says so before somebody writes
             a bug report into a box that will refuse it. `next` brings them
             back here rather than to a dashboard. --}}
-        <div class="panel new-signin">
+        <div class="new-signin panel">
           <p class="new-signin-line">
             <a href="/login?next={{ encodeURIComponent(here) }}">Sign in</a> to open an issue on
             <span class="mono">{{ ownerHandle }}/{{ repositoryName }}</span>.
