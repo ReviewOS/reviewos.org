@@ -21,10 +21,18 @@ export default {
   // resolves through this. See the plugin file for the lookup order.
   plugins: ['./storage/framework/defaults/stx-components-plugin.ts'],
 
-  // Layouts directory - for layout templates
-  layoutsDir: 'resources/layouts',
-
-  // Partials directory - for partial templates
-  partialsDir: 'resources/partials',
+  // Layouts and partials, both under the views directory, which is where they
+  // actually are and where stx looks by default: its own fallbacks are
+  // `<viewsDir>/layouts` and `<viewsDir>/partials`, and the dashboard's
+  // stx.config.ts says `views/layouts` for the same reason.
+  //
+  // These read `resources/layouts` and `resources/partials`, neither of which
+  // has ever existed in this repository, so stx warned about both on every
+  // boot. The 69 views calling `@layout('app')` rendered anyway, which is the
+  // part worth knowing: whatever resolves a layout at render time is not
+  // reading this value, so the config was wrong, load-bearing for nothing, and
+  // silent about it. A typo here would have behaved exactly the same way.
+  layoutsDir: 'resources/views/layouts',
+  partialsDir: 'resources/views/partials',
 // `plugins` landed in stx after the pinned @stacksjs/stx types — widen until the dep updates.
 } satisfies UiOptions & { plugins?: string[] }

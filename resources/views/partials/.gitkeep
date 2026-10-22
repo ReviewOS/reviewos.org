@@ -1,0 +1,8 @@
+Empty on purpose, and tracked so it stays that way.
+
+`config/ui.ts` points `partialsDir` here because stx resolves one whether or
+not the feature is used, and warns on every boot when the directory it
+resolves to is absent. Nothing in this repository uses `@include` yet: a
+fragment shared between views is a component under `resources/components`, and
+that is the better default. This is where a partial would go if one is ever
+genuinely a partial rather than a component.

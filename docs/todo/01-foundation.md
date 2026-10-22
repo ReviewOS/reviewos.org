@@ -769,3 +769,21 @@ The half of this nobody builds, and the half that decides whether an instance is
   A row naming a verb this version does not know renders as nothing rather than as an error. A feed
   that refused to load because one row named a verb a later deploy removed is one a single revert
   can take down.
+
+- [x] **`config/ui.ts` named two directories that have never existed.** `layoutsDir` read
+  `resources/layouts` and `partialsDir` read `resources/partials`; the layouts are in
+  `resources/views/layouts`, and there are no partials. stx said so on every boot, twice, in a
+  warning naming both the resolved path and the configured value.
+
+  The interesting part is that the 69 views calling `@layout('app')` rendered correctly throughout.
+  Whatever resolves a layout at render time was never reading this value, so the config was wrong,
+  load-bearing for nothing, and silent about it: a typo here would have behaved exactly the same
+  way, and the only signal either way was a warning that looks like noise. Both now point under
+  `resources/views`, which is where the files are and where stx's own fallbacks
+  (`<viewsDir>/layouts`, `<viewsDir>/partials`) already looked.
+
+  Deleting the keys does not work, because the warning covers defaults too and stx's relative
+  fallbacks resolve to `<root>/layouts` and `<root>/partials` - also absent, and a stranger thing
+  to read in a log. `resources/views/partials/` is therefore tracked and empty, with a `.gitkeep`
+  saying why: nothing here uses `@include`, a fragment shared between views is a component, and
+  that is the better default.
