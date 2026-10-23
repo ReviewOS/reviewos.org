@@ -787,3 +787,31 @@ The half of this nobody builds, and the half that decides whether an instance is
   to read in a log. `resources/views/partials/` is therefore tracked and empty, with a `.gitkeep`
   saying why: nothing here uses `@include`, a fragment shared between views is a component, and
   that is the better default.
+
+- [x] **There was no way to sign out.** `POST /api/auth/logout` has worked from the beginning and
+  is well covered: it revokes the token rather than merely forgetting it, clears the cookie, and
+  answers either way. `review logout` calls it from the CLI. No page in the web product called it,
+  so a signed-in reader's only way out was to clear their cookies by hand, and
+  `forgot-password.stx` tells them to "sign out first" with no control anywhere to do it with.
+
+  That is the failure `AccountNav.stx` was written to fix, one step further out: its own comment
+  describes a page that exists and nothing links to, and it had reproduced it. The control lives
+  there now, beside the settings gear.
+
+  A form rather than a link, because the endpoint is POST only for the reason it documents: an
+  `<img src="/logout">` in a comment would sign out every reader of that page on GET. It needs no
+  JavaScript either, because the action already answers an HTML request with a 303 to `/` carrying
+  the cleared cookie.
+
+  **The first version 403'd**, and `tests/e2e/account-nav.test.ts` is what found it. The CSRF
+  middleware is double-submit and this product runs no client-side script, so the token has to
+  travel in the body as `_token` - `CsrfField.stx` exists for exactly this and the form had not
+  included it. Its own comment had already named the failure mode: a form that forgets it is a
+  button that silently does nothing. So the test asserts the token field is present **and not the
+  empty string**, because blank is how that component failed once before.
+
+  The test covers the other uncovered half too. Everything in `auth.test.ts` posts as an API
+  client, which gets the JSON branch; the branch a browser form depends on, the 303 back to the
+  site, had nothing on it at all. Driven in a browser as well, end to end: signed in, pressed it,
+  landed on `/` with the bar offering Sign in, and `/reviews` said "Sign in to see what is waiting
+  on you".

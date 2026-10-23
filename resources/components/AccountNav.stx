@@ -72,6 +72,33 @@ const onRegister = here.startsWith('/register')
     <span class="account-face" aria-hidden="true">{{ String(viewer.handle).charAt(0).toUpperCase() }}</span>
     <span class="account-handle">{{ viewer.handle }}</span>
   </a>
+  {{-- And a way back out, which the product did not have.
+      `POST /api/auth/logout` has existed and worked the whole time, revoking
+      the token rather than just dropping the cookie, and `review logout` calls
+      it from the CLI. Nothing in the interface did, so a signed-in reader's
+      only way to sign out of the web product was to clear their cookies, and
+      `forgot-password.stx` tells them to "sign out first" with no control
+      anywhere to do it with. That is the exact failure this component was
+      written to fix - a page that exists and nothing links to - one step out.
+
+      A form, not a link, because the action is POST only and for a good
+      reason it documents: an `<img src="/logout">` in a comment would sign out
+      every reader of that page on GET. It needs no script either, because the
+      action already answers an HTML request with a 303 to `/` and the cleared
+      cookie, so the browser does the whole thing natively. --}}
+  <form class="account-out" method="post" action="/api/auth/logout">
+    {{-- Without this the button is a 403. The CSRF middleware is
+        double-submit and this product runs no client-side JavaScript, so the
+        token has to travel in the body; `CsrfField.stx` is the one place that
+        knows how to read it. Its own comment puts it best: a form that forgets
+        it is a button that silently does nothing. This form forgot it, and the
+        first run of the test below returned `CSRF token mismatch` rather than
+        the redirect. --}}
+    <CsrfField />
+    <button class="account-link" type="submit" title="Sign out" aria-label="Sign out">
+      <span class="i-hugeicons-logout-03" aria-hidden="true"></span>
+    </button>
+  </form>
 @else
   @if (!onSignIn)
     <a class="account-link account-signin" href="{{ signInHref }}">Sign in</a>
@@ -98,6 +125,20 @@ const onRegister = here.startsWith('/register')
 
   .account-link:hover { color: var(--text); background: var(--surface-tint); }
   .account-link [class^='i-'] { font-size: 17px; }
+
+  /* The sign-out control is a button in a form rather than an anchor, so it
+     needs the parts a button does not inherit: no chrome of its own, and the
+     pointer that says it does something. Everything else it shares with
+     `.account-link`, because it is the same size and weight of control as the
+     settings gear beside it. */
+  .account-out { display: inline-flex; }
+
+  .account-out .account-link {
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
 
   .account-you {
     display: inline-flex;
