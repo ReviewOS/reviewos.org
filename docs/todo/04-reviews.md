@@ -860,3 +860,34 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
       no way to link somebody to the review screen itself. It is now
       `/{owner}/{repository}/pull/{number}/files`, and it renders through the streamed engine from
       [phase 14](./14-diff-engine.md) rather than as a whole page.
+
+- [x] **The review queue linked off the site.** `repositories.owner_id` is polymorphic on
+  `owner_type` and the queue's SQL resolved it through `users` alone, so an organization-owned
+  repository matched nothing. It is a LEFT JOIN, so the row still came back, and the null handle
+  became the empty string one map later: `/${owner}/${repository}/pull/N/files` rendered as
+  `//repository/pull/N/files`.
+
+  That is not a broken link, it is a link somewhere else. A leading `//` is protocol-relative, so
+  the browser reads the next segment as a **hostname** and pressing it leaves the instance for a
+  host named after one of its own repositories. Seven of this instance's fifty-four repositories
+  are organization-owned, and each one with a review outstanding was such a link, on the page the
+  product opens to. Found by reading the accessibility tree of `/reviews` while verifying something
+  else, which is the only reason it surfaced at all: it renders as an ordinary link and fails only
+  when pressed.
+
+  Fixed in three places, because they fail independently:
+
+  - `app/Actions/Pull/queue.ts` joins `organizations` as well and coalesces the two handles. This
+    was the bug.
+  - `resources/views/reviews.stx` builds the path from the segments that exist rather than
+    interpolating whatever it was handed. A blank segment should cost somebody a 404 on this site,
+    not hand them to a stranger's host.
+  - `app/Actions/Explore/explore.ts` drops a repository whose owner it could not resolve, which is
+    what `ownerHandles` already claimed happened and did not: it fell back to `''` and returned the
+    row, so explore and discover had the same latent shape from a different direction.
+
+  `tests/e2e/review-queue-owner.test.ts` covers both halves, and was run against the old code
+  first: the handle came back `""` and the page carried off-site hrefs. The page assertion is
+  written over every `href` on it rather than the one row the test creates, because the failure is
+  a shape and a test that checked only its own row would pass while the rest of the page still
+  pointed away.

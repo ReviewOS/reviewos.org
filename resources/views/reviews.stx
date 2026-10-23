@@ -56,10 +56,30 @@ const heading = viewer
 // not say what it is three of.
 const title = `${heading} · ReviewOS`
 
+/**
+ * A path on this site, built from the segments that are actually there.
+ *
+ * Interpolating a blank segment is how this page sent people off the site: an
+ * owner that resolved to the empty string made `/${owner}/${repo}/...` into
+ * `//repo/...`, and a leading `//` is protocol-relative, so the browser reads
+ * the next segment as a hostname rather than a path.
+ *
+ * The missing owner is fixed where it was missing, in `app/Actions/Pull/queue.ts`,
+ * which resolved a repository's owner through `users` alone and so found
+ * nothing for the organization-owned ones. This stays anyway, because the
+ * consequence is wrong in kind rather than in degree: a path that is merely
+ * incomplete gives somebody a 404 on our own site, and one that is
+ * protocol-relative hands them to a stranger's host. Any future blank should
+ * fail the first way.
+ */
+function sitePath(...segments) {
+  return `/${segments.map(part => String(part ?? '').trim()).filter(Boolean).join('/')}`
+}
+
 /** Rows shaped for the template, so the template holds no logic. */
 function rowsFor(entries) {
   return entries.map(entry => ({
-    href: `/${entry.owner}/${entry.repository}/pull/${entry.number}/files`,
+    href: sitePath(entry.owner, entry.repository, 'pull', entry.number, 'files'),
     where: `${entry.owner}/${entry.repository}`,
     number: entry.number,
     title: entry.title,

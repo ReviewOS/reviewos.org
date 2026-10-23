@@ -213,8 +213,27 @@ async function decorate(rows: readonly { id: number, gained?: number }[]): Promi
     if (!repository)
       return []
 
+    /*
+     * No handle, no card, which is what `ownerHandles` already says happens.
+     *
+     * It did not. The owner fell back to the empty string and the row was
+     * returned anyway, so `repositoryHref` built `/${''}/${name}` - and a
+     * leading `//` is protocol-relative, which means the browser reads `name`
+     * as a hostname and the card links off this site. The same shape as the
+     * review queue's, from a different direction: there the join could not
+     * resolve an organization, here the lookup can fail or the owner row can
+     * be gone, and `ownerHandles` swallows the error on purpose.
+     *
+     * Dropping it is the honest answer and the one the comment over there
+     * already promises: a repository nobody can navigate to is not a card.
+     */
+    const owner = owners.get(`${repository.owner_type}:${repository.owner_id}`) ?? ''
+
+    if (!owner)
+      return []
+
     return [{
-      owner: owners.get(`${repository.owner_type}:${repository.owner_id}`) ?? '',
+      owner,
       name: String(repository.name),
       description: repository.description ? String(repository.description) : null,
       stars: Number(repository.stars_count) || 0,

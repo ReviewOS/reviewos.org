@@ -235,6 +235,24 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
    * calmly now. The aggregate is also the plainer statement: the thing being
    * asked for is "how long has this been waiting", which is a minimum.
    */
+
+  /*
+   * An owner is a user **or** an organization, and this resolved only the
+   * first.
+   *
+   * `repositories.owner_id` is polymorphic on `owner_type`, so a join to
+   * `users` alone leaves every organization-owned repository with a null
+   * handle. The row still came back, because it is a LEFT JOIN, and the handle
+   * became the empty string one map later - so the queue listed the pull
+   * request and pointed it at `/${''}/${repository}/pull/...`, which is
+   * `//repository/pull/...`.
+   *
+   * A leading `//` is protocol-relative. The browser reads the next segment as
+   * a **hostname**, so the link did not 404: it left the site entirely, for a
+   * host named after one of our own repositories. Seven of this instance's
+   * repositories are organization-owned, and each one with a review
+   * outstanding was an off-site link on the page the product opens to.
+   */
   const rows = await db.unsafe(
     portable(`SELECT
       "p"."id" AS "pull_request_id",
@@ -243,7 +261,7 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
       "p"."draft" AS "draft",
       MIN("r"."created_at") AS "waiting_since",
       "repo"."name" AS "repository",
-      "owner"."handle" AS "owner",
+      COALESCE("owner"."handle", "org"."handle") AS "owner",
       "author"."handle" AS "author_handle",
       (SELECT COUNT(*) FROM "pull_request_reviewers" "o"
           WHERE "o"."pull_request_id" = "p"."id" AND "o"."responded_at" IS NULL) AS "outstanding",
@@ -253,11 +271,12 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
     JOIN "repositories" "repo" ON "repo"."id" = "p"."repository_id"
     LEFT JOIN "users" "owner" ON "owner"."id" = "repo"."owner_id" AND "repo"."owner_type" = 'user'
+    LEFT JOIN "organizations" "org" ON "org"."id" = "repo"."owner_id" AND "repo"."owner_type" = 'organization'
     LEFT JOIN "users" "author" ON "author"."id" = "p"."author_id"
     WHERE ${predicate}
       AND "r"."responded_at" IS NULL
       AND "p"."state" = 'open'
-    GROUP BY "p"."id", "p"."number", "p"."title", "p"."draft", "repo"."name", "owner"."handle", "author"."handle"
+    GROUP BY "p"."id", "p"."number", "p"."title", "p"."draft", "repo"."name", "owner"."handle", "org"."handle", "author"."handle"
     ORDER BY MIN("r"."created_at") ASC`),
     [id],
   ).execute()
