@@ -8,8 +8,10 @@
 
 import { describe, expect, test } from 'bun:test'
 import { decideBypass, readBypass } from '../../app/Actions/Git/bypass'
-import { compilePattern, PATTERN_BUDGET_MS } from '../../app/Actions/Git/patterns'
+import type { PushProtectionPattern } from '../../config/push-protection'
+import { compilePattern, CONFIGURED_SCAN_BUDGET_MS, ConfiguredPatternError, forgetPatterns, instancePatterns, PATTERN_BUDGET_MS } from '../../app/Actions/Git/patterns'
 import { safeQuarantine } from '../../app/Actions/Git/scan'
+import { scanDiff, scanLine } from '../../app/Actions/Git/secrets'
 
 const settings = { allowBypass: true, minimumReasonLength: 12 }
 
@@ -126,6 +128,62 @@ describe('compilePattern', () => {
     // It has to *return*, not hang - the budget is what makes that true.
     expect(elapsed).toBeLessThan(PATTERN_BUDGET_MS * 40)
   })
+
+  test('also bounds hostile subjects that the load-time sample does not exercise', () => {
+    const pattern = compilePattern({ name: 'a b-prefixed credential', pattern: '^b(?:b+)+$' })
+    expect(pattern).not.toBeNull()
+    expect(scanLine('bbb', [pattern!])[0]?.name).toBe('a b-prefixed credential')
+
+    const started = performance.now()
+    expect(() => scanLine(`${'b'.repeat(2000)}!`, [pattern!])).toThrow(ConfiguredPatternError)
+    expect(performance.now() - started).toBeLessThan(PATTERN_BUDGET_MS * 40)
+  })
+
+  test('bounds the total configured scan across ordinary added lines', () => {
+    const pattern = compilePattern({ name: 'an Acme token', pattern: 'acme_[A-Za-z0-9]{32}' })
+    expect(pattern).not.toBeNull()
+    const diff = `+++ b/large.txt\n@@ -0,0 +1,5000 @@\n${'+ordinary text\n'.repeat(5000)}`
+    const started = performance.now()
+    expect(() => scanDiff(diff, [pattern!])).toThrow(ConfiguredPatternError)
+    expect(performance.now() - started).toBeLessThan(CONFIGURED_SCAN_BUDGET_MS * 2.5)
+  })
+
+  test('an unusable configured detector cannot silently become an empty active scanner', async () => {
+    const config = (await import('../../config/push-protection')).default
+    const patterns = config.patterns as PushProtectionPattern[]
+    const previous = [...patterns]
+    try {
+      patterns.splice(0, patterns.length, { name: 'invalid detector', pattern: '([' })
+      forgetPatterns()
+      await expect(instancePatterns()).rejects.toThrow(ConfiguredPatternError)
+    }
+    finally {
+      patterns.splice(0, patterns.length, ...previous)
+      forgetPatterns()
+    }
+  })
+
+  test('malformed or unreadable detector configuration cannot disable its scan', async () => {
+    const config = (await import('../../config/push-protection')).default
+    const descriptor = Object.getOwnPropertyDescriptor(config, 'patterns')!
+    try {
+      for (const value of [undefined, null, 'invalid', {}]) {
+        Object.defineProperty(config, 'patterns', { ...descriptor, value })
+        forgetPatterns()
+        await expect(instancePatterns()).rejects.toThrow(ConfiguredPatternError)
+      }
+      Object.defineProperty(config, 'patterns', {
+        configurable: true,
+        get(): never { throw new Error('Detector configuration could not be read') },
+      })
+      forgetPatterns()
+      await expect(instancePatterns()).rejects.toThrow(ConfiguredPatternError)
+    }
+    finally {
+      Object.defineProperty(config, 'patterns', descriptor)
+      forgetPatterns()
+    }
+  })
 })
 
 /**
@@ -149,6 +207,13 @@ describe('safeQuarantine', () => {
   test('drops a path outside the repository', () => {
     expect(safeQuarantine({ GIT_OBJECT_DIRECTORY: '/etc' }, root)).toEqual({})
     expect(safeQuarantine({ GIT_OBJECT_DIRECTORY: '../../etc' }, root)).toEqual({})
+  })
+
+  test('rejects sibling-prefix and parent-directory escapes', () => {
+    expect(safeQuarantine({ GIT_OBJECT_DIRECTORY: `${root}-sibling/objects` }, root)).toEqual({})
+    expect(safeQuarantine({ GIT_OBJECT_DIRECTORY: `${root}/../other.git/objects` }, root)).toEqual({})
+    expect(safeQuarantine({ GIT_OBJECT_DIRECTORY: root }, root)).toEqual({})
+    expect(safeQuarantine({ GIT_ALTERNATE_OBJECT_DIRECTORIES: `${root}/objects:${root}-sibling/objects` }, root)).toEqual({})
   })
 
   test('drops a colon list where any entry escapes', () => {

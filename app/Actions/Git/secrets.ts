@@ -28,12 +28,14 @@
  * a string in a test rather than a repository.
  */
 
+import { assertConfiguredScanBudget, CONFIGURED_SCAN_BUDGET_MS } from './patterns'
+
 export type Confidence = 'certain' | 'likely'
 
 export interface SecretPattern {
   /** Shown to the pusher: "an AWS access key id". Reads after "looks like". */
   name: string
-  test: RegExp
+  test: Pick<RegExp, 'exec' | 'test'>
   confidence: Confidence
 }
 
@@ -184,6 +186,10 @@ export function redact(value: string): string {
  * fixes only the one they were told about pushes again and is refused again.
  */
 export function scanLine(line: string, extra: readonly SecretPattern[] = []): Array<{ name: string, confidence: Confidence, excerpt: string }> {
+  return scanLineBefore(line, extra, performance.now() + CONFIGURED_SCAN_BUDGET_MS)
+}
+
+function scanLineBefore(line: string, extra: readonly SecretPattern[], deadline: number): Array<{ name: string, confidence: Confidence, excerpt: string }> {
   const found: Array<{ name: string, confidence: Confidence, excerpt: string }> = []
   const seen = new Set<string>()
 
@@ -192,6 +198,8 @@ export function scanLine(line: string, extra: readonly SecretPattern[] = []): Ar
   const subject = line.length > 4000 ? line.slice(0, 4000) : line
 
   for (const pattern of [...PROVIDER_PATTERNS, ...extra]) {
+    if (extra.length)
+      assertConfiguredScanBudget(deadline)
     const match = pattern.test.exec(subject)
     if (!match || seen.has(pattern.name))
       continue
@@ -245,12 +253,14 @@ export function scanLine(line: string, extra: readonly SecretPattern[] = []): Ar
  * so a finding can name the file and the line in it rather than an offset into
  * a patch nobody has open.
  */
-export function scanDiff(diff: string, extra: readonly SecretPattern[] = []): Finding[] {
+export function scanDiff(diff: string, extra: readonly SecretPattern[] = [], deadline = performance.now() + CONFIGURED_SCAN_BUDGET_MS): Finding[] {
   const findings: Finding[] = []
   let path = ''
   let lineNumber = 0
 
   for (const raw of diff.split('\n')) {
+    if (extra.length)
+      assertConfiguredScanBudget(deadline)
     if (raw.startsWith('+++ ')) {
       const named = raw.slice(4).trim()
       path = named === '/dev/null' ? '' : named.replace(/^b\//, '')
@@ -271,7 +281,7 @@ export function scanDiff(diff: string, extra: readonly SecretPattern[] = []): Fi
     if (raw.startsWith('+')) {
       const content = raw.slice(1)
 
-      for (const hit of scanLine(content, extra))
+      for (const hit of scanLineBefore(content, extra, deadline))
         findings.push({ path, line: lineNumber, ...hit })
 
       lineNumber += 1

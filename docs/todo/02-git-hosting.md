@@ -306,9 +306,10 @@ the one moment where rejecting is still possible.
       escape silently does nothing. Every refusal says what the override needs, because a refusal
       that does not is the one that turns into "just disable the scanner".
 - [x] Patterns are configurable per instance, in `config/push-protection.ts`. A configured pattern
-      is compiled once and tried against a pathological input with a time budget: a regular
-      expression is a program, and one written carelessly takes exponential time - a scanner that
-      hangs is a push that hangs, which is indistinguishable from the forge being down.
+      is tried against a pathological input at load, and every actual configured match uses
+      Stacks' OS-enforced regex deadline. A sample cannot certify a different input; an incomplete
+      configured scan or unreadable detector configuration refuses the push instead of reporting
+      it clean. Trusted built-in detectors keep ordinary RegExp matching.
 - [x] Scan history on demand (`buddy git:scan`), reporting rather than rejecting. There is nothing
       left to refuse: the commits are in every clone and in the reflog. It says so, and says that
       rotating the credential is the step that ends the exposure - removing it from history

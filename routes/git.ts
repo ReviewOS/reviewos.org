@@ -5,7 +5,7 @@ import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
-import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
+import { CONFIGURED_SCAN_BUDGET_MS, ConfiguredPatternError, instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
 import { decideBypass, readBypass } from '../app/Actions/Git/bypass'
 import { auditEvent } from '../app/Audit/events'
 import { auditFrom } from '../app/Actions/Git/audit'
@@ -601,9 +601,9 @@ route.post(GATE_ENDPOINT, async (request: any) => {
  * Returns one entry per ref, because git reports a refusal per ref and a push
  * of three branches where one carries a key should name that branch.
  *
- * Nothing here can fail the push by accident: a scan that throws returns no
- * findings, which allows. Refusing a push because the scanner broke would be
- * the surest way to have the scanner turned off.
+ * A configured detector that cannot finish refuses non-deletion refs: that
+ * security check did not complete. Other optional scan failures retain their
+ * existing fail-open policy.
  */
 async function scanPushed(
   payload: any,
@@ -619,9 +619,11 @@ async function scanPushed(
     // objects are readable from this process and the scan silently finds
     // nothing - see `app/Actions/Git/scan.ts`.
     const quarantine = safeQuarantine(payload?.quarantine, path)
+    const deadline = performance.now() + CONFIGURED_SCAN_BUDGET_MS
+    const extra = await instancePatterns(deadline)
     const creating = updates.filter(update => update.change === 'created')
     const excludeRefs = creating.length > 0
-      ? await refsToExclude(path, updates.map(update => update.ref), quarantine)
+      ? await refsToExclude(path, updates.map(update => update.ref), quarantine, extra.length ? deadline : undefined)
       : []
 
     const refused: Array<{ ref: string, reason: string }> = []
@@ -635,7 +637,8 @@ async function scanPushed(
       const result = await scanUpdate(path, update.before, update.after, {
         quarantine,
         excludeRefs,
-        extra: await instancePatterns(),
+        extra,
+        deadline,
       })
 
       if (result.findings.length === 0)
@@ -652,7 +655,11 @@ async function scanPushed(
 
     return refused
   }
-  catch {
+  catch (error) {
+    if (error instanceof ConfiguredPatternError) {
+      return updates.filter(update => update.change !== 'deleted')
+        .map(update => ({ ref: update.ref, reason: error.message }))
+    }
     return []
   }
 }

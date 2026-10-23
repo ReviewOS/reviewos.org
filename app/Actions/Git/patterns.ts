@@ -16,19 +16,36 @@
  * A regular expression is a program. One written carelessly - `(a+)+$` against
  * a long line - takes exponential time, and a scanner that hangs is a push that
  * hangs, which is indistinguishable from the forge being down. So each pattern
- * is compiled once at load, checked against a pathological input with a time
- * budget, and dropped with a warning if it cannot answer quickly. A dropped
- * pattern costs one detector; a hung one costs every push.
+ * is checked at load and every subsequent match runs through the framework's
+ * killable process boundary. A sample cannot prove that another input is safe.
+ * A detector that cannot complete a scan is an incomplete check, not a clean one.
  */
 
 import type { SecretPattern } from './secrets'
+import { matchBoundedRegex, RegexTimeoutError } from '@stacksjs/security'
 import { isNotFalse } from '../Support/sql'
 
-/** How long a single pattern may take on a hostile line before it is dropped. */
+/** Maximum execution time for one configured pattern match. */
 export const PATTERN_BUDGET_MS = 25
+
+/** Leaves time for the hook to receive a refusal before its 15-second timeout. */
+export const CONFIGURED_SCAN_BUDGET_MS = 1000
+
+export function assertConfiguredScanBudget(deadline: number): void {
+  if (performance.now() >= deadline)
+    throw new ConfiguredPatternError(new RegexTimeoutError())
+}
 
 /** The line a pattern is tried against, chosen to be bad for a careless one. */
 const TORTURE = `${'a'.repeat(2000)}!`
+
+/** Distinguishes an incomplete configured scan from unrelated optional scans. */
+export class ConfiguredPatternError extends Error {
+  constructor(cause: unknown) {
+    super('A configured credential detector could not complete. Ask an instance administrator to check push-protection patterns.', { cause })
+    this.name = 'ConfiguredPatternError'
+  }
+}
 
 let cache: readonly SecretPattern[] | null = null
 
@@ -51,30 +68,31 @@ export function compilePattern(entry: unknown): SecretPattern | null {
   if (typeof pattern !== 'string' || !pattern.trim())
     return null
 
-  let compiled: RegExp
   try {
-    compiled = new RegExp(pattern)
+    matchBoundedRegex(pattern, TORTURE, { timeoutMs: PATTERN_BUDGET_MS })
   }
-  catch {
-    return null
+  catch (error) {
+    if (error instanceof SyntaxError || error instanceof RangeError || error instanceof RegexTimeoutError)
+      return null
+    throw new ConfiguredPatternError(error)
   }
 
-  // The budget check. A pattern that cannot answer about 2000 characters in
-  // 25ms will not answer about a minified bundle at all.
-  const started = performance.now()
-  try {
-    compiled.test(TORTURE)
+  const exec = (subject: string): RegExpExecArray | null => {
+    try {
+      const match = matchBoundedRegex(pattern, subject, { timeoutMs: PATTERN_BUDGET_MS })
+      if (!match)
+        return null
+      const values: [string] = [match.value]
+      return Object.assign(values, { index: match.index, input: subject, groups: undefined })
+    }
+    catch (error) {
+      throw new ConfiguredPatternError(error)
+    }
   }
-  catch {
-    return null
-  }
-
-  if (performance.now() - started > PATTERN_BUDGET_MS)
-    return null
 
   return {
     name: name.trim(),
-    test: compiled,
+    test: { exec, test: subject => exec(subject) !== null },
     // Anything an instance adds is `likely` unless it says otherwise: a
     // configured pattern has not been through the review the built-in ones
     // have, and the confidence is what a reader weighs the finding by.
@@ -88,26 +106,35 @@ export function compilePattern(entry: unknown): SecretPattern | null {
  * Cached, because it is asked for on every push and the answer only changes
  * when the process restarts - which is also when a config change takes effect.
  */
-export async function instancePatterns(): Promise<readonly SecretPattern[]> {
-  if (cache)
+export async function instancePatterns(deadline = performance.now() + CONFIGURED_SCAN_BUDGET_MS): Promise<readonly SecretPattern[]> {
+  if (cache) {
+    if (cache.length)
+      assertConfiguredScanBudget(deadline)
     return cache
+  }
 
-  let configured: unknown[] = []
+  let configured: unknown[]
 
   try {
     const config: any = await import('../../../config/push-protection')
     const value = config?.default?.patterns ?? config?.patterns
-    configured = Array.isArray(value) ? value : []
+    if (!Array.isArray(value))
+      throw new Error('Configured credential detectors must be an array')
+    configured = value
   }
-  catch {
-    // No config file, or one that does not export this. Both mean the same
-    // thing: the built-in patterns are the whole list.
-    configured = []
+  catch (error) {
+    throw new ConfiguredPatternError(error)
   }
 
-  cache = configured
-    .map(entry => compilePattern(entry))
-    .filter((pattern): pattern is SecretPattern => pattern !== null)
+  const compiled: SecretPattern[] = []
+  for (const entry of configured) {
+    assertConfiguredScanBudget(deadline)
+    const pattern = compilePattern(entry)
+    if (!pattern)
+      throw new ConfiguredPatternError(new Error('Unusable configured credential detector'))
+    compiled.push(pattern)
+  }
+  cache = compiled
 
   return cache
 }

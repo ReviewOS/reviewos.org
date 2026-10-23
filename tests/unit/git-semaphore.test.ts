@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { CountingSemaphore, gitSemaphore } from '../../app/Actions/Git/semaphore'
-import { spawnGitLimited } from '../../app/Actions/Git/git'
+import { runGit, spawnGitLimited } from '../../app/Actions/Git/git'
 
 /** Settle whatever is ready without waiting on anything that is not. */
 async function tick(): Promise<void> {
@@ -130,6 +130,27 @@ describe('spawnGitLimited', () => {
     await new Promise<void>(resolve => child!.on('close', () => resolve()))
     await tick()
 
+    expect(semaphore.active).toBe(0)
+  })
+})
+
+describe('runGit deadlines', () => {
+  test('expires while waiting for a real process slot without starting Git', async () => {
+    const semaphore = gitSemaphore('background')
+    const held = await Promise.all(Array.from({ length: semaphore.limit }, () => semaphore.acquire(1000)))
+    // Bound the failing baseline too: its old queue wait ignores the deadline.
+    const fallback = setTimeout(() => held.forEach(release => release?.()), 250)
+    const started = performance.now()
+    try {
+      const result = await runGit('.', ['version'], { priority: 'background', deadline: started + 25 })
+      expect(result.ok).toBe(false)
+      expect(performance.now() - started).toBeLessThan(150)
+      expect(semaphore.waiting).toBe(0)
+    }
+    finally {
+      clearTimeout(fallback)
+      held.forEach(release => release?.())
+    }
     expect(semaphore.active).toBe(0)
   })
 })

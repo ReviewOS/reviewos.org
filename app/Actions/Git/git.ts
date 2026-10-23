@@ -15,7 +15,7 @@ import { observeGit } from '../../Ops/metrics'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { acquireGitSlot } from './semaphore'
+import { ACQUIRE_TIMEOUT_MS, acquireGitSlot } from './semaphore'
 
 export interface GitResult {
   ok: boolean
@@ -195,13 +195,26 @@ export async function runGit(repositoryPath: string, args: string[], options: {
   env?: Record<string, string>
   maxBytes?: number
   priority?: GitProcessClass
+  /** Monotonic performance.now() deadline, including time waiting for a slot. */
+  deadline?: number
 } = {}): Promise<GitResult> {
   const { input, timeoutMs = 30_000, env = {}, maxBytes = RUN_GIT_MAX_BYTES, priority = 'interactive' } = options
 
-  const releaseSlot = await acquireGitSlot(priority)
+  const expired = (): GitResult => ({ ok: false, stdout: '', stderr: 'git deadline expired before starting the process', code: -1 })
+  const remaining = options.deadline === undefined ? undefined : options.deadline - performance.now()
+  if (remaining !== undefined && (!Number.isFinite(remaining) || remaining <= 0))
+    return expired()
+
+  const releaseSlot = await acquireGitSlot(priority, remaining === undefined ? undefined : Math.min(ACQUIRE_TIMEOUT_MS, Math.ceil(remaining)))
 
   if (!releaseSlot)
     return { ok: false, stdout: '', stderr: `git not started: too many concurrent ${priority} git processes`, code: -1 }
+
+  const executionTimeoutMs = options.deadline === undefined ? timeoutMs : Math.min(timeoutMs, Math.ceil(options.deadline - performance.now()))
+  if (executionTimeoutMs <= 0) {
+    releaseSlot()
+    return expired()
+  }
 
   /*
    * Timed, because git is where this product spends its time and a forge that
@@ -243,9 +256,9 @@ export async function runGit(repositoryPath: string, args: string[], options: {
         // Timed out is a duration too, and the most interesting one: it is
         // what a histogram's overflow bucket is for.
         record()
-        resolvePromise({ ok: false, stdout, stderr: `${stderr}\ngit timed out after ${timeoutMs}ms`, code: -1 })
+        resolvePromise({ ok: false, stdout, stderr: `${stderr}\ngit timed out after ${executionTimeoutMs}ms`, code: -1 })
       }
-    }, timeoutMs)
+    }, executionTimeoutMs)
 
     // utf8 on both, so chunks arrive as strings through a StringDecoder and a
     // multibyte character split across a 64KB read boundary stays one

@@ -27,6 +27,7 @@
 import type { Finding, SecretPattern } from './secrets'
 import { isFullSha, runGit } from './git'
 import { ZERO_SHA } from './push'
+import { assertConfiguredScanBudget, CONFIGURED_SCAN_BUDGET_MS, ConfiguredPatternError } from './patterns'
 import { scanDiff } from './secrets'
 
 /** The object directories a push lives in before it is accepted. */
@@ -57,7 +58,7 @@ export function safeQuarantine(raw: unknown, repositoryPath: string): Quarantine
     && !value.includes('\0')
     // Every quarantine directory git creates is inside the repository it is
     // for. A path outside it did not come from git.
-    && value.split(':').every(part => part.startsWith(root))
+    && value.split(':').every(part => part.startsWith(`${root}/`) && !part.split('/').includes('..'))
 
   const offered = raw as Record<string, unknown>
   if (acceptable(offered.GIT_OBJECT_DIRECTORY))
@@ -105,10 +106,15 @@ export async function scanUpdate(
   repositoryPath: string,
   before: string,
   after: string,
-  options: { quarantine?: QuarantineEnv, extra?: readonly SecretPattern[], excludeRefs?: readonly string[] } = {},
+  options: { quarantine?: QuarantineEnv, extra?: readonly SecretPattern[], excludeRefs?: readonly string[], deadline?: number } = {},
 ): Promise<ScanResult> {
   if (!isFullSha(after))
     return { findings: [], truncated: false }
+
+  const deadline = options.deadline ?? performance.now() + CONFIGURED_SCAN_BUDGET_MS
+  const configured = Boolean(options.extra?.length)
+  if (configured)
+    assertConfiguredScanBudget(deadline)
 
   const args = [
     'log',
@@ -143,20 +149,25 @@ export async function scanUpdate(
   // this runs on the push path, where the whole point is that the allocation
   // never happens while somebody waits at a prompt.
   const result = await runGit(repositoryPath, args, {
-    timeoutMs: 20_000,
+    timeoutMs: configured ? Math.max(1, Math.ceil(deadline - performance.now())) : 20_000,
+    deadline: configured ? deadline : undefined,
     input,
     maxBytes: SCAN_BYTE_LIMIT,
-    // `background` with the other scans. A saturated class fails open - no
-    // findings - which is the push-protection trade this file already makes
-    // with its timeout: never make "the box is busy" mean "nobody can push".
+    // Share the background process limit with the other scans. An incomplete
+    // configured check refuses the push; optional scans retain their policy.
     priority: 'background',
     env: options.quarantine as Record<string, string> | undefined,
   })
 
+  if (configured) {
+    assertConfiguredScanBudget(deadline)
+    if (!result.ok || result.truncated)
+      throw new ConfiguredPatternError(new Error('Configured credential scan could not read the complete patch'))
+  }
   if (!result.ok)
     return { findings: [], truncated: false }
 
-  return { findings: scanDiff(result.stdout, options.extra), truncated: result.truncated === true }
+  return { findings: scanDiff(result.stdout, options.extra, deadline), truncated: result.truncated === true }
 }
 
 /**
@@ -170,10 +181,21 @@ export async function refsToExclude(
   repositoryPath: string,
   updating: readonly string[],
   quarantine?: QuarantineEnv,
+  deadline?: number,
 ): Promise<string[]> {
+  if (deadline !== undefined)
+    assertConfiguredScanBudget(deadline)
   const result = await runGit(repositoryPath, ['for-each-ref', '--format=%(refname)'], {
     env: quarantine as Record<string, string> | undefined,
+    timeoutMs: deadline === undefined ? undefined : Math.max(1, Math.ceil(deadline - performance.now())),
+    deadline,
   })
+
+  if (deadline !== undefined) {
+    assertConfiguredScanBudget(deadline)
+    if (!result.ok)
+      throw new ConfiguredPatternError(new Error('Configured credential scan could not read repository references'))
+  }
 
   if (!result.ok)
     return []

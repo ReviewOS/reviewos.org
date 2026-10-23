@@ -22,6 +22,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import type { PushProtectionPattern } from '../../config/push-protection'
 
 /**
  * Remove a directory this test made, and refuse anything else.
@@ -374,4 +375,41 @@ describe('a push with the log on', () => {
     expect(entries[1]!.sequence).toBe(2)
     expect(entries[1]!.blobBytes).toBeGreaterThan(100)
   }, 180_000)
+
+  test('a configured detector timeout refuses a real quarantined push and can recover', async () => {
+    if (!available)
+      return
+
+    const config = (await import('../../config/push-protection')).default
+    const { forgetPatterns } = await import('../../app/Actions/Git/patterns')
+    const patterns = config.patterns as PushProtectionPattern[]
+    const previous = [...patterns]
+    const work = join(created.temp, 'work')
+    const before = (await git(created.diskPath, 'rev-parse', 'refs/heads/main')).out
+
+    try {
+      patterns.splice(0, patterns.length, { name: 'a b-prefixed credential', pattern: '^b(?:b+)+$' })
+      forgetPatterns()
+      // Ordinary lines alone used to consume the hook's entire 15s timeout
+      // before the scanner reached the hostile subject at the end.
+      await Bun.write(join(work, 'custom.txt'), `${'ordinary text\n'.repeat(5000)}${'b'.repeat(2000)}!\n`)
+      expect((await git(work, 'add', '.')).ok).toBe(true)
+      expect((await git(work, 'commit', '-m', 'exercise a configured detector')).ok).toBe(true)
+
+      const started = performance.now()
+      const pushed = await git(work, 'push', created.diskPath, 'main')
+      expect(performance.now() - started).toBeLessThan(10_000)
+      expect(pushed.ok, pushed.out).toBe(false)
+      expect(pushed.out).toContain('A configured credential detector could not complete')
+      expect((await git(created.diskPath, 'rev-parse', 'refs/heads/main')).out).toBe(before)
+      expect(pushed.out).not.toContain('b'.repeat(2000))
+    }
+    finally {
+      patterns.splice(0, patterns.length, ...previous)
+      forgetPatterns()
+    }
+
+    const recovered = await git(work, 'push', created.diskPath, 'main')
+    expect(recovered.ok, recovered.out).toBe(true)
+  }, 60_000)
 })
