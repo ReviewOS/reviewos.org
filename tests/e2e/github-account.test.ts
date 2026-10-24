@@ -60,7 +60,7 @@ test('account discovery is idempotent and preserves private mirrors, credentials
   const mirror = await db.selectFrom('repository_mirrors').selectAll().where('repository_id', '=', Number(repository?.id)).executeTakeFirst()
   expect(Boolean(mirror?.run_workflows)).toBe(false)
   expect(Boolean(mirror?.sync_metadata)).toBe(true)
-  await db.updateTable('repository_mirrors').set({ credential_ref: 'keep_existing', run_workflows: true }).where('id', '=', Number(mirror?.id)).execute()
+  await db.updateTable('repository_mirrors').set({ credential_ref: 'keep_existing', run_workflows: true, remote_owner: handle.toUpperCase() }).where('id', '=', Number(mirror?.id)).execute()
   expect((await syncAccount(handle, 'fixture', client())).added).toBe(0)
   const unchanged = await db.selectFrom('repository_mirrors').selectAll().where('id', '=', Number(mirror?.id)).executeTakeFirst()
   expect(unchanged?.credential_ref).toBe('keep_existing')

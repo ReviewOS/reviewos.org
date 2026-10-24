@@ -49,10 +49,15 @@ export async function syncAccount(handle: string, credential: string, client?: G
     else await db.insertInto('org_members').values({ organization_id: Number(organization!.id), user_id: Number(user.id), role: 'owner', invited_by_id: Number(user.id), joined_at: dbTimestamp() }).execute()
     ownerMap.set(login, localHandle)
   }
+  const registered = new Map<string, any>()
+  for (const mirror of await db.selectFrom('repository_mirrors').selectAll().where('provider', '=', 'github').execute()) {
+    const key = `${mirror.remote_owner}/${mirror.remote_name}`.toLowerCase()
+    if (!registered.has(key)) registered.set(key, mirror)
+  }
   let added = 0
   for (const repository of inventory.repositories) {
     const remoteOwner = String(repository.owner.login)
-    const existing = await db.selectFrom('repository_mirrors').selectAll().where('provider', '=', 'github').where('remote_owner', '=', remoteOwner).where('remote_name', '=', String(repository.name)).executeTakeFirst()
+    const existing = registered.get(`${remoteOwner}/${repository.name}`.toLowerCase())
     if (existing) {
       await db.updateTable('repository_mirrors').set({ enabled: true, sync_metadata: true, credential_ref: existing.credential_ref || credential }).where('id', '=', Number(existing.id)).execute()
       if (repository.private) await db.updateTable('repositories').set({ visibility: 'private' }).where('id', '=', Number(existing.repository_id)).execute()
