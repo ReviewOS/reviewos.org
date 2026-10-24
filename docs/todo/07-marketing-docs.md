@@ -326,3 +326,6 @@ feature, a page per use case, and comparisons that say plainly what the alternat
   a sitemap that is not there*, and the sitemap has always been there - `public/sitemap.xml` is
   absent, so the generated one serves. The test had pinned a static file's limitation in place as
   though it were the policy.
+
+- [x] Audit outbound email and SMS triggers, defaults, holds, skips and inactive scaffold paths in `docs/messages.md`, with BunPress email previews and explicit inbox-only and SMS limitations.
+- [x] Correct the self-hosting search port and failure behavior, link all scale-out roadmap phases in the sidebar, and require BunPress message-preview support in the source Stacks docs package. Harden preview links in BunPress itself.

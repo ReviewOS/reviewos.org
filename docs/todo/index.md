@@ -14,14 +14,14 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 
 | Phase | What it covers | State |
 |---|---|---|
-| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (67/67) |
+| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (68/68) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (79/79) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (139/139) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (42/42) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (105/105) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | Done (52/52) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Complete (21/21) |
-| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | Complete (60/60) |
+| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | Complete (62/62) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (136/137) |
 | [10 - Federation](./10-federation.md) | AT Protocol identity: resolution, linking and OAuth sign-in | Complete (17/17) |
@@ -31,7 +31,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | Complete (171/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (212/214) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (36/36) |
-| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (14/14) |
+| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (15/15) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (25/25) |
 
 Phases 16 through 18 were written after reading Cursor's

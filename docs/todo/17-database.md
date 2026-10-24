@@ -408,3 +408,5 @@ Starts only after single-node MySQL is the default and stable.
       What this does not prove is a cluster under failover, a resharding, or a keyspace larger than
       one machine - it proves the schema is shaped so a write keyed by repository touches one shard,
       which is the claim the design rests on and the one that was unmeasured.
+
+- [x] Generate and apply the missing MySQL `pull_request_reviews.external_id` migration. The snapshot already declared the field while only the Postgres corpus created it; a fresh local MySQL installation now matches the model.

@@ -237,8 +237,8 @@ The values that have to be right:
 | `DB_PORT` | `3306` | `5432` on Postgres. A stray space or quote here reads as a connection refused, which sends people to look at the network. |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `root` / - | A pantry-managed MySQL initialises with `root` and no password, so `root` is not a placeholder. On Postgres it is `postgres`, whose cluster is initialised with exactly one role. |
 | `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
-| `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
-| `TYPESENSE_HOST` / `TYPESENSE_PORT` / `TYPESENSE_API_KEY` | `127.0.0.1` / `8108` / `pantry-dev` | The search node. The instance works without it and the search page is empty. The development key is a development key: a search node reachable from anywhere, with a guessable key, answers anybody's questions about private repositories. |
+| `MAIL_HOST` and friends | `127.0.0.1:1025` for local SMTP | The example points at the local catcher started by `buddy mail:dev`. External delivery needs a real transport. Failed auth sends are logged; queued notification attempts are recorded in `notification_deliveries`. See [Emails and SMS](./messages.md). |
+| `TYPESENSE_HOST` / `TYPESENSE_PORT` / `TYPESENSE_API_KEY` | `127.0.0.1` / `8208` / `pantry-dev` | The search node. Without it, search requests return 503. The named port avoids collisions with other pantry projects. The development key must not protect an externally reachable production node. |
 
 This table is the triage list, not the reference. [Configuration](./configuration.md)
 is generated from `.env.example` and the source that reads each variable, so it

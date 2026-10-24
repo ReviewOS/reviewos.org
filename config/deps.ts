@@ -184,12 +184,9 @@ export const config: PantryConfig = {
     /*
      * Named, not `true`.
      *
-     * `true` means "start whatever this project needs", and what the generator
-     * does with it is start whatever it can *infer* - which is the database,
-     * and nothing else. Typesense had been in `deps.yaml` from an earlier hand
-     * edit, so regenerating the file silently dropped it: search would have
-     * stopped starting on boot and nothing would have said so. Naming both is
-     * what makes the generated file reproducible from this one.
+     * The generator adds the database service selected by DB_CONNECTION.
+     * Name Typesense here because it cannot be inferred from that variable.
+     * Hard-coding postgres as well starts the wrong engine on MySQL installs.
      *
      * `app` and `worker` are deliberately absent. They are declared below and
      * started on purpose - a developer's laptop should not begin serving the
@@ -201,7 +198,7 @@ export const config: PantryConfig = {
      * and `true` is what silently dropped typesense from the generated file.
      * Widened upstream rather than cast around here.
      */
-    autoStart: ['postgres', 'typesense'],
+    autoStart: ['typesense'],
 
     /**
      * This instance's own processes, managed the way its dependencies are.

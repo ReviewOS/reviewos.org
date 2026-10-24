@@ -913,3 +913,5 @@ Each one is committed and pushed in the repository named.
       defaults package imports and flushed deployment diagnostics. Native
       generation preserves registry names and produces identical bytes across
       independent runs; the consumer resolves the published exports directly.
+
+- [x] Fix Pantry MySQL project isolation at the source: each project uses its own data directory and startup script, so inspecting or starting a second project cannot rewrite the first project's port. Keep `config/deps.ts` engine-neutral and generate the selected database service from `DB_CONNECTION`.

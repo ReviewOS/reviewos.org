@@ -5,14 +5,15 @@ import { env } from '@stacksjs/env'
  * **SMS Configuration**
  *
  * This configuration defines your SMS service options.
- * Supports Twilio, Vonage, and AWS Pinpoint providers.
+ * Twilio and Vonage have drivers. ReviewOS has no SMS send path; enabling
+ * this configuration alone does not send account or notification texts.
  */
 export default {
   enabled: false, // Set to true to enable SMS features
 
   /**
    * Default SMS provider
-   * Options: 'twilio' | 'vonage' | 'pinpoint'
+   * Implemented options: 'twilio' | 'vonage'. Pinpoint has no SMS driver.
    */
   provider: 'twilio',
 
@@ -24,7 +25,7 @@ export default {
   /**
    * Default country code for phone number formatting
    */
-  defaultCountryCode: 'US',
+  defaultCountryCode: '1',
 
   /**
    * Message type (affects pricing and delivery)

@@ -13,13 +13,13 @@ dependencies:
   typesense.org: ^30.2.0
   valkey.io: ^8.1.8
   github.com/mail-os/mail: ^0.3.2
-  postgresql.org: ^17.10
+  mysql.com: ^9.2
 
 services:
   enabled: true
   autoStart:
-    - postgres
     - typesense
+    - mysql
   define:
     app:
       command: ./buddy serve

@@ -6069,15 +6069,6 @@
             "enumTypeName": "pull_request_reviews_state_type"
           },
           {
-            "name": "external_id",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
             "name": "body",
             "type": "text",
             "isPrimaryKey": false,
@@ -6143,6 +6134,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
           }
         ],
         "indexes": [
@@ -15354,7 +15354,7 @@
       }
     ]
   },
-  "hash": "ce2661e4bc4e44908aa311109911e317e937d61d466ff5f097a014bf0414b219",
+  "hash": "59e78437d11ab9c8b46cc0e12a273edf6667436fee44bdb6f308d383ce0b86d3",
   "dialect": "mysql",
-  "updatedAt": "2026-10-21T17:26:49.218Z"
+  "updatedAt": "2026-10-24T19:16:04.102Z"
 }

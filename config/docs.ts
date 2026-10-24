@@ -125,6 +125,7 @@ const config: BunPressOptions = {
           text: 'Reference',
           items: [
             { text: 'Configuration', link: '/configuration' },
+            { text: 'Emails and SMS', link: '/messages' },
             { text: 'Design', link: '/design' },
             { text: 'API reference', link: '/api' },
             { text: 'Webhook payloads', link: '/webhooks' },
@@ -177,6 +178,9 @@ const config: BunPressOptions = {
             // is a phase nobody browsing finds.
             { text: '14 - The diff engine', link: '/todo/14-diff-engine' },
             { text: '15 - Pipelines', link: '/todo/15-pipelines' },
+            { text: '16 - Single-node hardening', link: '/todo/16-hardening-scale' },
+            { text: '17 - Database scale-out', link: '/todo/17-database' },
+            { text: '18 - Storage scale-out', link: '/todo/18-scale-out' },
           ],
         },
       ],

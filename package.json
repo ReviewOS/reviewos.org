@@ -72,6 +72,7 @@
     "@stacksjs/actions": "0.75.217",
     "@stacksjs/api": "0.75.217",
     "@stacksjs/buddy": "0.75.217",
+    "@stacksjs/bunpress": "^0.2.25",
     "@stacksjs/database": "0.75.217",
     "@stacksjs/docs": "0.75.217",
     "@stacksjs/env": "0.75.217",

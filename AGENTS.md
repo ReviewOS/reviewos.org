@@ -56,12 +56,14 @@ codebase should know the storage layout.
 
 ### Local environment
 
-Postgres, managed by pantry. `deps.yaml` is generated from `config/deps.ts` and the `DB_CONNECTION`
+MySQL by default, managed by pantry. Postgres remains supported for existing instances.
+`deps.yaml` is generated from `config/deps.ts` and the `DB_CONNECTION`
 in `.env` by `./buddy setup`, which also starts the service and creates the database. Do not
 hand-edit `deps.yaml`; change `config/deps.ts` or `.env` and re-run setup.
 
-The database name, and the `postgres` role, come from `.env`. Pantry's cluster has exactly one role,
-so `DB_USERNAME=postgres` is not a placeholder.
+The database name and credentials come from `.env`. Pantry's local MySQL defaults to `root`
+with an empty password. Its Postgres cluster uses `postgres`. These are local service defaults,
+not production credentials. Keep the selected engine, port and generated service configuration in step.
 
 **Search is Typesense, also managed by pantry, and it runs on 8208 rather than its default 8108.**
 That port is not cosmetic: pantry runs one instance per project and every project asks for 8108, so
@@ -85,7 +87,7 @@ patched in `node_modules`:
 3. Verify from this app, then commit and push in the Stacks repository too.
 
 The same applies to the other in-house tools when a fix belongs to them rather than here: bunpress
-for the docs site, stx for templating, pantry for the environment, bun-query-builder for SQL
+for the docs site, stx for templating, craft for native windows, pantry for the environment, bun-query-builder for SQL
 generation. Fix the tool. A workaround here hides the bug from every other project that has it.
 
 ---
@@ -173,7 +175,9 @@ caches compiled components in memory, so restart it rather than trusting an edit
 
 ### Commits
 - Use conventional commit messages (`fix:`, `feat:`, `chore:`, ...).
-- Only commit or push when asked. If on the default branch, branch first.
+- Publish completed work to `origin/main` as Chris, using the repository's configured Git
+  identity and no coauthor trailers. Branch before editing on the default branch, integrate
+  current `origin/main`, and use a normal fast-forward push. Never force-push.
 
 ### Requirements
 - Bun >= 1.3.0, SQLite >= 3.47.2. TypeScript throughout.
