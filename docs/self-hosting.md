@@ -1375,6 +1375,14 @@ This command does not send email or SMS and is not a public verification flow.
 
 ## Discovering a GitHub account for mirroring
 
+Production search uses a separate Typesense instance on loopback port 8208.
+Set the GitHub Actions secret `TYPESENSE_API_KEY` to that instance's admin key;
+deployment passes it to both the API and workers. Keep the key and index data
+outside release directories. A healthy server on the default port 8108 can
+belong to another application and does not prove this instance can search.
+After a bulk import, reindex Repository, Issue, PullRequest, Organization,
+Release and User through `./buddy search:reindex <Model>`.
+
 Link the administrator's `github_username` to their actual GitHub login, then set
 `GITHUB_SYNC_USER` to their local handle and `GITHUB_SYNC_CREDENTIAL` to a mirror
 credential reference. Store its token in `MIRROR_TOKEN_GITHUB_ACCOUNT_FILE` when

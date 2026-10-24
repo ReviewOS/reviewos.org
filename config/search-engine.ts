@@ -34,7 +34,7 @@ export default {
    */
   typesense: {
     host: String(env.TYPESENSE_HOST ?? '') || '127.0.0.1',
-    port: Number(env.TYPESENSE_PORT ?? 0) || 8108,
+    port: Number(env.TYPESENSE_PORT ?? 0) || 8208,
     protocol: String(env.TYPESENSE_PROTOCOL ?? '') || 'http',
     apiKey: String(env.TYPESENSE_API_KEY ?? ''),
   },

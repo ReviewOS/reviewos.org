@@ -20,6 +20,7 @@ import { env } from '@stacksjs/env'
  * the deploy rather than producing a site that answers intermittently.
  */
 const API_PORT = 3073
+const SEARCH_PORT = 8208
 
 // These are runtime objects, never contents of a deployment tarball. The
 // production environment points every process at the same absolute blob root.
@@ -1058,6 +1059,10 @@ export const tsCloud: TsCloudConfig = {
         GITHUB_SYNC_USER: String(env.GITHUB_SYNC_USER ?? ''),
         GITHUB_SYNC_CREDENTIAL: String(env.GITHUB_SYNC_CREDENTIAL ?? 'github_account'),
         MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: String(env.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE ?? ''),
+        TYPESENSE_HOST: '127.0.0.1',
+        TYPESENSE_PORT: String(SEARCH_PORT),
+        TYPESENSE_PROTOCOL: 'http',
+        TYPESENSE_API_KEY: String(env.TYPESENSE_API_KEY ?? ''),
         /*
          * An optional separate credential for mirrors using `credential: stacks`.
          * Account discovery and HQ use the protected github_account file.
@@ -1243,6 +1248,10 @@ export const tsCloud: TsCloudConfig = {
         GITHUB_SYNC_USER: String(env.GITHUB_SYNC_USER ?? ''),
         GITHUB_SYNC_CREDENTIAL: String(env.GITHUB_SYNC_CREDENTIAL ?? 'github_account'),
         MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: String(env.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE ?? ''),
+        TYPESENSE_HOST: '127.0.0.1',
+        TYPESENSE_PORT: String(SEARCH_PORT),
+        TYPESENSE_PROTOCOL: 'http',
+        TYPESENSE_API_KEY: String(env.TYPESENSE_API_KEY ?? ''),
         // Runner claims and reports arrive here, so this process needs the
         // same private-mirror credential as the worker that fetches its code.
         MIRROR_TOKEN_STACKS: String(env.MIRROR_TOKEN_STACKS ?? ''),

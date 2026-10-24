@@ -148,6 +148,16 @@ describe('the queue workers on the box', () => {
 })
 
 describe('the private mirror credential on the box', () => {
+  test('points both sites at the dedicated search instance with the same credential', () => {
+    const sites = (tsCloud as any).sites
+    expect(sites.reviewos.env.TYPESENSE_PORT).toBe('8208')
+    expect(sites.api.env.TYPESENSE_PORT).toBe(sites.reviewos.env.TYPESENSE_PORT)
+    expect(sites.reviewos.env.TYPESENSE_HOST).toBe('127.0.0.1')
+    expect(sites.api.env.TYPESENSE_HOST).toBe(sites.reviewos.env.TYPESENSE_HOST)
+    expect(typeof sites.reviewos.env.TYPESENSE_API_KEY).toBe('string')
+    expect(sites.api.env.TYPESENSE_API_KEY).toBe(sites.reviewos.env.TYPESENSE_API_KEY)
+  })
+
   test('reaches the API that reports runs as well as the worker that fetches commits', () => {
     const sites = (tsCloud as any).sites
     const workerToken = sites.reviewos.env.MIRROR_TOKEN_STACKS

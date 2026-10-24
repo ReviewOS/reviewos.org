@@ -15,12 +15,15 @@ is reachable, the way every other e2e here skips when its dependency is missing,
 trace out of the driver reads like the product is broken rather than like the machine is missing a
 service.
 
-One caveat worth knowing before debugging a port: `pantry start typesense --port 8208`, which
-`config/deps.ts` runs at setup, does **not** move the port on pantry 0.10.3 - the service still
-binds Typesense's default 8108, and `pantry inspect` confirms it. The env values above say 8108
-because that is what actually listens.
+`config/deps.ts`, the client fallback, and `.env.example` use port 8208 so this
+application cannot silently query another project's node on 8108. Pantry 0.11.31
+and newer honor both the API and derived peering ports. Production uses its own
+key and persistent data directory; deployment supplies the same search settings
+to the API and workers.
 
 ## Indexing
+
+- [x] Keep production search isolated on port 8208, persist its credential across deployments, and reindex the application's model definitions after bulk imports.
 
 - [x] `useSearch` on `Repository` (name, description, topics, owner handle), `Issue` (title, body,
       labels), `PullRequest`, and `User` (handle, name)
