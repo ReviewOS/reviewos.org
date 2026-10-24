@@ -1059,8 +1059,8 @@ export const tsCloud: TsCloudConfig = {
         GITHUB_SYNC_CREDENTIAL: String(env.GITHUB_SYNC_CREDENTIAL ?? 'github_account'),
         MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: String(env.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE ?? ''),
         /*
-         * The credential of the private mirrors declared with `credential:
-         * stacks` in mirrors.yml (stacksjs/hq.training, whose CI runs here).
+         * An optional separate credential for mirrors using `credential: stacks`.
+         * Account discovery and HQ use the protected github_account file.
          *
          * A fine-grained token scoped to those repositories - Contents: read
          * to fetch them, Commit statuses: read and write to report their runs

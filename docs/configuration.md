@@ -1646,9 +1646,9 @@ A private mirror's own token, named by its `credential:` in mirrors.yml
 or MIRROR_TOKEN_<REF>_FILE for a secret manager). A fine-grained token scoped
 to those repositories: Contents read to fetch them, and Commit statuses read
 and write when the mirror runs its CI here and reports it back upstream.
-Resolved by app/Actions/Mirror/credentials.ts. On reviewos.org, update the
-Actions secret and deploy to apply a replacement; see
-[Rotating the HQ mirror credential](./self-hosting.md#rotating-the-hq-mirror-credential).
+Metadata sync also needs Issues and Pull requests read permission.
+Resolved by app/Actions/Mirror/credentials.ts. The built-in HQ mirror uses
+github_account instead, so its credential can also read issue metadata.
 
 *No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 

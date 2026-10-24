@@ -443,7 +443,7 @@ operator's job rather than the generator's.
 - it reads the distinct queues out of the jobs table and re-reads them every ten
 seconds - which is the shape this instance runs, because the alternative is a
 list somebody has to remember to extend. This application dispatches onto seven:
-`default`, `git`, `mirrors`, `search`, `notifications`, `webhooks` and `emails`.
+`default`, `git`, `mirrors`, `mirrors-code`, `search`, `notifications`, `webhooks` and `emails`.
 A queue with no worker is not an error - it is a queue that grows quietly while
 the feature behind it stops happening, which is how mirroring, notifications and
 outbound email can all be "configured correctly" and all be dead at once.
@@ -1270,29 +1270,22 @@ readable by anybody.
 
 ### Rotating the HQ mirror credential
 
-On reviewos.org, keep this value in the `MIRROR_TOKEN_STACKS` repository secret
-under [ReviewOS Actions secrets](https://github.com/ReviewOS/reviewos.org/settings/secrets/actions).
-Both deployment workflows copy it into the production environment. Saving a
-secret changes future deployments; it does not update an already running server.
+HQ uses the same `github_account` credential as account discovery. Its previous
+fine-grained credential could read Git data and write commit statuses, but could
+not read issues or pull requests. That made code and CI work while metadata
+sync returned 403.
 
-To replace it whenever needed:
+Replace the token in the protected file named by
+`MIRROR_TOKEN_GITHUB_ACCOUNT_FILE`, keeping mode `0600`. The credential needs
+repository contents, issues and pull requests read access, plus commit statuses
+write access when running CI here. Authorize organization SSO where required.
+The file path is a deployment variable; the token is never a repository variable,
+a mirror row, or a committed file. New jobs read the replacement from the file.
 
-1. Create a replacement GitHub credential. For a fine-grained token, choose
-   `stacksjs` as the resource owner, select only `hq.training`, and grant
-   **Contents: read** and **Commit statuses: read and write**.
-2. Update the existing `MIRROR_TOKEN_STACKS` Actions secret with the replacement.
-3. Open [CI](https://github.com/ReviewOS/reviewos.org/actions/workflows/ci.yml),
-   choose **Run workflow**, select `main`, and start it. Wait for the deploy job
-   to succeed so the running server receives the new value.
-4. In the HQ mirror's settings, use **Sync now**, or wait for its next scheduled
-   sweep. Check that the mirror updates without a credential error and that a
-   subsequent run posts its **ReviewOS / CI** status on GitHub.
-5. Revoke the previous credential after the replacement works. If other tools
-   share the previous credential, move those tools before revoking it.
-
-The mirror's credential reference stays `stacks` throughout a replacement. Token
-values belong in the secret, never in `mirrors.yml`, a commit, or a support log.
-
+Verify a mirror fetch, its metadata error and timestamp, and a subsequent
+**ReviewOS / CI** status before revoking the old credential. Move other tools
+that share the old token first. Instances using a separate fine-grained token
+can keep their own credential reference if it has all of these permissions.
 
 ### Running a mirror's CI here
 
@@ -1412,7 +1405,9 @@ and metadata at four times that interval. Metadata includes repository fields,
 issues, pull requests, review threads, conversation comments, review verdicts,
 labels, milestones, and release descriptions. Edited comments and reviews update
 existing records. Credentials are resolved from the protected file at runtime.
-The scheduler and `mirrors` queue worker must both be running.
+The scheduler and workers for `mirrors` and `mirrors-code` must be running.
+The default worker discovers both queues. A dedicated `mirrors-code` worker can
+keep an initial Git import moving independently of large metadata imports.
 
 This is additive, one-way mirroring. Upstream deletions do not delete local
 organizations or conversation records. It does not copy GitHub account settings,

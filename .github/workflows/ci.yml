@@ -952,7 +952,7 @@ jobs:
             printf 'MIRROR_TOKEN_STACKS=%s\n' "${MIRROR_TOKEN_STACKS:-}"
           } > .env
 
-          [ -n "${MIRROR_TOKEN_STACKS:-}" ] || echo "::warning::MIRROR_TOKEN_STACKS is not set; the private mirrors (stacksjs/hq.training) cannot fetch, so their CI does not run."
+          [ -n "${MIRROR_TOKEN_STACKS:-}" ] || echo "::warning::MIRROR_TOKEN_STACKS is not set; mirrors explicitly using the stacks credential cannot fetch."
 
           for required in HCLOUD_TOKEN DB_PASSWORD; do
             eval "value=\${$required:-}"

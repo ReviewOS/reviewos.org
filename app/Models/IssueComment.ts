@@ -28,7 +28,8 @@ export default defineModel({
     useSeeder: { count: 60 },
   },
 
-  belongsTo: [{ model: 'Issue', foreignKey: 'commentable_id' }, { model: 'User', foreignKey: 'author_id' }],
+  morphTo: { name: 'commentable' },
+  belongsTo: [{ model: 'User', foreignKey: 'author_id' }],
 
   attributes: {
     commentable_type: {

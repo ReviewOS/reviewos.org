@@ -36,7 +36,7 @@ export default new Job({
     // so a slow fetch does not accumulate another copy every five minutes.
     const pending = new Set<string>()
     if (config.queue.default === 'database') {
-      const jobs = await db.selectFrom('jobs').select(['payload']).where('queue', '=', 'mirrors').execute()
+      const jobs = await db.selectFrom('jobs').select(['payload']).where('queue', 'in', ['mirrors', 'mirrors-code']).execute()
       for (const row of jobs) {
         const parsed = parseEnvelope(row.payload)
         if (parsed.ok) {

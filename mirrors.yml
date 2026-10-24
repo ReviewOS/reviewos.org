@@ -34,12 +34,13 @@ mirrors:
   # and the verdict goes back to the commit as the status "ReviewOS / CI".
   #
   # Private here because it is private there, and read with its own
-  # fine-grained token (`MIRROR_TOKEN_STACKS`). The repository's push webhook
+  # account credential, which can also read issues and pull requests. The repository's push webhook
   # starts CI at once; without it the sweep (every five minutes, this mirror
   # due every minute) starts it within five.
   - remote: stacksjs/hq.training
     owner: stacks
-    credential: stacks
+    credential: github_account
+    metadata: true
     private: true
     ci: true
     interval: 60
