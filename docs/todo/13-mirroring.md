@@ -384,3 +384,4 @@ the idempotence the checklist asks for rather than an assertion about it.
 
 - [x] Discover personal and administered GitHub organization repositories hourly, preserving privacy and owner membership.
 - [x] Refresh conversation comments, milestones, release metadata and review verdicts during recurring metadata sync.
+- [x] Resolve mirrored pull request bases from shared Git storage after release paths expire.

@@ -1232,3 +1232,32 @@ describe('importing from GitLab, which is a different vocabulary', () => {
     }
   }, 120_000)
 })
+
+test('metadata sync resolves shared Git storage after a release path expires', async () => {
+  if (!available) return
+  const db = (globalThis as any).db
+  const nativeFetch = globalThis.fetch
+  const mirror = await db.insertInto('repository_mirrors').values({
+    repository_id: created.repositoryId, provider: 'github', remote_owner: 'acme', remote_name: 'api',
+    remote_url: 'https://github.com/acme/api.git', enabled: true, sync_metadata: true, webhook_secret: 'fixture',
+  }).returning(['id']).executeTakeFirst()
+  try {
+    await db.updateTable('repositories').set({ disk_path: '/nonexistent/expired-release/repository.git' }).where('id', '=', created.repositoryId).execute()
+    globalThis.fetch = ((input: any, options: any) => {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
+      return nativeFetch(url.hostname === 'api.github.com' ? `http://127.0.0.1:${apiPort}${url.pathname}${url.search}` : input, options)
+    }) as typeof fetch
+    const job: any = (await import('../../app/Jobs/MirrorMetadataSyncJob')).default
+    const result = await job.handle({ mirrorId: Number(mirror.id) })
+    expect(result?.ok, JSON.stringify(result)).toBe(true)
+    const pull = await db.selectFrom('pull_requests').select(['base_sha']).where('repository_id', '=', created.repositoryId).where('number', '=', 9).executeTakeFirst()
+    const { runGit } = await import('../../app/Actions/Git/git')
+    const tip = await runGit(created.diskPath, ['rev-parse', 'refs/heads/main'])
+    expect(pull.base_sha).toBe(tip.stdout.trim())
+  }
+  finally {
+    globalThis.fetch = nativeFetch
+    await db.updateTable('repositories').set({ disk_path: created.diskPath }).where('id', '=', created.repositoryId).execute()
+    await db.deleteFrom('repository_mirrors').where('id', '=', Number(mirror.id)).execute()
+  }
+})

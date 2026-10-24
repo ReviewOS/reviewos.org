@@ -69,9 +69,16 @@ export default new Job({
     // the commits it names this repository actually holds.
     const repositoryRow = await db
       .selectFrom('repositories')
-      .select(['disk_path'])
+      .selectAll()
       .where('id', '=', repositoryId)
       .executeTakeFirst()
+
+    // Release paths expire at deploy time. Resolve shared Git storage in the
+    // same way as MirrorSyncJob, rather than trusting the cached disk_path.
+    const { repositoryPath } = await import('../Actions/Git/storage')
+    const { ownerHandleFor } = await import('../Actions/Repo/owner')
+    const handle = repositoryRow ? await ownerHandleFor(repositoryRow) : null
+    const resolved = handle && repositoryRow ? repositoryPath(handle, String(repositoryRow.name)) : { ok: false as const }
 
     const client = new GitHubClient({ token: await resolveToken(mirror.credential_ref) })
 
@@ -101,7 +108,7 @@ export default new Job({
     // upstream: see `resolveBaseShas`. A mirror does not hold the commit
     // `base.sha` names, so storing it unchanged imports a pull request whose
     // diff cannot be computed.
-    const bases = await resolveBaseShas(String(repositoryRow?.disk_path ?? ''), pulls)
+    const bases = await resolveBaseShas(resolved.ok ? String(resolved.path) : '', pulls)
 
     const written = {
       issues: await writeIssues(issues, repositoryId),
