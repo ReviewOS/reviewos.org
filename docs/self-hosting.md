@@ -1406,8 +1406,11 @@ issues, pull requests, review threads, conversation comments, review verdicts,
 labels, milestones, and release descriptions. Edited comments and reviews update
 existing records. Credentials are resolved from the protected file at runtime.
 The scheduler and workers for `mirrors` and `mirrors-code` must be running.
-The default worker discovers both queues. A dedicated `mirrors-code` worker can
-keep an initial Git import moving independently of large metadata imports.
+The default worker discovers both queues. The production cloud configuration
+also runs a dedicated `mirrors-code` worker with two slots so Git fetches keep
+moving independently of large metadata imports. Other installations can run
+`./buddy queue:work --queue=mirrors-code --concurrency=2 --verbose` alongside
+their general worker for the same isolation.
 
 This is additive, one-way mirroring. Upstream deletions do not delete local
 organizations or conversation records. It does not copy GitHub account settings,

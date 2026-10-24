@@ -83,6 +83,11 @@ function queuesWithWorkers(): string[] | null {
 }
 
 describe('the queue workers on the box', () => {
+  test('keeps Git mirror fetches moving independently of a large metadata batch', () => {
+    expect(workerCommands().some(command => /--queue=mirrors-code(?:\s|$)/.test(command))).toBe(true)
+    expect(workerCommands().some(command => !/--queue(?:=|\s)/.test(command))).toBe(true)
+  })
+
   test('are declared at all', () => {
     // The state this test was written for: none, while `scheduler: true`
     // enqueued work every five minutes that nothing could pick up.

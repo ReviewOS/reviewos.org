@@ -990,14 +990,10 @@ export const tsCloud: TsCloudConfig = {
        * worker that names no queue, and if one ever does name queues, it
        * requires them to cover every queue a job uses.
        *
-       * Concurrency 4, matching `compose.yaml` and `config/deps.ts` so the
-       * three documented ways to run this instance agree. These jobs are
-       * almost all waiting on git or on somebody else's HTTP, so the useful
-       * number is bounded by the disk and the remote rather than by the core
-       * count - but this is a shared box with 16 GB and its swap already full,
-       * and seven idle Bun processes are most of a gigabyte for nothing. Raise
-       * it, rather than the process count, if queue depth in `/api/health`
-       * stays above zero.
+       * The general worker keeps concurrency 4, matching `compose.yaml` and
+       * `config/deps.ts`. One dedicated Git mirror worker keeps fetches moving
+       * while a large metadata batch occupies the general worker. Its two
+       * slots bound background Git work on this shared 16 GB machine.
        *
        * `--verbose` is not decoration. Without it buddy captures the worker's
        * output instead of inheriting it, and the journal for this unit is
@@ -1006,7 +1002,11 @@ export const tsCloud: TsCloudConfig = {
       daemons: [
         {
           name: 'worker',
-          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --concurrency 4 --verbose',
+          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --concurrency=4 --verbose',
+        },
+        {
+          name: 'mirror-code-worker',
+          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=mirrors-code --concurrency=2 --verbose',
         },
       ],
       // Bare repositories live on the box and are authoritative there: the
