@@ -1416,3 +1416,12 @@ LFS objects, or release asset binaries. One-time repository imports can download
 release assets separately. A mirror is not a complete GitHub account backup.
 GitHub API limits can delay metadata independently of Git refs; inspect each
 mirror's error and sync timestamps before treating an initial sync as complete.
+
+An older Postgres installation can retain constraints from before model-driven
+migrations. Running the migration ledger alone does not remove them. With a
+current Stacks checkout, inspect `./buddy migrate:align --relax-constraints`,
+then apply the reviewed plan with `--apply` while workers are stopped. This can
+remove an obsolete CMS author reference when the correct user reference is
+already enforced, relax model-optional columns, and widen truncated text fields.
+It preserves rows. The application also declares the native failed-job UUID and
+attempt metrics, so an exhausted import remains available for inspection and retry.

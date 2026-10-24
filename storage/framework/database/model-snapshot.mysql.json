@@ -2354,6 +2354,38 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "attempts",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "max_attempts",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "duration_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -2364,6 +2396,13 @@
               "failed_at"
             ],
             "type": "index"
+          },
+          {
+            "name": "failed_jobs_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
           }
         ]
       },
@@ -15431,7 +15470,7 @@
       }
     ]
   },
-  "hash": "182e71c7a0f0f26eee3e574d6c9a5fe5be1152a0be27ac197dc87dd4f8d35f4e",
+  "hash": "42ca6c20d46c53abba08bdb46e20741af0aa9401eaed36d9638406db42ccf614",
   "dialect": "mysql",
-  "updatedAt": "2026-10-24T19:35:11.669Z"
+  "updatedAt": "2026-10-24T23:04:33.968Z"
 }

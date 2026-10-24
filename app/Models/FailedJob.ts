@@ -1,5 +1,6 @@
 import { defineModel } from '@stacksjs/orm'
 import { schema } from '@stacksjs/validation'
+import NativeFailedJob from '@stacksjs/defaults/app/Models/FailedJob.ts'
 
 /**
  * A job that ran out of attempts.
@@ -35,6 +36,7 @@ export default defineModel({
   ],
 
   traits: {
+    useUuid: true,
     useTimestamps: true,
     useSeeder: { count: 0 },
   },
@@ -91,5 +93,11 @@ export default defineModel({
       validation: { rule: schema.string() },
       factory: () => null,
     },
+
+    // Reuse the worker's native metrics so this override does not omit fields
+    // the queue writes when an attempt exhausts its retries.
+    attempts: NativeFailedJob.attributes.attempts,
+    maxAttempts: NativeFailedJob.attributes.maxAttempts,
+    durationMs: NativeFailedJob.attributes.durationMs,
   },
 } as const)

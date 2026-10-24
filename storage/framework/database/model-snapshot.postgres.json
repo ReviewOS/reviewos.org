@@ -2354,6 +2354,38 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "attempts",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "max_attempts",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "duration_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -2364,6 +2396,13 @@
               "failed_at"
             ],
             "type": "index"
+          },
+          {
+            "name": "failed_jobs_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
           }
         ]
       },
@@ -15431,7 +15470,7 @@
       }
     ]
   },
-  "hash": "77934474702949b0e3a16b0e75cca68ccb0d4be404e422ec25a09e1be95f28e0",
+  "hash": "6b3d3de62e123ad4b99ee8339fc5b53b54e54313580829d5ff654bcf923b52aa",
   "dialect": "postgres",
-  "updatedAt": "2026-10-24T19:36:35.312Z"
+  "updatedAt": "2026-10-24T23:04:34.188Z"
 }
