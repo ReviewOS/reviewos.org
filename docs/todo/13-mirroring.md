@@ -387,3 +387,4 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Resolve mirrored pull request bases from shared Git storage after release paths expire.
 - [x] Declare comment subjects as a native polymorphic relation and repair legacy production constraints from the models; give HQ metadata read access.
 - [x] Put Git mirror fetches on their own native queue so metadata imports cannot monopolize their worker.
+- [x] Synchronize Git symbolic HEAD with the upstream default branch, including existing mirrors whose database was already correct.

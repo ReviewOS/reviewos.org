@@ -32,6 +32,7 @@ let available = false
 let api: any = null
 let apiPort = 0
 let sourcePath = ''
+let fixtureDefaultBranch = 'main'
 const scratch = join(
   String(process.env.TMPDIR ?? '/tmp'),
   `reviewos-import-${Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')}`,
@@ -230,7 +231,7 @@ beforeAll(async () => {
           return Response.json({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [{ number: 9, reviews: { pageInfo: { hasNextPage: false }, nodes: [{ databaseId: 701, state: 'APPROVED', body: 'Reviewed carefully', commit: { oid: 'a'.repeat(40) }, author: { login: 'alice' }, submittedAt: '2026-01-07T10:00:00Z' }] } }] } } } })
 
         if (path === '/repos/acme/api')
-          return Response.json({ name: 'api', description: 'The fixture', default_branch: 'main', private: false })
+          return Response.json({ name: 'api', description: 'The fixture', default_branch: fixtureDefaultBranch, private: false })
 
         if (path === '/repos/acme/api/issues')
           return page(FIXTURE.issues)
@@ -1247,16 +1248,28 @@ test('metadata sync resolves shared Git storage after a release path expires', a
       const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
       return nativeFetch(url.hostname === 'api.github.com' ? `http://127.0.0.1:${apiPort}${url.pathname}${url.search}` : input, options)
     }) as typeof fetch
+    const { runGit } = await import('../../app/Actions/Git/git')
+    await runGit(created.diskPath, ['branch', 'review-default', 'refs/heads/main'])
+    fixtureDefaultBranch = 'review-default'
     const job: any = (await import('../../app/Jobs/MirrorMetadataSyncJob')).default
     const result = await job.handle({ mirrorId: Number(mirror.id) })
     expect(result?.ok, JSON.stringify(result)).toBe(true)
     const pull = await db.selectFrom('pull_requests').select(['base_sha']).where('repository_id', '=', created.repositoryId).where('number', '=', 9).executeTakeFirst()
-    const { runGit } = await import('../../app/Actions/Git/git')
     const tip = await runGit(created.diskPath, ['rev-parse', 'refs/heads/main'])
     expect(pull.base_sha).toBe(tip.stdout.trim())
+    // Simulate an older mirror whose database already changed but HEAD did not.
+    await runGit(created.diskPath, ['symbolic-ref', 'HEAD', 'refs/heads/main'])
+    expect((await job.handle({ mirrorId: Number(mirror.id) })).ok).toBe(true)
+    const checkout = join(scratch, 'clone-after-metadata')
+    const clone = Bun.spawn(['git', 'clone', '--quiet', created.diskPath, checkout], { stdout: 'pipe', stderr: 'pipe' })
+    const cloneError = await new Response(clone.stderr).text()
+    expect(await clone.exited, cloneError).toBe(0)
+    expect((await runGit(join(checkout, '.git'), ['branch', '--show-current'])).stdout.trim()).toBe('review-default')
+    expect((await runGit(join(checkout, '.git'), ['rev-parse', 'HEAD'])).stdout.trim()).toBe(tip.stdout.trim())
   }
   finally {
     globalThis.fetch = nativeFetch
+    fixtureDefaultBranch = 'main'
     await db.updateTable('repositories').set({ disk_path: created.diskPath }).where('id', '=', created.repositoryId).execute()
     await db.deleteFrom('repository_mirrors').where('id', '=', Number(mirror.id)).execute()
   }

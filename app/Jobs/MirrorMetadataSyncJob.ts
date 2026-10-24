@@ -123,7 +123,7 @@ export default new Job({
        * the same reason: a mirror whose git data and issues arrived and whose
        * description did not is a working mirror with a stale sentence.
        */
-      repository: await writeRepositoryMetadata(client, owner, name, repositoryId),
+      repository: await writeRepositoryMetadata(client, owner, name, repositoryId, resolved.ok ? String(resolved.path) : ''),
       labels: await writeLabels(client, owner, name, repositoryId),
     }
 
@@ -407,6 +407,7 @@ async function writeRepositoryMetadata(
   owner: string,
   name: string,
   repositoryId: number,
+  diskPath: string,
 ): Promise<{ updated: string[] }> {
   const mapped = mapRepository(await client.repository(owner, name))
   if (!mapped)
@@ -465,6 +466,17 @@ async function writeRepositoryMetadata(
       .set(changes)
       .where('id', '=', repositoryId)
       .execute()
+  }
+
+  // Git clients read symbolic HEAD, independently of the database's default.
+  // Repair it even when the database already names the right branch.
+  if (mapped.defaultBranch) {
+    const { isSafeRef, runGit } = await import('../Actions/Git/git')
+    if (!isSafeRef(mapped.defaultBranch))
+      throw new Error('The upstream default branch is not supported')
+    const head = await runGit(diskPath, ['symbolic-ref', 'HEAD', `refs/heads/${mapped.defaultBranch}`], { priority: 'background' })
+    if (!head.ok)
+      throw new Error('The mirrored default branch could not be updated in Git')
   }
 
   await writeTopics(mapped.topics, repositoryId)
