@@ -1,4 +1,6 @@
-import { Job } from '@stacksjs/queue'
+import { Job, parseEnvelope } from '@stacksjs/queue'
+import { config } from '@stacksjs/config'
+import { db } from '@stacksjs/database'
 import { metadataBackoffSeconds, metadataDue } from '../Actions/Mirror/metadata'
 import { isDue } from '../Actions/Mirror/sync'
 
@@ -30,6 +32,20 @@ export default new Job({
     const now = new Date()
     let queued = 0
     let queuedMetadata = 0
+    // A first account import can outlast several sweeps. Include reserved jobs
+    // so a slow fetch does not accumulate another copy every five minutes.
+    const pending = new Set<string>()
+    if (config.queue.default === 'database') {
+      const jobs = await db.selectFrom('jobs').select(['payload']).where('queue', '=', 'mirrors').execute()
+      for (const row of jobs) {
+        const parsed = parseEnvelope(row.payload)
+        if (parsed.ok) {
+          const envelope = parsed.envelope
+          if (['MirrorSyncJob', 'MirrorMetadataSyncJob'].includes(envelope.jobName))
+            pending.add(`${envelope.jobName}:${Number((envelope.payload as any)?.mirrorId)}`)
+        }
+      }
+    }
 
     for (const mirror of mirrors) {
       // Metadata runs on its own, slower cadence. A repository receiving a
@@ -42,7 +58,7 @@ export default new Job({
           Number(mirror.interval_seconds ?? 900) * 4,
         )
 
-        if (metadataDue(mirror.last_metadata_sync_at ? String(mirror.last_metadata_sync_at) : null, interval, now)) {
+        if (!pending.has(`MirrorMetadataSyncJob:${mirror.id}`) && metadataDue(mirror.last_metadata_sync_at ? String(mirror.last_metadata_sync_at) : null, interval, now)) {
           await MirrorMetadataSyncJob.dispatch({ mirrorId: Number(mirror.id) })
           queuedMetadata += 1
         }
@@ -57,6 +73,7 @@ export default new Job({
         failure_count: Number(mirror.failure_count ?? 0),
       }, now)) continue
 
+      if (pending.has(`MirrorSyncJob:${mirror.id}`)) continue
       await MirrorSyncJob.dispatch({ mirrorId: Number(mirror.id) })
       queued += 1
     }

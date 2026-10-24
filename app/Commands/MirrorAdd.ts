@@ -22,6 +22,7 @@ import { repositoryPath } from '../Actions/Git/storage'
  */
 
 export interface MirrorOptions {
+  quiet?: boolean
   remote?: string
   owner?: string
   name?: string
@@ -122,6 +123,8 @@ export async function addMirror(options: MirrorOptions): Promise<void> {
 
   const repositoryId = await upsertRepository(owner, localName, diskPath, visibility)
   await upsertMirror(repositoryId, remote, options)
+
+  if (options.quiet) return
 
   console.log(`Mirroring ${remote.owner}/${remote.name} as ${owner.handle}/${localName} (${visibility})`)
   console.log(`  repository ${repositoryId} at ${diskPath}`)
@@ -288,6 +291,8 @@ async function upsertMirror(
   }
 
   await db.insertInto('repository_mirrors').values(row as any).execute()
+
+  if (options.quiet) return
 
   console.log('')
   console.log('Webhook secret (shown once):')

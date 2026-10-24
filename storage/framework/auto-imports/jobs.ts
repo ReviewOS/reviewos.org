@@ -29,6 +29,7 @@ export { default as RepositoryMaintenanceJob } from '../../../app/Jobs/Repositor
 export { default as SendDigestJob } from '../../../app/Jobs/SendDigestJob'
 export { default as SendNotificationJob } from '../../../app/Jobs/SendNotificationJob'
 export { default as SendWelcomeEmail } from '../../../app/Jobs/SendWelcomeEmail'
+export { default as SyncGitHubAccountJob } from '../../../app/Jobs/SyncGitHubAccountJob'
 export { default as WakeSleepingRunsJob } from '../../../app/Jobs/WakeSleepingRunsJob'
 export { default as WarnExpiringTokensJob } from '../../../app/Jobs/WarnExpiringTokensJob'
 export { default as ExampleJob } from '@stacksjs/defaults/app/Jobs/ExampleJob.ts'

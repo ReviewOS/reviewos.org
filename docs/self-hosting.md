@@ -1365,3 +1365,53 @@ exist - and the failure mode is that nothing appears and nothing says why.
 repository has not been built end to end on the machine that wrote this file -
 no daemon was running. Treat the `docker build` step as unverified until
 somebody runs it.*
+
+## Secondary account emails
+
+An operator can associate an address whose ownership they have verified:
+
+```bash
+./buddy user:email:add <handle> <email>
+```
+
+Verified secondary addresses use the same password, administrator role, sessions,
+and two-factor challenge as the primary address. They also identify commit authors
+and imported contributors. Registration cannot claim a reserved address. Password
+reset requests made with a secondary address send the reset to the primary address.
+This command does not send email or SMS and is not a public verification flow.
+
+## Discovering a GitHub account for mirroring
+
+Link the administrator's `github_username` to their actual GitHub login, then set
+`GITHUB_SYNC_USER` to their local handle and `GITHUB_SYNC_CREDENTIAL` to a mirror
+credential reference. Store its token in `MIRROR_TOKEN_GITHUB_ACCOUNT_FILE` when
+using the default `github_account` reference. The token needs repository read
+access, active organization membership visibility, and access to GitHub's GraphQL API.
+Organization SSO must authorize it where required.
+
+```bash
+./buddy github:sync
+```
+
+The scheduler repeats discovery hourly. It includes personal repositories and
+repositories in active organizations where the GitHub account is an administrator.
+Collaborator-only repositories and organizations where the account is only a member
+are excluded. Discovery creates local organizations, grants the linked administrator
+owner membership, and registers pull mirrors with metadata enabled. Existing owner
+mappings, private visibility, credentials and workflow settings are preserved.
+Newly discovered mirrors do not automatically execute upstream workflows.
+
+The mirror sweep fetches Git refs on each mirror's interval, normally 15 minutes,
+and metadata at four times that interval. Metadata includes repository fields,
+issues, pull requests, review threads, conversation comments, review verdicts,
+labels, milestones, and release descriptions. Edited comments and reviews update
+existing records. Credentials are resolved from the protected file at runtime.
+The scheduler and `mirrors` queue worker must both be running.
+
+This is additive, one-way mirroring. Upstream deletions do not delete local
+organizations or conversation records. It does not copy GitHub account settings,
+organization secrets or teams, project boards, discussions, Actions run history,
+LFS objects, or release asset binaries. One-time repository imports can download
+release assets separately. A mirror is not a complete GitHub account backup.
+GitHub API limits can delay metadata independently of Git refs; inspect each
+mirror's error and sync timestamps before treating an initial sync as complete.

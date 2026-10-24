@@ -100,11 +100,13 @@ export default new Action({
     let result: any = null
 
     try {
-      if (await Auth.attempt({ email, password })) {
+      const { accountForEmail } = await import('../Identity/emails')
+      const account = await accountForEmail(email)
+      if (account && await Auth.attempt({ email: account.primaryEmail, password })) {
         const user = await db
           .selectFrom('users')
           .select(['id', 'two_factor_secret', 'two_factor_enabled'])
-          .where('email', '=', email)
+          .where('id', '=', account.id)
           .executeTakeFirst()
 
         signedInUserId = Number(user?.id ?? 0)

@@ -259,6 +259,10 @@ export default {
     default: '',
   },
 
+  GITHUB_SYNC_USER: { validation: schema.string(), default: '' },
+  GITHUB_SYNC_CREDENTIAL: { validation: schema.string(), default: 'github_account' },
+  MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: { validation: schema.string(), default: '' },
+
   // The private mirrors' credential (`credential: stacks` in mirrors.yml);
   // see config/cloud.ts.
   MIRROR_TOKEN_STACKS: {

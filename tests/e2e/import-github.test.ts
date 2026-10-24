@@ -226,6 +226,9 @@ beforeAll(async () => {
 
         const page = (items: unknown[]): Response => Response.json(items)
 
+        if (path === '/graphql')
+          return Response.json({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [{ number: 9, reviews: { pageInfo: { hasNextPage: false }, nodes: [{ databaseId: 701, state: 'APPROVED', body: 'Reviewed carefully', commit: { oid: 'a'.repeat(40) }, author: { login: 'alice' }, submittedAt: '2026-01-07T10:00:00Z' }] } }] } } } })
+
         if (path === '/repos/acme/api')
           return Response.json({ name: 'api', description: 'The fixture', default_branch: 'main', private: false })
 
@@ -234,6 +237,9 @@ beforeAll(async () => {
 
         if (path === '/repos/acme/api/pulls')
           return page(FIXTURE.pulls)
+
+        if (path === '/repos/acme/api/pulls/9/reviews')
+          return page([{ id: 701, state: 'APPROVED', body: 'Reviewed carefully', commit_id: 'a'.repeat(40), user: { login: 'alice' }, submitted_at: '2026-01-07T10:00:00Z' }])
 
         if (path === '/repos/acme/api/pulls/comments')
           return page(FIXTURE.comments)
@@ -383,6 +389,7 @@ afterAll(async () => {
         await db.deleteFrom('release_assets').where('release_id', '=', Number(release.id)).execute()
       }
 
+      await db.deleteFrom('pull_request_reviews').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('releases').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('milestones').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute()
@@ -789,6 +796,30 @@ describe('importing a repository', () => {
     expect(String(JSON.parse(String(row.result)).summary)).toContain('no metadata')
   }, 120_000)
 
+})
+
+describe('recurring mirror conversations', () => {
+  test('updates edited comments and imports review verdicts without duplicates', async () => {
+    if (!available) return
+    const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')
+    const { syncMirrorConversations } = await import('../../app/Jobs/ImportRepositoryJob')
+    const client = new GitHubClient({ baseUrl: `http://127.0.0.1:${apiPort}` })
+    const db = (globalThis as any).db
+    const original = FIXTURE.issueComments[0]!.body
+    try {
+      FIXTURE.issueComments[0]!.body = 'An upstream edit'
+      await syncMirrorConversations(client, 'acme', 'api', created.repositoryId)
+      await syncMirrorConversations(client, 'acme', 'api', created.repositoryId)
+      const comments = await db.selectFrom('issue_comments').select(['body']).where('external_id', '=', String(FIXTURE.issueComments[0]!.id)).execute()
+      expect(comments).toHaveLength(1)
+      expect(comments[0].body).toBe('An upstream edit')
+      const reviews = await db.selectFrom('pull_request_reviews').select(['state', 'body']).where('repository_id', '=', created.repositoryId).where('external_id', '=', '701').execute()
+      expect(reviews).toHaveLength(1)
+      expect(reviews[0].state).toBe('approved')
+      expect(reviews[0].body).toBe('Reviewed carefully')
+    }
+    finally { FIXTURE.issueComments[0]!.body = original }
+  })
 })
 
 describe('and back out again', () => {

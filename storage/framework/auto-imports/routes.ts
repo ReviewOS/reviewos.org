@@ -7,3 +7,8 @@
 //
 // For more information, please visit: https://stacksjs.com/docs
 export const routeNames = {} as const
+
+// Every `route.redirect()` and `route.permanentRedirect()` on a page path. The
+// views server answers these before it looks for a page: it never loads the
+// route files, which belong to the API process.
+export const routeRedirects = {} as const

@@ -87,7 +87,7 @@ export default new Job({
     // A partial import is still worth writing. Whatever came back is real, and
     // discarding it because a later page failed means starting from nothing
     // next time and hitting the same limit at the same place.
-    const failure = [issuesResult, pullsResult, commentsResult].find(r => !r.ok)
+    let failure: { error: string | null } | undefined = [issuesResult, pullsResult, commentsResult].find(r => !r.ok)
 
     const issues = onlyIssues(issuesResult.items)
       .map(item => mapIssue(item, linked))
@@ -118,6 +118,16 @@ export default new Job({
        */
       repository: await writeRepositoryMetadata(client, owner, name, repositoryId),
       labels: await writeLabels(client, owner, name, repositoryId),
+    }
+
+    if (!failure) {
+      try {
+        const { syncMirrorConversations } = await import('./ImportRepositoryJob')
+        await syncMirrorConversations(client, owner, name, repositoryId)
+      }
+      catch (error) {
+        failure = { error: error instanceof Error ? error.message : String(error) }
+      }
     }
 
     // A sync is the largest single change to a repository's issue count there

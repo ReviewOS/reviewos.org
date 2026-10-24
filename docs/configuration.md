@@ -19,7 +19,7 @@ are wrong and what to do about them.
 
 Default: `ReviewOS`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APP_ENV`
 
@@ -46,25 +46,25 @@ Read by `app/Actions/Atproto/client.ts`, `app/Actions/Auth/passkeys.ts`, `app/Ac
 
 Default: `false`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APP_MAINTENANCE_SECRET`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APP_COMING_SOON`
 
 Default: `false`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APP_COMING_SOON_SECRET`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APP_PORT`
 
@@ -92,7 +92,7 @@ Optional automation credential for non-interactive environments. Interactive
 users should run `./buddy setup:ssl` once instead of storing a sudo password.
 Local-only, never commit a real value because .env is gitignored.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Encrypted values
 
@@ -107,13 +107,13 @@ Encrypted values look like `encrypted:...` or `enc:...` in this file and
 are auto-decrypted at boot by the env plugin in bunfig.toml preload.
 Leave both blank in dev; run `buddy key:generate` to materialize.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `DOTENV_PRIVATE_KEY`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Stacks
 
@@ -141,7 +141,7 @@ still point at a framework action this project never copied - which is how
 several of ours already work. Accepted values: `none`, `all`, or a list such
 as `auth,email`. Unset means `all`, so this line is doing work.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Ports
 
@@ -157,7 +157,7 @@ Read by `app/Actions/Git/hooks.ts`.
 
 Default: `true`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Git
 
@@ -174,7 +174,7 @@ Without it a push lands on disk and nothing is recorded about it: no closed
 issues, no cross references, no `pushed_at`. Generate one with
 `openssl rand -hex 32`, then run `buddy git:hooks`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `GIT_HOOK_URL`
 
@@ -199,7 +199,7 @@ cannot be logged, which deliberately inverts the fail-open rule that governs
 branch protection - see config/git-wal.ts for why the two want opposite
 failure modes. Run advisory first.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `GIT_WAL_KEEP`
 
@@ -207,7 +207,7 @@ Default: `500`, and the line is commented out.
 
 How many committed entries to keep behind the newest checkpoint.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Database
 
@@ -283,7 +283,7 @@ Default: `mysql://root@127.0.0.1:3306/reviewos`.
 Read natively by bun:sql as a fallback for connections that setConfig does
 not reach. Keep it in sync with the DB_* values above.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Stripe
 
@@ -291,7 +291,7 @@ not reach. Keep it in sync with the DB_* values above.
 
 Default: `""`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Apple
 
@@ -303,31 +303,31 @@ Sign in with Apple. `APPLE_CLIENT_ID` is the Services ID, not the primary App
 ID. Store the downloaded .p8 contents with literal \n separators when setting
 `APPLE_PRIVATE_KEY` through `buddy env:set`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APPLE_TEAM_ID`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APPLE_KEY_ID`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APPLE_PRIVATE_KEY`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `APPLE_REDIRECT_URL`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## AWS
 
@@ -335,31 +335,31 @@ Default: empty.
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_ACCESS_KEY_ID`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_SECRET_ACCESS_KEY`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_DEFAULT_REGION`
 
 Default: `us-east-1`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_PROFILE`
 
 Default: `stacks`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_BUCKET`
 
@@ -367,31 +367,31 @@ Default: empty.
 
 AWS S3 Storage
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_S3_PREFIX`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_ENDPOINT`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_URL`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `AWS_USE_PATH_STYLE_ENDPOINT`
 
 Default: `false`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Storage
 
@@ -401,19 +401,19 @@ Default: `local`.
 
 Filesystem / Storage
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `FILESYSTEM_LOCAL_ROOT`
 
 Default: `storage/app`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `FILESYSTEM_PUBLIC_ROOT`
 
 Default: `public`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Pages
 
@@ -436,7 +436,7 @@ under this instance's own host would hand every repository owner a script tag
 on everybody's dashboard. One wildcard DNS record and one wildcard
 certificate is the price, and it is the whole boundary.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `PAGES_CUSTOM_DOMAINS`
 
@@ -445,7 +445,7 @@ Default: `true`.
 Whether a site may claim a domain of its own. Leave off unless the gateway in
 front of this instance can obtain a certificate for a name it does not own.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Public
 
@@ -460,7 +460,7 @@ repository on this instance - the host allowlist and the byte ceiling are in
 the code and not configurable, but turning it on is still a decision. See
 config/publicdiff.ts for where it is served and why.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `PUBLIC_DIFF_RATE`
 
@@ -470,7 +470,7 @@ Proxy requests per five minutes per address. Each one is an outbound fetch of
 somebody else's patch, so this is what keeps a shared instance from being
 used as a crawler.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Email
 
@@ -478,7 +478,7 @@ used as a crawler.
 
 Default: `smtp`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_HOST`
 
@@ -490,37 +490,37 @@ and readable at http://localhost:8025, and none of it leaves the machine. It
 is the same binary a deployed instance runs, so a digest that renders locally
 has been through the code that will handle it for real.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_PORT`
 
 Default: `1025`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_USERNAME`
 
 Default: `null`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_PASSWORD`
 
 Default: `null`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_ENCRYPTION`
 
 Default: `null`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_FROM_NAME`
 
 Default: `"${APP_NAME}"`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MAIL_FROM_ADDRESS`
 
@@ -530,7 +530,7 @@ The address notifications come from. A domain you control and that this
 instance is allowed to send for: a From on somebody else's domain fails SPF
 and lands in spam, which reads as the notifications being broken.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## The queue
 
@@ -548,37 +548,37 @@ notifications) would run inside the post-receive request, and a slow webhook
 would hold a `git push` open. Set it, and run a worker (see the queue section
 of docs/self-hosting.md).
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_PREFIX`
 
 Default: `stacks:queue`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_CONCURRENCY`
 
 Default: `5`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_LOG_LEVEL`
 
 Default: `info`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_WORKER_CONCURRENCY`
 
 Default: `5`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_FAILED_DRIVER`
 
 Default: `database`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_RATE_LIMIT_ENABLED`
 
@@ -586,19 +586,19 @@ Default: `false`, and the line is commented out.
 
 Queue Rate Limiting (optional)
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_RATE_LIMIT_MAX`
 
 Default: `100`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_RATE_LIMIT_DURATION`
 
 Default: `1000`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_DLQ_ENABLED`
 
@@ -606,13 +606,13 @@ Default: `true`, and the line is commented out.
 
 Queue Dead Letter Queue (optional)
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_DLQ_MAX_RETRIES`
 
 Default: `3`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_HORIZONTAL_SCALING_ENABLED`
 
@@ -620,19 +620,19 @@ Default: `false`, and the line is commented out.
 
 Queue Horizontal Scaling (optional, for multi-instance deployments)
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_MAX_WORKERS`
 
 Default: `10`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_JOBS_PER_WORKER`
 
 Default: `10`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `QUEUE_METRICS_ENABLED`
 
@@ -640,7 +640,7 @@ Default: `false`, and the line is commented out.
 
 Queue Metrics (optional)
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Redis
 
@@ -652,31 +652,31 @@ Redis Configuration (required when `QUEUE_DRIVER`=redis, `CACHE_DRIVER`=redis,
 or `BROADCAST_REDIS_ENABLED`=true). One connection, read by all three. The
 server pantry installs and manages is valkey, which speaks the same protocol.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REDIS_HOST`
 
 Default: `localhost`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REDIS_PORT`
 
 Default: `6379`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REDIS_PASSWORD`
 
 Default: unset.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REDIS_DB`
 
 Default: `0`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Cache
 
@@ -688,7 +688,7 @@ Cache. `memory` is correct for one process and only one process: presence on
 pull requests rides the cache, so a second app process needs `redis` here.
 See "Running more than one process" in docs/self-hosting.md.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Realtime
 
@@ -700,7 +700,7 @@ Broadcast. The websocket server is per-process; a second app process needs
 the shared bus or live updates only reach readers on the process that
 happened to serve them.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## SQS
 
@@ -710,13 +710,13 @@ Default: unset.
 
 SQS Configuration (required when `QUEUE_DRIVER`=sqs)
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `SQS_SUFFIX`
 
 Default: unset.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Search
 
@@ -741,31 +741,31 @@ and its health check gets the first project's answer and reports success.
 Working since pantry 0.11.31; see the note in config/deps.ts for what had to
 be fixed upstream, twice, to make it true.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TYPESENSE_HOST`
 
 Default: `127.0.0.1`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TYPESENSE_PORT`
 
 Default: `8208`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TYPESENSE_PROTOCOL`
 
 Default: `http`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TYPESENSE_API_KEY`
 
 Default: `pantry-dev`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Blob
 
@@ -841,7 +841,7 @@ is not stopped by a policy that runs tomorrow - it fills the disk tonight.
 Past it an append is accepted and discarded with one line saying so, which is
 honest; failing the upload would fail the job for a reason nobody can act on.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_LOG_RETENTION_DAYS`
 
@@ -853,7 +853,7 @@ they stopped caring about the run. Setting it says the text is worth less than
 the disk - true on a busy instance, false on most. The job, its steps, their
 timings and the run's conclusion survive it; only the text goes.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_MAX_RUNNING_PER_REPOSITORY`
 
@@ -867,7 +867,7 @@ eighty jobs while everybody else's one-job build waits behind all of them.
 Off by default, because on a single-team instance a ceiling only gets in the
 way - and the operator who needs one knows they need it.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_MAX_RUNNING_PER_OWNER`
 
@@ -877,7 +877,7 @@ The same for an owner, which is the limit that matters on an instance hosting
 several organizations: a per-repository ceiling does nothing against an owner
 with forty repositories.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_FAIR_QUEUEING`
 
@@ -888,7 +888,7 @@ default: it costs one ordering pass, changes nothing when only one repository
 is pushing, and is the whole difference when four teams push at once. Set
 `off` for strict first-in, first-out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_QUEUE_TIMEOUT_HOURS`
 
@@ -898,13 +898,13 @@ How long a job may wait for a machine before it is cancelled. Actions' 24
 hours by default: a job whose labels match no online runner otherwise stays
 queued, and its commit status pending, forever. Set 0 for no limit.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MODEL`
 
 Default: `claude-opus-5`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_EFFORT`
 
@@ -914,13 +914,13 @@ How hard it thinks. `high` by default rather than `xhigh`, because a repair is
 reviewed by a person before it lands and the marginal quality is not obviously
 worth the marginal spend on somebody else's bill.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_TOKENS`
 
 Default: `16000`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_LOG_LINES`
 
@@ -931,7 +931,7 @@ failure's cause is. Bounded because a log is attacker-controlled in the
 ordinary case: it is whatever the repository's own test suite printed, and an
 unbounded one is both a bill and a prompt somebody else wrote.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_FILES`
 
@@ -941,7 +941,7 @@ The most files one repair may change. A blast radius limit rather than a cost
 one: a repair touching forty files is a refactor nobody asked for, and the
 reviewer who has to read it is who this protects.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_RUNNING`
 
@@ -961,19 +961,19 @@ not a number keeps the default here rather than falling back to unlimited -
 the opposite direction from `CI_MAX_RUNNING_PER_REPOSITORY`, because a typo
 should cost a slower repair queue rather than an unmetered one.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_RUNNING_PER_REPOSITORY`
 
 Default: `2`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_RUNNING_PER_OWNER`
 
 Default: `3`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_WAIT_SECONDS`
 
@@ -984,13 +984,13 @@ the queue and asks again. These bound how long it does that before giving the
 attempt back - as a refusal, so a run is not charged for capacity the instance
 did not have. The defaults are ten minutes of asking.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_MAX_WAITS`
 
 Default: `20`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_STALE_MINUTES`
 
@@ -1000,7 +1000,7 @@ How long a started repair counts against those ceilings before it is presumed
 dead. Without a horizon, a repair whose process died holds a slot for ever -
 one crash at a time, until repair quietly stops happening and nothing says why.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_REPAIR_CALL_SECONDS`
 
@@ -1012,7 +1012,7 @@ bounded because a call that never returns holds an attempt open - and that
 attempt is holding a slot against the ceilings above. A ceiling whose entries
 can never leave is not a ceiling.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `CI_STEP_MEMORY_MB`
 
@@ -1101,25 +1101,25 @@ is asked for explicitly - and when a piece is missing the runner fails the job
 rather than running it somewhere weaker. A runner that quietly fell back to the
 host would be claiming an isolation it does not have.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_FIRECRACKER`
 
 Default: `/usr/local/bin/firecracker`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_GUEST_KERNEL`
 
 Default: `/var/lib/reviewos/vmlinux`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_GUEST_IMAGE`
 
 Default: `/var/lib/reviewos/base.ext4`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_GUEST_IMAGE_DIGEST`
 
@@ -1129,31 +1129,31 @@ Required, and about honesty rather than booting: a machine boots perfectly well
 from an image nobody named, and what it cannot then do is tell the run what
 executed it.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_SCRATCH`
 
 Default: `/var/lib/reviewos/microvm`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_VCPUS`
 
 Default: `2`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_MEMORY_MIB`
 
 Default: `2048`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_DISK_MIB`
 
 Default: `2048`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_HOST_IP`
 
@@ -1162,13 +1162,13 @@ Default: `172.20.0.1`, and the line is commented out.
 The two ends of the tap link - a /30, because it has exactly two things on it
 and a wider one is addresses a guest could try to reach.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_MICROVM_GUEST_IP`
 
 Default: `172.20.0.2`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_EGRESS_ALLOW`
 
@@ -1180,13 +1180,13 @@ genuinely unusable for the ones that install dependencies. Some destinations
 are refused however they are written - the cloud metadata endpoint, loopback,
 and the instance's own addresses below.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_INSTANCE_ADDRESSES`
 
 Default: `10.0.0.5,10.0.0.6`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `REVIEWOS_ACTOR_ID`
 
@@ -1293,19 +1293,19 @@ Default: `"${APP_ENV}"`.
 
 FRONTEND_* variables should not contain any sensitive information
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `FRONTEND_APP_URL`
 
 Default: `"${APP_URL}"`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `FRONTEND_STRIPE_PUBLIC_KEY`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Cloud dashboard
 
@@ -1317,25 +1317,25 @@ ts-cloud management dashboard (auto-deployed on every server).
 Served behind HTTP Basic auth when `TS_CLOUD_UI_PASSWORD` is set; if left empty
 the dashboard is served WITHOUT auth (recommended: set a password).
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TS_CLOUD_UI_USERNAME`
 
 Default: `admin`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TS_CLOUD_UI_DOMAIN`
 
 Default: `dashboard.example.com`, and the line is commented out.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `TS_CLOUD_UI_DISABLE`
 
 Default: unset.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Webhooks
 
@@ -1602,6 +1602,22 @@ token with read access to the repositories you intend to import.
 
 Read by `app/Actions/Mirror/credentials.ts`, `app/Actions/Runner/ClaimJobAction.ts`, `app/Actions/Runner/localExecutor.ts`, `app/Actions/Workflow/secrets.ts`, `app/Commands/ImportGitHub.ts`, `app/Jobs/ImportRepositoryJob.ts`.
 
+### `GITHUB_SYNC_USER`
+
+Default: unset.
+
+Opt-in hourly discovery for a linked instance administrator.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
+### `GITHUB_SYNC_CREDENTIAL`
+
+Default: `github_account`, and the line is commented out.
+
+The mirror credential reference used by account discovery.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
 ### `GITHUB_CLONE_BASE`
 
 Default: `https://github.com`, and the line is commented out.
@@ -1612,6 +1628,14 @@ local repository so a suite does not depend on being able to reach github.com.
 Read by `app/Jobs/ImportRepositoryJob.ts`.
 
 ## Mirror
+
+### `MIRROR_TOKEN_GITHUB_ACCOUNT_FILE`
+
+Default: unset.
+
+Protected token file for the default github_account reference.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ### `MIRROR_TOKEN_STACKS`
 
@@ -1626,7 +1650,7 @@ Resolved by app/Actions/Mirror/credentials.ts. On reviewos.org, update the
 Actions secret and deploy to apply a replacement; see
 [Rotating the HQ mirror credential](./self-hosting.md#rotating-the-hq-mirror-credential).
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
 ## Hcloud
 

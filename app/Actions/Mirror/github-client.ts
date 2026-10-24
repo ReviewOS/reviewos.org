@@ -230,6 +230,55 @@ export class GitHubClient {
     return this.collect<any>(`/repos/${owner}/${name}/pulls/${index}/reviews`)
   }
 
+  /** Batch verdicts, with REST pagination for a pull request with over 100 reviews. */
+  async repositoryReviews(owner: string, name: string): Promise<PageResult<any>> {
+    const items: any[] = []
+    // Public mirrors without a token still work within GitHub's REST limit.
+    // GraphQL always requires authentication, even for public repositories.
+    if (!this.token) {
+      const pulls = await this.pulls(owner, name)
+      if (!pulls.ok) return pulls
+      for (const pull of pulls.items) {
+        const reviews = await this.pullReviews(owner, name, Number(pull.number))
+        if (!reviews.ok) return { ...reviews, items }
+        items.push(...reviews.items.map(review => ({ ...review, pull_number: pull.number })))
+      }
+      return { ok: true, items, error: null }
+    }
+    let cursor: string | null = null
+    for (let page = 0; page < 200; page++) {
+      const answer = await this.fetchImpl(`${this.baseUrl}/graphql`, {
+        method: 'POST', headers: { ...this.headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query($owner:String!,$name:String!,$cursor:String){ repository(owner:$owner,name:$name){ pullRequests(first:50,after:$cursor){ pageInfo{hasNextPage endCursor} nodes{ number reviews(first:100){ pageInfo{hasNextPage} nodes{ databaseId state body submittedAt author{login} commit{oid} } } } } } }`,
+          variables: { owner, name, cursor },
+        }),
+      })
+      const body = await answer.json().catch(() => null) as any
+      const pulls = body?.data?.repository?.pullRequests
+      if (!answer.ok || body?.errors?.length || !Array.isArray(pulls?.nodes))
+        return { ok: false, items, error: `GitHub reviews: ${body?.errors?.[0]?.message ?? answer.status}` }
+      for (const pull of pulls.nodes) {
+        if (pull.reviews?.pageInfo?.hasNextPage) {
+          const all = await this.pullReviews(owner, name, Number(pull.number))
+          if (!all.ok) return { ...all, items }
+          items.push(...all.items.map(review => ({ ...review, pull_number: pull.number })))
+        }
+        else {
+          items.push(...(pull.reviews?.nodes ?? []).map((review: any) => ({
+            id: review.databaseId, state: review.state, body: review.body, submitted_at: review.submittedAt,
+            user: review.author, commit_id: review.commit?.oid, pull_number: pull.number,
+          })))
+        }
+      }
+      if (!pulls.pageInfo?.hasNextPage) return { ok: true, items, error: null }
+      if (!pulls.pageInfo.endCursor || pulls.pageInfo.endCursor === cursor)
+        return { ok: false, items, error: 'GitHub review pagination did not advance' }
+      cursor = String(pulls.pageInfo.endCursor)
+    }
+    return { ok: false, items, error: 'GitHub reviews exceeded 200 pages', truncated: true }
+  }
+
   /**
    * Every comment on every issue in the repository, in one collection.
    *

@@ -282,3 +282,5 @@ infrastructure converges on that pattern, and the container path stops being the
       of labour is written on `config/cloud.ts` (the driver's job ends at a machine with an
       address and ssh; everything above it is pantry) and the Dockerfile says its list is a
       duplicate of `config/deps.ts` rather than a second source of truth.
+
+- [x] Give functional regex tests an explicit startup budget while retaining the production 25 ms isolation deadline.

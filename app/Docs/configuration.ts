@@ -316,7 +316,7 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
       if (where.length > 0)
         out.push(`Read by ${where.map(path => `\`${path}\``).join(', ')}.`, '')
       else
-        out.push('*No reader in `app/`, `routes/` or `resources/`: this one is the framework\'s.*', '')
+        out.push('*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*', '')
     }
   }
 

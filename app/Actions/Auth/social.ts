@@ -140,8 +140,9 @@ export async function provisionFromSocial(
 
   // The one email lookup, and only for an address the provider says it
   // verified. See the note at the top, and `provision.ts` for the long form.
-  const local: any = email && profile.emailVerified !== false
-    ? await db.selectFrom('users').select(['id']).where('email', '=', email).executeTakeFirst()
+  const { accountForEmail } = await import('../Identity/emails')
+  const local = email && profile.emailVerified !== false
+    ? await accountForEmail(email)
     : null
 
   let userId = local ? Number(local.id) : 0
@@ -178,21 +179,19 @@ async function createAccount(
 ): Promise<number> {
   const handle = await freeHandle(profile.nickname ?? profile.name ?? 'user')
 
-  const inserted = await db
-    .insertInto('users')
-    .values({
+  const { createAccountWithEmail, emailIsTaken } = await import('../Identity/emails')
+  const taken = email ? await emailIsTaken(email) : false
+  const inserted = await createAccountWithEmail({
       handle,
       name: profile.name || handle,
       // A provider that asserts no address still gets an account. The column
       // is unique, so the placeholder is namespaced by the handle rather than
       // left empty, which would collide on the second such sign-in.
-      email: email || `${handle}@users.noreply.reviewos.org`,
+      email: email && !taken ? email : `${handle}@users.noreply.reviewos.org`,
       password: crypto.randomUUID(),
       avatar_url: profile.avatar ?? null,
       created_at: dbTimestamp(),
-    })
-    .returning('id')
-    .executeTakeFirst()
+  })
 
   if (!inserted)
     throw new Error('The account could not be created')

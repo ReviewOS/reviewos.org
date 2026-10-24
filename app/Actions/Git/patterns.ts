@@ -56,7 +56,9 @@ let cache: readonly SecretPattern[] | null = null
  * file that may be JSON, and because a string is what a self-hosted operator
  * can copy out of a vendor's documentation.
  */
-export function compilePattern(entry: unknown): SecretPattern | null {
+export function compilePattern(entry: unknown, options: { timeoutMs?: number, validationTimeoutMs?: number } = {}): SecretPattern | null {
+  const timeoutMs = options.timeoutMs ?? PATTERN_BUDGET_MS
+  const validationTimeoutMs = options.validationTimeoutMs ?? timeoutMs
   if (!entry || typeof entry !== 'object')
     return null
 
@@ -69,7 +71,7 @@ export function compilePattern(entry: unknown): SecretPattern | null {
     return null
 
   try {
-    matchBoundedRegex(pattern, TORTURE, { timeoutMs: PATTERN_BUDGET_MS })
+    matchBoundedRegex(pattern, TORTURE, { timeoutMs: validationTimeoutMs })
   }
   catch (error) {
     if (error instanceof SyntaxError || error instanceof RangeError || error instanceof RegexTimeoutError)
@@ -79,7 +81,7 @@ export function compilePattern(entry: unknown): SecretPattern | null {
 
   const exec = (subject: string): RegExpExecArray | null => {
     try {
-      const match = matchBoundedRegex(pattern, subject, { timeoutMs: PATTERN_BUDGET_MS })
+      const match = matchBoundedRegex(pattern, subject, { timeoutMs })
       if (!match)
         return null
       const values: [string] = [match.value]

@@ -1055,6 +1055,9 @@ export const tsCloud: TsCloudConfig = {
         // `string | number | true` - a bare `||` leaves the number and the
         // boolean, and this field is a string.
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
+        GITHUB_SYNC_USER: String(env.GITHUB_SYNC_USER ?? ''),
+        GITHUB_SYNC_CREDENTIAL: String(env.GITHUB_SYNC_CREDENTIAL ?? 'github_account'),
+        MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: String(env.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE ?? ''),
         /*
          * The credential of the private mirrors declared with `credential:
          * stacks` in mirrors.yml (stacksjs/hq.training, whose CI runs here).
@@ -1237,6 +1240,9 @@ export const tsCloud: TsCloudConfig = {
         DB_PASSWORD: env.DB_PASSWORD || '',
         APP_KEY: env.APP_KEY || '',
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
+        GITHUB_SYNC_USER: String(env.GITHUB_SYNC_USER ?? ''),
+        GITHUB_SYNC_CREDENTIAL: String(env.GITHUB_SYNC_CREDENTIAL ?? 'github_account'),
+        MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: String(env.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE ?? ''),
         // Runner claims and reports arrive here, so this process needs the
         // same private-mirror credential as the worker that fetches its code.
         MIRROR_TOKEN_STACKS: String(env.MIRROR_TOKEN_STACKS ?? ''),

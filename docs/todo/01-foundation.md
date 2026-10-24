@@ -815,3 +815,5 @@ The half of this nobody builds, and the half that decides whether an instance is
   site, had nothing on it at all. Driven in a browser as well, end to end: signed in, pressed it,
   landed on `/` with the bar offering Sign in, and `/reviews` said "Sign in to see what is waiting
   on you".
+
+- [x] Associate operator-verified secondary emails with one account for sign-in, second factors and commit attribution.

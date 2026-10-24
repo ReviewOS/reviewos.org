@@ -381,3 +381,6 @@ the idempotence the checklist asks for rather than an assertion about it.
   them as unchanged so a caller diffing before against after does not invent a deletion of every
   branch, and `git log` still reads, since refs that survived while objects did not would pass the
   first two and still be broken.
+
+- [x] Discover personal and administered GitHub organization repositories hourly, preserving privacy and owner membership.
+- [x] Refresh conversation comments, milestones, release metadata and review verdicts during recurring metadata sync.

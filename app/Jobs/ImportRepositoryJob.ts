@@ -143,6 +143,7 @@ interface StageContext {
   claims: Map<string, string>
   forge: ForgeKind
   source: string
+  includeAssets?: boolean
 }
 
 /** Do one stage's work, and advance the cursor to whatever is next. */
@@ -385,13 +386,10 @@ async function importIssueComments(progress: ImportProgress, context: StageConte
       .where('external_id', '=', externalId)
       .executeTakeFirst()
 
-    if (seen)
-      continue
-
     const login = String((raw as any).user?.login ?? '').toLowerCase()
     const authorId = linked.get(login) ?? null
 
-    await db.insertInto('issue_comments').values({
+    const values = {
       commentable_type: issue ? 'issue' : 'pull_request',
       commentable_id: Number(issue?.id ?? pull?.id),
       author_id: authorId,
@@ -400,9 +398,13 @@ async function importIssueComments(progress: ImportProgress, context: StageConte
       external_author: authorId ? null : (String((raw as any).user?.login ?? '') || null),
       external_id: externalId,
       body: rewriteReferences(String((raw as any).body ?? ''), imported),
-    } as any).execute()
+    }
+    if (seen)
+      await db.updateTable('issue_comments').set(values as any).where('id', '=', Number(seen.id)).execute()
+    else
+      await db.insertInto('issue_comments').values(values as any).execute()
 
-    record(progress, 'comments')
+    if (!seen) record(progress, 'comments')
     touched.add(Number(issue?.id ?? pull?.id))
   }
 
@@ -770,9 +772,42 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
     else
       record(progress, 'releases')
 
-    for (const asset of (raw as any).assets ?? [])
-      await importAsset(progress, releaseId, asset, context)
+    if (context.includeAssets !== false) {
+      for (const asset of (raw as any).assets ?? [])
+        await importAsset(progress, releaseId, asset, context)
+    }
   }
+}
+
+/** The ongoing mirror uses the same idempotent importers as a one-time migration. */
+export async function syncMirrorConversations(client: GitHubClient, owner: string, name: string, repositoryId: number) {
+  const progress = emptyProgress()
+  const context: StageContext = { client, owner, name, repositoryId, claims: new Map(), forge: 'github', source: `${owner}/${name}`, includeAssets: false }
+  await importMilestones(progress, context)
+  await importIssueComments(progress, context)
+  await importReleases(progress, context)
+  const pulls = await db.selectFrom('pull_requests').select(['id', 'number']).where('repository_id', '=', repositoryId).execute()
+  const page = await client.repositoryReviews(owner, name)
+  if (!page.ok) throw new Error(page.error ?? 'The reviews could not be read')
+  const linked = await linkMapFor(page.items.map(review => review.user), context)
+  const byNumber = new Map(pulls.map(pull => [Number(pull.number), pull]))
+  for (const review of page.items) {
+    const pull = byNumber.get(Number(review.pull_number))
+    if (!pull) throw new Error('A review belongs to a pull request that was not imported')
+    const state = String(review.state ?? '').toLowerCase()
+    if (!review.id || !['approved', 'changes_requested', 'commented', 'dismissed'].includes(state)) continue
+    const externalId = String(review.id)
+    const login = String(review.user?.login ?? '').toLowerCase()
+    const reviewerId = linked.get(login) ?? null
+    const values = { repository_id: repositoryId, pull_request_id: Number(pull.id), external_id: externalId, state,
+      reviewer_id: reviewerId, external_author: reviewerId ? null : login || null,
+      body: String(review.body ?? ''), commit_sha: String(review.commit_id ?? ''),
+      submitted_at: review.submitted_at ? dbTimestamp(String(review.submitted_at)) : null }
+    const existing = await db.selectFrom('pull_request_reviews').select(['id']).where('pull_request_id', '=', Number(pull.id)).where('external_id', '=', externalId).executeTakeFirst()
+    if (existing) await db.updateTable('pull_request_reviews').set(values as any).where('id', '=', Number(existing.id)).execute()
+    else await db.insertInto('pull_request_reviews').values(values as any).execute()
+  }
+  return progress.counts
 }
 
 /**
@@ -867,7 +902,8 @@ async function linkedAccounts(): Promise<Map<string, number>> {
 async function localAccounts(): Promise<LocalAccount[]> {
 
   try {
-    const rows = await db.selectFrom('users').select(['id', 'handle', 'email']).execute()
+    const { accountsForEmails } = await import('../Actions/Identity/emails')
+    const rows = await accountsForEmails()
 
     return rows.map(row => ({ id: Number(row.id), handle: String(row.handle), email: row.email ? String(row.email) : null }))
   }

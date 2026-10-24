@@ -59,8 +59,9 @@ export async function provisionFromClaims(claims: OidcClaims, issuer: string): P
     const email = String(claims.email ?? '').trim().toLowerCase()
 
     // The one email lookup, and only for an address the provider verified.
-    const local: any = email && claims.email_verified !== false
-      ? await db.selectFrom('users').select(['id']).where('email', '=', email).executeTakeFirst()
+    const { accountForEmail } = await import('../Identity/emails')
+    const local = email && claims.email_verified !== false
+      ? await accountForEmail(email)
       : null
 
     if (local) {
@@ -131,22 +132,19 @@ async function createAccount(claims: OidcClaims): Promise<number> {
    * with, and impossible to send to by accident. The person can set a real one
    * once they can prove it.
    */
+  const { createAccountWithEmail, emailIsTaken } = await import('../Identity/emails')
   const taken = email
-    ? await db.selectFrom('users').select(['id']).where('email', '=', email).executeTakeFirst()
+    ? await emailIsTaken(email)
     : null
 
-  const created = await db
-    .insertInto('users')
-    .values({
+  const created = await createAccountWithEmail({
       handle: await uniqueHandle(suggested),
       name: String(claims.name ?? '').trim() || suggested,
       email: !email || taken ? `sso-${await shortHash(String(claims.sub))}@unverified.invalid` : email,
       // Not null on the column, and deliberately not a usable hash: `''` is not
       // a bcrypt digest, so the password form can never match it.
       password: '',
-    })
-    .returning(['id'])
-    .executeTakeFirst()
+  })
 
   return Number(created?.id)
 }

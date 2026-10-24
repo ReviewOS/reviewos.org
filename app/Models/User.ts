@@ -20,6 +20,8 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  hasMany: ['UserEmail'],
+
   indexes: [
     { name: 'users_handle_index', columns: ['handle'] },
   ],

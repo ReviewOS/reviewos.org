@@ -118,11 +118,8 @@ async function accountsByEmail(emails: readonly string[]): Promise<Map<string, n
   const found = new Map<string, number>()
 
   try {
-    const rows = await db
-      .selectFrom('users')
-      .select(['id', 'email'])
-      .where('email', 'in', [...emails])
-      .execute()
+    const { accountsForEmails } = await import('../Actions/Identity/emails')
+    const rows = await accountsForEmails(emails)
 
     for (const row of rows)
       found.set(String(row.email ?? '').toLowerCase(), Number(row.id))

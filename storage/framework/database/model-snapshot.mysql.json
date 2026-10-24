@@ -15351,10 +15351,87 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "user_emails",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "verified_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "user_emails_user_index",
+            "columns": [
+              "user_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "user_emails_email_unique",
+            "columns": [
+              "email"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "59e78437d11ab9c8b46cc0e12a273edf6667436fee44bdb6f308d383ce0b86d3",
+  "hash": "182e71c7a0f0f26eee3e574d6c9a5fe5be1152a0be27ac197dc87dd4f8d35f4e",
   "dialect": "mysql",
-  "updatedAt": "2026-10-24T19:16:04.102Z"
+  "updatedAt": "2026-10-24T19:35:11.669Z"
 }

@@ -20,7 +20,7 @@
 // Like the rest of tests/e2e it needs a database, and skips itself loudly when
 // there is not one.
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, test } from 'bun:test'
 
 const created = { handles: [] as string[], emails: [] as string[] }
 
@@ -246,6 +246,69 @@ describe('creating an account', () => {
 
     expect(answer.status).toBe(422)
     expect((await answer.json() as any).error).not.toContain('already have')
+  })
+})
+
+describe('additional email addresses', () => {
+  beforeEach(async () => { (await import('../../app/Middleware/Throttle')).resetBuckets() })
+  afterEach(async () => { (await import('../../app/Middleware/Throttle')).resetBuckets() })
+  test('verified aliases sign in to the same administrator and attribute commits', async () => {
+    if (!available)
+      return
+    const account = await makeAccount('als')
+    const db = (globalThis as any).db
+    const user = await db.selectFrom('users').select(['id']).where('email', '=', account.email).executeTakeFirst()
+    await db.updateTable('users').set({ is_admin: true }).where('id', '=', Number(user.id)).execute()
+    const { associateVerifiedEmail, accountsForEmails } = await import('../../app/Actions/Identity/emails')
+    const aliases = [`${unique('work')}@example.com`, `${unique('home')}@example.com`]
+    for (const email of aliases) {
+      await associateVerifiedEmail(Number(user.id), email)
+      await associateVerifiedEmail(Number(user.id), email.toUpperCase())
+      const answer = await post('/api/auth/login', { email: email.toUpperCase(), password: account.password })
+      expect(answer.status).toBe(200)
+      const cookie = cookieFrom(answer)
+      expect(cookie).toBeTruthy()
+      const admin = await post('/api/instance/admin', { operation: 'stats' }, { Cookie: `auth-token=${cookie}` })
+      expect(admin.status).toBe(200)
+    }
+    const linked = await accountsForEmails(aliases)
+    expect(linked.map(one => one.id)).toEqual([Number(user.id), Number(user.id)])
+    const duplicate = await post('/api/auth/register', { handle: unique('dup'), email: aliases[0]!, password: account.password })
+    expect(duplicate.status).toBe(422)
+  })
+
+  test('an unverified alias grants neither sign-in nor attribution', async () => {
+    if (!available)
+      return
+    const account = await makeAccount('uvf')
+    const db = (globalThis as any).db
+    const user = await db.selectFrom('users').select(['id']).where('email', '=', account.email).executeTakeFirst()
+    const email = `${unique('uvf')}@example.com`
+    await db.insertInto('user_emails').values({ user_id: Number(user.id), email }).execute()
+    const answer = await post('/api/auth/login', { email, password: account.password })
+    expect(answer.status).toBe(401)
+    expect(cookieFrom(answer)).toBe('')
+    const { accountsForEmails } = await import('../../app/Actions/Identity/emails')
+    expect(await accountsForEmails([email])).toEqual([])
+  })
+
+  test('an alias cannot be reassigned or bypass the existing second factor', async () => {
+    if (!available)
+      return
+    const account = await makeAccount('two')
+    const other = await makeAccount('oth')
+    const db = (globalThis as any).db
+    const user = await db.selectFrom('users').select(['id']).where('email', '=', account.email).executeTakeFirst()
+    const second = await db.selectFrom('users').select(['id']).where('email', '=', other.email).executeTakeFirst()
+    const { associateVerifiedEmail } = await import('../../app/Actions/Identity/emails')
+    await expect(associateVerifiedEmail(Number(second.id), account.email)).rejects.toThrow('another account')
+    const email = `${unique('two')}@example.com`
+    await associateVerifiedEmail(Number(user.id), email)
+    await expect(associateVerifiedEmail(Number(second.id), email)).rejects.toThrow('another account')
+    await db.updateTable('users').set({ two_factor_enabled: true }).where('id', '=', Number(user.id)).execute()
+    const answer = await post('/api/auth/login', { email, password: account.password })
+    expect((await answer.json() as any).code_required).toBe(true)
+    expect(cookieFrom(answer)).toBe('')
   })
 })
 

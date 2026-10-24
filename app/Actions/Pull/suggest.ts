@@ -210,11 +210,8 @@ export async function resolveContributors(contributions: readonly Contribution[]
   if (emails.length === 0)
     return []
 
-  const rows = await db
-    .selectFrom('users')
-    .select(['handle', 'email'])
-    .where('email', 'in', emails)
-    .execute()
+  const { accountsForEmails } = await import('../Identity/emails')
+  const rows = await accountsForEmails(emails)
 
   const handleFor = new Map<string, string>()
   for (const row of rows)

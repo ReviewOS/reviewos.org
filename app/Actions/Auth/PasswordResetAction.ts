@@ -49,7 +49,9 @@ export default new Action({
     if (!email)
       return answer(request, 422, { error: 'An email address is required' })
 
-    const resets = passwordResets(email)
+    const { accountForEmail } = await import('../Identity/emails')
+    const account = await accountForEmail(email)
+    const resets = passwordResets(account?.primaryEmail ?? email)
 
     if (String(request.get('operation') ?? 'request') === 'request') {
       /*

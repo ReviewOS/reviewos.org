@@ -39,6 +39,8 @@ export default {
   // `instance:check`, for after a deploy that did not go well and for a
   // container's start script.
   'instance': 'Doctor',
+  'github:sync': 'GitHubSync',
+  'user:email:add': 'UserEmail',
 
   // The API and webhook reference, written by the code that implements them.
   // `--check` is what a test uses to notice the committed pages have drifted.

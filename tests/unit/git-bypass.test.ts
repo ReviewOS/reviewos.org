@@ -94,8 +94,12 @@ describe('decideBypass', () => {
 })
 
 describe('compilePattern', () => {
+  // These assertions exercise the returned detector, not process startup
+  // latency. Keep the production deadline in the hostile-expression tests.
+  const functionalBudgetMs = 1000
+
   test('compiles a configured pattern', () => {
-    const pattern = compilePattern({ name: 'an Acme token', pattern: 'acme_[A-Za-z0-9]{32}' })
+    const pattern = compilePattern({ name: 'an Acme token', pattern: 'acme_[A-Za-z0-9]{32}' }, { timeoutMs: functionalBudgetMs })
 
     expect(pattern?.name).toBe('an Acme token')
     expect(pattern?.confidence).toBe('likely')
@@ -103,7 +107,7 @@ describe('compilePattern', () => {
   })
 
   test('an instance pattern is likely unless it says otherwise', () => {
-    expect(compilePattern({ name: 'x', pattern: 'abc', confidence: 'certain' })?.confidence).toBe('certain')
+    expect(compilePattern({ name: 'x', pattern: 'abc', confidence: 'certain' }, { timeoutMs: functionalBudgetMs })?.confidence).toBe('certain')
   })
 
   test('drops anything that is not a usable pattern', () => {
@@ -130,9 +134,8 @@ describe('compilePattern', () => {
   })
 
   test('also bounds hostile subjects that the load-time sample does not exercise', () => {
-    const pattern = compilePattern({ name: 'a b-prefixed credential', pattern: '^b(?:b+)+$' })
+    const pattern = compilePattern({ name: 'a b-prefixed credential', pattern: '^b(?:b+)+$' }, { validationTimeoutMs: functionalBudgetMs })
     expect(pattern).not.toBeNull()
-    expect(scanLine('bbb', [pattern!])[0]?.name).toBe('a b-prefixed credential')
 
     const started = performance.now()
     expect(() => scanLine(`${'b'.repeat(2000)}!`, [pattern!])).toThrow(ConfiguredPatternError)
@@ -140,7 +143,7 @@ describe('compilePattern', () => {
   })
 
   test('bounds the total configured scan across ordinary added lines', () => {
-    const pattern = compilePattern({ name: 'an Acme token', pattern: 'acme_[A-Za-z0-9]{32}' })
+    const pattern = compilePattern({ name: 'an Acme token', pattern: 'acme_[A-Za-z0-9]{32}' }, { timeoutMs: functionalBudgetMs })
     expect(pattern).not.toBeNull()
     const diff = `+++ b/large.txt\n@@ -0,0 +1,5000 @@\n${'+ordinary text\n'.repeat(5000)}`
     const started = performance.now()

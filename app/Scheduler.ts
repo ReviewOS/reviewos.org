@@ -36,6 +36,8 @@ export default function () {
     .job('MirrorSweepJob')
     .everyFiveMinutes()
 
+  schedule.job('SyncGitHubAccountJob').hourly()
+
   // Work whose runner stopped talking, returned to the queue.
   //
   // Every minute, because a lease lasts sixty seconds: a sweep slower than the

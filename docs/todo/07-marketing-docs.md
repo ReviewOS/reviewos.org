@@ -329,3 +329,5 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 
 - [x] Audit outbound email and SMS triggers, defaults, holds, skips and inactive scaffold paths in `docs/messages.md`, with BunPress email previews and explicit inbox-only and SMS limitations.
 - [x] Correct the self-hosting search port and failure behavior, link all scale-out roadmap phases in the sidebar, and require BunPress message-preview support in the source Stacks docs package. Harden preview links in BunPress itself.
+
+- [x] Avoid claiming configuration variables with no direct application reader are necessarily framework-only.

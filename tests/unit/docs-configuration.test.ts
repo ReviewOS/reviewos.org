@@ -112,7 +112,7 @@ describe('the page', () => {
 
   test('says where each one is read, and says so plainly when nothing does', () => {
     expect(page).toContain('Read by `app/Ops/config.ts`.')
-    expect(page).toContain('this one is the framework\'s')
+    expect(page).toContain('Check `config/` and framework readers')
   })
 
   test('marks the ones a wrong value stops the instance over', () => {

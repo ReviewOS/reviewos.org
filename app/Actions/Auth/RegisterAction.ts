@@ -90,11 +90,8 @@ export default new Action({
     if (clash)
       return refuse(request, 'That handle is taken.')
 
-    const existingEmail = await db
-      .selectFrom('users')
-      .select(['id'])
-      .where('email', '=', email)
-      .executeTakeFirst()
+    const { emailIsTaken } = await import('../Identity/emails')
+    const existingEmail = await emailIsTaken(email)
 
     // Deliberately the same phrasing as a taken handle rather than "you already
     // have an account". An address that is registered here is something only
@@ -127,16 +124,13 @@ export default new Action({
       const { makeHash } = await import('@stacksjs/security')
       const { Auth } = await import('@stacksjs/auth')
 
-      const created = await db
-        .insertInto('users')
-        .values({
+      const { createAccountWithEmail } = await import('../Identity/emails')
+      const created = await createAccountWithEmail({
           handle,
           name: name || handle,
           email,
           password: await makeHash(password, { algorithm: 'bcrypt' }),
-        })
-        .returning(['id'])
-        .executeTakeFirst()
+      })
 
       if (created?.id)
         // The device, for the same reason `LoginAction` records it: a session
