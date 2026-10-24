@@ -1389,6 +1389,12 @@ using the default `github_account` reference. The token needs repository read
 access, active organization membership visibility, and access to GitHub's GraphQL API.
 Organization SSO must authorize it where required.
 
+For this repository's GitHub Actions deployment, set the repository variables
+`REVIEWOS_SYNC_USER`, `REVIEWOS_SYNC_CREDENTIAL`, and
+`MIRROR_TOKEN_GITHUB_ACCOUNT_FILE`. The workflow maps the first two to the
+application environment names above. GitHub reserves the `GITHUB_` prefix for
+its own configuration variable names.
+
 ```bash
 ./buddy github:sync
 ```

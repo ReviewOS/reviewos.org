@@ -916,8 +916,8 @@ jobs:
           # small instance slowly and is strictly better than a token that is
           # dead on arrival.
           GITHUB_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN }}
-          GITHUB_SYNC_USER: ${{ vars.GITHUB_SYNC_USER }}
-          GITHUB_SYNC_CREDENTIAL: ${{ vars.GITHUB_SYNC_CREDENTIAL }}
+          GITHUB_SYNC_USER: ${{ vars.REVIEWOS_SYNC_USER }}
+          GITHUB_SYNC_CREDENTIAL: ${{ vars.REVIEWOS_SYNC_CREDENTIAL }}
           MIRROR_TOKEN_GITHUB_ACCOUNT_FILE: ${{ vars.MIRROR_TOKEN_GITHUB_ACCOUNT_FILE }}
           # The private mirrors' own credential (`credential: stacks` in
           # mirrors.yml); see the note on it in config/cloud.ts.
