@@ -13,6 +13,52 @@ describe('metadata checkpoints', () => {
 })
 
 describe('incremental GitHub requests', () => {
+  test('paginates complete authenticated issue listings without scanning pull requests', async () => {
+    const cursors: unknown[] = []
+    const client = new GitHubClient({ token: 'fixture', fetchImpl: (async (input, options) => {
+      expect(String(input)).toBe('https://api.github.com/graphql')
+      const request = JSON.parse(String(options?.body))
+      cursors.push(request.variables.cursor)
+      expect(request.variables.since).toBeNull()
+      const next = request.variables.cursor === null
+      return Response.json({ data: { repository: { issues: { pageInfo: { hasNextPage: next, endCursor: next ? 'next' : null }, nodes: [{ number: next ? 707 : 708, title: 'Dependency Dashboard', state: 'OPEN', author: { login: 'renovate' }, labels: { nodes: [] } }] } } } })
+    }) as typeof fetch })
+    const result = await client.issues('owner', 'project')
+    expect(result.ok).toBe(true)
+    expect(result.items.map(row => row.number)).toEqual([707, 708])
+    expect(result.items[0].state).toBe('open')
+    expect(cursors).toEqual([null, 'next'])
+  })
+
+  test('merges changed GraphQL issues with the REST pull request feed without duplicates', async () => {
+    const since = '2026-10-24T10:59:00.000Z'
+    const client = new GitHubClient({ token: 'fixture', fetchImpl: (async (input, options) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/graphql') {
+        expect(JSON.parse(String(options?.body)).variables.since).toBe(since)
+        return Response.json({ data: { repository: { issues: { pageInfo: { hasNextPage: false }, nodes: [{ number: 707, title: 'Current', state: 'OPEN' }, { number: 708, title: 'Omitted by REST', state: 'CLOSED' }] } } } })
+      }
+      expect(url.searchParams.get('since')).toBe(since)
+      return Response.json([{ number: 707, title: 'Older' }, { number: 9, pull_request: {} }])
+    }) as typeof fetch })
+    const result = await client.issues('owner', 'project', since)
+    expect(result.ok).toBe(true)
+    expect(result.items.map(row => row.number).sort((a, b) => a - b)).toEqual([9, 707, 708])
+    expect(result.items.find(row => row.number === 707).title).toBe('Current')
+    expect(result.items.filter(row => row.pull_request).map(row => row.number)).toEqual([9])
+  })
+
+  test('retains earlier GraphQL pages while reporting a later failure', async () => {
+    let calls = 0
+    const client = new GitHubClient({ token: 'fixture', fetchImpl: (async () => ++calls === 1
+      ? Response.json({ data: { repository: { issues: { pageInfo: { hasNextPage: true, endCursor: 'next' }, nodes: [{ number: 707, state: 'OPEN' }] } } } })
+      : Response.json({ errors: [{ message: 'rate limit reached' }] })) as typeof fetch })
+    const result = await client.issues('owner', 'project')
+    expect(result.ok).toBe(false)
+    expect(result.items.map(row => row.number)).toEqual([707])
+    expect(result.error).toContain('rate limit reached')
+  })
+
   test('uses the changed issue feed and fetches only the named pull requests', async () => {
     const urls: URL[] = []
     const since = '2026-10-24T10:59:00.000Z'

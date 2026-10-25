@@ -1419,6 +1419,9 @@ drafts that share a tag. Credentials are resolved from the protected file at run
 After a complete pass, a checkpoint records that pass's start time. Later passes
 request changed issues and conversation comments, then fetch details for the
 changed pull requests. A one-minute overlap protects timestamp boundaries.
+Authenticated GitHub mirrors read complete issue listings through GraphQL and
+merge them with REST's changed pull request feed. Anonymous imports use REST and
+can inherit its listing omissions.
 Failed or partial passes leave the checkpoint unchanged. Review threads and
 verdicts still receive a full pass so older thread anchors remain available.
 Completed metadata passes queue search updates for the repository and the issues

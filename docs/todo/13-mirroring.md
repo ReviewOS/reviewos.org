@@ -394,3 +394,4 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Preserve explicit-null issue markers, long upstream titles and distinct draft releases that share a tag, verified against GitHub inventory counts.
 - [x] Queue repository and discussion search updates after metadata imports, including edited records and incremental passes.
 - [x] Preserve complete Unicode characters at search excerpt boundaries and propagate framework batch failures without loading the entire table into memory.
+- [x] Read complete authenticated GitHub issue listings through GraphQL, including issues omitted by REST, while retaining incremental pull request discovery and failure checkpoints.

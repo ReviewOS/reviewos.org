@@ -189,10 +189,55 @@ export class GitHubClient {
     }
   }
 
-  issues(owner: string, name: string, since?: string) {
+  async issues(owner: string, name: string, since?: string): Promise<PageResult<any>> {
     // `state=all` because a mirror that shows only open issues misrepresents
     // the repository, and closed issues are what most references point at.
-    return this.collect<any>(`/repos/${owner}/${name}/issues?state=all&sort=created&direction=asc${since ? `&since=${encodeURIComponent(since)}` : ''}`)
+    const path = `/repos/${owner}/${name}/issues?state=all&sort=created&direction=asc${since ? `&since=${encodeURIComponent(since)}` : ''}`
+    if (!this.token || this.baseUrl !== API) return this.collect<any>(path)
+
+    // GitHub's REST listing can omit issues that remain publicly readable by
+    // number. GraphQL's issue connection includes them. Keep REST's changed
+    // feed for pull requests, which are a separate connection in GraphQL.
+    const complete = await this.graphqlIssues(owner, name, since)
+    if (!since) return complete
+    const changed = await this.collect<any>(path)
+    const merged = new Map(changed.items.map(item => [Number(item.number), item]))
+    for (const item of complete.items) merged.set(Number(item.number), item)
+    return { ok: complete.ok && changed.ok, items: [...merged.values()], error: complete.error ?? changed.error }
+  }
+
+  private async graphqlIssues(owner: string, name: string, since?: string): Promise<PageResult<any>> {
+    const items: any[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < 200; page++) {
+      let answer: Response
+      try {
+        answer = await this.fetchImpl(`${this.baseUrl}/graphql`, {
+          method: 'POST', headers: { ...this.headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `query($owner:String!,$name:String!,$cursor:String,$since:DateTime){repository(owner:$owner,name:$name){issues(first:100,after:$cursor,filterBy:{since:$since},orderBy:{field:CREATED_AT,direction:ASC}){pageInfo{hasNextPage endCursor}nodes{number title body state createdAt updatedAt closedAt author{login} labels(first:100){pageInfo{hasNextPage}nodes{name color description}}}}}}`,
+            variables: { owner, name, cursor, since: since ?? null },
+          }),
+        })
+      }
+      catch (error) { return { ok: false, items, error: error instanceof Error ? error.message : String(error) } }
+      const body = await answer.json().catch(() => null) as any
+      const connection = body?.data?.repository?.issues
+      if (!answer.ok || body?.errors?.length || !Array.isArray(connection?.nodes))
+        return { ok: false, items, error: `GitHub issues: ${body?.errors?.[0]?.message ?? answer.status}` }
+      for (const issue of connection.nodes) {
+        if (issue.labels?.pageInfo?.hasNextPage)
+          return { ok: false, items, error: 'GitHub issue labels exceeded 100 entries', truncated: true }
+        items.push({ number: issue.number, title: issue.title, body: issue.body, state: String(issue.state).toLowerCase(),
+          created_at: issue.createdAt, updated_at: issue.updatedAt, closed_at: issue.closedAt,
+          user: issue.author, labels: issue.labels?.nodes ?? [] })
+      }
+      if (!connection.pageInfo?.hasNextPage) return { ok: true, items, error: null }
+      if (!connection.pageInfo.endCursor || connection.pageInfo.endCursor === cursor)
+        return { ok: false, items, error: 'GitHub issue pagination did not advance' }
+      cursor = String(connection.pageInfo.endCursor)
+    }
+    return { ok: false, items, error: 'GitHub issues exceeded 200 pages', truncated: true }
   }
 
   pulls(owner: string, name: string) {
