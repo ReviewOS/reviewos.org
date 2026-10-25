@@ -393,3 +393,4 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Checkpoint completed metadata passes and request changed issues, pull requests and conversation comments on later runs without advancing after partial failure. Exercise both passes against the GitHub HTTP fixture, including individual pull request details.
 - [x] Preserve explicit-null issue markers, long upstream titles and distinct draft releases that share a tag, verified against GitHub inventory counts.
 - [x] Queue repository and discussion search updates after metadata imports, including edited records and incremental passes.
+- [x] Preserve complete Unicode characters at search excerpt boundaries and propagate framework batch failures without loading the entire table into memory.

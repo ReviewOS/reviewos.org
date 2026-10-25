@@ -273,7 +273,7 @@ export async function issueDocuments(input: readonly any[]): Promise<IssueDocume
     title: String(row.title ?? ''),
     // An external author has no account, so the row carries the name instead.
     author: authorHandles.get(Number(row.author_id)) ?? String(row.external_author ?? ''),
-    body: String(row.body ?? '').slice(0, BODY_LIMIT),
+    body: Array.from(String(row.body ?? '')).slice(0, BODY_LIMIT).join(''),
     labels: labels.get(Number(row.id)) ?? [],
     state: String(row.state ?? ''),
     is_pull_request: Boolean(row.is_pull_request),
@@ -396,7 +396,7 @@ export async function pullDocuments(input: readonly any[]): Promise<PullDocument
     repository: repositoryNames.get(Number(row.repository_id)) ?? '',
     number: Number(row.number ?? 0),
     title: String(row.title ?? ''),
-    body: String(row.body ?? '').slice(0, BODY_LIMIT),
+    body: Array.from(String(row.body ?? '')).slice(0, BODY_LIMIT).join(''),
     author: authorHandles.get(Number(row.author_id)) ?? String(row.external_author ?? ''),
     state: String(row.state ?? ''),
     draft: Boolean(row.draft),

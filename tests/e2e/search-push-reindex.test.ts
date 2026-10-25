@@ -225,9 +225,11 @@ describe('indexing one repository', () => {
       const result = await mirrorIndex.handle({ repositoryId: created.repositoryId, issueNumbers: [1, 1], pullNumbers: [3] })
       expect(result).toEqual({ indexed: 2 })
       expect((await engine.getDocument('issues', String(ids[0]))).title).toBe('Before 1')
-      await db.updateTable('issues').set({ title: 'Edited upstream' }).where('id', '=', ids[0]).execute()
+      const unicodeBody = `${'x'.repeat(3999)}😀 beyond the search excerpt`
+      await db.updateTable('issues').set({ title: 'Edited upstream', body: unicodeBody }).where('id', '=', ids[0]).execute()
       await mirrorIndex.handle({ repositoryId: created.repositoryId, issueNumbers: [1] })
       expect((await engine.getDocument('issues', String(ids[0]))).title).toBe('Edited upstream')
+      expect((await engine.getDocument('issues', String(ids[0]))).body).toBe(`${'x'.repeat(3999)}😀`)
       expect((await engine.getDocument('pull_requests', String(pullId))).title).toBe('Before pull')
       await expect(engine.getDocument('issues', String(ids[1]))).rejects.toThrow()
 
