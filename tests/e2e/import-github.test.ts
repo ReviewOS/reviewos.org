@@ -239,6 +239,9 @@ beforeAll(async () => {
         if (path === '/repos/acme/api/pulls')
           return page(FIXTURE.pulls)
 
+        if (path === '/repos/acme/api/pulls/9')
+          return Response.json(FIXTURE.pulls[0])
+
         if (path === '/repos/acme/api/pulls/9/reviews')
           return page([{ id: 701, state: 'APPROVED', body: 'Reviewed carefully', commit_id: 'a'.repeat(40), user: { login: 'alice' }, submitted_at: '2026-01-07T10:00:00Z' }])
 
