@@ -1543,6 +1543,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .artifacts-heading { font-size: 14px; font-weight: 600; margin: 0; }
   .artifact-list { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
   .artifact { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+  .artifact > a { overflow-wrap: anywhere; min-width: 0; }
   .artifact-size, .artifact-expiry { font-size: 12.5px; }
   .artifact-preview { flex-basis: 100%; min-width: 0; font-size: 12.5px; }
   .artifact-preview summary { cursor: pointer; color: var(--accent); width: fit-content; padding: 5px 0; }
