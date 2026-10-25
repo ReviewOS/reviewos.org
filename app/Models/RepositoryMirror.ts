@@ -238,6 +238,14 @@ export default defineModel({
       factory: () => null,
     },
 
+    // A successful pass's start time. Partial attempts never advance it.
+    metadata_checkpoint_at: {
+      fillable: true,
+      nullable: true,
+      validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
     /**
      * Why the last metadata sync fell short, kept apart from `last_error`.
      *

@@ -8,6 +8,7 @@ import { buildThreads, mapIssue, mapLabel, mapPull, mapRepository, mapReviewComm
 import {
   issueRow,
   metadataBackoffSeconds,
+  metadataSince,
   pullNumberOf,
   pullRow,
   planByExternalId,
@@ -87,8 +88,12 @@ export default new Job({
     // database than on the network.
     const linked = await linkedAccounts()
 
-    const issuesResult = await client.issues(owner, name)
-    const pullsResult = await client.pulls(owner, name)
+    const startedAt = new Date().toISOString()
+    const since = metadataSince(mirror.metadata_checkpoint_at)
+    const issuesResult = await client.issues(owner, name, since)
+    const pullsResult = since
+      ? await client.pullDetails(owner, name, issuesResult.items.filter(item => item.pull_request).map(item => Number(item.number)))
+      : await client.pulls(owner, name)
     const commentsResult = await client.reviewComments(owner, name)
 
     // A partial import is still worth writing. Whatever came back is real, and
@@ -130,7 +135,7 @@ export default new Job({
     if (!failure) {
       try {
         const { syncMirrorConversations } = await import('./ImportRepositoryJob')
-        await syncMirrorConversations(client, owner, name, repositoryId)
+        await syncMirrorConversations(client, owner, name, repositoryId, since)
       }
       catch (error) {
         failure = { error: error instanceof Error ? error.message : String(error) }
@@ -171,7 +176,7 @@ export default new Job({
 
     await db
       .updateTable('repository_mirrors')
-      .set({ last_metadata_sync_at: new Date().toISOString(), metadata_error: null, metadata_failure_count: 0 })
+      .set({ last_metadata_sync_at: new Date().toISOString(), metadata_checkpoint_at: startedAt, metadata_error: null, metadata_failure_count: 0 })
       .where('id', '=', mirrorId)
       .execute()
 

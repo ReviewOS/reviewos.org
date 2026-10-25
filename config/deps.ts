@@ -343,8 +343,10 @@ export const config: PantryConfig = {
       },
       {
         name: "Generate model files",
-        command: "./buddy",
-        args: ["generate:db-types"],
+        // Committed raw-row types target production Postgres even when local
+        // setup runs MySQL. This option is supported by the native generator.
+        command: "bun",
+        args: ["-e", "import { buildDatabaseSchema } from '@stacksjs/orm'; await buildDatabaseSchema({ dialect: 'postgres' })"],
         description: "Generate TypeScript model files from database schema",
         required: false,
       },

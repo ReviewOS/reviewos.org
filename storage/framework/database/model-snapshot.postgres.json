@@ -8172,6 +8172,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "metadata_checkpoint_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -15470,7 +15478,7 @@
       }
     ]
   },
-  "hash": "6b3d3de62e123ad4b99ee8339fc5b53b54e54313580829d5ff654bcf923b52aa",
+  "hash": "246697e0bdea673fe25ea1a3f37ef24436a762c631f9d01160cafc3224fd884f",
   "dialect": "postgres",
-  "updatedAt": "2026-10-24T23:04:34.188Z"
+  "updatedAt": "2026-10-24T23:55:16.372Z"
 }

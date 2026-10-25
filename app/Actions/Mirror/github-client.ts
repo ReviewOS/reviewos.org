@@ -189,14 +189,37 @@ export class GitHubClient {
     }
   }
 
-  issues(owner: string, name: string) {
+  issues(owner: string, name: string, since?: string) {
     // `state=all` because a mirror that shows only open issues misrepresents
     // the repository, and closed issues are what most references point at.
-    return this.collect<any>(`/repos/${owner}/${name}/issues?state=all&sort=created&direction=asc`)
+    return this.collect<any>(`/repos/${owner}/${name}/issues?state=all&sort=created&direction=asc${since ? `&since=${encodeURIComponent(since)}` : ''}`)
   }
 
   pulls(owner: string, name: string) {
     return this.collect<any>(`/repos/${owner}/${name}/pulls?state=all&sort=created&direction=asc`)
+  }
+
+  /** The issues endpoint's changed pull requests, without scanning older pages. */
+  async pullDetails(owner: string, name: string, numbers: readonly number[]): Promise<PageResult<any>> {
+    const items: any[] = []
+    for (const number of new Set(numbers)) {
+      if (!Number.isSafeInteger(number) || number <= 0)
+        return { ok: false, items, error: 'An upstream pull request number is invalid' }
+      try {
+        const answer = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${name}/pulls/${number}`, { headers: this.headers() })
+        if (isRateLimited(answer.status, answer.headers))
+          return { ok: false, items, error: `rate limited, resets in ${Math.round(resetDelayMs(answer.headers) / 1000)}s` }
+        if (!answer.ok) return { ok: false, items, error: `GitHub returned ${answer.status}` }
+        const body = await answer.json().catch(() => null)
+        if (!body || typeof body !== 'object' || Array.isArray(body) || Number(body.number) !== number)
+          return { ok: false, items, error: 'Unexpected pull request response' }
+        items.push(body)
+      }
+      catch (error) {
+        return { ok: false, items, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+    return { ok: true, items, error: null }
   }
 
   /**
@@ -287,8 +310,8 @@ export class GitHubClient {
    * limit, which is the difference between an import that finishes in an
    * afternoon and one that does not finish.
    */
-  issueComments(owner: string, name: string) {
-    return this.collect<any>(`/repos/${owner}/${name}/issues/comments`)
+  issueComments(owner: string, name: string, since?: string) {
+    return this.collect<any>(`/repos/${owner}/${name}/issues/comments${since ? `?since=${encodeURIComponent(since)}` : ''}`)
   }
 
   /** Releases, newest first, each carrying its assets inline. */

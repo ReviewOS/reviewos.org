@@ -137,6 +137,7 @@ export default new Job({
 
 interface StageContext {
   client: ImportSource
+  updatedSince?: string
   owner: string
   name: string
   repositoryId: number
@@ -333,7 +334,7 @@ async function importMilestones(progress: ImportProgress, context: StageContext)
  * limit.
  */
 async function importIssueComments(progress: ImportProgress, context: StageContext): Promise<void> {
-  const page = await context.client.issueComments(context.owner, context.name)
+  const page = await context.client.issueComments(context.owner, context.name, context.updatedSince)
 
   if (!page.ok)
     throw new Error(page.error ?? 'the issue comments could not be read')
@@ -780,9 +781,9 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
 }
 
 /** The ongoing mirror uses the same idempotent importers as a one-time migration. */
-export async function syncMirrorConversations(client: GitHubClient, owner: string, name: string, repositoryId: number) {
+export async function syncMirrorConversations(client: GitHubClient, owner: string, name: string, repositoryId: number, updatedSince?: string) {
   const progress = emptyProgress()
-  const context: StageContext = { client, owner, name, repositoryId, claims: new Map(), forge: 'github', source: `${owner}/${name}`, includeAssets: false }
+  const context: StageContext = { client, owner, name, repositoryId, claims: new Map(), forge: 'github', source: `${owner}/${name}`, includeAssets: false, updatedSince }
   await importMilestones(progress, context)
   await importIssueComments(progress, context)
   await importReleases(progress, context)
@@ -807,6 +808,8 @@ export async function syncMirrorConversations(client: GitHubClient, owner: strin
     if (existing) await db.updateTable('pull_request_reviews').set(values as any).where('id', '=', Number(existing.id)).execute()
     else await db.insertInto('pull_request_reviews').values(values as any).execute()
   }
+  if (progress.problems.length)
+    throw new Error(`The mirrored conversations were incomplete: ${progress.problems[0]}`)
   return progress.counts
 }
 

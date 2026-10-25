@@ -844,6 +844,7 @@ declare module '@stacksjs/database' {
     failed_jobs: {
       // columns
       id: number
+      uuid: string
       created_at: string
       updated_at: string | null
       connection: string
@@ -851,6 +852,9 @@ declare module '@stacksjs/database' {
       payload: string
       exception: string
       failed_at: string
+      attempts: number
+      max_attempts: number
+      duration_ms: number
     }
     feedback_tokens: {
       // columns
@@ -1857,7 +1861,7 @@ declare module '@stacksjs/database' {
       created_at: string
       updated_at: string | null
       subject_type: "issue" | "issue_comment" | "review_comment"
-      subject_id: number
+      subject_id: number | bigint
       user_id: number
       content: "+1" | "-1" | "laugh" | "hooray" | "confused" | "heart" | "rocket" | "eyes"
     }
@@ -2102,6 +2106,7 @@ declare module '@stacksjs/database' {
       failure_count: number
       sync_metadata: boolean
       last_metadata_sync_at: string
+      metadata_checkpoint_at: string | null
       metadata_error: string
       metadata_failure_count: number
       run_workflows: boolean
@@ -2709,6 +2714,15 @@ declare module '@stacksjs/database' {
       metadata: unknown
       occurred_at: string
       team_id: number
+    }
+    user_emails: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      user_id: number
+      email: string
+      verified_at: string
     }
     users: {
       // columns

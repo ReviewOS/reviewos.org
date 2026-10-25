@@ -1382,6 +1382,8 @@ outside release directories. A healthy server on the default port 8108 can
 belong to another application and does not prove this instance can search.
 After a bulk import, reindex Repository, Issue, PullRequest, Organization,
 Release and User through `./buddy search:reindex <Model>`.
+The committed raw query types target production Postgres. Local setup preserves
+that target through the native generator even when its database is MySQL.
 
 Link the administrator's `github_username` to their actual GitHub login, then set
 `GITHUB_SYNC_USER` to their local handle and `GITHUB_SYNC_CREDENTIAL` to a mirror
@@ -1413,6 +1415,11 @@ and metadata at four times that interval. Metadata includes repository fields,
 issues, pull requests, review threads, conversation comments, review verdicts,
 labels, milestones, and release descriptions. Edited comments and reviews update
 existing records. Credentials are resolved from the protected file at runtime.
+After a complete pass, a checkpoint records that pass's start time. Later passes
+request changed issues and conversation comments, then fetch details for the
+changed pull requests. A one-minute overlap protects timestamp boundaries.
+Failed or partial passes leave the checkpoint unchanged. Review threads and
+verdicts still receive a full pass so older thread anchors remain available.
 The scheduler and workers for `mirrors` and `mirrors-code` must be running.
 The default worker discovers both queues. The production cloud configuration
 also runs a dedicated `mirrors-code` worker with two slots so Git fetches keep

@@ -390,3 +390,4 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Synchronize Git symbolic HEAD with the upstream default branch, including existing mirrors whose database was already correct.
 - [x] Align legacy mirror author references through the framework's model-derived constraint repair and retain failed-job attempt metrics for retries.
 - [x] Deploy a dedicated Git fetch worker so metadata batches cannot hold up continuous code mirroring.
+- [x] Checkpoint completed metadata passes and request changed issues, pull requests and conversation comments on later runs without advancing after partial failure.

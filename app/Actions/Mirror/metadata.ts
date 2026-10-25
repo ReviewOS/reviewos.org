@@ -224,3 +224,10 @@ export function metadataBackoffSeconds(failures: number, base = 900): number {
   // should still check daily in case whatever broke was fixed.
   return Math.min(widened, 24 * 60 * 60)
 }
+
+/** Start from the last completed pass, overlapping timestamp boundaries. */
+export function metadataSince(checkpoint: unknown, now = Date.now()): string | undefined {
+  const time = checkpoint instanceof Date ? checkpoint.getTime() : Date.parse(String(checkpoint ?? ''))
+  if (!Number.isFinite(time) || time <= 0 || time > now) return undefined
+  return new Date(time - 60_000).toISOString()
+}

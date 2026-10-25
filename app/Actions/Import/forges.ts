@@ -54,7 +54,7 @@ export interface ImportSource {
   labels: (owner: string, name: string) => Promise<SourcePage>
   milestones: (owner: string, name: string) => Promise<SourcePage>
   releases: (owner: string, name: string) => Promise<SourcePage>
-  issueComments: (owner: string, name: string) => Promise<SourcePage>
+  issueComments: (owner: string, name: string, since?: string) => Promise<SourcePage>
   reviewComments: (owner: string, name: string, index?: number, reviewId?: number) => Promise<SourcePage>
   pullReviews: (owner: string, name: string, index: number) => Promise<SourcePage>
 }

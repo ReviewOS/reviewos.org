@@ -8332,6 +8332,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "metadata_checkpoint_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -15470,7 +15478,7 @@
       }
     ]
   },
-  "hash": "42ca6c20d46c53abba08bdb46e20741af0aa9401eaed36d9638406db42ccf614",
+  "hash": "eac7b70c561ca8f3344d45fecf9964611e39824092663ce263a04c88ede6aa6a",
   "dialect": "mysql",
-  "updatedAt": "2026-10-24T23:04:33.968Z"
+  "updatedAt": "2026-10-24T23:55:14.601Z"
 }
