@@ -63,6 +63,10 @@ describe('onlyIssues', () => {
   it('drops entries with no number, since the number is the identity', () => {
     expect(onlyIssues([{ title: 'no number' }])).toEqual([])
   })
+
+  it('keeps issues whose pull request marker is explicitly null', () => {
+    expect(onlyIssues([{ number: 707, pull_request: null }]).map(issue => issue.number)).toEqual([707])
+  })
 })
 
 describe('normalizeLabels', () => {

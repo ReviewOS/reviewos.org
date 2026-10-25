@@ -102,7 +102,7 @@ export default defineModel({
     title: {
       order: 3,
       fillable: true,
-      validation: { rule: schema.string().required().min(1).max(255) },
+      validation: { rule: schema.string().required().min(1).max(500) },
       factory: faker => faker.hacker.phrase(),
     },
 

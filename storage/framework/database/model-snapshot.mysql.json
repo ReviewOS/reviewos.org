@@ -3087,7 +3087,7 @@
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
-            "maxLength": 255
+            "maxLength": 500
           },
           {
             "name": "body",
@@ -5740,7 +5740,7 @@
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
-            "maxLength": 255
+            "maxLength": 500
           },
           {
             "name": "body",
@@ -6858,17 +6858,19 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "",
+            "maxLength": 255
           }
         ],
         "indexes": [
-          {
-            "name": "releases_repo_tag_index",
-            "columns": [
-              "repository_id",
-              "tag_name"
-            ],
-            "type": "unique"
-          },
           {
             "name": "releases_repo_published_index",
             "columns": [
@@ -6881,6 +6883,15 @@
             "name": "releases_uuid_unique",
             "columns": [
               "uuid"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "releases_repo_tag_external_index",
+            "columns": [
+              "repository_id",
+              "tag_name",
+              "external_id"
             ],
             "type": "unique"
           }
@@ -15478,7 +15489,7 @@
       }
     ]
   },
-  "hash": "eac7b70c561ca8f3344d45fecf9964611e39824092663ce263a04c88ede6aa6a",
+  "hash": "c0bb374078a55db27dfa683bbbf4408ff6642c415a340bd7c9f5b5de299c1d54",
   "dialect": "mysql",
-  "updatedAt": "2026-10-24T23:55:14.601Z"
+  "updatedAt": "2026-10-25T00:22:27.165Z"
 }

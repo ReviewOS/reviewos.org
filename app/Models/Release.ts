@@ -42,11 +42,10 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    // One release per tag, per repository. Two rows for `v1.0.0` would be two
-    // answers to what a version is, and whichever the database returned first
-    // would win. Not unique across the table: the framework's own library
-    // releases have no repository, so they would all collide on NULL.
-    { name: 'releases_repo_tag_index', columns: ['repository_id', 'tag_name'], unique: true },
+    // Native releases use the empty external id, preserving one per tag.
+    // Upstream drafts can share a tag, so imported releases also retain their
+    // upstream identity rather than overwriting each other's notes.
+    { name: 'releases_repo_tag_external_index', columns: ['repository_id', 'tag_name', 'external_id'], unique: true },
     // The release list, which is always newest first.
     { name: 'releases_repo_published_index', columns: ['repository_id', 'published_at'] },
   ],
@@ -211,6 +210,15 @@ export default defineModel({
       type: 'datetime',
       validation: { rule: schema.string() },
       factory: () => null,
+    },
+
+    /** Empty for native releases; stable upstream identity for imported ones. */
+    external_id: {
+      order: 14,
+      default: '',
+      required: true,
+      validation: { rule: schema.string().max(255) },
+      factory: () => '',
     },
   },
 

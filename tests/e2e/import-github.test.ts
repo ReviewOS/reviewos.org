@@ -127,6 +127,8 @@ const FIXTURE = {
   ],
   releases: [
     {
+      id: 2001,
+      draft: false,
       tag_name: 'v1.2.0',
       name: 'Rounding fixes',
       body: 'Fixes #7.',
@@ -803,6 +805,51 @@ describe('importing a repository', () => {
 })
 
 describe('recurring mirror conversations', () => {
+  test('retains a long issue title when GitHub sends a null pull request marker', async () => {
+    if (!available) return
+    const db = (globalThis as any).db
+    const { mapIssue, onlyIssues } = await import('../../app/Actions/Mirror/github')
+    const { issueRow } = await import('../../app/Actions/Mirror/metadata')
+    const title = 'x'.repeat(285)
+    const incoming = onlyIssues([{ ...FIXTURE.issues[0]!, number: 9999, title, pull_request: null }])
+    const mapped = mapIssue(incoming[0]!, new Map())!
+    const inserted = await db.insertInto('issues').values(issueRow(mapped, created.repositoryId)).returning(['id']).executeTakeFirst()
+    try {
+      const stored = await db.selectFrom('issues').select(['title']).where('id', '=', inserted.id).executeTakeFirst()
+      expect(stored.title).toBe(title)
+    }
+    finally {
+      await db.deleteFrom('issues').where('id', '=', inserted.id).execute()
+    }
+  })
+
+  test('retains distinct drafts for one tag and adopts legacy release rows once', async () => {
+    if (!available) return
+    const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')
+    const { syncMirrorConversations } = await import('../../app/Jobs/ImportRepositoryJob')
+    const client = new GitHubClient({ baseUrl: `http://127.0.0.1:${apiPort}` })
+    const db = (globalThis as any).db
+    const originalLength = FIXTURE.releases.length
+    const original = await db.selectFrom('releases').select(['id']).where('repository_id', '=', created.repositoryId).where('tag_name', '=', 'v1.2.0').executeTakeFirst()
+    await db.updateTable('releases').set({ external_id: '' }).where('id', '=', original.id).execute()
+    try {
+      FIXTURE.releases.push(
+        { ...FIXTURE.releases[0]!, id: 2002, draft: true, name: 'First draft' },
+        { ...FIXTURE.releases[0]!, id: 2003, draft: true, name: 'Second draft' },
+      )
+      await syncMirrorConversations(client, 'acme', 'api', created.repositoryId)
+      await syncMirrorConversations(client, 'acme', 'api', created.repositoryId)
+      const releases = await db.selectFrom('releases').select(['id', 'external_id', 'name']).where('repository_id', '=', created.repositoryId).where('tag_name', '=', 'v1.2.0').execute()
+      expect(releases).toHaveLength(3)
+      expect(Number(releases.find((row: any) => row.external_id === '2001').id)).toBe(Number(original.id))
+      expect(releases.filter((row: any) => row.external_id !== '2001').map((row: any) => row.name).sort()).toEqual(['First draft', 'Second draft'])
+    }
+    finally {
+      FIXTURE.releases.splice(originalLength)
+      await db.deleteFrom('releases').where('repository_id', '=', created.repositoryId).where('external_id', 'in', ['2002', '2003']).execute()
+    }
+  })
+
   test('updates edited comments and imports review verdicts without duplicates', async () => {
     if (!available) return
     const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')

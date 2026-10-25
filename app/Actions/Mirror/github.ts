@@ -112,7 +112,7 @@ export function commentLine(comment: GitHubReviewComment): number | null {
  * may already occupy.
  */
 export function onlyIssues(items: readonly GitHubIssue[]): GitHubIssue[] {
-  return items.filter(item => item.pull_request === undefined && typeof item.number === 'number')
+  return items.filter(item => item.pull_request == null && typeof item.number === 'number')
 }
 
 export interface LabelRef {

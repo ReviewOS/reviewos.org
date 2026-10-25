@@ -1414,7 +1414,8 @@ The mirror sweep fetches Git refs on each mirror's interval, normally 15 minutes
 and metadata at four times that interval. Metadata includes repository fields,
 issues, pull requests, review threads, conversation comments, review verdicts,
 labels, milestones, and release descriptions. Edited comments and reviews update
-existing records. Credentials are resolved from the protected file at runtime.
+existing records. Imported releases retain their upstream ids, including separate
+drafts that share a tag. Credentials are resolved from the protected file at runtime.
 After a complete pass, a checkpoint records that pass's start time. Later passes
 request changed issues and conversation comments, then fetch details for the
 changed pull requests. A one-minute overlap protects timestamp boundaries.

@@ -3087,7 +3087,7 @@
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
-            "maxLength": 255
+            "maxLength": 500
           },
           {
             "name": "body",
@@ -5580,7 +5580,7 @@
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
-            "maxLength": 255
+            "maxLength": 500
           },
           {
             "name": "body",
@@ -6698,17 +6698,19 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "",
+            "maxLength": 255
           }
         ],
         "indexes": [
-          {
-            "name": "releases_repo_tag_index",
-            "columns": [
-              "repository_id",
-              "tag_name"
-            ],
-            "type": "unique"
-          },
           {
             "name": "releases_repo_published_index",
             "columns": [
@@ -6721,6 +6723,15 @@
             "name": "releases_uuid_unique",
             "columns": [
               "uuid"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "releases_repo_tag_external_index",
+            "columns": [
+              "repository_id",
+              "tag_name",
+              "external_id"
             ],
             "type": "unique"
           }
@@ -15478,7 +15489,7 @@
       }
     ]
   },
-  "hash": "246697e0bdea673fe25ea1a3f37ef24436a762c631f9d01160cafc3224fd884f",
+  "hash": "8685c823615550b409731571f46063bec3d62c1481fc4e561927004f622f9723",
   "dialect": "postgres",
-  "updatedAt": "2026-10-24T23:55:16.372Z"
+  "updatedAt": "2026-10-25T00:22:28.550Z"
 }

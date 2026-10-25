@@ -1953,6 +1953,7 @@ declare module '@stacksjs/database' {
       name: string
       is_prerelease: boolean
       published_at: string
+      external_id: string
     }
     repair_attempts: {
       // columns

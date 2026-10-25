@@ -19,7 +19,7 @@ import { isDue } from '../Actions/Mirror/sync'
 export default new Job({
   name: 'MirrorSweepJob',
   description: 'Enqueue a sync for every mirror whose interval has elapsed',
-  queue: 'mirrors',
+  queue: 'mirrors-code',
   tries: 1,
 
   async handle() {

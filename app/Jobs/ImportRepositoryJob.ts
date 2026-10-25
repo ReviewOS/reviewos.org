@@ -730,10 +730,12 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
       continue
 
     const login = String((raw as any).author?.login ?? '').toLowerCase()
+    const externalId = (raw as any).id == null ? '' : String((raw as any).id)
 
     const values = {
       repository_id: context.repositoryId,
       tag_name: tag,
+      external_id: externalId,
       /*
        * The framework's own columns on this table, filled in rather than left
        * null - `version` is not null, and a release's version *is* its tag.
@@ -755,14 +757,21 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
       author: String((raw as any).author?.login ?? '') || null,
     }
 
-    // Keyed on the tag, which is the release's identity everywhere: in git, in
-    // a changelog, and in every url that points at it.
-    const existing = await db
-      .selectFrom('releases')
-      .select(['id'])
+    // Multiple upstream drafts can share a tag. Match their stable ids first,
+    // adopting a legacy tag-based row once so existing assets keep their owner.
+    const matching = db.selectFrom('releases').select(['id'])
       .where('repository_id', '=', context.repositoryId)
-      .where('tag_name', '=', tag)
-      .executeTakeFirst()
+      .where('external_id', '=', externalId)
+    let existing = await (externalId ? matching : matching.where('tag_name', '=', tag)).executeTakeFirst()
+
+    if (!existing && externalId) {
+      existing = await db.selectFrom('releases').select(['id'])
+        .where('repository_id', '=', context.repositoryId)
+        .where('tag_name', '=', tag)
+        .where('external_id', '=', '')
+        .where('status', '=', values.status)
+        .executeTakeFirst()
+    }
 
     const releaseId = existing
       ? Number(existing.id)
