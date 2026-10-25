@@ -69,6 +69,8 @@ interface MirrorEvents {
   'mirror:metadata-synced': {
     mirrorId: number
     repositoryId: number
+    issueNumbers?: number[]
+    pullNumbers?: number[]
     written: MetadataWritten
   }
   'mirror:metadata-failed': {

@@ -9,15 +9,23 @@
 export default {
   listensTo: 'mirror:metadata-synced',
 
-  handle(payload: {
+  async handle(payload: {
     mirrorId: number
     repositoryId: number
+    issueNumbers?: number[]
+    pullNumbers?: number[]
     written: {
       issues: { created: number, updated: number }
       pulls: { created: number, updated: number }
       threads: { created: number, updated: number }
     }
-  }): void {
+  }): Promise<void> {
+    const indexRepository = (await import('../Jobs/IndexRepositoryJob')).default
+    const indexDiscussions = (await import('../Jobs/IndexMirrorSearchJob')).default
+    await indexRepository.dispatch({ repositoryId: payload.repositoryId })
+    if (payload.issueNumbers?.length || payload.pullNumbers?.length)
+      await indexDiscussions.dispatch({ repositoryId: payload.repositoryId, issueNumbers: payload.issueNumbers, pullNumbers: payload.pullNumbers })
+
     const { issues, pulls, threads } = payload.written
     const total = issues.created + pulls.created + threads.created
 

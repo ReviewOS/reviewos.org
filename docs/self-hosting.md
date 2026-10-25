@@ -1421,6 +1421,8 @@ request changed issues and conversation comments, then fetch details for the
 changed pull requests. A one-minute overlap protects timestamp boundaries.
 Failed or partial passes leave the checkpoint unchanged. Review threads and
 verdicts still receive a full pass so older thread anchors remain available.
+Completed metadata passes queue search updates for the repository and the issues
+and pull requests they read, including edits. The `search` queue needs a worker too.
 The scheduler and workers for `mirrors` and `mirrors-code` must be running.
 The default worker discovers both queues. The production cloud configuration
 also runs a dedicated `mirrors-code` worker with two slots so Git fetches keep

@@ -208,6 +208,57 @@ describe('a push queues the reindex', () => {
 })
 
 describe('indexing one repository', () => {
+  test('a mirror reindexes edited discussion records without indexing unrelated numbers', async () => {
+    if (!available) return
+    const mirrorIndex = (await import('../../app/Jobs/IndexMirrorSearchJob')).default
+    const { useSearchEngine } = await import('@stacksjs/search-engine')
+    const engine = useSearchEngine()
+    const ids: number[] = []
+    let pullId = 0
+    try {
+      for (const number of [1, 2]) {
+        const row = await db.insertInto('issues').values({ repository_id: created.repositoryId, number, title: `Before ${number}`, body: '', state: 'open', author_id: created.ownerId, is_pull_request: false }).returning(['id']).executeTakeFirst()
+        ids.push(Number(row.id))
+      }
+      const pull = await db.insertInto('pull_requests').values({ repository_id: created.repositoryId, number: 3, title: 'Before pull', body: '', state: 'open', author_id: created.ownerId, head_branch: 'topic', base_branch: 'main' }).returning(['id']).executeTakeFirst()
+      pullId = Number(pull.id)
+      const result = await mirrorIndex.handle({ repositoryId: created.repositoryId, issueNumbers: [1, 1], pullNumbers: [3] })
+      expect(result).toEqual({ indexed: 2 })
+      expect((await engine.getDocument('issues', String(ids[0]))).title).toBe('Before 1')
+      await db.updateTable('issues').set({ title: 'Edited upstream' }).where('id', '=', ids[0]).execute()
+      await mirrorIndex.handle({ repositoryId: created.repositoryId, issueNumbers: [1] })
+      expect((await engine.getDocument('issues', String(ids[0]))).title).toBe('Edited upstream')
+      expect((await engine.getDocument('pull_requests', String(pullId))).title).toBe('Before pull')
+      await expect(engine.getDocument('issues', String(ids[1]))).rejects.toThrow()
+
+      const listener = (await import('../../app/Listeners/MirrorMetadataSynced')).default
+      const originalRepositoryDispatch = indexJob.dispatch
+      const originalDiscussionDispatch = mirrorIndex.dispatch
+      const queued: any[] = []
+      indexJob.dispatch = async (payload: any) => { queued.push(['repository', payload]) }
+      mirrorIndex.dispatch = async (payload: any) => { queued.push(['discussions', payload]) }
+      try {
+        await listener.handle({ mirrorId: 1, repositoryId: created.repositoryId, issueNumbers: [1], pullNumbers: [], written: { issues: { created: 0, updated: 1 }, pulls: { created: 0, updated: 0 }, threads: { created: 0, updated: 0 } } })
+        expect(queued).toEqual([['repository', { repositoryId: created.repositoryId }], ['discussions', { repositoryId: created.repositoryId, issueNumbers: [1], pullNumbers: [] }]])
+      }
+      finally {
+        indexJob.dispatch = originalRepositoryDispatch
+        mirrorIndex.dispatch = originalDiscussionDispatch
+      }
+    }
+    finally {
+      for (const id of ids) {
+        try { await engine.deleteDocument('issues', id) }
+        catch { /* the excluded record was never indexed */ }
+        await db.deleteFrom('issues').where('id', '=', id).execute()
+      }
+      if (pullId) {
+        await engine.deleteDocument('pull_requests', pullId)
+        await db.deleteFrom('pull_requests').where('id', '=', pullId).execute()
+      }
+    }
+  }, 30_000)
+
   test('writes the document the model would have written', async () => {
     if (!available)
       return

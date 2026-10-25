@@ -180,7 +180,7 @@ export default new Job({
       .where('id', '=', mirrorId)
       .execute()
 
-    dispatch('mirror:metadata-synced', { mirrorId, repositoryId, written })
+    dispatch('mirror:metadata-synced', { mirrorId, repositoryId, written, issueNumbers: issues.map(issue => issue.number), pullNumbers: pulls.map(pull => pull.number) })
 
     return { ok: true, written }
   },
