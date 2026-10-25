@@ -1516,6 +1516,11 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       claim is the last moment both facts are known - whether the run is trusted, and whether the
       environment's gate has opened - and deciding earlier would mean handing a deploy credential to
       a job that is still waiting for a reviewer. Naming a secret is not a way around either rule.
+- [x] Preview PNG, JPEG, GIF and WebP run artifacts inline, with full-size links and downloads.
+      The existing image endpoint authenticates cookie-holding readers, scopes the artifact to
+      its repository and run, checks expiry and size, and sniffs the bytes. Expired and oversized
+      artifacts keep their download listing without an inline preview. Verified through the real
+      HTTP routes with a disposable Postgres schema and through browser sign-in and image preview.
 - [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
 
       `reviewos: { artifact-paths: [screenshots/**] }`, collected by the runner after the steps and

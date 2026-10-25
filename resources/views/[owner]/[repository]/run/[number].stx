@@ -19,6 +19,7 @@ import { eventsFromText, renderLog } from '../../../../functions/runs'
 import { explainWaiting } from '../../../../functions/runs'
 import { criticalPath, layersOf } from '../../../../functions/runs'
 import { searchLog } from '../../../../functions/runs'
+import { MAX_INLINE_IMAGE_BYTES } from '../../../../../app/Actions/Workflow/LogImageAction'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -238,6 +239,11 @@ const artifactList = artifactRows.map(one => ({
   id: Number(one.id),
   name: String(one.name),
   size: artifactSize(Number(one.size_bytes) || 0),
+  // This only offers the preview. The image endpoint still authenticates the
+  // reader, checks expiry and sniffs the bytes before serving any image.
+  preview: /\.(png|jpe?g|gif|webp)$/i.test(String(one.name))
+    && Number(one.size_bytes) > 0 && Number(one.size_bytes) <= MAX_INLINE_IMAGE_BYTES
+    ? logImages[String(one.name)]?.src ?? '' : '',
   // A date rather than "in 89 days": somebody deciding whether to download this
   // now is comparing it against a calendar.
   expires: one.expires_at ? String(one.expires_at).slice(0, 10) : '',
@@ -1386,6 +1392,14 @@ const base = `/${ownerHandle}/${repositoryName}`
                 @if (artifact.expires)
                   <span class="artifact-expiry muted">until {{ artifact.expires }}</span>
                 @endif
+                @if (artifact.preview)
+                  <details class="artifact-preview">
+                    <summary>Preview image</summary>
+                    <a href="{{ artifact.preview }}" target="_blank" rel="noopener" class="artifact-image-link" aria-label="Open {{ artifact.name }} at full size">
+                      <img src="{{ artifact.preview }}" alt="{{ artifact.name }}" loading="lazy" decoding="async" width="640" height="480">
+                    </a>
+                  </details>
+                @endif
               </li>
             @endforeach
           </ul>
@@ -1530,6 +1544,11 @@ const base = `/${ownerHandle}/${repositoryName}`
   .artifact-list { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
   .artifact { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
   .artifact-size, .artifact-expiry { font-size: 12.5px; }
+  .artifact-preview { flex-basis: 100%; min-width: 0; font-size: 12.5px; }
+  .artifact-preview summary { cursor: pointer; color: var(--accent); width: fit-content; padding: 5px 0; }
+  .artifact-preview summary:focus-visible, .artifact-image-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .artifact-image-link { display: block; width: fit-content; max-width: 100%; margin: 6px 0 10px; }
+  .artifact-preview img { display: block; max-width: 100%; width: auto; height: auto; max-height: 65dvh; object-fit: contain; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
 
   .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
   .run-good { background: var(--ok); }

@@ -35,14 +35,8 @@ jobs:
       - run: bun test
 `
 
-/** The smallest real PNG: a signature and a header a browser accepts. */
-const PNG = new Uint8Array([
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-  0x89,
-])
+/** A complete one-pixel PNG, including image data and IEND, for browser decoding. */
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a23sAAAAASUVORK5CYII=', 'base64')
 
 async function uploadBytes(name: string, body: BodyInit, type = 'application/octet-stream') {
   const answer = await fetch(`http://127.0.0.1:${port}/api/runner/artifacts`, {
@@ -185,6 +179,59 @@ afterAll(async () => {
 })
 
 describe('an image a job produced', () => {
+  test('keeps expired and oversized images listed without offering a preview', async () => {
+    if (!available)
+      return
+
+    expect((await uploadBytes('expired-preview.png', PNG)).status).toBe(201)
+    await db.updateTable('workflow_artifacts').set({ expires_at: '2000-01-01 00:00:00' })
+      .where('name', '=', 'expired-preview.png').where('repository_id', '=', created.repositoryId).execute()
+    const large = new Uint8Array(8 * 1024 * 1024 + 1)
+    large.set(PNG)
+    expect((await uploadBytes('oversized-preview.png', large)).status).toBe(201)
+    const page = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/run/${created.runNumber}`)
+    const html = await page.text()
+    expect(page.status).toBe(200)
+    expect(html).toContain('expired-preview.png')
+    expect(html).toContain('oversized-preview.png')
+    expect(html).not.toMatch(/<img[^>]+src="[^"]*(expired-preview|oversized-preview)/)
+    expect((await image('expired-preview.png')).status).toBe(410)
+    expect((await image('oversized-preview.png')).status).toBe(415)
+  }, 180_000)
+
+  test('can be previewed from the artifacts list with a private browser session', async () => {
+    if (!available)
+      return
+
+    const uploaded = await uploadBytes('screens/android-sharing.png', PNG)
+    expect(uploaded.status).toBe(201)
+    const { createToken } = await import('@stacksjs/auth')
+    const issued: any = await createToken(created.ownerId, 'artifact image browser test')
+    const cookie = `auth-token=${encodeURIComponent(String(issued?.plainTextToken ?? issued?.token ?? issued))}`
+    await db.updateTable('repositories').set({ visibility: 'private' }).where('id', '=', created.repositoryId).execute()
+    const pageUrl = `http://127.0.0.1:${port}/${created.handle}/${created.name}/run/${created.runNumber}`
+    try {
+      expect((await fetch(pageUrl)).status).toBe(404)
+      const page = await fetch(pageUrl, { headers: { Cookie: cookie, Accept: 'text/html' } })
+      expect(page.status).toBe(200)
+      const html = await page.text()
+      expect(html).toContain('Preview image')
+      const match = /<img[^>]+src="([^"]*log-image[^" ]*android-sharing[^" ]*)"/.exec(html)
+      expect(match).not.toBeNull()
+      const preview = new URL(match![1]!.replaceAll('&amp;', '&'), pageUrl)
+      expect((await fetch(preview)).status).toBe(404)
+      const image = await fetch(preview, { headers: { Cookie: cookie } })
+      expect(image.status).toBe(200)
+      expect(image.headers.get('content-type')).toBe('image/png')
+      expect(image.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array(PNG))
+      expect(html).toContain(`/api/repos/workflow-runs/artifact?owner=${created.handle}`)
+    }
+    finally {
+      await db.updateTable('repositories').set({ visibility: 'public' }).where('id', '=', created.repositoryId).execute()
+    }
+  }, 180_000)
+
   test('is served inline, with the type its bytes say it is', async () => {
     if (!available)
       return
