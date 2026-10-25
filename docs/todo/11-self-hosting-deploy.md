@@ -1249,3 +1249,5 @@ to their own timezone gets every timestamp wrong by it.
   minted at deploy time. Until it is added the mirrors run unauthenticated,
   which is sixty requests an hour and enough for descriptions on a handful of
   repositories.
+
+- [x] Fix ts-cloud storage reclamation upstream so busy backup locks defer optional cleanup and unchanged placements deploy without waiting for backups.
