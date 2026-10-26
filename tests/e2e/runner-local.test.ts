@@ -257,6 +257,18 @@ beforeAll(async () => {
       updates: parseRefUpdates(`${'0'.repeat(40)} ${created.headSha} refs/heads/main`),
     })
 
+    // Push listeners finish asynchronously; wait for their actual persisted
+    // workflow before a fast test can ask the runner to claim its jobs.
+    const workflowDeadline = Date.now() + 10_000
+    while (!await db.selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id']).where('workflows.repository_id', '=', created.repositoryId)
+      .executeTakeFirst()) {
+      if (Date.now() >= workflowDeadline)
+        throw new Error('The pushed workflow did not become available')
+      await Bun.sleep(20)
+    }
+
     /*
      * Scoped to this repository rather than to the instance.
      *
@@ -296,6 +308,8 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
+    if (process.env.TESTS_REQUIRE_ALL === '1')
+      throw error
     console.warn(`[runner-local] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
@@ -1135,6 +1149,16 @@ describe('a job that uploads steps', () => {
 })
 
 describe('artifact-paths', () => {
+  beforeAll(async () => {
+    if (available)
+      await db.updateTable('runners').set({ labels: 'artifact-fixture' }).where('id', '=', created.runnerId).execute()
+  })
+
+  afterAll(async () => {
+    if (available)
+      await db.updateTable('runners').set({ labels: 'ubuntu-latest\nself-hosted' }).where('id', '=', created.runnerId).execute()
+  })
+
   test('a failing job retains every artifact through controller throttling', async () => {
     if (!available)
       return
@@ -1159,12 +1183,12 @@ describe('artifact-paths', () => {
       job_id: 'collects',
       name: 'Collects',
       position: 30,
-      runs_on: 'ubuntu-latest',
+      runs_on: 'artifact-fixture',
     }).returning(['id']).executeTakeFirst()
 
     // Writes its evidence, then fails - the ordinary shape of a browser test.
     for (const step of [
-      { position: 0, name: 'Produce', command: 'mkdir -p out && echo "the evidence" > out/report.txt && echo "junk" > out/ignored.log && : > out/empty.txt && i=1; while [ "$i" -le 125 ]; do echo "diagnostic" > "out/$i.txt"; i=$((i+1)); done' },
+      { position: 0, name: 'Produce', command: 'mkdir -p out previews && echo "priority evidence" > previews/screen.png && echo "the evidence" > out/report.txt && echo "junk" > out/ignored.log && : > out/empty.txt && i=1; while [ "$i" -le 125 ]; do echo "diagnostic" > "out/$i.txt"; i=$((i+1)); done' },
       { position: 1, name: 'Fail', command: 'exit 1' },
     ]) {
       await db.insertInto('workflow_version_steps').values({
@@ -1191,8 +1215,8 @@ describe('artifact-paths', () => {
       name: 'Collects',
       position: 0,
       state: 'queued',
-      runs_on: 'ubuntu-latest',
-      settings: JSON.stringify({ artifactPaths: ['out/*.txt'] }),
+      runs_on: 'artifact-fixture',
+      settings: JSON.stringify({ artifactPaths: ['previews/*.png', 'out/*.txt'] }),
     }).returning(['id']).executeTakeFirst()
 
     const outcome = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
@@ -1204,6 +1228,7 @@ describe('artifact-paths', () => {
       .selectFrom('workflow_artifacts')
       .select(['name', 'size_bytes'])
       .where('workflow_run_id', '=', Number(run.id))
+      .orderBy('id')
       .execute()
 
     /*
@@ -1213,7 +1238,8 @@ describe('artifact-paths', () => {
      * do not collide.
      */
     const names = artifacts.map(row => String(row.name))
-    expect(artifacts).toHaveLength(126)
+    expect(artifacts).toHaveLength(127)
+    expect(names[0]).toBe('previews-screen.png')
     expect(names).toContain('out-report.txt')
     expect(names).toContain('out-125.txt')
     expect(names).not.toContain('out-ignored.log')
@@ -1246,7 +1272,7 @@ describe('artifact-paths', () => {
       .select(['workflow_versions.id as id']).where('workflows.repository_id', '=', created.repositoryId)
       .orderBy('workflow_versions.id', 'desc').executeTakeFirst()
     const job: any = await db.insertInto('workflow_version_jobs').values({
-      workflow_version_id: Number(version.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 31, runs_on: 'ubuntu-latest',
+      workflow_version_id: Number(version.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 31, runs_on: 'artifact-fixture',
     }).returning(['id']).executeTakeFirst()
     await db.insertInto('workflow_version_steps').values({
       workflow_version_job_id: Number(job.id), position: 0, name: 'Produce', command: 'mkdir -p out && echo "diagnostic" > out/report.txt',
@@ -1256,7 +1282,7 @@ describe('artifact-paths', () => {
       event_ref: 'refs/heads/cancel-collection', head_sha: created.headSha, definition_sha: created.headSha, trusted: true,
     }).returning(['id']).executeTakeFirst()
     await db.insertInto('workflow_jobs').values({
-      workflow_run_id: Number(run.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 0, state: 'queued', runs_on: 'ubuntu-latest',
+      workflow_run_id: Number(run.id), job_id: 'cancel-collection', name: 'Cancel collection', position: 0, state: 'queued', runs_on: 'artifact-fixture',
       settings: JSON.stringify({ artifactPaths: ['out/*.txt'] }),
     }).execute()
 

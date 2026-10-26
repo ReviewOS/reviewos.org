@@ -2364,8 +2364,8 @@ const ARTIFACT_PUBLICATION_MS = 5 * 60_000
 /**
  * What matched the job's `artifact-paths:`, relative to the workspace.
  *
- * Sorted, so two runs of the same job upload the same files in the same order
- * and a person comparing two runs is comparing lists rather than orderings.
+ * Patterns define publication priority. Sort within each pattern so the list
+ * stays stable without moving bulky bundles ahead of the evidence named first.
  * Directories are skipped: an artifact is a file, and a glob like `coverage/**`
  * matches the directory as well as what is in it.
  *
@@ -2377,6 +2377,7 @@ export async function collectArtifacts(workspace: string, globs: readonly string
   const found = new Set<string>()
 
   for (const glob of globs) {
+    const matches = new Set<string>()
     try {
       for await (const match of new Bun.Glob(glob).scan({ cwd: workspace, onlyFiles: true, dot: false })) {
         /*
@@ -2387,7 +2388,7 @@ export async function collectArtifacts(workspace: string, globs: readonly string
         const full = resolve(workspace, match)
 
         if (full.startsWith(resolve(workspace) + '/'))
-          found.add(match)
+          matches.add(match)
       }
     }
     catch {
@@ -2396,9 +2397,11 @@ export async function collectArtifacts(workspace: string, globs: readonly string
       // throw away the result somebody was waiting for.
       continue
     }
+    for (const match of [...matches].sort())
+      found.add(match)
   }
 
-  return [...found].sort().slice(0, MAX_COLLECTED_FILES)
+  return [...found].slice(0, MAX_COLLECTED_FILES)
 }
 
 /**
@@ -2436,6 +2439,9 @@ async function publishArtifacts(input: {
     await input.say(`no files matched artifact-paths: ${globs.join(', ')}\n`)
     return
   }
+
+  if (files.length === MAX_COLLECTED_FILES)
+    await input.say(`artifact collection reached its ${MAX_COLLECTED_FILES}-file limit; earlier artifact-paths patterns are published first\n`)
 
   const deadline = Date.now() + ARTIFACT_PUBLICATION_MS
   const budget = AbortSignal.timeout(ARTIFACT_PUBLICATION_MS)

@@ -45,11 +45,10 @@ describe('collecting what a job left behind', () => {
     expect(found).toEqual(['coverage/index.html', 'coverage/lcov.info'])
   })
 
-  test('is sorted, so two runs of one job produce the same list', async () => {
+  test('honors pattern priority with stable ordering within each pattern', async () => {
     const found = await collectArtifacts(workspace, ['screenshots/*.png', 'coverage/*.info'])
 
-    expect(found).toEqual([...found].sort())
-    expect(found).toContain('coverage/lcov.info')
+    expect(found).toEqual(['screenshots/failure.png', 'coverage/lcov.info'])
   })
 
   test('nothing it collects is outside the workspace', async () => {
@@ -74,6 +73,17 @@ describe('collecting what a job left behind', () => {
     // away the result somebody was waiting for.
     expect(await collectArtifacts(workspace, ['dist/**'])).toEqual([])
     expect(await collectArtifacts(workspace, ['['])).toEqual([])
+  })
+
+  test('retains prioritized evidence when later patterns exceed the file ceiling', async () => {
+    mkdirSync(join(workspace, 'bulk'), { recursive: true })
+    for (let index = 0; index <= MAX_COLLECTED_FILES; index++)
+      writeFileSync(join(workspace, 'bulk', `${String(index).padStart(4, '0')}.txt`), 'bundle')
+
+    const found = await collectArtifacts(workspace, ['screenshots/*.png', 'bulk/**'])
+    expect(found).toHaveLength(MAX_COLLECTED_FILES)
+    expect(found[0]).toBe('screenshots/failure.png')
+    expect(found).not.toContain('screenshots/escape.png')
   })
 
   test('and the same file named by two globs is uploaded once', async () => {

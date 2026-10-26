@@ -1521,6 +1521,7 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       its repository and run, checks expiry and size, and sniffs the bytes. Expired and oversized
       artifacts keep their download listing without an inline preview. Verified through the real
       HTTP routes with a disposable Postgres schema and through browser sign-in and image preview.
+- [x] Honor artifact pattern order before the file ceiling, sort within each pattern, and report when collection reaches its limit so screenshots and receipts can precede compiled bundles.
 - [x] Skip empty artifact files before upload and report the skip in the job log; retain every nonempty file through controller throttling (real runner HTTP regression).
 - [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
 
