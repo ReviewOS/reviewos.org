@@ -158,6 +158,21 @@ Each one is committed and pushed in the repository named.
   behind, and AGENTS.md forbids it for that reason, but removing it a second time is a call for
   whoever added it.
 
+  **Two upstream issues came out of the link check that this upgrade turned on.** Both were
+  reproduced on a three-file fixture against `0.2.28` before filing, and both are about the
+  diagnostics rather than the check, which bunpress#86 was right to add:
+
+  - [stacksjs/bunpress#92](https://github.com/stacksjs/bunpress/issues/92) - the failure names the
+    dead link but not the file containing it, under roughly 1,700 lines of minified bundle output.
+    The throw site already has the answer: `resolveLink(G, z)` reads `G.sourceFile` on the line
+    above, to resolve the destination it then rejects.
+  - [stacksjs/bunpress#93](https://github.com/stacksjs/bunpress/issues/93) - the build stops at the
+    first one, so N dead links cost N builds. Ours had three and each needed its own run.
+
+  A third candidate was dropped rather than filed. The roadmap says in phase 7 that bunpress "does
+  not rewrite" `.md` cross-links; on `0.2.28` it does, and `[the guide](./guide.md)` emits
+  `href="/guide"`. That note predates bunpress#86 and is now wrong rather than a gap.
+
   Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
   better code independently of the linter, and reverting structure to prove a tool is fixed is how
   you end up doing it twice.

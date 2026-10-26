@@ -167,8 +167,14 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       table, and were built to HTML; neither was in `config/docs.ts`, so the two largest phases
       were reachable only from inside another page.
 - [x] `.md` cross-links resolve. The roadmap files link to each other as `./00-bootstrap.md`,
-      which is correct in the repository and on GitHub and which bunpress does not rewrite, so
-      both names answer and the extensionless one is canonical.
+      which is correct in the repository and on GitHub, and both names answer with the
+      extensionless one canonical.
+
+      **The second half of this used to say bunpress "does not rewrite" those destinations, and
+      that stopped being true.** bunpress#86 landed source-relative link resolution in 0.2.22: on
+      0.2.28 a `[guide](./guide.md)` is emitted as `href="/guide"`, verified on a fixture. It also
+      rejects a destination that resolves to nothing, which is how three dead `./09-ci-cd.md`
+      links in `12-api-and-agents.md` were finally caught after sitting on the published site.
 - [x] Roadmap published as task lists that render as checkboxes
 - [x] Roadmap index counts and "not started" states are checked by `tests/unit/roadmap.test.ts`, so
       completing work cannot leave the summary silently stale
