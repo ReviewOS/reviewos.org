@@ -215,7 +215,7 @@ jobs:
 that can read the repository and nothing else - on every instance, forever.
 Actions' own default depends on an organization setting, which is a footgun this
 instance declines to reproduce. A job's `permissions:` replaces the workflow's
-rather than adding to it, and a key this instance has no scope for (`packages:`,
+rather than adding to it, and a key this instance has no scope for (`attestations:`,
 `id-token:`) is reported rather than silently granting nothing.
 
 **It reaches one repository.** The row is `selection: selected` with exactly one

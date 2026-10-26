@@ -11,7 +11,7 @@ declare module '@stacksjs/database' {
       created_at: string
       updated_at: string | null
       access_token_id: number
-      scope: "contents" | "issues" | "pull_requests" | "webhooks" | "administration" | "checks" | "actions" | "actions_logs" | "fleet" | "members" | "organization_administration" | "billing"
+      scope: "contents" | "wiki" | "projects" | "packages" | "issues" | "pull_requests" | "webhooks" | "administration" | "checks" | "actions" | "actions_logs" | "fleet" | "members" | "organization_administration" | "billing"
       level: "read" | "write" | "admin"
     }
     access_token_repositories: {
@@ -1720,6 +1720,39 @@ declare module '@stacksjs/database' {
       category_id: number
       manufacturer_id: number
     }
+    project_columns: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      project_id: number
+      title: string
+      position: number
+    }
+    project_items: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      project_id: number
+      project_column_id: number
+      issue_id: number
+      position: number
+      revision: number
+    }
+    projects: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      title: string
+      description: string
+      state: "open" | "closed"
+      revision: number
+    }
     protected_branches: {
       // columns
       id: number
@@ -1920,6 +1953,14 @@ declare module '@stacksjs/database' {
       code: string
       status: "registered" | "qualified"
       qualified_at: string | null
+    }
+    registry_packages: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      name: string
     }
     release_assets: {
       // columns
@@ -2842,6 +2883,32 @@ declare module '@stacksjs/database' {
       socket: string
       details: string
       time: number
+    }
+    wiki_pages: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      slug: string
+      title: string
+      body: string
+      revision: number
+      is_deleted: number
+    }
+    wiki_revisions: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      wiki_page_id: number
+      author_id: number
+      revision: number
+      title: string
+      body: string
+      summary: string
+      is_deleted: number
     }
     workflow_artifacts: {
       // columns

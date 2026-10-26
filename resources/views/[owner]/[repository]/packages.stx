@@ -1,0 +1,57 @@
+<script server>
+import { packagesForView } from '../../../functions/forge'
+import { originFor } from '../../../functions/repo'
+const tool = await packagesForView(String(params.owner), String(params.repository), __stxServeContext?.cookies, useRoute().query ?? {})
+if (tool.status !== 200) setResponseStatus(tool.status)
+const registryUrl = `${originFor(__stxServeContext)}${tool.api}/registry`
+</script>
+
+@layout('app')
+@section('title', `Packages · ${params.owner}/${params.repository}`)
+@section('description', 'Native packages, versions and downloads for this repository.')
+@section('content')
+<div class="forge-tools page">
+<ForgeToolsStyle />
+  @if (!tool.exists)
+    <PageEmpty title="No such repository" detail="This repository is unavailable." />
+  @else
+    <RepoTabs owner="{{ tool.owner }}" repository="{{ tool.repository }}" active="packages" />
+    <header class="py-6"><h1 class="font-semibold text-2xl">Packages</h1><p class="mt-2 muted">The native package registry, powered by Pantry. Access follows this repository.</p></header>
+    @if (!tool.configured)
+      <div class="mb-6 p-6 panel"><h2 class="font-semibold">Connect the registry service</h2><p class="mt-2 muted">An instance administrator can enable package publishing in the <a href="/docs/registry">registry setup guide</a>.</p></div>
+    @else
+      <details class="mb-6 p-5 panel"><summary class="font-semibold">Use this registry with Pantry</summary><div class="grid gap-3 mt-4"><p class="text-sm muted">Use a ReviewOS access token with package permissions and access to this repository.</p><pre class="overflow-x-auto text-sm"><code>pantry token set --registry {{ registryUrl }}
+pantry publish --registry {{ registryUrl }}</code></pre><p class="text-sm muted">Package names use the @{{ tool.owner }} scope. Published versions are immutable.</p></div></details>
+    @endif
+    @if (tool.error)
+      <p class="mb-5 p-4 panel" role="alert">{{ tool.error }}</p>
+    @endif
+    <div class="grid gap-6 lg:grid-cols-3">
+      <section class="lg:col-span-1" aria-label="Package list">
+        @if (tool.packages.length === 0)
+          <div class="p-6 panel"><h2 class="font-semibold">No packages published</h2><p class="mt-2 muted">Publish a scoped package from the command line or upload a tarball below.</p></div>
+        @else
+          <div class="grid gap-3">@foreach (tool.packages as entry)<a class="p-4 break-all font-mono text-sm panel" href="{{ tool.base }}/packages?name={{ encodeURIComponent(entry.name) }}">{{ entry.name }}</a>@endforeach</div>
+        @endif
+      </section>
+      <section class="lg:col-span-2" aria-label="Package details">
+        @if (tool.selected)
+          <article class="p-6 panel"><h2 class="break-all font-semibold text-xl">{{ tool.selected.name }}</h2><p class="mt-2 muted">{{ tool.selected.description || 'No description provided.' }}</p><dl class="grid gap-2 mt-5 text-sm"><div>Version: {{ tool.selected.version }}</div><div>License: {{ tool.selected.license || 'Unspecified' }}</div><div>Published: {{ tool.selected.publishedAt }}</div><div>Size: {{ tool.selected.size || 0 }} bytes</div><div class="break-all">Checksum: {{ tool.selected.checksum || 'Unavailable' }}</div></dl><a class="mt-5 btn btn-primary" href="{{ tool.selected.tarballUrl }}">Download tarball</a><h3 class="mb-3 mt-6 font-semibold">Versions</h3><div class="flex flex-wrap gap-3">@foreach (tool.versions as version)<a href="{{ tool.base }}/packages?name={{ encodeURIComponent(tool.selected.name) }}&version={{ encodeURIComponent(version) }}">{{ version }}</a>@endforeach</div></article>
+        @endif
+        @if (tool.mayPublish && tool.configured)
+          <form class="grid gap-4 mt-6 p-5 panel" action="{{ tool.api }}/registry/publish" method="post" enctype="multipart/form-data">
+            <CsrfField /><h2 class="font-semibold">Publish a version</h2>
+            <label class="grid gap-2">Package name<input class="field" name="name" placeholder="@{{ tool.owner }}/package" required maxlength="214"></label>
+            <label class="grid gap-2">Version<input class="field" name="version" placeholder="1.0.0" required maxlength="64"></label>
+            <label class="grid gap-2">Description<input class="field" name="description" maxlength="1000"></label>
+            <label class="grid gap-2">License<input class="field" name="license" placeholder="MIT" maxlength="100"></label>
+            <label class="grid gap-2">Package tarball<input class="field" name="tarball" type="file" accept=".tgz,.tar.gz,application/gzip" required></label>
+            <p class="text-sm muted">Up to 50 MB. Pantry validates and scans the artifact before publishing. A version cannot be replaced.</p><div><button class="btn btn-primary" type="submit">Publish version</button></div>
+          </form>
+        @endif
+      </section>
+    </div>
+    <ForgePagination base="{{ tool.base }}/packages" :offset="tool.offset" :nextOffset="tool.nextOffset" />
+  @endif
+</div>
+@endsection

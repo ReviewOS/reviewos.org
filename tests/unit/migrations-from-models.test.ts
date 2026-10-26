@@ -45,7 +45,7 @@ describe('the migration corpus', () => {
    * name it would not produce is a file it did not produce.
    */
   it('contains only files the generator names', () => {
-    const strange = files.filter(name => !/^\d{10}-(?:create|alter|drop|auto-misc)/.test(name))
+    const strange = files.filter(name => !/^\d{10}-(?:create|alter|drop|add-enum-values|auto-misc)/.test(name))
 
     expect(strange).toEqual([])
   })

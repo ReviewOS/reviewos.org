@@ -43,6 +43,7 @@ const columns = [
     links: [
       { label: 'Stacks', href: 'https://stacksjs.com' },
       { label: 'Bun', href: 'https://bun.sh' },
+      { label: 'MySQL', href: 'https://www.mysql.com' },
       { label: 'PostgreSQL', href: 'https://www.postgresql.org' },
       { label: 'git', href: 'https://git-scm.com' },
     ],

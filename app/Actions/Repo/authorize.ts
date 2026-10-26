@@ -36,7 +36,7 @@ export interface RepositoryContext {
 
 export type AuthorizeResult =
   | { ok: true, context: RepositoryContext }
-  | { ok: false, error: string, status: number }
+  | { ok: false, error: string, status: 401 | 403 | 404 | 409 }
 
 /**
  * Load the repository named by the request and the caller's standing on it.
@@ -46,8 +46,8 @@ export type AuthorizeResult =
  * one thing a private repository must not tell a stranger.
  */
 export async function authorizeRepository(request: any, ability: RepositoryAbility): Promise<AuthorizeResult> {
-  const owner = String(request.get('owner') ?? '').trim().toLowerCase()
-  const name = String(request.get('repo') ?? request.get('repository') ?? '').trim()
+  const owner = String(request.getParam?.('owner') ?? request.get('owner') ?? '').trim().toLowerCase()
+  const name = String(request.getParam?.('repository') ?? request.getParam?.('repo') ?? request.get('repo') ?? request.get('repository') ?? '').trim()
 
   if (!owner || !name)
     return { ok: false, error: 'Repository not found', status: 404 }

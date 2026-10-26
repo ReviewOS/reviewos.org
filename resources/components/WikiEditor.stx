@@ -1,0 +1,26 @@
+<script server>
+export const wikiInitial = String($props.initialBody ?? '')
+export const wikiPreviewEndpoint = String($props.previewUrl)
+</script>
+<script client>
+import { previewWikiMarkdown } from '../functions/wikipreview'
+const wikiDraft = state(wikiInitial)
+const wikiPreview = state('')
+const wikiPreviewError = state('')
+const wikiPreviewLoading = state(false)
+async function showWikiPreview() {
+  wikiPreviewLoading.set(true)
+  wikiPreviewError.set('')
+  try { wikiPreview.set(await previewWikiMarkdown(wikiPreviewEndpoint, wikiDraft())) }
+  catch (error) { wikiPreviewError.set(error instanceof Error ? error.message : 'The preview could not be loaded') }
+  finally { wikiPreviewLoading.set(false) }
+}
+</script>
+
+<div class="grid gap-3">
+  <label class="grid gap-2">Markdown<textarea class="w-full font-mono field" name="body" rows="22" x-model="wikiDraft">{{ wikiInitial }}</textarea></label>
+  <div><button class="btn" type="button" @click="showWikiPreview()" :disabled="wikiPreviewLoading()">{{ wikiPreviewLoading() ? 'Rendering preview' : 'Preview Markdown' }}</button></div>
+  <p class="text-sm muted">Link to another page with [Guide](guide.md). Raw HTML and template code display as text.</p>
+  <p role="alert" x-show="wikiPreviewError()" x-text="wikiPreviewError()"></p>
+  <div class="p-5 markdown panel" aria-label="Markdown preview" aria-live="polite" x-show="wikiPreview()" x-html="wikiPreview()"></div>
+</div>

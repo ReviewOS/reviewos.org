@@ -68,6 +68,18 @@ const scopes = [
     { value: 'read', text: 'Clone and read' },
     { value: 'write', text: 'Push, and merge pull requests' },
   ] },
+  { key: 'wiki', label: 'Wiki', levels: [
+    { value: 'read', text: 'Read pages and history' },
+    { value: 'write', text: 'Write and restore pages' },
+  ] },
+  { key: 'projects', label: 'Projects', levels: [
+    { value: 'read', text: 'Read boards' },
+    { value: 'write', text: 'Manage boards and issue cards' },
+  ] },
+  { key: 'packages', label: 'Packages', levels: [
+    { value: 'read', text: 'Read and download packages' },
+    { value: 'write', text: 'Publish versions' },
+  ] },
   { key: 'issues', label: 'Issues', levels: [
     { value: 'read', text: 'Read only' },
     { value: 'write', text: 'Open, comment, label and close' },

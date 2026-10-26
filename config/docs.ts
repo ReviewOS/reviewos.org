@@ -110,6 +110,9 @@ const config: BunPressOptions = {
           items: [
             { text: 'What ReviewOS is', link: '/' },
             { text: 'Getting started', link: '/getting-started' },
+            { text: 'Package registry', link: '/registry' },
+            { text: 'Wiki', link: '/wiki' },
+            { text: 'Projects and boards', link: '/projects' },
             { text: 'Architecture', link: '/architecture' },
             { text: 'Contributing', link: '/contributing' },
           ],

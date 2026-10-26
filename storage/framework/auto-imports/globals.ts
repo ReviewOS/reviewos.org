@@ -98,6 +98,9 @@ declare global {
   const writeViewed: typeof autoImports.writeViewed
   const readDraft: typeof autoImports.readDraft
   const writeDraft: typeof autoImports.writeDraft
+  const wikiForView: typeof autoImports.wikiForView
+  const projectsForView: typeof autoImports.projectsForView
+  const packagesForView: typeof autoImports.packagesForView
   const viewerFromCookies: typeof autoImports.viewerFromCookies
   const cookieJarFromHeader: typeof autoImports.cookieJarFromHeader
   const ownersForCreate: typeof autoImports.ownersForCreate
@@ -274,6 +277,7 @@ declare global {
   const isNotFalse: typeof autoImports.isNotFalse
   const settingsFor: typeof autoImports.settingsFor
   const resolveVariables: typeof autoImports.resolveVariables
+  const previewWikiMarkdown: typeof autoImports.previewWikiMarkdown
 }
 
 export {}

@@ -28,6 +28,9 @@ const base = `/${ownerHandle}/${repositoryName}`
     <a class="repo-tab {{ current === 'code' ? 'is-current' : '' }}" href="{{ base }}">Code</a>
     <a class="repo-tab {{ current === 'pulls' ? 'is-current' : '' }}" href="{{ base }}/pulls">Pull requests</a>
     <a class="repo-tab {{ current === 'issues' ? 'is-current' : '' }}" href="{{ base }}/issues">Issues</a>
+    <a class="repo-tab {{ current === 'projects' ? 'is-current' : '' }}" href="{{ base }}/projects">Projects</a>
+    <a class="repo-tab {{ current === 'wiki' ? 'is-current' : '' }}" href="{{ base }}/wiki">Wiki</a>
+    <a class="repo-tab {{ current === 'packages' ? 'is-current' : '' }}" href="{{ base }}/packages">Packages</a>
     <a class="repo-tab {{ current === 'runs' ? 'is-current' : '' }}" href="{{ base }}/runs">Runs</a>
     <a class="repo-tab {{ current === 'tests' ? 'is-current' : '' }}" href="{{ base }}/tests">Tests</a>
     <a class="repo-tab {{ current === 'insight' ? 'is-current' : '' }}" href="{{ base }}/insight">Insight</a>

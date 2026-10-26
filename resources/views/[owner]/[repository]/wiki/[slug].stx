@@ -1,0 +1,75 @@
+<script server>
+import { wikiForView } from '../../../../functions/forge'
+const tool = await wikiForView(String(params.owner), String(params.repository), __stxServeContext?.cookies, String(params.slug), useRoute().query ?? {})
+if (tool.status !== 200) setResponseStatus(tool.status)
+</script>
+
+@layout('app')
+@section('title', `Wiki · ${params.owner}/${params.repository}`)
+@section('description', 'Read, edit and restore a repository wiki page.')
+@section('content')
+<div class="forge-tools page">
+<ForgeToolsStyle />
+  @if (tool.status !== 200)
+    <PageEmpty title="No such wiki page" detail="The page or revision is unavailable." />
+  @else
+    <RepoTabs owner="{{ tool.owner }}" repository="{{ tool.repository }}" active="wiki" />
+    <header class="flex flex-wrap gap-3 items-center justify-between py-6">
+      <div><a class="text-sm muted" href="{{ tool.base }}/wiki">Wiki</a><h1 class="mt-2 font-semibold text-2xl">{{ tool.selected.title }}</h1><p class="mt-2 text-sm muted">{{ tool.page.slug }}.md · Revision {{ tool.selected.revision }}{{ tool.page.is_deleted ? ' · Deleted' : '' }}</p></div>
+      <nav class="flex flex-wrap gap-3" aria-label="Wiki page">
+        <a class="btn" href="{{ tool.api }}/wiki/{{ tool.page.slug }}?format=raw&revision={{ tool.selected.revision }}">Download Markdown</a>
+        <a class="btn" href="{{ tool.base }}/wiki/{{ tool.page.slug }}?history=1">History</a>
+        @if (tool.mayWriteWiki)
+          <a class="btn btn-primary" href="{{ tool.base }}/wiki/{{ tool.page.slug }}?edit=1{{ tool.selected.revision !== tool.page.revision ? `&revision=${tool.selected.revision}` : '' }}">{{ tool.page.is_deleted ? 'Restore page' : 'Edit page' }}</a>
+        @endif
+      </nav>
+    </header>
+    @if (tool.selected.revision !== tool.page.revision)
+      <p class="mb-5 p-4 panel">You are reading an earlier revision. <a href="{{ tool.base }}/wiki/{{ tool.page.slug }}{{ tool.page.is_deleted ? '?history=1' : '' }}">Read the current revision</a>.</p>
+    @endif
+    @if (tool.editing && tool.mayWriteWiki)
+      <form class="grid gap-4 p-5 panel" action="{{ tool.api }}/wiki/{{ tool.page.slug }}" method="post">
+        <CsrfField />
+        <input type="hidden" name="revision" value="{{ tool.page.revision }}">
+        <label class="grid gap-2">Title<input class="field" name="title" value="{{ tool.selected.title }}" required maxlength="160"></label>
+        <WikiEditor :initialBody="tool.selected.body" previewUrl="{{ tool.api }}/wiki-preview" />
+        <label class="grid gap-2">Edit summary<input class="field" name="summary" maxlength="255" value="{{ tool.selected.revision !== tool.page.revision ? `Restore revision ${tool.selected.revision}` : '' }}" placeholder="Describe this edit"></label>
+        <div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit">{{ tool.page.is_deleted ? 'Restore page' : 'Save page' }}</button><a class="btn" href="{{ tool.base }}/wiki/{{ tool.page.slug }}?history=1">Cancel</a></div>
+      </form>
+    @else
+      @if (!tool.selected.is_deleted)
+        <article class="p-6 markdown panel wiki-body">{!! tool.html !!}</article>
+      @else
+        <p class="p-6 panel">This page was deleted. Its earlier revisions are available below.</p>
+      @endif
+    @endif
+    @if (tool.showHistory)
+      <section class="mt-8" aria-label="Revision history">
+        <h2 class="mb-4 font-semibold text-lg">Revision history</h2>
+        <div class="grid gap-3">
+          @foreach (tool.history as revision)
+            <article class="flex flex-wrap gap-3 justify-between p-4 panel">
+              <div><a href="{{ tool.base }}/wiki/{{ tool.page.slug }}?history=1&revision={{ revision.revision }}">Revision {{ revision.revision }}</a><p class="mt-1">{{ revision.summary || 'Updated page' }}</p><p class="text-sm muted">{{ revision.author || 'Former contributor' }} · {{ String(revision.created_at).slice(0, 19) }} UTC</p></div>
+              @if (tool.mayWriteWiki && !revision.is_deleted)
+                <a class="btn" href="{{ tool.base }}/wiki/{{ tool.page.slug }}?edit=1&revision={{ revision.revision }}">Restore this revision</a>
+              @endif
+            </article>
+          @endforeach
+        </div>
+        @if (tool.mayWriteWiki && !tool.page.is_deleted)
+          <form class="mt-6" method="post" action="{{ tool.api }}/wiki/{{ tool.page.slug }}/delete">
+            <CsrfField /><input type="hidden" name="revision" value="{{ tool.page.revision }}">
+            <button class="btn" type="submit">Delete page, keep history</button>
+          </form>
+        @endif
+      </section>
+    @endif
+  @endif
+</div>
+@endsection
+<style>
+.wiki-body { overflow-wrap: anywhere; }
+.wiki-body pre, .wiki-body table { max-width: 100%; overflow-x: auto; }
+.wiki-body img { max-width: 100%; height: auto; }
+.wiki-body h1, .wiki-body h2, .wiki-body h3 { scroll-margin-top: 5rem; }
+</style>

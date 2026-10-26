@@ -501,7 +501,7 @@ written down here so it does not get relitigated:
       that can change branch protection and delete the repository; a workflow that needs it names
       it.
 
-      A permission this instance has no scope for - `packages`, `id-token`, `deployments` - is
+      A permission this instance has no scope for - `attestations`, `id-token`, `deployments` - is
       **recorded and returned** rather than dropped, because a token that silently grants nothing is
       a workflow that fails at the far end with no explanation. The run detail reports the scopes, the
       level of the file that decided them, and what was refused.
@@ -3424,11 +3424,6 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
 - **A hosted execution plane, for now.** Unchanged from [phase 9](./09-checks-ci.md): it does not
   begin until the threat model, isolation boundary, secret flow, cache policy, and quotas pass
   review. Everything in this file is deliberately useful with only self-hosted runners.
-- **A package registry, for now.** Buildkite sells one and it is a real gap against them. It stays on
-  the deferred list in [the index](./index.md) until the forge is good, with the standing condition
-  that when it lands, `packages:read` and `packages:write` are fine-grained token permissions from
-  the first commit ([phase 1](./01-foundation.md#access-tokens)). Writing that condition down now is
-  the entire point of naming it here.
 - **A second receive pipeline.** Push triggers consume the `push:received` event from
   [phase 2](./02-git-hosting.md), as phase 9 already says.
 - **A better workflow language.** There is a good argument that Actions YAML is not a good format,

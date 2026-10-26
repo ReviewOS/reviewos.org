@@ -42,7 +42,7 @@ const pageDescription = 'Everything ReviewOS does, grouped by what it is for: re
       <div style="flex: 1; min-width: 260px;">
         <h2 style="font-size: 21px;">Run it yourself this afternoon</h2>
         <p class="muted" style="margin-top: 8px; max-width: 52ch;">
-          One Postgres and one process. No queue cluster to operate before the first repository exists.
+          One database and one process. No queue cluster to operate before the first repository exists.
         </p>
       </div>
       <a class="btn btn-primary" href="/docs/install">Read the install guide</a>

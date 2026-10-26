@@ -249,7 +249,7 @@ describe('allowedOnArchivedRepository', () => {
   })
 
   test('every other ability is frozen', () => {
-    const exempt = new Set(['repository:read', 'repository:settings', 'repository:delete', 'repository:transfer'])
+    const exempt = new Set(['repository:read', 'wiki:read', 'project:read', 'package:read', 'repository:settings', 'repository:delete', 'repository:transfer'])
 
     for (const ability of Object.keys(REPOSITORY_ABILITIES) as (keyof typeof REPOSITORY_ABILITIES)[]) {
       if (!exempt.has(ability))

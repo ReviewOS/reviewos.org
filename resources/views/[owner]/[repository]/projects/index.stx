@@ -1,0 +1,39 @@
+<script server>
+import { projectsForView } from '../../../../functions/forge'
+const tool = await projectsForView(String(params.owner), String(params.repository), __stxServeContext?.cookies, undefined, useRoute().query ?? {})
+if (tool.status !== 200) setResponseStatus(tool.status)
+</script>
+
+@layout('app')
+@section('title', `Projects · ${params.owner}/${params.repository}`)
+@section('description', 'Plan repository work with native projects and issue boards.')
+@section('content')
+<div class="forge-tools page">
+<ForgeToolsStyle />
+  @if (!tool.exists)
+    <PageEmpty title="No such repository" detail="This repository is unavailable." />
+  @else
+    <RepoTabs owner="{{ tool.owner }}" repository="{{ tool.repository }}" active="projects" />
+    <header class="py-6"><h1 class="font-semibold text-2xl">Projects</h1><p class="mt-2 muted">Plan the work with boards connected to your issues and pull requests.</p></header>
+    @if (tool.mayManageProject)
+      <form class="grid gap-4 mb-6 p-5 panel" method="post" action="{{ tool.api }}/projects">
+        <CsrfField />
+        <h2 class="font-semibold">New project</h2>
+        <label class="grid gap-2">Title<input class="field" name="title" maxlength="160" required placeholder="Next release"></label>
+        <label class="grid gap-2">Description<textarea class="field" name="description" rows="3" placeholder="What this project delivers"></textarea></label>
+        <div><button class="btn btn-primary" type="submit">Create project</button></div>
+      </form>
+    @endif
+    @if (tool.projects.length === 0)
+      <div class="p-8 panel"><h2 class="font-semibold">Bring the backlog into focus</h2><p class="mt-2 muted">A project starts with Backlog, In progress and Done. Add your own columns and link existing issues by number.</p></div>
+    @else
+      <div class="grid gap-3">
+        @foreach (tool.projects as project)
+          <article class="p-5 panel"><div class="flex flex-wrap gap-3 items-center"><a class="font-semibold text-lg" href="{{ tool.base }}/projects/{{ project.id }}">{{ project.title }}</a><span class="text-sm muted">{{ project.state }}</span></div><p class="mt-2 muted">{{ project.description }}</p></article>
+        @endforeach
+      </div>
+    @endif
+    <ForgePagination base="{{ tool.base }}/projects" :offset="tool.offset" :nextOffset="tool.nextOffset" />
+  @endif
+</div>
+@endsection

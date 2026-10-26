@@ -233,6 +233,9 @@
             "hasDefault": false,
             "enumValues": [
               "contents",
+              "wiki",
+              "projects",
+              "packages",
               "issues",
               "pull_requests",
               "webhooks",
@@ -15495,10 +15498,596 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "projects",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 160
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "state",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "open",
+            "enumValues": [
+              "open",
+              "closed"
+            ],
+            "enumTypeName": "projects_state_type"
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "projects_repository_state_index",
+            "columns": [
+              "repository_id",
+              "state"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "project_columns",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "project_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "projects",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 160
+          },
+          {
+            "name": "position",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "project_columns_project_position_index",
+            "columns": [
+              "project_id",
+              "position"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "project_items",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "project_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "projects",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "project_column_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "project_columns",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "issue_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "issues",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "position",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "project_items_project_issue_index",
+            "columns": [
+              "project_id",
+              "issue_id"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "project_items_column_position_index",
+            "columns": [
+              "project_column_id",
+              "position"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "registry_packages",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "set null"
+            }
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 214
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "registry_packages_name_index",
+            "columns": [
+              "name"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "registry_packages_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "wiki_pages",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "slug",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 160
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
+          },
+          {
+            "name": "is_deleted",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "wiki_pages_repository_slug_index",
+            "columns": [
+              "repository_id",
+              "slug"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "wiki_revisions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "wiki_page_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "wiki_pages",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "author_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 160
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "summary",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "",
+            "maxLength": 255
+          },
+          {
+            "name": "is_deleted",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "wiki_revisions_page_revision_index",
+            "columns": [
+              "wiki_page_id",
+              "revision"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "64f051c6d986a3c52be22027dc29fda4ce0591675e8b21fa3c9c2134041a33b4",
+  "hash": "f3cd08ccf45b44477b44cfab532e734f7e70886caa662c34c81c2fe9ccadf4b2",
   "dialect": "mysql",
-  "updatedAt": "2026-10-26T15:50:06.770Z"
+  "updatedAt": "2026-10-26T17:56:52.461Z"
 }

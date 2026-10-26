@@ -1374,6 +1374,139 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/{owner}/{repository}/projects
+   */
+  getReposOwnerRepositoryProjects(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/projects", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects
+   */
+  postReposOwnerRepositoryProjects(input: { "owner": string; "repository": string; body: { "title": string; "description"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/projects/{project}
+   */
+  getReposOwnerRepositoryProjectsProject(input: { "owner": string; "repository": string; "project": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/projects/{project}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects/{project}
+   */
+  postReposOwnerRepositoryProjectsProject(input: { "owner": string; "repository": string; "project": string; body?: { "title"?: string; "description"?: string; "state"?: string; "revision"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects/{project}", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects/{project}/columns
+   */
+  postReposOwnerRepositoryProjectsProjectColumns(input: { "owner": string; "repository": string; "project": string; body?: { "title"?: string; "operation"?: string; "column_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects/{project}/columns", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects/{project}/items
+   */
+  postReposOwnerRepositoryProjectsProjectItems(input: { "owner": string; "repository": string; "project": string; body?: { "number"?: unknown; "column_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects/{project}/items", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects/{project}/items/{item}/move
+   */
+  postReposOwnerRepositoryProjectsProjectItemsItemMove(input: { "owner": string; "repository": string; "project": string; "item": string; body?: { "column_id"?: unknown; "before_item_id"?: unknown; "revision"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/move", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/projects/{project}/items/{item}/remove
+   */
+  postReposOwnerRepositoryProjectsProjectItemsItemRemove(input: { "owner": string; "repository": string; "project": string; "item": string; body?: { "revision"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/remove", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/registry
+   */
+  getReposOwnerRepositoryRegistry(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/registry", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/registry/packages/{scope}/{package}
+   */
+  getReposOwnerRepositoryRegistryPackagesScopePackage(input: { "owner": string; "repository": string; "scope": string; "package": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}
+   */
+  getReposOwnerRepositoryRegistryPackagesScopePackageVersion(input: { "owner": string; "repository": string; "scope": string; "package": string; "version": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball
+   */
+  getReposOwnerRepositoryRegistryPackagesScopePackageVersionTarball(input: { "owner": string; "repository": string; "scope": string; "package": string; "version": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/registry/publish
+   */
+  postReposOwnerRepositoryRegistryPublish(input: { "owner": string; "repository": string; body?: { "metadata"?: unknown; "name"?: string; "version"?: string; "description"?: string; "license"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/registry/publish", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/wiki
+   */
+  getReposOwnerRepositoryWiki(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/wiki", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/wiki
+   */
+  postReposOwnerRepositoryWiki(input: { "owner": string; "repository": string; body: { "title": string; "slug"?: string; "body"?: string; "summary"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/wiki", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/wiki-preview
+   */
+  postReposOwnerRepositoryWikiPreview(input: { "owner": string; "repository": string; body?: { "body"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/wiki-preview", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/repos/{owner}/{repository}/wiki/{slug}
+   */
+  getReposOwnerRepositoryWikiSlug(input: { "owner": string; "repository": string; "slug": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/{owner}/{repository}/wiki/{slug}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/wiki/{slug}
+   */
+  postReposOwnerRepositoryWikiSlug(input: { "owner": string; "repository": string; "slug": string; body: { "title": string; "body"?: string; "revision"?: unknown; "summary"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/wiki/{slug}", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/{owner}/{repository}/wiki/{slug}/delete
+   */
+  postReposOwnerRepositoryWikiSlugDelete(input: { "owner": string; "repository": string; "slug": string; body?: { "revision"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/{owner}/{repository}/wiki/{slug}/delete", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/reviews/queue
    */
   getReviewsQueue(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -7,7 +7,7 @@
  * translated rather than adopted. A workflow written for GitHub has to keep
  * meaning what it meant, and a scope this instance does not have must be
  * *recorded and refused* rather than quietly ignored - a token that silently
- * grants nothing for `packages: write` is a workflow that fails at the far end
+ * grants nothing for `attestations: write` is a workflow that fails at the far end
  * with no explanation.
  *
  * **The default is read-only, and the default is what most workflows get.**
@@ -26,6 +26,9 @@ import type { RepositoryScope, TokenLevel } from '../../TokenScopes'
 /** GitHub's permission keys, mapped onto this instance's scopes. */
 const SCOPE_NAMES: Record<string, RepositoryScope> = {
   'contents': 'contents',
+  'packages': 'packages',
+  'projects': 'projects',
+  'wiki': 'wiki',
   'issues': 'issues',
   'pull-requests': 'pull_requests',
   'checks': 'checks',
@@ -40,7 +43,7 @@ const SCOPE_NAMES: Record<string, RepositoryScope> = {
  * Keys Actions defines that this instance has no scope for.
  *
  * Named rather than lumped in with typos, because the two need different
- * answers: `packages: write` is a real permission for a feature that does not
+ * answers: `attestations: write` is a real permission for a feature that does not
  * exist here, and the workflow's author deserves to be told that rather than
  * left wondering. A typo is a typo.
  */
@@ -51,7 +54,6 @@ const UNIMPLEMENTED = new Set([
   'discussions',
   'id-token',
   'models',
-  'packages',
   'pages',
   'security-events',
 ])

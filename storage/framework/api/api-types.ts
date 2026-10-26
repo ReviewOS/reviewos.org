@@ -4238,6 +4238,403 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/{owner}/{repository}/projects": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "title": string; "description"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/projects/{project}": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "title"?: string; "description"?: string; "state"?: string; "revision"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/projects/{project}/columns": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "title"?: string; "operation"?: string; "column_id"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/projects/{project}/items": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "number"?: unknown; "column_id"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/move": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string; "item": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "column_id"?: unknown; "before_item_id"?: unknown; "revision"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/remove": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "project": string; "item": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "revision"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/registry": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "scope": string; "package": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "scope": string; "package": string; "version": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "scope": string; "package": string; "version": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/registry/publish": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "metadata"?: unknown; "name"?: string; "version"?: string; "description"?: string; "license"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/wiki": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "title": string; "slug"?: string; "body"?: string; "summary"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/wiki-preview": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "body"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/wiki/{slug}": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "slug": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "slug": string }
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "title": string; "body"?: string; "revision"?: unknown; "summary"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/{owner}/{repository}/wiki/{slug}/delete": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repository": string; "slug": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "revision"?: unknown } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/reviews/queue": {
     get: {
     parameters: {

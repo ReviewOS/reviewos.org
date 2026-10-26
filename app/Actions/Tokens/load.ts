@@ -27,6 +27,9 @@ import { maskToken } from './secret'
  * something needs the sentence.
  */
 const SCOPE_SENTENCES: Record<string, { read: string, write: string, admin: string }> = {
+  wiki: { read: 'Read wiki pages and history', write: 'Write and restore wiki pages', admin: 'Write and restore wiki pages' },
+  projects: { read: 'Read projects and boards', write: 'Manage projects, columns and issue cards', admin: 'Manage projects, columns and issue cards' },
+  packages: { read: 'Read and download packages', write: 'Publish package versions', admin: 'Publish package versions' },
   contents: {
     read: 'Clone and read code',
     write: 'Push code, and merge pull requests',

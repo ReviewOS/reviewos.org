@@ -33,6 +33,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (37/37) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (15/15) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (25/25) |
+| [19 - Native repository tools](./19-native-tools.md) | Pantry registry, BunPress wiki, issue project boards | Complete (19/19) |
 
 Phases 16 through 18 were written after reading Cursor's
 [Git at any scale](https://cursor.com/blog/git-at-any-scale) and auditing this codebase against it.
@@ -397,18 +398,10 @@ Two upstream fixes are waiting on that:
   With the fixed pickier this repository lints with **zero errors**. Until it is released here,
   those four are noise to be ignored rather than markdown to be rewritten.
 
-## Deliberately not doing yet
+## Deliberately deferred
 
 Naming these keeps them from being re-proposed every few weeks:
 
-- **A package registry.** Out of scope until the forge itself is good, and it stays out of scope even
-  though Buildkite sells one and [phase 15](./15-pipelines.md) counts it as a real gap
-  against them. When it is reconsidered, its permissions (`packages:read`, `packages:write`) are
-  fine-grained token permissions from the first commit. See the rule in
-  [phase 1](./01-foundation.md#access-tokens): there is no second token type to fall back to, which
-  is exactly the trap this project is avoiding.
-- **A wiki.** Repository markdown files cover most of the need.
-- **Projects and boards.** Issues with labels and milestones first.
 - **In-browser editing.** A pull request from the browser is a phase 4 concern at the earliest.
 - **An unreviewed hosted CI execution plane.** Phase 9 starts with status and check APIs, then a
   provider-neutral workflow control plane that self-hosted or external runners can consume. Running

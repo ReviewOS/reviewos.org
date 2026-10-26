@@ -51,10 +51,14 @@ describe('reading a permissions block', () => {
    * a workflow that fails at the far end with no explanation.
    */
   test('a permission this instance cannot grant is recorded, not ignored', () => {
-    const read = permissionsFrom({ 'packages': 'write', 'id-token': 'write', 'contents': 'read' })
+    const read = permissionsFrom({ 'attestations': 'write', 'id-token': 'write', 'contents': 'read' })
 
-    expect(read?.unsupported).toEqual(['packages', 'id-token'])
+    expect(read?.unsupported).toEqual(['attestations', 'id-token'])
     expect(read?.granted).toEqual({ contents: 'read' })
+  })
+
+  test('native package publishing and project tools have their own permissions', () => {
+    expect(permissionsFrom({ packages: 'write', projects: 'write', wiki: 'read' })?.granted).toEqual({ packages: 'write', projects: 'write', wiki: 'read' })
   })
 
   test('a typo grants nothing and is not reported as unimplemented', () => {

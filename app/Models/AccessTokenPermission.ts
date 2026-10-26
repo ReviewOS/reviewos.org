@@ -45,6 +45,9 @@ export default defineModel({
       validation: {
         rule: schema.enum([
           'contents',
+          'wiki',
+          'projects',
+          'packages',
           'issues',
           'pull_requests',
           'webhooks',

@@ -18,7 +18,7 @@ features:
   - title: Stacked pull requests
     details: Dependent changes that merge in order, so a large piece of work can be reviewed in pieces that each make sense.
   - title: Yours to host
-    details: Your repositories on your disk, your data in your Postgres. No seat counts and no plan tiers.
+    details: Your repositories on your disk, your data in your database. No seat counts and no plan tiers.
 ---
 
 ## What this is

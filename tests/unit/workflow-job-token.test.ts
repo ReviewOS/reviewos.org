@@ -32,16 +32,16 @@ describe('what a job\'s token may do', () => {
   })
 
   test('and a key this instance has no scope for is reported rather than ignored', () => {
-    // `packages: write` is a real permission for a feature that does not exist
+    // `attestations: write` is a real permission for a feature that does not exist
     // here, and the author deserves to be told rather than left wondering why
     // the far end refuses.
     const grants = grantsFor({
-      workflowPermissions: { 'contents': 'read', 'packages': 'write' },
+      workflowPermissions: { 'contents': 'read', 'attestations': 'write' },
       jobPermissions: null,
       trusted: true,
     })
 
-    expect(grants.unsupported).toContain('packages')
+    expect(grants.unsupported).toContain('attestations')
   })
 })
 

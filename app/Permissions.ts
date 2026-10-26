@@ -52,6 +52,13 @@ export const REPOSITORY_ABILITIES = {
   'pull:close': 'triage',
   'pull:request-review': 'triage',
   'repository:push': 'write',
+  'wiki:read': 'read',
+  'wiki:write': 'write',
+  'project:read': 'read',
+  'project:manage': 'write',
+  'project:move': 'triage',
+  'package:read': 'read',
+  'package:publish': 'write',
   // Reporting facts about a commit - a check, a coverage report - is a
   // write, and phase 09 wants it separate from permission to push code: a
   // reporter that can only report cannot also rewrite history.
@@ -136,6 +143,9 @@ export type RepositoryAbility = keyof typeof REPOSITORY_ABILITIES
  */
 export const ARCHIVE_EXEMPT_ABILITIES = new Set<RepositoryAbility>([
   'repository:read',
+  'wiki:read',
+  'project:read',
+  'package:read',
   'repository:settings',
   'repository:delete',
   'repository:transfer',

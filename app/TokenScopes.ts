@@ -30,6 +30,9 @@ export type TokenLevel = typeof TOKEN_LEVELS[number]
 
 export const REPOSITORY_SCOPES = [
   'contents',
+  'wiki',
+  'projects',
+  'packages',
   'issues',
   'pull_requests',
   'webhooks',
@@ -100,6 +103,13 @@ export interface TokenRequirement<Scope extends TokenScope> {
 export const REPOSITORY_ABILITY_SCOPES = {
   'repository:read': { scope: 'contents', level: 'read' },
   'repository:push': { scope: 'contents', level: 'write' },
+  'wiki:read': { scope: 'wiki', level: 'read' },
+  'wiki:write': { scope: 'wiki', level: 'write' },
+  'project:read': { scope: 'projects', level: 'read' },
+  'project:manage': { scope: 'projects', level: 'write' },
+  'project:move': { scope: 'projects', level: 'write' },
+  'package:read': { scope: 'packages', level: 'read' },
+  'package:publish': { scope: 'packages', level: 'write' },
   'pull:merge': { scope: 'contents', level: 'write' },
   'check:report': { scope: 'checks', level: 'write' },
 

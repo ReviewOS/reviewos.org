@@ -109,7 +109,7 @@ const capabilities = [
     points: [],
   },
   {
-    title: 'One Postgres, one process',
+    title: 'One database, one process',
     text: 'No queue cluster to operate before the first repository exists. Scale the parts that need it, later.',
     icon: 'i-hugeicons-database',
     size: 'wide',
@@ -132,11 +132,10 @@ const capabilities = [
  */
 const phases = await landingPhases()
 
-const nots = [
-  { title: 'A package registry', text: 'Not until the forge itself is good.' },
-  { title: 'A wiki', text: 'Markdown in the repository covers most of it.' },
-  { title: 'Projects and boards', text: 'Issues, labels, and milestones come first.' },
-  { title: 'A hosted CI execution plane', text: 'Self-hosted runners work now. Running untrusted code on instance-managed infrastructure still needs a reviewed isolation model.' },
+const nativeTools = [
+  { title: 'Native package registry', text: 'Publish, version and download packages with Pantry. Repository access and package token permissions apply to every request.', href: '/docs/registry', icon: 'i-hugeicons-package' },
+  { title: 'Markdown wiki', text: 'Write documentation in Markdown, link pages together, and restore any earlier revision. Powered by BunPress.', href: '/docs/wiki', icon: 'i-hugeicons-book-open-01' },
+  { title: 'Projects and boards', text: 'Plan work with configurable boards linked to real issues and pull requests. Move a card and keep the conversation attached.', href: '/docs/projects', icon: 'i-hugeicons-task-01' },
 ]
 </script>
 
@@ -683,28 +682,28 @@ const nots = [
 
       .phase-note a { color: var(--accent-text); font-weight: 500; }
 
-      /* Not doing */
-      .nots {
+      /* Native repository tools */
+      .native-tools {
         margin-top: 40px;
         display: grid;
         gap: 30px 44px;
         grid-template-columns: 1fr;
       }
 
-      .nots h3 {
+      .native-tools h3 {
         font-size: 1.02rem;
         display: flex;
         align-items: center;
         gap: 9px;
       }
 
-      .nots i {
+      .native-tools i {
         width: 17px;
         height: 17px;
         color: var(--muted);
       }
 
-      .nots p {
+      .native-tools p {
         margin-top: 7px;
         color: var(--muted);
         font-size: 15px;
@@ -862,7 +861,7 @@ const nots = [
         .highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .hero { padding-top: 96px; }
         .thesis-quote { grid-template-columns: 1.05fr 1fr; gap: 56px; }
-        .nots { grid-template-columns: 1fr 1fr; }
+        .native-tools { grid-template-columns: 1fr; }
         .host { grid-template-columns: 1fr 1fr; gap: 56px; }
         {{-- Two columns of links at this width, wrapping. The footer carries
             Use cases and Compare now that they are off the top bar, so it is
@@ -950,7 +949,7 @@ const nots = [
             <i class="i-hugeicons-command-line" aria-hidden="true"></i>
             reviewos.localhost
           </div>
-          <pre><code><span class="comment"># Bun, PostgreSQL and git are installed and started for you</span>
+          <pre><code><span class="comment"># Bun, MySQL and git are installed and started for you</span>
 <span class="prompt">$</span> ./buddy setup
 <span class="prompt">$</span> ./buddy dev
 
@@ -1088,18 +1087,18 @@ const nots = [
       </section>
 
       <section class="section section-sep shell">
-        <h2 class="section-title">Deliberately not doing</h2>
+        <h2 class="section-title">More of the forge, built in</h2>
         <p class="section-lede">
-          Saying so keeps these from being re-proposed every few weeks, and keeps the roadmap
-          readable.
+          Packages, documentation and project planning belong beside the code.
+          The same repository, the same permissions, and tools we build ourselves.
         </p>
 
-        <div class="nots">
-          @foreach (nots as item)
+        <div class="native-tools">
+          @foreach (nativeTools as item)
             <div>
               <h3>
-                <i class="i-hugeicons-minus-sign-circle" aria-hidden="true"></i>
-                {{ item.title }}
+                <i class="{{ item.icon }}" aria-hidden="true"></i>
+                <a href="{{ item.href }}">{{ item.title }}</a>
               </h3>
               <p>{{ item.text }}</p>
             </div>
@@ -1119,7 +1118,7 @@ const nots = [
 
             <div class="host-reqs">
               <span class="chip">Bun 1.3.14</span>
-              <span class="chip">PostgreSQL 17</span>
+              <span class="chip">MySQL or Postgres</span>
               <span class="chip">git 2.47</span>
               <span class="chip">MIT</span>
             </div>
@@ -1134,7 +1133,7 @@ const nots = [
 <span class="prompt">$</span> cd reviewos.org
 <span class="prompt">$</span> ./buddy setup
 
-<span class="comment"># PostgreSQL started, database created, migrations applied</span>
+<span class="comment"># Database started, created, and migrations applied</span>
 <span class="prompt">$</span> ./buddy dev</code></pre>
           </div>
         </div>

@@ -1,0 +1,49 @@
+<script server>
+import { wikiForView } from '../../../../functions/forge'
+const tool = await wikiForView(String(params.owner), String(params.repository), __stxServeContext?.cookies, undefined, useRoute().query ?? {})
+if (tool.status !== 200) setResponseStatus(tool.status)
+</script>
+
+@layout('app')
+@section('title', `Wiki · ${params.owner}/${params.repository}`)
+@section('description', 'Markdown documentation and page history for this repository.')
+@section('content')
+<div class="forge-tools page">
+<ForgeToolsStyle />
+  @if (!tool.exists)
+    <PageEmpty title="No such repository" detail="This repository is unavailable." />
+  @else
+    <RepoTabs owner="{{ tool.owner }}" repository="{{ tool.repository }}" active="wiki" />
+    <header class="flex flex-wrap gap-3 items-center justify-between py-6">
+      <div><h1 class="font-semibold text-2xl">Wiki</h1><p class="mt-2 muted">Markdown documentation, with a history of every edit.</p></div>
+      @if (tool.mayWriteWiki)
+        <a class="btn btn-primary" href="{{ tool.base }}/wiki?new=1">New page</a>
+      @endif
+    </header>
+    @if (tool.creating && tool.mayWriteWiki)
+      <form class="grid gap-4 mb-6 p-5 panel" action="{{ tool.api }}/wiki" method="post">
+        <CsrfField />
+        <h2 class="font-semibold text-lg">New wiki page</h2>
+        <label class="grid gap-2">Title<input class="field" name="title" required maxlength="160" placeholder="Getting started"></label>
+        <label class="grid gap-2">Page name<input class="field" name="slug" maxlength="120" pattern="[A-Za-z0-9][A-Za-z0-9-]*" placeholder="getting-started"><span class="text-sm muted">Used in links. Leave blank to use the title.</span></label>
+        <WikiEditor previewUrl="{{ tool.api }}/wiki-preview" />
+        <label class="grid gap-2">Edit summary<input class="field" name="summary" maxlength="255" placeholder="Add the installation guide"></label>
+        <div class="flex gap-3"><button class="btn btn-primary" type="submit">Create page</button><a class="btn" href="{{ tool.base }}/wiki">Cancel</a></div>
+      </form>
+    @endif
+    @if (tool.pages.length === 0)
+      <div class="p-8 panel"><h2 class="font-semibold">Document this repository</h2><p class="mt-2 muted">Add a home page, setup instructions or design decisions. Wiki pages inherit repository access.</p></div>
+    @else
+      <div class="grid gap-3">
+        @foreach (tool.pages as entry)
+          <article class="flex flex-wrap gap-3 items-center justify-between p-4 panel">
+            <div><a class="font-semibold" href="{{ tool.base }}/wiki/{{ entry.slug }}{{ entry.is_deleted ? '?history=1' : '' }}">{{ entry.title }}</a><p class="mt-1 text-sm muted">{{ entry.slug }}.md · Revision {{ entry.revision }}{{ entry.is_deleted ? ' · Deleted, history retained' : '' }}</p></div>
+            <a href="{{ tool.base }}/wiki/{{ entry.slug }}?history=1" class="text-sm muted">History</a>
+          </article>
+        @endforeach
+      </div>
+    @endif
+    <ForgePagination base="{{ tool.base }}/wiki" :offset="tool.offset" :nextOffset="tool.nextOffset" />
+  @endif
+</div>
+@endsection

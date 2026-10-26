@@ -101,7 +101,7 @@ export const FEATURES: readonly FeatureLink[] = [
   {
     slug: 'self-hosting',
     name: 'Self-hosting without a cluster',
-    summary: 'One Postgres and one process. Scale the parts that need it, later.',
+    summary: 'One database and one process. Scale the parts that need it, later.',
     icon: 'i-hugeicons-server-stack-01',
     group: 'Operations',
   },

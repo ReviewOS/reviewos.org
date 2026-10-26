@@ -16496,6 +16496,1184 @@
         }
       }
     },
+    "/api/repos/{owner}/{repository}/projects": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/projects",
+        "operationId": "get__api_repos__owner___repository__projects",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects",
+        "operationId": "post__api_repos__owner___repository__projects",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/projects/{project}": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}",
+        "operationId": "get__api_repos__owner___repository__projects__project_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}",
+        "operationId": "post__api_repos__owner___repository__projects__project_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/projects/{project}/columns": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}/columns",
+        "operationId": "post__api_repos__owner___repository__projects__project__columns",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "column_id": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/projects/{project}/items": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}/items",
+        "operationId": "post__api_repos__owner___repository__projects__project__items",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "custom"
+                  },
+                  "column_id": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/move": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/move",
+        "operationId": "post__api_repos__owner___repository__projects__project__items__item__move",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "column_id": {
+                    "type": "custom"
+                  },
+                  "before_item_id": {
+                    "type": "custom"
+                  },
+                  "revision": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/remove": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/projects/{project}/items/{item}/remove",
+        "operationId": "post__api_repos__owner___repository__projects__project__items__item__remove",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/registry": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/registry",
+        "operationId": "get__api_repos__owner___repository__registry",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}",
+        "operationId": "get__api_repos__owner___repository__registry_packages__scope___package_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "package",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}",
+        "operationId": "get__api_repos__owner___repository__registry_packages__scope___package___version_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "package",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball",
+        "operationId": "get__api_repos__owner___repository__registry_packages__scope___package___version__tarball",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "package",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/registry/publish": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/registry/publish",
+        "operationId": "post__api_repos__owner___repository__registry_publish",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "metadata": {
+                    "type": "custom"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "license": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/wiki": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/wiki",
+        "operationId": "get__api_repos__owner___repository__wiki",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/wiki",
+        "operationId": "post__api_repos__owner___repository__wiki",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/wiki-preview": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/wiki-preview",
+        "operationId": "post__api_repos__owner___repository__wiki_preview",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/wiki/{slug}": {
+      "get": {
+        "summary": "/api/repos/{owner}/{repository}/wiki/{slug}",
+        "operationId": "get__api_repos__owner___repository__wiki__slug_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/wiki/{slug}",
+        "operationId": "post__api_repos__owner___repository__wiki__slug_",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "custom"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repository}/wiki/{slug}/delete": {
+      "post": {
+        "summary": "/api/repos/{owner}/{repository}/wiki/{slug}/delete",
+        "operationId": "post__api_repos__owner___repository__wiki__slug__delete",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "custom"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reviews/queue": {
       "get": {
         "summary": "/api/reviews/queue",

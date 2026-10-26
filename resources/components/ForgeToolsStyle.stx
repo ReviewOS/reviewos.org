@@ -1,0 +1,10 @@
+<style>
+.forge-tools .field { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-control, 6px); padding: 9px 11px; color: var(--text); background: var(--surface); font: inherit; }
+.forge-tools .field::placeholder { color: var(--muted); opacity: 1; }
+.forge-tools .field:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.forge-tools textarea.field { line-height: 1.6; resize: vertical; }
+.forge-tools .btn { white-space: nowrap; }
+.forge-tools summary { cursor: pointer; }
+.forge-tools input[type='file'] { max-width: 100%; }
+.forge-tools pre { padding: 14px; border-radius: 6px; background: var(--surface-tint); }
+</style>

@@ -1258,3 +1258,25 @@ route.get('/repos/workflow-runs/artifact', 'Actions/Workflow/DownloadArtifactAct
  * actually wants.
  */
 route.get('/repos/workflow-runs/artifacts/archive', 'Actions/Workflow/DownloadArtifactSetAction')
+
+route.post('/repos/{owner}/{repository}/wiki-preview', 'Actions/Wiki/PreviewWikiAction')
+
+// Repository tools share the forge's permissions and fine-grained token reach.
+route.get('/repos/{owner}/{repository}/wiki', 'Actions/Wiki/ListWikiAction')
+route.post('/repos/{owner}/{repository}/wiki', 'Actions/Wiki/CreateWikiAction')
+route.get('/repos/{owner}/{repository}/wiki/{slug}', 'Actions/Wiki/ShowWikiAction')
+route.post('/repos/{owner}/{repository}/wiki/{slug}', 'Actions/Wiki/SaveWikiAction')
+route.post('/repos/{owner}/{repository}/wiki/{slug}/delete', 'Actions/Wiki/DeleteWikiAction')
+route.get('/repos/{owner}/{repository}/projects', 'Actions/Project/ListProjectsAction')
+route.post('/repos/{owner}/{repository}/projects', 'Actions/Project/CreateProjectAction')
+route.get('/repos/{owner}/{repository}/projects/{project}', 'Actions/Project/ShowProjectAction')
+route.post('/repos/{owner}/{repository}/projects/{project}', 'Actions/Project/UpdateProjectAction')
+route.post('/repos/{owner}/{repository}/projects/{project}/columns', 'Actions/Project/ManageColumnAction')
+route.post('/repos/{owner}/{repository}/projects/{project}/items', 'Actions/Project/AddProjectItemAction')
+route.post('/repos/{owner}/{repository}/projects/{project}/items/{item}/move', 'Actions/Project/MoveProjectItemAction')
+route.post('/repos/{owner}/{repository}/projects/{project}/items/{item}/remove', 'Actions/Project/RemoveProjectItemAction')
+route.get('/repos/{owner}/{repository}/registry', 'Actions/Registry/ListPackagesAction')
+route.post('/repos/{owner}/{repository}/registry/publish', 'Actions/Registry/PublishPackageAction')
+route.get('/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}/tarball', 'Actions/Registry/DownloadPackageAction')
+route.get('/repos/{owner}/{repository}/registry/packages/{scope}/{package}/{version}', 'Actions/Registry/ShowPackageAction')
+route.get('/repos/{owner}/{repository}/registry/packages/{scope}/{package}', 'Actions/Registry/ShowPackageAction')

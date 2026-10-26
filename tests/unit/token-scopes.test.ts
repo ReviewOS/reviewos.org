@@ -54,6 +54,9 @@ describe('the permission surface is complete', () => {
   test('a token granted everything can do everything a user can', () => {
     const everything = [
       { scope: 'contents' as const, level: 'admin' as const },
+      { scope: 'wiki' as const, level: 'admin' as const },
+      { scope: 'projects' as const, level: 'admin' as const },
+      { scope: 'packages' as const, level: 'admin' as const },
       { scope: 'issues' as const, level: 'admin' as const },
       { scope: 'pull_requests' as const, level: 'admin' as const },
       { scope: 'webhooks' as const, level: 'admin' as const },
@@ -230,7 +233,7 @@ describe('normalizeGrants', () => {
     // can tell from the response what it actually got.
     const grants = normalizeGrants([
       { scope: 'contents', level: 'read' },
-      { scope: 'packages', level: 'read' },
+      { scope: 'future_scope', level: 'read' },
     ])
 
     expect(grants).toEqual([{ scope: 'contents', level: 'read' }])
@@ -342,6 +345,9 @@ describe('the pipeline powers are separable', () => {
   test('nothing about a repository reaches the fleet', () => {
     const everythingRepository = [
       { scope: 'contents' as const, level: 'admin' as const },
+      { scope: 'wiki' as const, level: 'admin' as const },
+      { scope: 'projects' as const, level: 'admin' as const },
+      { scope: 'packages' as const, level: 'admin' as const },
       { scope: 'administration' as const, level: 'admin' as const },
       { scope: 'actions' as const, level: 'admin' as const },
     ]

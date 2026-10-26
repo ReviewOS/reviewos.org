@@ -1273,6 +1273,20 @@ because idle is its own rule rather than a tiebreak.
 
 Read by `app/Actions/Workflow/cacheCollect.ts`.
 
+### `REVIEWOS_REGISTRY_URL`
+
+Default: `http://127.0.0.1:8210`, and the line is commented out.
+
+Private Pantry package engine. Use the forge's registry URL for clients.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
+### `REVIEWOS_REGISTRY_TOKEN`
+
+Default: unset.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
 ## Screenshots
 
 ### `SCREENSHOT_URL`
