@@ -921,6 +921,18 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
   `/pull/1#comment-206` with both comments in place, and checked the issue page still renders its
   own conversation after the extraction, reactions and counts included.
 
+  **Reactions work on a change, and pressing one no longer strands you either.** Driven through
+  the picker on a pull request: the eight buttons open from `?react=body`, a press records, a
+  second press removes it, and the counts render. It resolves through the same shadow row, since
+  `ReactAction` reads the number out of `issues` exactly as the comment endpoint does.
+
+  It had the same JSON problem, and for the same reason - every reaction is its own single-button
+  form - so it answered `{"number":1,"comment_id":null,"content":"rocket","reacted":true}` and left
+  the reader there. It redirects to the post that was reacted to rather than the top of the page:
+  a two-hundred-comment conversation that scrolls back to the beginning every time somebody presses
+  an emoji would be worse than no redirect at all. Checked on an issue as well as a change, since
+  the two share the endpoint.
+
   **One regression nearly shipped, and the suite caught it.** The first version treated a missing
   shadow row as "no conversation" and returned an empty opening post with it - so a change without
   one lost its **description**, not just its comments. That is not a corner: a mirrored pull

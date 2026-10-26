@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { wantsHtml } from '../Auth/session'
 import { schema } from '@stacksjs/validation'
 import { isReaction } from '../Markdown/emoji'
 import { authorizeRepository } from '../Repo/authorize'
@@ -57,7 +58,7 @@ export default new Action({
     const number = Number(request.get('number'))
     const issue = await db
       .selectFrom('issues')
-      .select(['id', 'locked'])
+      .select(['id', 'locked', 'is_pull_request'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -91,6 +92,29 @@ export default new Action({
       : { type: 'issue' as const, id: Number(issue.id) }
 
     const result = await toggleReaction(subject, user.id, content)
+
+    /*
+     * A browser gets the page back, not the JSON.
+     *
+     * Every reaction is its own single-button form, because the pages run no
+     * client-side JavaScript - so pressing one left the reader looking at
+     * `{"number":1,"comment_id":null,"content":"rocket","reacted":true}` with
+     * the reaction saved and the back button as the way out. The same shape
+     * `CommentOnIssueAction` answers with, and the same `wantsHtml` deciding
+     * it, so the two controls on a conversation behave alike.
+     *
+     * Back to the post that was reacted to rather than the top of the page: a
+     * two-hundred-comment conversation that scrolls to the beginning every
+     * time somebody presses an emoji is worse than no redirect at all.
+     */
+    if (wantsHtml(request)) {
+      const ownerHandle = encodeURIComponent(String(request.get('owner') ?? '').trim().toLowerCase())
+      const repositoryName = encodeURIComponent(String(repository.name))
+      const kind = issue.is_pull_request ? 'pull' : 'issue'
+      const anchor = commentId === null ? 'reactions-body' : `reactions-${commentId}`
+
+      return new Response(null, { status: 303, headers: { Location: `/${ownerHandle}/${repositoryName}/${kind}/${number}#${anchor}` } })
+    }
 
     return response.json({ number, comment_id: commentId, content, reacted: result.reacted })
   },
