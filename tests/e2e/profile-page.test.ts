@@ -23,6 +23,8 @@ const created = {
   userId: 0,
   strangerId: 0,
   orgId: 0,
+  privateOrgId: 0,
+  pendingOrgId: 0,
   publicRepoId: 0,
   privateRepoId: 0,
   handle: '',
@@ -100,6 +102,15 @@ beforeAll(async () => {
       .executeTakeFirst()
 
     created.orgId = Number(org?.id)
+    const privateOrg = await db.insertInto('organizations').values({ handle: unique('privateorg'), name: 'Private membership' }).returning(['id']).executeTakeFirst()
+    const pendingOrg = await db.insertInto('organizations').values({ handle: unique('pendingorg'), name: 'Pending membership' }).returning(['id']).executeTakeFirst()
+    created.privateOrgId = Number(privateOrg?.id)
+    created.pendingOrgId = Number(pendingOrg?.id)
+    await db.insertInto('org_members').values([
+      { organization_id: created.orgId, user_id: created.userId, role: 'owner', joined_at: new Date().toISOString(), is_public: true },
+      { organization_id: created.privateOrgId, user_id: created.userId, role: 'member', joined_at: new Date().toISOString(), is_public: false },
+      { organization_id: created.pendingOrgId, user_id: created.userId, role: 'member', joined_at: null, is_public: true },
+    ]).execute()
 
     const repo = async (name: string, visibility: string) => {
       const row: any = await db
@@ -160,8 +171,9 @@ afterAll(async () => {
 
     if (db && ids.length > 0) {
       await db.deleteFrom('activity_events').where('actor_id', 'in', ids).execute()
-      await db.deleteFrom('repositories').where('owner_id', 'in', ids).execute()
-      await db.deleteFrom('organizations').where('id', '=', created.orgId).execute()
+      await db.deleteFrom('repositories').where('owner_type', '=', 'user').where('owner_id', 'in', ids).execute()
+      await db.deleteFrom('org_members').where('user_id', 'in', ids).execute()
+      await db.deleteFrom('organizations').where('id', 'in', [created.orgId, created.privateOrgId, created.pendingOrgId]).execute()
       await db.deleteFrom('users').where('id', 'in', ids).execute()
     }
   }
@@ -348,6 +360,55 @@ describe('a handle nobody has', () => {
     const { status } = await fetchPage('/definitely-nobody-at-all-here')
 
     expect(status).toBe(404)
+  })
+})
+
+describe('organization memberships on a profile', () => {
+  test('visitors see accepted public memberships, with a link to the organization', async () => {
+    if (!available) return
+    const { html } = await fetchPage(`/${created.handle}`)
+    expect(html).toContain(`href="/${created.orgName}"`)
+    expect(html).not.toContain('Private membership')
+    expect(html).not.toContain('Pending membership')
+    const stranger = await fetchPage(`/${created.handle}`, created.strangerToken)
+    expect(stranger.html).not.toContain('Private membership')
+    const answer = await fetch(`http://127.0.0.1:${port}/api/owners?owner=${created.handle}`)
+    const profile: any = await answer.json()
+    expect(profile.organizations.map((row: any) => row.handle)).toEqual([created.orgName])
+  })
+
+  test('owners also see their private memberships, but unanswered invitations stay off the profile', async () => {
+    if (!available) return
+    const { html } = await fetchPage(`/${created.handle}`, created.ownToken)
+    expect(html).toContain('Private membership')
+    expect(html).not.toContain('Pending membership')
+    expect(html).toContain('/settings/organizations')
+  })
+
+  test('a browser can hide and publish its own membership using the settings form', async () => {
+    if (!available) return
+    const settings = await fetch(`http://127.0.0.1:${port}/settings/organizations`, {
+      headers: { Accept: 'text/html', Cookie: `auth-token=${created.ownToken}` },
+    })
+    const html = await settings.text()
+    const csrfCookie = /X-CSRF-Token=([^;]*)/.exec(settings.headers.get('set-cookie') ?? '')?.[1] ?? ''
+    const token = /name="_token"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? ''
+    expect(token).toBeTruthy()
+    expect(html).toContain('/api/orgs/members/visibility')
+    const submit = (visibility: string, authToken = created.ownToken, organizationId = created.orgId) => fetch(`http://127.0.0.1:${port}/api/orgs/members/visibility`, {
+      method: 'POST', redirect: 'manual',
+      headers: { Accept: 'text/html', Cookie: `auth-token=${authToken}; X-CSRF-Token=${csrfCookie}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ organization_id: String(organizationId), visibility, _token: token }),
+    })
+    expect((await submit('private', created.strangerToken)).status).toBe(404)
+    expect((await submit('public', created.ownToken, created.pendingOrgId)).status).toBe(404)
+    expect((await submit('anything')).status).toBe(422)
+    const hidden = await submit('private')
+    expect(hidden.status).toBe(303)
+    expect(hidden.headers.get('location')).toBe('/settings/organizations')
+    expect((await fetchPage(`/${created.handle}`)).html).not.toContain(`href="/${created.orgName}"`)
+    expect((await submit('public')).status).toBe(303)
+    expect((await fetchPage(`/${created.handle}`)).html).toContain(`href="/${created.orgName}"`)
   })
 })
 
