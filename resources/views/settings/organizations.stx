@@ -178,6 +178,12 @@ if (!viewer)
                 </div>
 
                 <div class="org-actions">
+                  <form method="post" action="/api/orgs/members/visibility">
+                    <CsrfField />
+                    <input type="hidden" name="organization_id" value="{{ organization.id }}">
+                    <input type="hidden" name="visibility" value="{{ organization.isPublic ? 'private' : 'public' }}">
+                    <button class="btn" type="submit">{{ organization.isPublic ? 'Hide from profile' : 'Show on profile' }}</button>
+                  </form>
                   <a class="btn" href="/{{ organization.handle }}/people">People</a>
                 </div>
               </li>

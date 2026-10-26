@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { cookieJarFromHeader, currentUser } from '../Identity/lookup'
-import { ownerRepositories, profileReadme, REPOSITORIES_PER_PAGE } from './read'
+import { ownerRepositories, profileOrganizations, profileReadme, REPOSITORIES_PER_PAGE } from './read'
 
 /**
  * An owner's profile: who they are, what they have, and what they wrote.
@@ -115,6 +115,7 @@ export default new Action({
         created_at: (account ?? organization)?.created_at ?? null,
       },
       repositories: repositories.rows,
+      organizations: account ? await profileOrganizations(Number(account.id), viewer?.id ?? null) : [],
       readme,
       page: repositories.page,
       pages: repositories.pages,

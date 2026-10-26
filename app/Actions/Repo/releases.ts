@@ -119,7 +119,7 @@ export function decideRelease(patch: ReleasePatch, nowIso: string, existing?: { 
 export interface ReleaseRow {
   tag_name: string
   status?: string
-  is_prerelease?: boolean
+  is_prerelease?: boolean | number
   published_at?: string | null
 }
 

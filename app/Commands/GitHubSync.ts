@@ -4,8 +4,9 @@ import { syncAccount } from '../Actions/Mirror/account'
 
 export default function (cli: CLI) {
   cli.command('github:sync', 'Discover owned GitHub organizations and register continuous mirrors')
-    .action(async () => {
+    .option('--public-organizations', 'Show discovered organization memberships on your public profile', { default: false })
+    .action(async (options: { publicOrganizations?: boolean }) => {
       if (!settings.user) throw new Error('Set GITHUB_SYNC_USER to the linked administrator handle')
-      console.log(await syncAccount(settings.user, settings.credential))
+      console.log(await syncAccount(settings.user, settings.credential, undefined, options))
     })
 }

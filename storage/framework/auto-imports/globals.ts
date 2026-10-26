@@ -65,6 +65,7 @@ declare global {
   const commitRows: typeof autoImports.commitRows
   const headCommitRow: typeof autoImports.headCommitRow
   const signatureBadge: typeof autoImports.signatureBadge
+  const loadConversation: typeof autoImports.loadConversation
   const csrfToken: typeof autoImports.csrfToken
   const writeHeaders: typeof autoImports.writeHeaders
   const toggleDark: typeof autoImports.toggleDark

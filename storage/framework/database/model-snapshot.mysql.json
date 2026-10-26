@@ -5135,6 +5135,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "is_public",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -15489,7 +15498,7 @@
       }
     ]
   },
-  "hash": "c0bb374078a55db27dfa683bbbf4408ff6642c415a340bd7c9f5b5de299c1d54",
+  "hash": "64f051c6d986a3c52be22027dc29fda4ce0591675e8b21fa3c9c2134041a33b4",
   "dialect": "mysql",
-  "updatedAt": "2026-10-25T00:22:27.165Z"
+  "updatedAt": "2026-10-26T15:50:06.770Z"
 }

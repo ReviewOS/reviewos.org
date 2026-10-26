@@ -83,5 +83,13 @@ export default defineModel({
       },
       factory: faker => faker.date.past().toISOString(),
     },
+
+    is_public: {
+      order: 6,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 } as const)

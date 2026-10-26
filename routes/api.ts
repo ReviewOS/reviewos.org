@@ -316,6 +316,7 @@ route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware(['auth'
 // Accepting takes no id but the organization's, because the invitation is
 // always the caller's own. There is no parameter that could name somebody else.
 route.post('/orgs/members/accept', 'Actions/Org/AcceptInviteAction').middleware('auth')
+route.post('/orgs/members/visibility', 'Actions/Org/SetMembershipVisibilityAction').middleware('auth')
 // An account that holds tokens and nothing else. Not behind `orgCan`, because
 // the action refuses with a 404 in one of its cases and a middleware saying 403
 // first would confirm what the 404 is there to hide.

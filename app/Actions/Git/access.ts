@@ -252,7 +252,7 @@ async function holdsRequiredFactor(organizationId: number, userId: number): Prom
 }
 
 /** The permissions a user holds on a repository, from every source. */
-export async function permissionOn(repository: GitRepositoryRow, userId: number | null): Promise<RepositoryGrants> {
+export async function permissionOn(repository: Pick<GitRepositoryRow, 'id' | 'owner_type' | 'owner_id'>, userId: number | null): Promise<RepositoryGrants> {
   if (userId === null)
     return { collaboratorPermission: null, organizationRole: null, teamPermissions: [], isSiteAdmin: false }
 

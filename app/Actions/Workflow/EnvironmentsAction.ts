@@ -1,4 +1,4 @@
-import type { RowOf } from '@stacksjs/database'
+import type { RowOf, WriteOf } from '@stacksjs/database'
 import { Action } from '@stacksjs/actions'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
@@ -198,7 +198,7 @@ export default new Action({
       return response.json({ environment: await shape(await row(Number(found.id))) })
     }
 
-    const changes: Partial<EnvironmentRow> = {}
+    const changes: WriteOf<'environments'> = {}
 
     if (request.get('wait_minutes') !== undefined && Number.isFinite(Number(request.get('wait_minutes'))))
       changes.wait_minutes = Math.max(0, Math.min(43_200, Number(request.get('wait_minutes'))))

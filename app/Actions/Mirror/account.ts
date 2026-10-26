@@ -4,6 +4,7 @@ import { GitHubClient } from './github-client'
 import { mirrorToken } from './credentials'
 import { addMirror } from '../../Commands/MirrorAdd'
 import { dbTimestamp } from '../Support/sql'
+import { transferRepository } from '../Repo/transfer'
 
 /** Only the viewer's own repositories and organizations they actively administer. */
 export async function discoverAccount(client: GitHubClient) {
@@ -20,7 +21,7 @@ export async function discoverAccount(client: GitHubClient) {
 }
 
 /** Additive discovery never deletes repositories or removes an existing membership. */
-export async function syncAccount(handle: string, credential: string, client?: GitHubClient) {
+export async function syncAccount(handle: string, credential: string, client?: GitHubClient, options: { publicOrganizations?: boolean } = {}) {
   const user = await db.selectFrom('users').select(['id', 'github_username', 'is_admin']).where('handle', '=', handle).executeTakeFirst()
   if (!user?.is_admin || !user.github_username) throw new Error('Discovery requires an administrator with an explicitly linked GitHub identity')
   const token = await mirrorToken(credential)
@@ -28,37 +29,59 @@ export async function syncAccount(handle: string, credential: string, client?: G
   const inventory = await discoverAccount(client ?? new GitHubClient({ token }))
   if (inventory.login.toLowerCase() !== String(user.github_username).toLowerCase()) throw new Error('The credential belongs to a different GitHub account')
   const ownerMap = new Map<string, string>([[inventory.login.toLowerCase(), handle]])
+  const targets = new Map([[inventory.login.toLowerCase(), { kind: 'user' as 'user' | 'organization', id: Number(user.id), handle }]])
   const mapped = await db.selectFrom('repository_mirrors')
     .innerJoin('repositories', 'repositories.id', '=', 'repository_mirrors.repository_id')
     .innerJoin('organizations', 'organizations.id', '=', 'repositories.owner_id')
     .select(['repository_mirrors.remote_owner', 'organizations.handle'])
-    .where('repositories.owner_type', '=', 'organization').execute()
-  for (const row of mapped) ownerMap.set(String(row.remote_owner).toLowerCase(), String(row.handle))
+    .where('repositories.owner_type', '=', 'organization').where('repository_mirrors.provider', '=', 'github').execute()
+  const administered = new Set(inventory.organizations.map(org => String(org.login).toLowerCase()))
+  for (const row of mapped) {
+    const upstream = String(row.remote_owner).toLowerCase()
+    if (administered.has(upstream)) ownerMap.set(upstream, String(row.handle))
+  }
   for (const upstream of inventory.organizations) {
     const login = String(upstream.login).toLowerCase()
     const localHandle = ownerMap.get(login) ?? login
     if (!/^[a-z0-9][a-z0-9-]{0,38}$/.test(localHandle)) throw new Error('An upstream organization has an unsupported handle')
-    let organization = await db.selectFrom('organizations').select(['id']).where('handle', '=', localHandle).executeTakeFirst()
+    let organization = await db.selectFrom('organizations').select(['id', 'avatar_url']).where('handle', '=', localHandle).executeTakeFirst()
     if (!organization) {
       const collision = await db.selectFrom('users').select(['id']).where('handle', '=', localHandle).executeTakeFirst()
       if (collision) throw new Error(`The organization handle ${localHandle} belongs to a user`)
-      organization = await db.insertInto('organizations').values({ uuid: randomUUID(), handle: localHandle, name: String(upstream.login), avatar_url: upstream.avatar_url ?? null }).returning(['id']).executeTakeFirst()
+      organization = await db.insertInto('organizations').values({ uuid: randomUUID(), handle: localHandle, name: String(upstream.login), avatar_url: upstream.avatar_url ?? null }).returning(['id', 'avatar_url']).executeTakeFirst()
     }
-    const membership = await db.selectFrom('org_members').select(['id']).where('organization_id', '=', Number(organization!.id)).where('user_id', '=', Number(user.id)).executeTakeFirst()
-    if (membership) await db.updateTable('org_members').set({ role: 'owner' }).where('id', '=', Number(membership.id)).execute()
-    else await db.insertInto('org_members').values({ organization_id: Number(organization!.id), user_id: Number(user.id), role: 'owner', invited_by_id: Number(user.id), joined_at: dbTimestamp() }).execute()
+    if (!organization!.avatar_url && upstream.avatar_url)
+      await db.updateTable('organizations').set({ avatar_url: String(upstream.avatar_url) }).where('id', '=', Number(organization!.id)).execute()
+    const membership = await db.selectFrom('org_members').select(['id', 'joined_at']).where('organization_id', '=', Number(organization!.id)).where('user_id', '=', Number(user.id)).executeTakeFirst()
+    const publicity = options.publicOrganizations ? { is_public: true } : {}
+    if (membership) await db.updateTable('org_members').set({ role: 'owner', joined_at: membership.joined_at || dbTimestamp(), ...publicity }).where('id', '=', Number(membership.id)).execute()
+    else await db.insertInto('org_members').values({ organization_id: Number(organization!.id), user_id: Number(user.id), role: 'owner', invited_by_id: Number(user.id), joined_at: dbTimestamp(), ...publicity }).execute()
     ownerMap.set(login, localHandle)
+    targets.set(login, { kind: 'organization', id: Number(organization!.id), handle: localHandle })
   }
   const registered = new Map<string, any>()
-  for (const mirror of await db.selectFrom('repository_mirrors').selectAll().where('provider', '=', 'github').execute()) {
+  for (const mirror of await db.selectFrom('repository_mirrors')
+    .innerJoin('repositories', 'repositories.id', '=', 'repository_mirrors.repository_id')
+    .select(['repository_mirrors.*', 'repositories.owner_type as local_owner_type', 'repositories.owner_id as local_owner_id'])
+    .where('repository_mirrors.provider', '=', 'github').execute()) {
     const key = `${mirror.remote_owner}/${mirror.remote_name}`.toLowerCase()
-    if (!registered.has(key)) registered.set(key, mirror)
+    const target = targets.get(String(mirror.remote_owner).toLowerCase())
+    if (!registered.has(key) || (mirror.local_owner_type === target?.kind && Number(mirror.local_owner_id) === target?.id)) registered.set(key, mirror)
   }
   let added = 0
   for (const repository of inventory.repositories) {
     const remoteOwner = String(repository.owner.login)
     const existing = registered.get(`${remoteOwner}/${repository.name}`.toLowerCase())
     if (existing) {
+      // An upstream match alone says nothing about who owns its local mirror.
+      // Repair legacy imports through the same transfer operation as the API,
+      // retaining repository ids, discussions and Git objects.
+      const target = targets.get(remoteOwner.toLowerCase())
+      if (!target) throw new Error('The discovered repository owner does not exist')
+      if (existing.local_owner_type !== target.kind || Number(existing.local_owner_id) !== target.id) {
+        const transferred = await transferRepository(Number(existing.repository_id), target, { actorId: Number(user.id) })
+        if (!transferred.ok) throw new Error(transferred.error)
+      }
       await db.updateTable('repository_mirrors').set({ enabled: true, sync_metadata: true, credential_ref: existing.credential_ref || credential }).where('id', '=', Number(existing.id)).execute()
       if (repository.private) await db.updateTable('repositories').set({ visibility: 'private' }).where('id', '=', Number(existing.repository_id)).execute()
       continue

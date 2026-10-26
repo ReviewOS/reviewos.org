@@ -1207,6 +1207,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/orgs/members/visibility": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "organization_id"?: unknown; "visibility": "public" | "private" } } }
+    responses: {
+      "200": { content: never }
+      "303": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/orgs/teams": {
     get?: never
     put?: never
@@ -1333,7 +1359,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string }> } } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "external_id": string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1356,7 +1382,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string } } } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "external_id": string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -5998,6 +6024,6 @@ export interface components {
   schemas: {
     "Notification": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string }
     "NotificationDelivery": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string }
-    "Release": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string }
+    "Release": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "external_id": string; "created_at"?: string; "updated_at"?: string }
   }
 }

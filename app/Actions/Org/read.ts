@@ -15,6 +15,7 @@ export interface OrganizationRow {
   role: 'owner' | 'admin' | 'member'
   /** Null while the invitation is unanswered. */
   joinedAt: string | null
+  isPublic: boolean
   memberCount: number
   repositoryCount: number
 }
@@ -54,7 +55,7 @@ export async function organizationsFor(userId: number): Promise<OrganizationRow[
 
   const memberships = await db
     .selectFrom('org_members')
-    .select(['organization_id', 'role', 'joined_at'])
+    .select(['organization_id', 'role', 'joined_at', 'is_public'])
     .where('user_id', '=', userId)
     .execute()
 
@@ -91,6 +92,7 @@ export async function organizationsFor(userId: number): Promise<OrganizationRow[
       description: String(organization.description ?? ''),
       role: String(membership.role) as OrganizationRow['role'],
       joinedAt: membership.joined_at ? String(membership.joined_at) : null,
+      isPublic: Boolean(membership.is_public),
       memberCount: memberCounts.get(id) ?? 0,
       repositoryCount: repositoryCounts.get(id) ?? 0,
     })

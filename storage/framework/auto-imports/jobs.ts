@@ -12,6 +12,7 @@ export { default as ExpireTestHistoryJob } from '../../../app/Jobs/ExpireTestHis
 export { default as FailImpossibleJobsJob } from '../../../app/Jobs/FailImpossibleJobsJob'
 export { default as ImportRepositoryJob } from '../../../app/Jobs/ImportRepositoryJob'
 export { default as IndexCodeJob } from '../../../app/Jobs/IndexCodeJob'
+export { default as IndexMirrorSearchJob } from '../../../app/Jobs/IndexMirrorSearchJob'
 export { default as IndexRepositoryJob } from '../../../app/Jobs/IndexRepositoryJob'
 export { default as Inspire } from '../../../app/Jobs/Inspire'
 export { default as MeasureContributorsJob } from '../../../app/Jobs/MeasureContributorsJob'

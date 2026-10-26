@@ -4,6 +4,8 @@ export { aliasTarget, pathUnderOwner } from '../../../resources/functions/aliase
 export { linesFor, mountBlobWindow } from '../../../resources/functions/blobviewer'
 export { sortEntries, formatSize, breadcrumbs, findReadme, isMarkdown, childPath, shortSha, relativeTime, listTree, readBlob, lastCommit, commitCount, branchNames, tagNames, commitHistory, commitDetail, compareRefs, MAX_LISTED_ROWS, MAX_COMPARED_FILES, parseCompareRefs, compareDiffText, highlightLines, readBlobWindow, BLOB_WINDOW_LINES, renderBlobRows, languageFor, highlightResumed, tokenClass, languageRulesFor, declaredLanguage, MAX_BLOB_BYTES, listFilter, statesFor, pageNumber, pageOffset, lastPage, stateLabel, statePill, authorLabel, authorIsLocal, countLabel, filterHref, pageHref, PAGE_SIZE, splitRefAndPath, joinRefAndPath, treeRows, refLinks, commitRows, headCommitRow, signatureBadge } from '../../../resources/functions/browse'
 export type { Crumb } from '../../../resources/functions/browse'
+export { loadConversation } from '../../../resources/functions/conversation'
+export type { ConversationSubject, ConversationContext, ConversationResult } from '../../../resources/functions/conversation'
 export { csrfToken, writeHeaders } from '../../../resources/functions/csrf'
 export { toggleDark, isDark, preferredDark } from '../../../resources/functions/dark'
 export { readPreferences, writePreferences, applyPreferences, applySyntaxTheme, applyColourScheme, wirePreferenceControls, DEFAULT_SYNTAX_THEME, DEFAULT_PREFERENCES } from '../../../resources/functions/diffprefs'

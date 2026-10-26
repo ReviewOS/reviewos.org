@@ -277,6 +277,7 @@ declare global {
   const FailImpossibleJobsJob: typeof import('../../../app/Jobs/FailImpossibleJobsJob')['default']
   const ImportRepositoryJob: typeof import('../../../app/Jobs/ImportRepositoryJob')['default']
   const IndexCodeJob: typeof import('../../../app/Jobs/IndexCodeJob')['default']
+  const IndexMirrorSearchJob: typeof import('../../../app/Jobs/IndexMirrorSearchJob')['default']
   const IndexRepositoryJob: typeof import('../../../app/Jobs/IndexRepositoryJob')['default']
   const Inspire: typeof import('../../../app/Jobs/Inspire')['default']
   const MeasureContributorsJob: typeof import('../../../app/Jobs/MeasureContributorsJob')['default']

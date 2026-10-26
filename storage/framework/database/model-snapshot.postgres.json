@@ -5135,6 +5135,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "is_public",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -15489,7 +15498,7 @@
       }
     ]
   },
-  "hash": "8685c823615550b409731571f46063bec3d62c1481fc4e561927004f622f9723",
+  "hash": "932816ea0e43febb634300d7e253b1e58094c148ea7609c07a3d66c8e4f9e0cf",
   "dialect": "postgres",
-  "updatedAt": "2026-10-25T00:22:28.550Z"
+  "updatedAt": "2026-10-26T15:50:49.886Z"
 }

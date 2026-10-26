@@ -15,10 +15,26 @@
  */
 
 import { raw } from 'bun-query-builder'
+import { db } from '@stacksjs/database'
 import { listTree, readBlob } from '../Browse/load'
 import { primaryLanguages } from '../Explore/explore'
 import { renderMarkdownHighlighted } from '../Markdown/render'
 import { repositoryForView } from '../Repo/forView'
+
+/** Public memberships on a profile; the owner also sees their private memberships. */
+export async function profileOrganizations(userId: number, viewerId: number | null) {
+  let memberships = db.selectFrom('org_members')
+    .innerJoin('organizations', 'organizations.id', '=', 'org_members.organization_id')
+    .select(['organizations.handle', 'organizations.name', 'organizations.avatar_url', 'org_members.is_public'])
+    .where('org_members.user_id', '=', userId).whereNotNull('org_members.joined_at')
+  if (viewerId !== userId) memberships = memberships.where('org_members.is_public', '=', true)
+  const rows = await memberships.orderBy('organizations.handle', 'asc').execute()
+  return rows.map(row => ({
+    handle: String(row.handle), name: String(row.name || row.handle),
+    avatarUrl: String(row.avatar_url ?? ''), isPublic: Boolean(row.is_public),
+    initial: String(row.name || row.handle).charAt(0).toUpperCase(),
+  }))
+}
 
 /** One repository, as a profile card needs it. */
 export interface ProfileRepository {

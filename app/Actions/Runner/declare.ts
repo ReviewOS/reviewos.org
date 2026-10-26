@@ -174,7 +174,7 @@ export async function applyFleet(declared: DeclaredFleet): Promise<Plan> {
   for (const wanted of declared.pools ?? []) {
     const slug = slugOf(wanted)
 
-    let pool = await db
+    let pool: { id: number, require_signed_steps: boolean | number } | null | undefined = await db
       .selectFrom('runner_pools')
       .select(['id', 'require_signed_steps'])
       .where('slug', '=', slug)

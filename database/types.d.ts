@@ -69,7 +69,7 @@ declare module '@stacksjs/database' {
       subject_id: number
       repository_id: number
       organization_id: number
-      is_public: boolean
+      is_public: number
       detail: string
     }
     analytics_events: {
@@ -268,7 +268,7 @@ declare module '@stacksjs/database' {
       icon: string
       color: string
       position: number
-      archived: boolean
+      archived: number
       team_id: number
     }
     campaign_sends: {
@@ -311,7 +311,7 @@ declare module '@stacksjs/database' {
       open_count: number
       click_count: number
       conversion_count: number
-      is_winner: boolean
+      is_winner: number
       team_id: number
       campaign_id: number
     }
@@ -387,7 +387,7 @@ declare module '@stacksjs/database' {
       position: number
       created_by_user_id: number
       due_date: string
-      archived: boolean
+      archived: number
       board_column_id: number
       user_id: number
     }
@@ -439,7 +439,7 @@ declare module '@stacksjs/database' {
       description: string
       slug: string
       image_url: string
-      is_active: boolean
+      is_active: number
       parent_category_id: string
       display_order: number
     }
@@ -460,7 +460,7 @@ declare module '@stacksjs/database' {
       name: string
       slug: string
       description: string | null
-      is_active: boolean
+      is_active: number
       categorizable_id: number
       categorizable_type: string
     }
@@ -576,7 +576,7 @@ declare module '@stacksjs/database' {
       code: string
       description: string
       status: "Active" | "Scheduled" | "Expired"
-      is_active: boolean
+      is_active: number
       discount_type: "fixed_amount" | "percentage"
       discount_value: number
       min_order_amount: number
@@ -696,7 +696,7 @@ declare module '@stacksjs/database' {
       key_type: string
       public_key: string
       fingerprint: string
-      can_write: boolean
+      can_write: number
       last_used_at: string
     }
     deployment_statuses: {
@@ -728,7 +728,7 @@ declare module '@stacksjs/database' {
       state: "in_progress" | "active" | "failed" | "inactive"
       stages: string
       stage_index: number
-      stage_held: boolean
+      stage_held: number
       reason: string
       created_by_id: number
       finished_at: string
@@ -743,8 +743,8 @@ declare module '@stacksjs/database' {
       description: string
       download_limit: number
       expiry_days: number
-      requires_login: boolean
-      automatic_delivery: boolean
+      requires_login: number
+      automatic_delivery: number
       status: "active" | "inactive"
     }
     email_idempotency: {
@@ -757,7 +757,7 @@ declare module '@stacksjs/database' {
       recipient: string
       subject: string
       provider: string
-      success: boolean
+      success: number
     }
     email_list_subscribers: {
       // columns
@@ -827,7 +827,7 @@ declare module '@stacksjs/database' {
       name: string
       wait_minutes: number
       branches: string
-      require_checks: boolean
+      require_checks: number
       description: string
     }
     errors: {
@@ -893,7 +893,7 @@ declare module '@stacksjs/database' {
       name: string
       label: string
       type: "text" | "textarea" | "email" | "phone" | "select" | "checkbox" | "radio" | "date" | "file" | "currency" | "section_break"
-      required: boolean
+      required: number
       position: number
       width: "full" | "half"
       options: unknown
@@ -957,9 +957,9 @@ declare module '@stacksjs/database' {
       recipient_email: string
       recipient_name: string
       personal_message: string
-      is_digital: boolean
-      is_reloadable: boolean
-      is_active: boolean
+      is_digital: number
+      is_reloadable: number
+      is_active: number
       expiry_date: string
       last_used_date: string
       template_id: string
@@ -1073,9 +1073,9 @@ declare module '@stacksjs/database' {
       closed_at: string
       closed_by_id: number
       milestone_id: number
-      locked: boolean
+      locked: number
       comments_count: number
-      is_pull_request: boolean
+      is_pull_request: number
       external_author: string
     }
     jobs: {
@@ -1138,7 +1138,7 @@ declare module '@stacksjs/database' {
       source_reference_id: string
       description: string
       expiry_date: string
-      is_used: boolean
+      is_used: number
       customer_id: number
     }
     loyalty_rewards: {
@@ -1153,7 +1153,7 @@ declare module '@stacksjs/database' {
       reward_type: string
       discount_percentage: number
       free_product_id: string
-      is_active: boolean
+      is_active: number
       expiry_days: number
       image_url: string
       product_id: number
@@ -1183,17 +1183,17 @@ declare module '@stacksjs/database' {
       theme: "light" | "dark" | "system"
       language: "en" | "fr" | "de" | "es" | "ja"
       default_reply_behavior: "reply" | "replyAll"
-      send_and_archive: boolean
+      send_and_archive: number
       auto_advance: "newer" | "older" | "back"
-      desktop_notifications: boolean
+      desktop_notifications: number
       notification_sound: "default" | "subtle" | "none"
-      notification_preview: boolean
+      notification_preview: number
       filters: string
       blocked_senders: string
       labels: string
-      load_remote_images: boolean
-      show_external_content: boolean
-      vacation_enabled: boolean
+      load_remote_images: number
+      show_external_content: number
+      vacation_enabled: number
       vacation_start_date: string
       vacation_end_date: string
       vacation_subject: string
@@ -1214,7 +1214,7 @@ declare module '@stacksjs/database' {
       muted_reason: string
       review_at: string
       owner: string
-      flaky: boolean
+      flaky: number
       flaky_reason: string
       flaky_since: string
       repository_id: number
@@ -1228,7 +1228,7 @@ declare module '@stacksjs/database' {
       manufacturer: string
       description: string
       country: string
-      featured: boolean
+      featured: number
     }
     menu_items: {
       // columns
@@ -1321,7 +1321,7 @@ declare module '@stacksjs/database' {
       updated_at: string | null
       user_id: number
       channel: string
-      enabled: boolean
+      enabled: number
       category: string
     }
     notification_schedules: {
@@ -1346,7 +1346,7 @@ declare module '@stacksjs/database' {
       subject_type: "issue" | "pull_request" | "repository"
       subject_id: number
       reason: "review_requested" | "assigned" | "mentioned" | "team_mention" | "author" | "participating" | "watching"
-      unsubscribed: boolean
+      unsubscribed: number
     }
     notifications: {
       // columns
@@ -1369,7 +1369,7 @@ declare module '@stacksjs/database' {
       name: string
       token: string
       scopes: string
-      revoked: boolean
+      revoked: number
       expires_at: string
       user_agent: string
       ip_address: string
@@ -1453,6 +1453,7 @@ declare module '@stacksjs/database' {
       role: "owner" | "admin" | "member"
       invited_by_id: number
       joined_at: string
+      is_public: number
     }
     organizations: {
       // columns
@@ -1466,7 +1467,7 @@ declare module '@stacksjs/database' {
       avatar_url: string
       website: string
       billing_email: string
-      require_two_factor: boolean
+      require_two_factor: number
     }
     owner_aliases: {
       // columns
@@ -1518,7 +1519,7 @@ declare module '@stacksjs/database' {
       created_at: string
       updated_at: string | null
       repository_id: number
-      enabled: boolean
+      enabled: number
       source_branch: string
       domain: string
       visibility: "public" | "repository"
@@ -1547,7 +1548,7 @@ declare module '@stacksjs/database' {
       brand: string
       exp_month: number
       exp_year: number
-      is_default: boolean
+      is_default: number
       provider_id: string
       user_id: number
     }
@@ -1633,7 +1634,7 @@ declare module '@stacksjs/database' {
       scope_type: "instance" | "user" | "organization" | "pool"
       scope_id: number
       allowlist: string
-      require_pinned: boolean
+      require_pinned: number
       capabilities: string
     }
     posts: {
@@ -1681,7 +1682,7 @@ declare module '@stacksjs/database' {
       abbreviation: string
       type: string
       description: string
-      is_default: boolean
+      is_default: number
       product_id: number
     }
     product_variants: {
@@ -1711,7 +1712,7 @@ declare module '@stacksjs/database' {
       description: string
       price: number
       image_url: string
-      is_available: boolean
+      is_available: number
       inventory_count: number
       preparation_time: number
       allergens: string
@@ -1727,15 +1728,15 @@ declare module '@stacksjs/database' {
       repository_id: number
       pattern: string
       required_approvals: number
-      dismiss_stale_reviews: boolean
-      require_conversation_resolution: boolean
+      dismiss_stale_reviews: number
+      require_conversation_resolution: number
       required_checks: string
-      allow_force_push: boolean
-      allow_deletion: boolean
-      require_linear_history: boolean
-      require_human_approval_for_agents: boolean
-      require_up_to_date: boolean
-      enforce_admins: boolean
+      allow_force_push: number
+      allow_deletion: number
+      require_linear_history: number
+      require_human_approval_for_agents: number
+      require_up_to_date: number
+      enforce_admins: number
       push_restrictions: string
     }
     pull_request_reviewers: {
@@ -1747,7 +1748,7 @@ declare module '@stacksjs/database' {
       reviewer_type: "user" | "team"
       reviewer_id: number
       requested_by_id: number
-      from_code_owners: boolean
+      from_code_owners: number
       responded_at: string
       repository_id: number
     }
@@ -1787,7 +1788,7 @@ declare module '@stacksjs/database' {
       merge_commit_sha: string
       merged_at: string
       merged_by_id: number
-      draft: boolean
+      draft: number
       mergeable_state: "unknown" | "clean" | "dirty" | "blocked" | "behind"
       stack_parent_id: number
       additions: number
@@ -1951,7 +1952,7 @@ declare module '@stacksjs/database' {
       tag_name: string
       target_sha: string
       name: string
-      is_prerelease: boolean
+      is_prerelease: number
       published_at: string
       external_id: string
     }
@@ -1982,7 +1983,7 @@ declare module '@stacksjs/database' {
       created_at: string
       updated_at: string | null
       repository_id: number
-      enabled: boolean
+      enabled: number
       forbidden_paths: string
       steps: string
       max_attempts: number
@@ -2020,22 +2021,22 @@ declare module '@stacksjs/database' {
       visibility: "public" | "private" | "internal"
       default_branch: string
       disk_path: string
-      is_fork: boolean
+      is_fork: number
       parent_id: number
-      is_archived: boolean
-      is_template: boolean
+      is_archived: number
+      is_template: number
       size_kb: number
       stars_count: number
       forks_count: number
       open_issues_count: number
       issue_counter: number
       pushed_at: string
-      allow_merge_commit: boolean
-      allow_squash_merge: boolean
-      allow_rebase_merge: boolean
+      allow_merge_commit: number
+      allow_squash_merge: number
+      allow_rebase_merge: number
       default_merge_strategy: "merge" | "squash" | "rebase"
-      delete_branch_on_merge: boolean
-      count_machine_approvals: boolean
+      delete_branch_on_merge: number
+      count_machine_approvals: number
     }
     repository_contributors: {
       // columns
@@ -2058,7 +2059,7 @@ declare module '@stacksjs/database' {
       name: string
       color: string
       description: string
-      is_default: boolean
+      is_default: number
     }
     repository_languages: {
       // columns
@@ -2098,19 +2099,19 @@ declare module '@stacksjs/database' {
       credential_ref: string
       webhook_secret: string
       interval_seconds: number
-      enabled: boolean
-      allow_local_pushes: boolean
-      write_through: boolean
+      enabled: number
+      allow_local_pushes: number
+      write_through: number
       last_synced_at: string
       last_sha: string
       last_error: string
       failure_count: number
-      sync_metadata: boolean
+      sync_metadata: number
       last_metadata_sync_at: string
       metadata_checkpoint_at: string | null
       metadata_error: string
       metadata_failure_count: number
-      run_workflows: boolean
+      run_workflows: number
     }
     requests: {
       // columns
@@ -2179,9 +2180,9 @@ declare module '@stacksjs/database' {
       side: "left" | "right"
       original_line: number
       original_commit_sha: string
-      resolved: boolean
+      resolved: number
       resolved_by_id: number
-      outdated: boolean
+      outdated: number
       external_id: number
       repository_id: number
     }
@@ -2205,9 +2206,9 @@ declare module '@stacksjs/database' {
       rating: number
       title: string
       content: string
-      is_verified_purchase: boolean
-      is_approved: boolean
-      is_featured: boolean
+      is_verified_purchase: number
+      is_approved: number
+      is_featured: number
       helpful_votes: number
       unhelpful_votes: number
       purchase_date: string
@@ -2251,7 +2252,7 @@ declare module '@stacksjs/database' {
       updated_at: string | null
       name: string
       slug: string
-      require_signed_steps: boolean
+      require_signed_steps: number
       plugins: string
       description: string
     }
@@ -2359,7 +2360,7 @@ declare module '@stacksjs/database' {
       created_at: string
       updated_at: string | null
       domain: string
-      is_primary: boolean
+      is_primary: number
       verified_at: string
       ssl_status: "pending" | "issued" | "failed"
       site_id: number
@@ -2470,7 +2471,7 @@ declare module '@stacksjs/database' {
       updated_at: string | null
       disk: string
       path: string
-      favorite: boolean
+      favorite: number
     }
     subscriber_emails: {
       // columns
@@ -2545,9 +2546,9 @@ declare module '@stacksjs/database' {
       country: string
       region: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"
       status: "active" | "inactive"
-      is_default: boolean
+      is_default: number
       code: string
-      exemptible: boolean
+      exemptible: number
     }
     team_invitations: {
       // columns
@@ -2631,7 +2632,7 @@ declare module '@stacksjs/database' {
       measurement: number
       changed_at: string
       evaluated_at: string
-      enabled: boolean
+      enabled: number
     }
     test_runs: {
       // columns
@@ -2734,7 +2735,7 @@ declare module '@stacksjs/database' {
       email_verified_at: string
       password_changed_at: string | null
       two_factor_secret: string | null
-      two_factor_enabled: boolean | null
+      two_factor_enabled: number | null
       two_factor_last_used_step: number | null
       stripe_id: string | null
       handle: string
@@ -2745,7 +2746,7 @@ declare module '@stacksjs/database' {
       avatar_url: string
       location: string
       website: string
-      is_admin: boolean
+      is_admin: number
       machine_for_organization_id: number
       github_username: string
     }
@@ -2828,7 +2829,7 @@ declare module '@stacksjs/database' {
       secret: string
       events: string
       content_type: "application/json" | "application/x-www-form-urlencoded"
-      active: boolean
+      active: number
       consecutive_failures: number
       last_success_at: string
     }
@@ -2927,11 +2928,11 @@ declare module '@stacksjs/database' {
       uploaded_by_job_id: number
       upload_depth: number
       triggered_run_id: number
-      orchestrator: boolean
-      fail_fast: boolean
+      orchestrator: number
+      fail_fast: number
       max_parallel: number
       timeout_minutes: number
-      continue_on_error: boolean
+      continue_on_error: number
       needs: string
       runs_on: string
       runner_id: string
@@ -3015,7 +3016,7 @@ declare module '@stacksjs/database' {
       approval_state: "not-required" | "required" | "approved" | "rejected"
       approved_by: number
       approved_at: string
-      trusted: boolean
+      trusted: number
       actor_id: number
       pull_request_id: number
       attempt: number
@@ -3068,7 +3069,7 @@ declare module '@stacksjs/database' {
       shell: string
       condition: string
       step_id: string
-      continue_on_error: boolean
+      continue_on_error: number
       timeout_minutes: number
       state: "pending" | "running" | "cancelled" | "failed" | "skipped" | "succeeded"
       attempts: number
@@ -3121,18 +3122,18 @@ declare module '@stacksjs/database' {
       needs: string
       condition: string
       matrix: string
-      continue_on_error: boolean
+      continue_on_error: number
       kind: "command" | "wait" | "block" | "trigger" | "await"
       settings: string
       if_changed: string
       priority: number
       group_label: string
-      fail_fast: boolean
+      fail_fast: number
       max_parallel: number
       env: string
       permissions: string
       concurrency_group: string
-      job_cancel_in_progress: boolean
+      job_cancel_in_progress: number
       job_cancel_in_progress_expression: string
       default_shell: string
       default_working_directory: string
@@ -3157,7 +3158,7 @@ declare module '@stacksjs/database' {
       inputs: string
       env: string
       shell: string
-      continue_on_error: boolean
+      continue_on_error: number
       timeout_minutes: number
       working_directory: string
       condition: string
@@ -3173,11 +3174,11 @@ declare module '@stacksjs/database' {
       source_sha: string
       source_path: string
       content_digest: string
-      on_push: boolean
-      on_pull_request: boolean
-      on_pull_request_target: boolean
-      on_dispatch: boolean
-      reusable: boolean
+      on_push: number
+      on_pull_request: number
+      on_pull_request_target: number
+      on_dispatch: number
+      reusable: number
       push_branches: string
       push_tags: string
       push_paths: string
@@ -3190,7 +3191,7 @@ declare module '@stacksjs/database' {
       pull_request_branches: string
       pull_request_paths: string
       concurrency_group: string
-      cancel_in_progress: boolean
+      cancel_in_progress: number
       cancel_in_progress_expression: string
       intermediate: "run" | "skip" | "cancel"
       dispatch_inputs: string
@@ -3198,15 +3199,15 @@ declare module '@stacksjs/database' {
       permissions: string
       default_shell: string
       default_working_directory: string
-      on_issues: boolean
+      on_issues: number
       issue_types: string
-      on_issue_comment: boolean
+      on_issue_comment: number
       issue_comment_types: string
-      on_release: boolean
+      on_release: number
       release_types: string
-      on_repository_dispatch: boolean
+      on_repository_dispatch: number
       repository_dispatch_types: string
-      on_workflow_run: boolean
+      on_workflow_run: number
       workflow_run_workflows: string
       workflow_run_types: string
       workflow_run_branches: string

@@ -21,7 +21,7 @@
  * Rendered entirely on the server. A profile is a list of links.
  */
 import { profileFeed, withHandles } from '../../../app/Actions/Feed/read'
-import { ownerRepositories, profileReadme } from '../../../app/Actions/Profile/read'
+import { ownerRepositories, profileOrganizations, profileReadme } from '../../../app/Actions/Profile/read'
 import { cookieJarFromHeader, organizationRoleOf, peopleIn, viewerFromCookies } from '../../functions/identity'
 import { relativeTime } from '../../functions/browse'
 import { aliasTarget, pathUnderOwner } from '../../functions/aliases'
@@ -110,6 +110,7 @@ if (!account && !organization && !movedTo)
   setStatus(404)
 
 const isSelf = Boolean(viewer && account && Number(viewer.id) === Number(account.id))
+const memberships = account ? await profileOrganizations(Number(account.id), viewer ? Number(viewer.id) : null) : []
 
 /*
  * Their repositories, as this reader may see them.
@@ -369,6 +370,32 @@ const pageDescription = found
                         <img src="{{ person.avatarUrl }}" alt="{{ person.handle }}" width="32" height="32">
                       @else
                         <span class="profile-face-letter" aria-hidden="true">{{ person.handle.charAt(0).toUpperCase() }}</span>
+                      @endif
+                    </a>
+                  </li>
+                @endforeach
+              </ul>
+            </section>
+          @endif
+
+          @if (memberships.length > 0)
+            <section class="profile-people" aria-label="Organizations">
+              <h2 class="profile-side-heading">
+                @if (isSelf)
+                  <a href="/settings/organizations">Organizations</a>
+                @else
+                  <span>Organizations</span>
+                @endif
+                <span class="profile-side-count">{{ memberships.length }}</span>
+              </h2>
+              <ul class="profile-faces">
+                @foreach (memberships as membership)
+                  <li>
+                    <a href="/{{ membership.handle }}" title="{{ membership.name }}" aria-label="{{ membership.name }}">
+                      @if (membership.avatarUrl)
+                        <img class="rounded" src="{{ membership.avatarUrl }}" alt="{{ membership.handle }}" width="32" height="32" loading="lazy">
+                      @else
+                        <span class="profile-face-letter" aria-hidden="true">{{ membership.initial }}</span>
                       @endif
                     </a>
                   </li>

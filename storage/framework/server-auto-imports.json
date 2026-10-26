@@ -86,6 +86,7 @@
     "I18n": true,
     "ImportRepositoryJob": true,
     "IndexCodeJob": true,
+    "IndexMirrorSearchJob": true,
     "IndexRepositoryJob": true,
     "Inspire": true,
     "InstanceKey": true,

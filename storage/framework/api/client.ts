@@ -471,6 +471,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/orgs/members/visibility
+   */
+  postOrgsMembersVisibility(input: { body: { "organization_id"?: unknown; "visibility": "public" | "private" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/orgs/members/visibility", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/orgs/teams
    */
   postOrgsTeams(input?: { body?: { "description"?: string; "name"?: string; "operation"?: string; "organization_id"?: unknown; "parent_team_id"?: unknown; "slug"?: string; "team_id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -508,14 +515,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/releases
    */
-  getReleases(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string }> }>> {
+  getReleases(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "external_id": string; "created_at"?: string; "updated_at"?: string }> }>> {
     return request(config, "GET", "/api/releases", {}, [], false, options)
   },
 
   /**
    * GET /api/releases/{id}
    */
-  getReleasesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string } }>> {
+  getReleasesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "external_id": string; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/releases/{id}", input ?? {}, [], false, options)
   },
 

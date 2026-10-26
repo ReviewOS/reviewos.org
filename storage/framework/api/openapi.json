@@ -3330,6 +3330,58 @@
         }
       }
     },
+    "/api/orgs/members/visibility": {
+      "post": {
+        "summary": "/api/orgs/members/visibility",
+        "operationId": "post__api_orgs_members_visibility",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Your membership visibility was updated."
+          },
+          "303": {
+            "description": "Return to organization settings after submitting the form."
+          },
+          "401": {
+            "description": "Sign in to change membership visibility."
+          },
+          "404": {
+            "description": "You have no accepted membership in this organization."
+          },
+          "422": {
+            "description": "An organization and a public or private visibility are required."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "organization_id": {
+                    "type": "custom"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "private"
+                    ]
+                  }
+                },
+                "required": [
+                  "visibility"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/orgs/teams": {
       "post": {
         "summary": "/api/orgs/teams",
@@ -3638,6 +3690,10 @@
                           "published_at": {
                             "type": "string"
                           },
+                          "external_id": {
+                            "type": "string",
+                            "maxLength": 255
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -3649,7 +3705,8 @@
                         },
                         "required": [
                           "id",
-                          "uuid"
+                          "uuid",
+                          "external_id"
                         ]
                       }
                     }
@@ -3747,6 +3804,10 @@
                         "published_at": {
                           "type": "string"
                         },
+                        "external_id": {
+                          "type": "string",
+                          "maxLength": 255
+                        },
                         "created_at": {
                           "type": "string",
                           "format": "date-time"
@@ -3758,7 +3819,8 @@
                       },
                       "required": [
                         "id",
-                        "uuid"
+                        "uuid",
+                        "external_id"
                       ]
                     }
                   },
@@ -16858,6 +16920,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16878,6 +16946,12 @@
               },
               "X-Cache-Digest": {
                 "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
                 "schema": {
                   "type": "string"
                 }
@@ -16904,6 +16978,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16924,6 +17004,12 @@
               },
               "X-Cache-Digest": {
                 "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
                 "schema": {
                   "type": "string"
                 }
@@ -16950,6 +17036,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16973,6 +17065,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -16993,6 +17091,12 @@
               },
               "X-Cache-Digest": {
                 "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Max-Bytes": {
+                "description": "The largest snapshot this instance accepts on save, so a runner stops packing past it. Also sent with a 204.",
                 "schema": {
                   "type": "string"
                 }
@@ -20797,6 +20901,10 @@
           "published_at": {
             "type": "string"
           },
+          "external_id": {
+            "type": "string",
+            "maxLength": 255
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -20808,7 +20916,8 @@
         },
         "required": [
           "id",
-          "uuid"
+          "uuid",
+          "external_id"
         ]
       }
     }
