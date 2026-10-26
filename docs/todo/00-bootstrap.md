@@ -143,6 +143,21 @@ Each one is committed and pushed in the repository named.
   just risk drift, it silently holds the whole tree at the oldest range in play, and what you lose
   is whatever the newer versions had learned to catch.
 
+  **It came back on 2026-10-24, which is the useful part of the story.** `de2df3fe` re-declared
+  `@stacksjs/bunpress`, this time at `^0.2.25`, and the lockfile went to **five** copies: the root
+  at 0.2.25 and four nested 0.2.22s under `@stacksjs/actions`, `@stacksjs/docs`, `@stacksjs/types`
+  and `better-dx`. Nothing required the split - every one of those asks for `^0.2.15` or `^0.2.8`,
+  all satisfied by the root - so the nested entries were stale resolutions the lock had kept from
+  when the root sat at 0.2.14. A re-resolve collapsed them to one copy at 0.2.28, touching nothing
+  but `bun.lock`; the declared range was left exactly as it was found, since the duplication was
+  the thing to fix and the floor somebody else chose was not.
+
+  Worth saying plainly: the second occurrence was milder than the first. The direct range was
+  *ahead* of every other, so no package was held on an old copy, which is the harm that made the
+  first one matter. The declaration is still the thing that reopens the split whenever it falls
+  behind, and AGENTS.md forbids it for that reason, but removing it a second time is a call for
+  whoever added it.
+
   Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
   better code independently of the linter, and reverting structure to prove a tool is fixed is how
   you end up doing it twice.
