@@ -62,4 +62,17 @@ describe('the commit a first page is', () => {
     expect(git('symbolic-ref', 'HEAD').trim()).toBe('refs/heads/main')
     expect(git('rev-parse', 'refs/heads/main').trim()).toBe(git('rev-parse', 'HEAD').trim())
   })
+
+  test('preserves an imported README and the explicit operator identity without coauthors', async () => {
+    const personal = join(work, 'personal.git')
+    spawnSync('git', ['init', '-q', '--bare', '--initial-branch=main', personal], { encoding: 'utf8' })
+    const { writeInitialCommitForTest } = await import('../../app/Actions/Profile/seed')
+    const content = '# Chris\n\nBuilding open source. 👋🏼\n'
+    const written = await writeInitialCommitForTest(personal, content, 'docs: migrate GitHub profile README', { name: 'Chris Breuer', email: 'chris@example.com' })
+    expect(written.ok).toBe(true)
+    const read = (...args: string[]) => spawnSync('git', ['--git-dir', personal, ...args], { encoding: 'utf8' }).stdout
+    expect(read('show', 'HEAD:README.md')).toBe(content)
+    expect(read('show', '-s', '--format=%an <%ae>%n%cn <%ce>', 'HEAD').trim()).toBe('Chris Breuer <chris@example.com>\nChris Breuer <chris@example.com>')
+    expect(read('show', '-s', '--format=%B', 'HEAD')).not.toContain('Co-authored-by:')
+  })
 })

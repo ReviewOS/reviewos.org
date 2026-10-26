@@ -74,6 +74,9 @@ const config: PickierOptions = {
   },
 
   ignores: [
+    // An exact upstream profile snapshot, including its author's Markdown
+    // punctuation. Formatting it would change the content being migrated.
+    '**/profile/chris/README.md',
     '**/fixtures/**',
     '**/coverage/**',
     '**/temp/**',

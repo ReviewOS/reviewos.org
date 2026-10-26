@@ -929,6 +929,10 @@ export const tsCloud: TsCloudConfig = {
          * this instance does not have is skipped rather than fatal.
          */
         'bun node_modules/@stacksjs/buddy/dist/cli.js profile:seed --owner reviewos --file profile/README.md',
+        // The personal profile is the exact Markdown GitHub publishes from
+        // chrisbbreuer/.github/profile/README.md. Seed it once with the
+        // operator's Git identity; subsequent releases preserve local edits.
+        'bun node_modules/@stacksjs/buddy/dist/cli.js profile:seed --owner chris --file profile/chris/README.md --author-name "Chris Breuer" --author-email chrisbreuer93@gmail.com --message "docs: migrate GitHub profile README"',
         // The documentation site, built into `dist/docs` where
         // `resources/views/docs/` reads it.
         //

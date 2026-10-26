@@ -819,3 +819,5 @@ The half of this nobody builds, and the half that decides whether an instance is
 - [x] Associate operator-verified secondary emails with one account for sign-in, second factors and commit attribution.
 
 - [x] Show accepted organizations on user profiles with private membership by default and an explicit public visibility setting. Let members show or hide their own membership from organization settings, support publishing discovered organizations with `github:sync --public-organizations`, and exercise the rendered profile and settings form with browser cookies and CSRF. Regenerate database types for MySQL and accept the driver's numeric flags at raw-query boundaries.
+
+- [x] Migrate the linked personal GitHub profile into `chris/.profile/README.md` with the configured operator as both Git author and committer, preserve the upstream Markdown byte for byte, and verify every available organization profile against its GitHub blob. Let `profile:seed` take an explicit author without changing unattended instance seeding or overwriting existing profiles.

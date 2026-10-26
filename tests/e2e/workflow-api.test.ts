@@ -1226,7 +1226,7 @@ describe('the environment a job inherits', () => {
       return
 
     await db.updateTable('workflow_versions')
-      .set({ permissions: JSON.stringify({ 'contents': 'read', 'packages': 'write' }) } as any)
+      .set({ permissions: JSON.stringify({ 'contents': 'read', 'packages': 'write', 'attestations': 'write' }) } as any)
       .where('id', '=', created.versionId)
       .execute()
 
@@ -1236,11 +1236,11 @@ describe('the environment a job inherits', () => {
     const { body } = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`)
     const job = body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
 
-    expect(job.permissions.scopes).toEqual({ contents: 'read' })
+    expect(job.permissions.scopes).toEqual({ contents: 'read', packages: 'write' })
     expect(job.permissions.from).toBe('workflow')
     // Named rather than dropped: a token that silently grants nothing is a
     // workflow that fails with no explanation.
-    expect(job.permissions.unsupported).toEqual(['packages'])
+    expect(job.permissions.unsupported).toEqual(['attestations'])
   })
 
   test('and the shell and directory its steps inherit, or the runner\'s choice', async () => {

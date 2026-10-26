@@ -55,3 +55,5 @@ The complete application unit suite passes (5,203 tests, two existing skips), al
 router, session, CSRF and token regressions. The native-tools suite also passes against a real Pantry
 registry build. Lint, type checks, documentation builds, light/dark layouts and the mobile board and
 Markdown preview were verified.
+
+- [x] Refresh the generated self-hosting social card and update workflow permission introspection coverage to grant native package publishing while still reporting unsupported attestations.

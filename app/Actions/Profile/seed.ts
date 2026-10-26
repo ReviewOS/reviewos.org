@@ -24,6 +24,8 @@
 import { db } from '@stacksjs/database'
 import { initBare, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
+import type { CommitAuthor } from '../Git/write'
+import { authorEnvironment } from '../Git/write'
 
 /** What the seed did, in the words the command prints. */
 export type SeedOutcome =
@@ -40,6 +42,8 @@ export interface SeedRequest {
   /** The repository name. `.profile` is the one the reader asks for first. */
   name?: string
   message?: string
+  /** Explicit operator identity; unattended instance seeding defaults to ReviewOS. */
+  author?: CommitAuthor
 }
 
 export async function seedProfile(request: SeedRequest): Promise<SeedOutcome> {
@@ -85,7 +89,7 @@ export async function seedProfile(request: SeedRequest): Promise<SeedOutcome> {
   if (refs.ok && refs.stdout.trim())
     return { done: 'already-written', repository: label }
 
-  const commit = await writeInitialCommit(diskPath, request.content, request.message ?? 'the page this owner shows')
+  const commit = await writeInitialCommit(diskPath, request.content, request.message ?? 'the page this owner shows', request.author)
 
   if (!commit.ok)
     return { done: 'failed', repository: label, reason: commit.reason }
@@ -125,6 +129,7 @@ async function writeInitialCommit(
   diskPath: string,
   content: string,
   message: string,
+  author: CommitAuthor = { name: 'ReviewOS', email: 'noreply@reviewos.org' },
 ): Promise<{ ok: true, sha: string } | { ok: false, reason: string }> {
   const blob = await runGit(diskPath, ['hash-object', '-w', '--stdin'], { input: content })
 
@@ -136,12 +141,7 @@ async function writeInitialCommit(
   if (!tree.ok)
     return { ok: false, reason: tree.stderr || 'could not write the tree' }
 
-  const identity = {
-    GIT_AUTHOR_NAME: 'ReviewOS',
-    GIT_AUTHOR_EMAIL: 'noreply@reviewos.org',
-    GIT_COMMITTER_NAME: 'ReviewOS',
-    GIT_COMMITTER_EMAIL: 'noreply@reviewos.org',
-  }
+  const identity = authorEnvironment(author)
 
   const commit = await runGit(diskPath, ['commit-tree', tree.stdout.trim(), '-m', message], { env: identity })
 

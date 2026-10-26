@@ -22,7 +22,10 @@ export default function (cli: CLI) {
     .option('--owner <handle>', 'The organization or user whose page this is')
     .option('--file <path>', 'The markdown to commit as README.md')
     .option('--name <name>', 'The repository to write it in', { default: '.profile' })
-    .action(async (options: { owner?: string, file?: string, name?: string }) => {
+    .option('--author-name <name>', 'Git author and committer name for an operator-created profile')
+    .option('--author-email <email>', 'Git author and committer email for an operator-created profile')
+    .option('--message <message>', 'The initial profile commit message')
+    .action(async (options: { owner?: string, file?: string, name?: string, authorName?: string, authorEmail?: string, message?: string }) => {
       try {
         const owner = String(options.owner ?? '').trim()
         const file = String(options.file ?? '').trim()
@@ -32,10 +35,15 @@ export default function (cli: CLI) {
           process.exit(1)
         }
 
+        if (Boolean(options.authorName?.trim()) !== Boolean(options.authorEmail?.trim()))
+          throw new Error('Supply both --author-name and --author-email')
+
         const outcome = await seedProfile({
           owner,
           name: options.name,
           content: readFileSync(file, 'utf8'),
+          author: options.authorName && options.authorEmail ? { name: options.authorName.trim(), email: options.authorEmail.trim() } : undefined,
+          message: options.message?.trim() || undefined,
         })
 
         if (outcome.done === 'seeded')

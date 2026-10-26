@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (68/68) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (81/81) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (82/82) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (139/139) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (43/43) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (106/106) |
@@ -33,7 +33,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (37/37) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (15/15) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (25/25) |
-| [19 - Native repository tools](./19-native-tools.md) | Pantry registry, BunPress wiki, issue project boards | Complete (19/19) |
+| [19 - Native repository tools](./19-native-tools.md) | Pantry registry, BunPress wiki, issue project boards | Complete (20/20) |
 
 Phases 16 through 18 were written after reading Cursor's
 [Git at any scale](https://cursor.com/blog/git-at-any-scale) and auditing this codebase against it.
