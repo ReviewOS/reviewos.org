@@ -2449,6 +2449,11 @@ async function publishArtifacts(input: {
     }
     try {
       const bytes = readFileSync(join(input.workspace, file))
+      if (bytes.byteLength === 0) {
+        // The artifact endpoint requires content; quiet commands still leave log files.
+        await input.say(`skipped empty artifact ${file}\n`)
+        continue
+      }
 
       // Artifact storage is idempotent on run/name/content. Replaying these
       // exact bytes after 429/503 preserves the evidence without raising the

@@ -1227,10 +1227,11 @@ describe('artifact-paths', () => {
       .orderBy('sequence')
       .execute()
 
-    // The permanent empty-body refusal is visible without changing the
-    // command's failure. Quota backpressure must not discard later files.
+    // Empty logs have no payload for the artifact endpoint. Report the skip;
+    // quota backpressure must still preserve every nonempty file.
     const output = logs.map(row => String(row.content ?? '')).join('')
-    expect(output).toContain('could not publish out/empty.txt: 422')
+    expect(output).toContain('skipped empty artifact out/empty.txt')
+    expect(output).not.toContain('could not publish out/empty.txt')
     expect(output).not.toMatch(/could not publish .*: 429/)
   }, 180_000)
 
