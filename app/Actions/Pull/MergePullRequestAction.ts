@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { syncIssueRow } from './issueRow'
 import { schema } from '@stacksjs/validation'
 import { closingTargets, withoutSelf } from '../Issue/closing'
 import { runGit } from '../Git/git'
@@ -371,6 +372,22 @@ export default new Action({
       })
       .where('id', '=', Number(pullRequest.id))
       .execute()
+
+    /*
+     * And the shadow row, which has no idea what merging is.
+     *
+     * `issues.state` is an enum of open and closed, so a merge lands there as
+     * closed. That is the honest mapping rather than a value the column would
+     * refuse: whether it merged is the pull request's business, and the row
+     * exists so the number resolves, not to retell the story.
+     */
+    await syncIssueRow({
+      repositoryId: Number(repository.id),
+      number,
+      state: 'merged',
+      closedAt: new Date().toISOString(),
+      closedById: Number(user.id),
+    })
 
     // The head branch, if this repository asked for it to go.
     //

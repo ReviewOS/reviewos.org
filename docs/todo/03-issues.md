@@ -187,6 +187,12 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       So `#5` naming a change found no target and recorded nothing, with no error and no reason
       given, on every path that scans text. It resolves against both tables now, and the table a
       row came from is the answer, so nothing branches on a column to decide what it is looking at.
+
+      **The premise in that paragraph has since changed, and the resolution deliberately has not.**
+      A pull request does get an `issues` row now, written by `app/Actions/Pull/issueRow.ts`, so
+      `is_pull_request` is finally true on something. Resolving against both tables is still right:
+      the table a row came from is still a better answer than a boolean column, and a reference
+      that resolved through the shadow row would name the shadow rather than the change.
 - [x] And a pull request records what it refers to. No pull request path called the recorder at all,
       only the four issue paths did, so a change whose body said `#12` left nothing on issue 12 -
       which is the exact sentence the module's own docblock gives as the motivating case
@@ -283,3 +289,32 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       extraction and the page rendered its not-found branch with nothing in the log. Now through
       `useRoute()`. `milestones.stx` and both list views had the same bug - the state filter on
       `/issues` and `/pulls` had never worked - and are fixed with it.
+
+- [x] **A pull request gets an `issues` row.** `issues.is_pull_request` has existed since the table
+      was created and nothing ever set it, while `ListIssuesAction` and `Repo/counters.ts` both
+      already filtered on it: half a design, waiting for rows nobody wrote.
+
+      The row is not what makes a timeline or a reaction work - `timeline_entries.subject_type` and
+      `reactions.subject_type` are already polymorphic over `issue | pull_request` and never needed
+      it. What needs it is every path that resolves a number through `issues` and found nothing for
+      a change. `CommentOnIssueAction` is the one people notice: it answered `No such issue` with a
+      404 for every pull request number ever given to it, so a change had nowhere to hold a
+      conversation.
+
+      **The cost is a second copy of title, body and state**, matched on `(repository_id, number)`
+      with no foreign key, and nothing in the database enforcing that the pair agree. That is why
+      every write goes through one helper rather than being inlined: fifteen places update
+      `pull_requests`, and the four that touch a shadowed column call `syncIssueRow` right after.
+      A new one that forgets is how this breaks, and if that happens often the answer is to stop
+      copying content and let the row carry identity alone.
+
+      `buddy pull:issue-rows` backfills instances whose changes predate this, since every existing
+      pull request everywhere has no row. It is re-runnable, and wrote 169 rows here on the first
+      pass and 0 on the second. No number collided, because `allocateNumber` has always drawn
+      issues and pull requests from one per-repository counter.
+
+      The guard in `tests/unit/repo-counters.test.ts` caught the helper immediately, which is the
+      kind of test worth having: it requires anything writing `issues` to recount open issues. The
+      exemption is recorded with its reason rather than the call being added for show - every row
+      this writes carries `is_pull_request: true`, and the count is of rows where that is false, so
+      a recount could not change the answer.

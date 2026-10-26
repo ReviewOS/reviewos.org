@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { recordCrossReferences } from '../Issue/crossReferences'
+import { syncIssueRow } from './issueRow'
 import { isSafeRef, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
@@ -112,6 +113,19 @@ export default new Action({
         .set(changes)
         .where('id', '=', Number(pullRequest.id))
         .execute()
+
+      // The shadow row carries title and body, so an edit that changes either
+      // has to reach it. `syncIssueRow` writes only the keys it is given, so
+      // retargeting a base leaves the title alone rather than blanking it.
+      if (changes.title !== undefined || changes.body !== undefined) {
+        await syncIssueRow({
+          repositoryId: Number(repository.id),
+          number,
+          ...(changes.title === undefined ? {} : { title: String(changes.title) }),
+          ...(changes.body === undefined ? {} : { body: changes.body === null ? null : String(changes.body) }),
+          state: String(pullRequest.state ?? 'open'),
+        })
+      }
     }
 
     /*

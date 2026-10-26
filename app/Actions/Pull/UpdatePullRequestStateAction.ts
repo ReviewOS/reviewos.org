@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { syncIssueRow } from './issueRow'
 import { schema } from '@stacksjs/validation'
 import { notifyProgramsOnly } from '../../Notifications/emit'
 import { runGit } from '../Git/git'
@@ -142,6 +143,16 @@ export default new Action({
         })
         .where('id', '=', Number(pullRequest.id))
         .execute()
+
+      // Closing and reopening both have to reach the shadow row, or a closed
+      // change still reads as open to anything that resolves its number.
+      await syncIssueRow({
+        repositoryId: Number(repository.id),
+        number,
+        state: String(result.state),
+        closedAt: closed ? new Date().toISOString() : null,
+        closedById: closed ? Number(user.id) : null,
+      })
     }
 
     // A close, not a reopen, and not a draft toggle. See the note in

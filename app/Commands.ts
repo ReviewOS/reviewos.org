@@ -42,6 +42,10 @@ export default {
   'github:sync': 'GitHubSync',
   'user:email:add': 'UserEmail',
 
+  // One-time, for instances whose pull requests predate the issues row behind
+  // them. See `app/Actions/Pull/issueRow.ts` for what the row is for.
+  'pull:issue-rows': 'PullIssueRows',
+
   // The API and webhook reference, written by the code that implements them.
   // `--check` is what a test uses to notice the committed pages have drifted.
   'docs:reference': 'DocsReference',

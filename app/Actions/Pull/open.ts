@@ -16,6 +16,7 @@
 
 import { db } from '@stacksjs/database'
 import { recordCrossReferences } from '../Issue/crossReferences'
+import { syncIssueRow } from './issueRow'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { allocateNumber } from '../Repo/authorize'
 import { codeownersFor, ownersForPaths, resolveOwners } from './codeowners'
@@ -133,6 +134,23 @@ export async function openPullRequest(input: OpenPullRequestInput): Promise<Open
     })
     .returning(['id'])
     .executeTakeFirst()
+
+  /*
+   * The row that makes this number resolvable as a conversation.
+   *
+   * Written before the cross references below, because those record against
+   * numbers and a reference that lands first would name a number with nothing
+   * behind it. Like them, it never throws: a change that is already a row must
+   * not be refused over its shadow.
+   */
+  await syncIssueRow({
+    repositoryId: input.repositoryId,
+    number,
+    title,
+    body: String(input.body ?? ''),
+    authorId: input.authorId ?? null,
+    state: 'open',
+  })
 
   /*
    * What this change says it is about.

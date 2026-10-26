@@ -48,6 +48,13 @@ const RULES: Rule[] = [
       /updateTable\(['"]issues['"]\)[\s\S]{0,400}?state/,
       /updateWhereIn\(\s*['"]issues['"][\s\S]{0,200}?state/,
     ],
+    deferredTo: {
+      // Writes `issues` rows, and never one this counter can see: every row it
+      // touches carries `is_pull_request: true`, and the count is of rows where
+      // that is false. A recount here could not change the answer, so calling
+      // one would only teach the next reader that it might.
+      'app/Actions/Pull/issueRow.ts': 'nothing - the rows it writes are excluded from the count by definition',
+    },
   },
   {
     counted: 'comments',
