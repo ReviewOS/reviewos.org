@@ -713,6 +713,91 @@ describe('a run that is waiting for a runner', () => {
       await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
     }
   }, 60_000)
+
+  /*
+   * The queue's own reason, when the machines exist and are simply not taking
+   * work.
+   *
+   * `explainWaiting` has always been able to say this - it asks the same
+   * `queueAccepts` the dispatcher does - but this page could never reach it.
+   * The select that builds `runnerFacts` did not fetch `runner_queue_id` while
+   * the line below it read that column, so every runner arrived with
+   * `queue: null`, `queueAccepts(null, ...)` admitted all of them, and both
+   * `queue-paused` and `pool-refuses` were dead branches on this screen. A job
+   * held up by a drained queue got whatever the next rule said instead.
+   *
+   * Nothing failed, which is why it lasted: a column missing from a select is
+   * `undefined` rather than an error, and there was no queued job on a paused
+   * queue anywhere to notice it. The runner here is deliberately **active**,
+   * so the "all disabled" rule cannot answer first and mask it.
+   */
+  test('and names the paused queue when the machines are simply not taking work', async () => {
+    if (!available)
+      return
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    const unique = Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')
+    const label = `holdlabel${unique}`
+    const number = await makeRun(Number(version.id), 'queued', 'queued', '', 'f'.repeat(40))
+
+    const runRow: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    await db.updateTable('workflow_jobs').set({ runs_on: label } as any).where('workflow_run_id', '=', Number(runRow.id)).execute()
+
+    const pool: any = await db.insertInto('runner_pools').values({
+      name: `Held ${unique}`,
+      slug: `held-${unique}`,
+      description: 'created by the run page paused queue test',
+      uuid: crypto.randomUUID(),
+    }).returning(['id']).executeTakeFirst()
+
+    const queue: any = await db.insertInto('runner_queues').values({
+      runner_pool_id: Number(pool.id),
+      name: `held-${unique}`,
+      state: 'paused',
+      paused_reason: 'Waiting on the quarterly key rotation',
+      uuid: crypto.randomUUID(),
+    }).returning(['id']).executeTakeFirst()
+
+    const runner: any = await db.insertInto('runners').values({
+      name: `held-${unique}`,
+      scope_type: 'instance',
+      scope_id: null,
+      token_hash: 'y'.repeat(64),
+      labels: label,
+      state: 'active',
+      version: '1',
+      runner_queue_id: Number(queue.id),
+    }).returning(['id']).executeTakeFirst()
+
+    try {
+      const html = await page(`/${created.handle}/${created.name}/run/${number}`, created.ownerToken)
+
+      // The queue by name and the reason somebody typed when they paused it,
+      // rather than a generic "no machines available".
+      expect(html).toContain(`held-${unique}`)
+      expect(html).toContain('Waiting on the quarterly key rotation')
+
+      // And not the answer the page used to give instead.
+      expect(html).not.toContain('No runner here has')
+    }
+    finally {
+      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
+      await db.deleteFrom('runner_queues').where('id', '=', Number(queue.id)).execute().catch(() => {})
+      await db.deleteFrom('runner_pools').where('id', '=', Number(pool.id)).execute().catch(() => {})
+    }
+  }, 60_000)
 })
 
 /*

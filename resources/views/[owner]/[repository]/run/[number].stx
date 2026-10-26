@@ -378,8 +378,22 @@ const queuesById = new Map<number, any>(queueRows.map((row: any) => [Number(row.
     .map((entry: any) => Number(entry.repository_id)),
 }]))
 
+/*
+ * `runner_queue_id` is in this select because the line below reads it.
+ *
+ * It was not, so `queuesById.get(Number(undefined))` looked up `NaN`, every
+ * runner came back with `queue: null`, and `queueAccepts(null, ...)` admits
+ * everything. The effect was that two of `explainWaiting`'s answers -
+ * `queue-paused` and `pool-refuses` - could never be reached on this page: a
+ * job held up by a drained queue was explained as whatever the next rule said
+ * instead, and the queue it was actually waiting on went unmentioned.
+ *
+ * Nothing failed, which is why it survived: the page had no queued job to
+ * explain until one was seeded, and a missing column in a select is undefined
+ * rather than an error.
+ */
 const runnerFacts = anyQueued
-  ? (await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels']).execute())
+  ? (await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels', 'runner_queue_id']).execute())
       .map(runner => ({
         id: Number(runner.id),
         state: String(runner.state),

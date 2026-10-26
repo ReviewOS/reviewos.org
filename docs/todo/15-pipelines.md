@@ -2582,6 +2582,34 @@ decisions.
       Nothing that makes the row unclaimable leaves it the same kind of row, so showing this state
       needs either a fixture the claimer cannot see or a screen that can render a job the database
       does not hold.
+
+      **Attempted, and deliberately not shipped. What it found is worth more than the fixture.**
+
+      The approach was the first of those two and it does work: a job whose `runs_on` names every
+      label `release-signer` carries is unclaimable, because `runnerSatisfies` requires *every*
+      label and that machine is `disabled` on the `paused` `signing` queue. Nothing weakens the
+      claimer and the row stays an ordinary queued job. The run page rendered it correctly.
+
+      It was abandoned because **any permanently queued job anywhere in the database makes
+      `tests/e2e/workflow-cache-roundtrip.test.ts` fail**, and that is not specific to this
+      fixture: a plain `macos-14` queued job does it too, while removing it makes the test pass
+      again. Three runs, each way round.
+
+      The obvious explanation is wrong, which is why this is recorded rather than guessed at. The
+      claimer does **not** head-of-line block: given one unclaimable job and one claimable job, a
+      probe calling `claimNextJob` directly skipped the first and claimed the second, and the
+      endpoint calls that same function. So a stray queued job does not starve a runner on a real
+      instance. Something else in that test depends on the instance holding no other queued work,
+      and fixing a test whose failure is not understood - to make a fixture pass - is the wrong
+      order to do things in.
+
+      So the state stays unreachable for now, and the next attempt starts from two facts it does
+      not have to rediscover: the label gate is a sound way to make the row unclaimable, and the
+      blocker is that one test, not the dispatcher.
+
+      **One real bug came out of it and is fixed.** See the run page's `runner_queue_id` note in
+      this phase: `explainWaiting` could never name a paused queue on that screen, because the
+      select building `runnerFacts` omitted the column the next line reads.
 - [x] `environments`, which the workflows page turns into the choice list for a `workflow_dispatch`
       input of type `environment`. Two per repository, one gated and one not: `production` waits ten
       minutes and requires its checks, `staging` does neither. An instance where every environment
@@ -3441,3 +3469,21 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
 - [x] Provisioning a replacement runner sends its drain signal only to the service's
       main process, so active job children can finish. The binary-install regression
       verifies the signal target and install-before-drain ordering.
+
+- [x] **The run page could never explain a paused queue.** `explainWaiting` has always been able
+      to: it asks the same `queueAccepts` the dispatcher does, and answers `queue-paused` with the
+      queue's own reason. The screen could not reach it. The select building `runnerFacts` fetched
+      `id, state, scope_type, scope_id, labels` while the line directly below it read
+      `runner.runner_queue_id`, so every runner arrived with `queue: null`, `queueAccepts(null, …)`
+      admitted all of them, and both `queue-paused` and `pool-refuses` were dead branches. A job
+      held up by a drained queue was explained as whatever the next rule said instead, and the
+      queue it was actually waiting on went unmentioned.
+
+      Nothing failed, which is why it lasted: a column missing from a select is `undefined` rather
+      than an error, and there was no queued job on a paused queue anywhere to notice. One column,
+      and the screen now says `The `signing` queue is paused: Waiting on the quarterly key
+      rotation`.
+
+      `tests/e2e/run-page.test.ts` pins it with an **active** runner on a paused queue, so the
+      "all runners are disabled" rule cannot answer first and hide the regression again. Verified
+      to fail without the column.
