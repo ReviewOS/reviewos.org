@@ -397,3 +397,5 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Read complete authenticated GitHub issue listings through GraphQL, including issues omitted by REST, while retaining incremental pull request discovery and failure checkpoints.
 
 - [x] Reconcile existing account mirrors with the explicitly linked local owner instead of treating an upstream match as ownership. Reuse repository transfers so Git objects, repository ids and discussions survive, preserve private visibility and mirror policy, and accept already-proven organization memberships. Verify legacy-owner repair against real Git history.
+
+- [x] Boot application event listeners in the account discovery command so transfers performed by a local operator reach the audit log, as they already do from a worker or HTTP request.
