@@ -891,3 +891,40 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
   written over every `href` on it rather than the one row the test creates, because the failure is
   a shape and a test that checked only its own row would pass while the rest of the page still
   pointed away.
+
+- [x] **A pull request has a conversation.** The page had a description and nothing else: no
+  comments, no history, and no way to add either. `CommentOnIssueAction` answered `No such issue`
+  for every pull request number ever handed to it, because it resolves a number through the
+  `issues` table and nothing wrote a row there for a change. Phase 3 writes that row now, and this
+  is the half you can see.
+
+  It renders `IssueThread`, which is the component the issue page already uses and which says in
+  its own header that "the pull request page is the reason this is a component at all". What it
+  could not cover was the eighty lines of reading and shaping in front of it, so the second screen
+  would have got exactly the copy the component exists to prevent. That moved to
+  `resources/functions/conversation.ts` and both pages call it.
+
+  **The two subjects are named separately, and that is not ceremony.** A change's comments hang off
+  the `issues` row behind it, because that is the row a number resolves to and the row the comment
+  endpoint writes against. Its history hangs off the change itself, as `subject_type:
+  'pull_request'`, because `crossReferences` has recorded it that way since before the shadow row
+  existed. Passing one id would have rendered one of the two empty, and silently.
+
+  **Submitting a comment used to leave you looking at JSON**, and had done since the issue page
+  shipped. Both boxes are plain forms because the pages run no client-side JavaScript, so there is
+  nothing to catch a 201 and re-render with it: the comment saved, and the reader got
+  `{"id":205,...}` and the back button. `CommentOnIssueAction` answers a browser with a 303 to the
+  page and the new comment's anchor now, the same shape `LogoutAction` uses, decided by the same
+  `wantsHtml`. An API client is unaffected, which is exactly why the suite never noticed.
+
+  Driven in a browser end to end: signed in, commented twice, landed back on
+  `/pull/1#comment-206` with both comments in place, and checked the issue page still renders its
+  own conversation after the extraction, reactions and counts included.
+
+  **One regression nearly shipped, and the suite caught it.** The first version treated a missing
+  shadow row as "no conversation" and returned an empty opening post with it - so a change without
+  one lost its **description**, not just its comments. That is not a corner: a mirrored pull
+  request is created by `ImportRepositoryJob`, which writes no shadow row, and so is every change
+  on an instance that has not run the backfill. `tests/e2e/pull-tabs.test.ts` failed on
+  `description</strong>` being absent, which is exactly what it is for. The opening post is the
+  change's own body now and never consults that row; only comments and body reactions do.

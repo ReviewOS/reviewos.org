@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { wantsHtml } from '../Auth/session'
 import { schema } from '@stacksjs/validation'
 import { appendAttachments } from '../Attachment/upload'
 import { userReferences } from '../Markdown/references'
@@ -143,6 +144,30 @@ export default new Action({
       // Commenting on something subscribes you to it.
       subscribeActor: 'participating',
     })
+
+    /*
+     * A browser gets its page back, not the JSON.
+     *
+     * Both comment boxes in the product are plain forms, because the pages run
+     * no client-side JavaScript: there is nothing to catch a 201 and re-render
+     * with it. So submitting one left the reader looking at
+     * `{"id":205,"issue_number":1,...}` with their comment saved and no way
+     * back except the back button. The pull request page made this visible by
+     * being the second one, but the issue page had always done it.
+     *
+     * 303, and to the page the comment is on, which is the same shape
+     * `LogoutAction` uses and the same `wantsHtml` that decides it. An API
+     * client sending `Accept: application/json` is unaffected, which is why
+     * the suite did not notice.
+     */
+    if (wantsHtml(request)) {
+      const ownerHandle = encodeURIComponent(String(request.get('owner') ?? '').trim().toLowerCase())
+      const repositoryName = encodeURIComponent(String(repository.name))
+      const kind = issue.is_pull_request ? 'pull' : 'issue'
+      const path = `/${ownerHandle}/${repositoryName}/${kind}/${number}`
+
+      return new Response(null, { status: 303, headers: { Location: `${path}#comment-${Number(created?.id)}` } })
+    }
 
     return response.json({
       id: Number(created?.id),

@@ -17,7 +17,7 @@ import { repositoryForView } from '../../../../functions/repo'
 import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
 import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelColor, labelTextColor } from '../../../../functions/issues'
 import { pressed, subjectKey, summarize, summarizeAll } from '../../../../functions/reactions'
-import { renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { loadConversation } from '../../../../functions/conversation'
 import { viewerFromCookies } from '../../../../functions/identity'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
@@ -133,50 +133,6 @@ const milestone: any = issue?.milestone_id
   ? await db.selectFrom('milestones').selectAll().where('id', '=', Number(issue.milestone_id)).executeTakeFirst()
   : undefined
 
-const commentRows: any[] = issue
-  ? await db
-      .selectFrom('issue_comments')
-      // A LEFT join: a mirrored comment has no local author, and an inner join
-      // would drop it from the conversation without saying so.
-      .leftJoin('users', 'users.id', '=', 'issue_comments.author_id')
-      .select([
-        'issue_comments.id as id',
-        'issue_comments.body as body',
-        'issue_comments.created_at as created_at',
-        'issue_comments.edited_at as edited_at',
-        'issue_comments.external_author as external_author',
-        'users.handle as handle',
-      ])
-      .where('issue_comments.commentable_type', '=', 'issue')
-      .where('issue_comments.commentable_id', '=', Number(issue.id))
-      .orderBy('issue_comments.created_at', 'asc')
-      .execute()
-  : []
-
-// The history: state changes, labels, assignments, milestones, cross
-// references. Read alongside the comments and merged with them below, so the
-// page reads as one sequence rather than a conversation with a changelog bolted
-// underneath it.
-const entryRows: any[] = issue
-  ? await db
-      .selectFrom('timeline_entries')
-      .leftJoin('users', 'users.id', '=', 'timeline_entries.actor_id')
-      .select([
-        'timeline_entries.id as id',
-        'timeline_entries.kind as kind',
-        'timeline_entries.subject_text as subject_text',
-        'timeline_entries.previous_text as previous_text',
-        'timeline_entries.reference_number as reference_number',
-        'timeline_entries.external_actor as external_actor',
-        'timeline_entries.created_at as created_at',
-        'users.handle as handle',
-      ])
-      .where('timeline_entries.subject_type', '=', 'issue')
-      .where('timeline_entries.subject_id', '=', Number(issue.id))
-      .orderBy('timeline_entries.created_at', 'asc')
-      .execute()
-  : []
-
 // Who is reading, so their own reactions can be shown as already pressed. A
 // server script has no `request`; what it has is the parsed cookies on
 // `serveContext`, and `viewerFromCookies` reads the same two cookies the
@@ -194,30 +150,6 @@ const here = String(serveContext?.path ?? `/${ownerHandle}/${repositoryName}/iss
 // issue with three hundred comments is exactly where the per-comment version
 // would be felt, and it is the same issue somebody most wants to read.
 
-const bodyReactionRows: any[] = issue
-  ? await db
-      .selectFrom('reactions')
-      .select(['subject_type', 'subject_id', 'content', 'user_id'])
-      .where('subject_type', '=', 'issue')
-      .where('subject_id', '=', Number(issue.id))
-      .execute()
-  : []
-
-const commentReactionRows: any[] = commentRows.length > 0
-  ? await db
-      .selectFrom('reactions')
-      .select(['subject_type', 'subject_id', 'content', 'user_id'])
-      .where('subject_type', '=', 'issue_comment')
-      .where('subject_id', 'in', commentRows.map((row: any) => Number(row.id)))
-      .execute()
-  : []
-
-const commentReactions = summarizeAll(commentReactionRows, viewerId)
-
-// The eight with a count of zero, for a comment nobody has reacted to. Built
-// once rather than per comment: it is the same answer every time.
-const noReactions = summarize([], viewerId)
-
 /**
  * Which reaction picker is open, from the query string.
  *
@@ -227,90 +159,47 @@ const noReactions = summarize([], viewerId)
  * it needs no script - the two properties this page is built around.
  */
 const picking = String(search.react ?? '')
-const pickerHref = (target: string) => `?react=${encodeURIComponent(target)}#reactions-${target}`
-
-// Rendered here rather than in the template: every body on this page resolves
-// `#12` against the same repository, and a component could not import the
-// renderer anyway.
-const markdownContext = { owner: ownerHandle, repository: repositoryName }
-
-// Ticking a box posts a form, because the page has no client-side JavaScript
-// and stx directives cannot reach inside already-rendered HTML. A locked
-// conversation gets no forms at all: the action refuses them anyway, and
-// offering a control that will be turned down is worse than not offering it.
-const taskFields = { owner: ownerHandle, repo: repositoryName, number: issue?.number ?? 0 }
 const taskAction = '/api/repos/issues/tasks'
-const bodyTaskForm = issue && !issue.locked
-  ? { action: taskAction, fields: taskFields }
-  : undefined
-
 const reactionAction = '/api/repos/issues/reactions'
-const reactionFields = [
-  { name: 'owner', value: ownerHandle },
-  { name: 'repo', value: repositoryName },
-  { name: 'number', value: issue?.number ?? 0 },
-]
 
-const bodyReactions = summarize(bodyReactionRows, viewerId)
-
-const opening = {
-  author: authorLabel(authorHandle, externalAuthor),
-  when: relativeTime(String(issue?.created_at ?? '')),
-  bodyHtml: issue?.body
-    ? await renderMarkdownHighlighted(String(issue.body), { ...markdownContext, taskForm: bodyTaskForm })
-    : '',
-  reactions: picking === 'body'
-    ? bodyReactions
-    : pressed(bodyReactions),
-  reactionFields,
-  picking: picking === 'body',
-  pickerHref: pickerHref('body'),
-}
-
-const comments = await Promise.all(commentRows.map(async (row: any) => {
-  const id = Number(row.id)
-  const summaries = commentReactions.get(subjectKey('issue_comment', id)) ?? noReactions
-
-  return {
-    id,
-    author: authorLabel(row.handle ? String(row.handle) : null, row.external_author ? String(row.external_author) : null),
-    when: relativeTime(String(row.created_at ?? '')),
-    createdAt: String(row.created_at ?? ''),
-    edited: Boolean(row.edited_at),
-    bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), {
-      ...markdownContext,
-      taskForm: bodyTaskForm ? { action: taskAction, fields: { ...taskFields, comment_id: id } } : undefined,
-    }),
-    // All eight when the picker is open on this comment, and otherwise only
-    // the ones somebody has actually pressed: a row of eight grey buttons under
-    // every comment on a two-hundred-comment issue is noise.
-    reactions: picking === String(id) ? summaries : pressed(summaries),
-    reactionFields: [...reactionFields, { name: 'comment_id', value: id }],
-    picking: picking === String(id),
-    pickerHref: pickerHref(String(id)),
-  }
-}))
-
-const events = entryRows.map((row: any) => ({
-  id: Number(row.id),
-  createdAt: String(row.created_at ?? ''),
-  actor: authorLabel(row.handle ? String(row.handle) : null, row.external_actor ? String(row.external_actor) : null),
-  when: relativeTime(String(row.created_at ?? '')),
-  icon: entryIcon(String(row.kind)),
-  sentence: entrySentence(String(row.kind), {
-    text: row.subject_text ? String(row.subject_text) : null,
-    previous: row.previous_text ? String(row.previous_text) : null,
-    reference: row.reference_number ? Number(row.reference_number) : null,
-  }),
-}))
-
-// One sequence, ordered by when things happened. A comment and the label
-// somebody added while writing it belong next to each other; two lists side by
-// side make a reader reconstruct the order themselves.
-const conversation = [
-  ...comments.map(comment => ({ kind: 'comment', at: comment.createdAt, comment, event: null })),
-  ...events.map(event => ({ kind: 'event', at: event.createdAt, comment: null, event })),
-].sort((a, b) => a.at.localeCompare(b.at))
+/*
+ * The reading and the shaping, in `resources/functions/conversation.ts`.
+ *
+ * It used to be eighty lines here. The pull request page renders the same
+ * `IssueThread`, and `IssueThread.stx` says in its own header that the pull
+ * request page is the reason it is a component at all - so leaving the half in
+ * front of it here would have handed that page a copy of exactly the kind the
+ * component exists to prevent.
+ *
+ * For an issue both subjects are the same row. They are named separately
+ * because for a change they are not: its comments hang off the `issues` row
+ * behind it and its history hangs off the change itself.
+ */
+const { opening, items: conversation } = issue
+  ? await loadConversation(
+      {
+        comments: { type: 'issue', id: Number(issue.id) },
+        timeline: { type: 'issue', id: Number(issue.id) },
+        reactions: { type: 'issue', id: Number(issue.id) },
+        opening: {
+          body: issue.body ? String(issue.body) : null,
+          createdAt: String(issue.created_at ?? ''),
+          authorHandle,
+          externalAuthor,
+        },
+        locked: Boolean(issue.locked),
+      },
+      {
+        owner: ownerHandle,
+        repository: repositoryName,
+        number: Number(issue.number ?? 0),
+        viewerId,
+        picking,
+        reactionAction,
+        taskAction,
+      },
+    )
+  : { opening: {}, items: [] }
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
 const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason) : 'draft'

@@ -21,6 +21,7 @@ import { testSummaryForPull } from '../../../../functions/tests'
 // in the product, so the convenience went.
 import { blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/stack'
 import { renderMarkdown, renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { loadConversation } from '../../../../functions/conversation'
 import { isNotFalse, isTrue } from '../../../../functions/truth'
 
 const owner = String(params.owner)
@@ -706,6 +707,81 @@ const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackRea
  */
 const suggestUrl = `/api/repos/pulls/suggested-reviewers?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
 
+/*
+ * The conversation, which this page did not have.
+ *
+ * `CommentOnIssueAction` answered `No such issue` for every pull request
+ * number ever handed to it, because it resolves a number through the `issues`
+ * table and nothing wrote a row there for a change. One does now
+ * (`app/Actions/Pull/issueRow.ts`), so a change can hold a conversation, and
+ * this is the half that shows it.
+ *
+ * The two subjects differ here and that is not an oversight. Comments hang off
+ * the `issues` row behind the change, because that is the row a number
+ * resolves to and the row the comment endpoint writes against. History hangs
+ * off the change itself, as `subject_type: 'pull_request'`, because
+ * `crossReferences` has recorded it that way since before the shadow row
+ * existed. Passing one id would have shown one of the two empty.
+ */
+const shadowIssue: any = pullRequest
+  ? await db
+      .selectFrom('issues')
+      .select(['id'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('number', '=', number)
+      .where('is_pull_request', '=', true)
+      .executeTakeFirst()
+  : undefined
+
+const picking = String(search.react ?? '')
+
+/*
+ * Where to come back to after signing in. Built from the route parameters
+ * rather than read from the request, because this page has no binding for its
+ * own path - and a path on this host only, for the reason `AccountNav.stx`
+ * gives: an absolute one is an open redirect.
+ */
+const commentReturnHref = `/${owner}/${repositoryName}/pull/${number}`
+const taskAction = '/api/repos/issues/tasks'
+const reactionAction = '/api/repos/issues/reactions'
+
+/*
+ * No shadow row means a change that predates `buddy pull:issue-rows`, or one
+ * created by a path that writes none - a mirrored import is both. Its
+ * conversation is empty, because the comments it would show do not exist
+ * either, but its **description still renders**: the opening post is the
+ * change's own body and never depended on that row. An earlier version of
+ * this dropped both together, which `tests/e2e/pull-tabs.test.ts` caught.
+ */
+const { opening: conversationOpening, items: conversation } = pullRequest
+  ? await loadConversation(
+      {
+        comments: shadowIssue ? { type: 'issue', id: Number(shadowIssue.id) } : null,
+        timeline: { type: 'pull_request', id: Number(pullRequest.id) },
+        reactions: shadowIssue ? { type: 'issue', id: Number(shadowIssue.id) } : null,
+        opening: {
+          body: pullRequest.body ? String(pullRequest.body) : null,
+          createdAt: String(pullRequest.created_at ?? ''),
+          authorHandle: localAuthor?.handle ? String(localAuthor.handle) : null,
+          externalAuthor: pullRequest.external_author ? String(pullRequest.external_author) : null,
+        },
+        locked: Boolean(pullRequest.locked),
+      },
+      {
+        owner,
+        repository: repositoryName,
+        number,
+        viewerId: access?.viewer ? Number(access.viewer.id) : null,
+        picking,
+        reactionAction,
+        taskAction,
+      },
+    )
+  : { opening: {}, items: [] }
+
+/** A signed-in reader who may comment, which is anybody signed in who can see it. */
+const viewerMayComment = Boolean(pullRequest && access?.viewer && !pullRequest.locked)
+
 /** A signed-in reader who may review, on a pull request that is still asking. */
 const viewerMayReview = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
 const offerSuggestions = viewerMayReview
@@ -820,17 +896,56 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
       <div class="pr-body">
         <div class="pr-main" id="files">
           @if (tab === 'conversation')
-            @if (descriptionHtml)
-              <section class="pr-description markdown panel">{!! descriptionHtml !!}</section>
-            @else
-              <p class="muted" style="padding: 24px 0;">No description was written.</p>
-            @endif
+            {{-- The same component the issue page renders, which is what it was
+                written for: "the pull request page is the reason this is a
+                component at all", in its own words. The description is the
+                opening post here rather than a panel of its own, because that
+                is what it is. --}}
+            <IssueThread
+              :opening="conversationOpening"
+              :items="conversation"
+              reactionAction="{{ reactionAction }}"
+            />
 
             <p class="muted side-note">
               {{ totals.files }} changed {{ totals.files === 1 ? 'file' : 'files' }} on the
               <a href="?tab=files">files tab</a>, with {{ threads.length }}
               review {{ threads.length === 1 ? 'thread' : 'threads' }}.
             </p>
+
+            @if (pullRequest.locked)
+              <p class="issue-locked muted">
+                This conversation is locked. Only people maintaining the repository can comment.
+              </p>
+            @elseif (!access?.viewer)
+              {{-- Signed out. Rendering the box anyway would mean the way to
+                  learn a comment needs an account is to write one and watch the
+                  endpoint refuse it. --}}
+              <p class="issue-locked muted">
+                <a href="/login?next={{ encodeURIComponent(commentReturnHref) }}">Sign in</a> to comment on this pull request.
+              </p>
+            @else
+              {{-- Posts to the issues comment endpoint, which is not a
+                  borrowed route: a change's conversation is held on the
+                  `issues` row behind it, and that endpoint resolves the number
+                  to exactly that row. --}}
+              <form class="issue-reply panel" method="post" action="/api/repos/issues/comments" enctype="multipart/form-data">
+                <CsrfField />
+                <input type="hidden" name="owner" value="{{ owner }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ number }}">
+                <label class="visually-hidden" for="pull-comment">Comment on this pull request</label>
+                <textarea id="pull-comment" name="body" rows="4" placeholder="Leave a comment" class="reply-input"></textarea>
+                <div class="reply-actions">
+                  <label class="reply-attach">
+                    <span class="i-hugeicons-attachment-01" aria-hidden="true"></span>
+                    <span>Attach files</span>
+                    <input class="visually-hidden" type="file" name="attachments" multiple>
+                  </label>
+                  <button type="submit" class="reply-submit">Comment</button>
+                </div>
+              </form>
+            @endif
           @endif
 
           @if (tab === 'commits')

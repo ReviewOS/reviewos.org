@@ -18,7 +18,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (80/80) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (139/139) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (43/43) |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (105/105) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (106/106) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | Done (52/52) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Complete (22/22) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | Complete (63/63) |
