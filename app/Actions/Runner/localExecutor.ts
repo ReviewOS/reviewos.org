@@ -3547,7 +3547,7 @@ async function runStep(input: {
   recordGroup(tracking, child.pid)
 
   const readers: Array<ReadableStreamDefaultReader<Uint8Array>> = []
-  let outputFailed = false
+  let outputFailure: string | undefined
   let delivering = 0
 
   const pump = async (stream: ReadableStream<Uint8Array> | null, name: 'stdout' | 'stderr'): Promise<void> => {
@@ -3571,11 +3571,11 @@ async function runStep(input: {
         finally { delivering-- }
       }
     }
-    catch {
+    catch (error) {
       // A failed delivery must not abandon a live pipe: a verbose child would
       // block writing to it forever, while the runner kept renewing its lease.
       // Stop this command rather than reporting success with missing output.
-      outputFailed = true
+      outputFailure = error instanceof Error ? error.message : String(error)
       stop()
     }
   }
@@ -3630,7 +3630,7 @@ async function runStep(input: {
     // pending at its end, cancelling could discard buffered command output;
     // that is an unproven result, never a successful step.
     if (delivering > 0)
-      outputFailed = true
+      outputFailure ??= 'Output delivery was still pending after the command exited.'
 
     for (const reader of readers)
       await reader.cancel().catch(() => {})
@@ -3641,8 +3641,8 @@ async function runStep(input: {
 
     pruneGroup(tracking, child.pid)
 
-    if (outputFailed)
-      throw new Error('The step output could not be delivered; the command was stopped.')
+    if (outputFailure)
+      throw new Error(`The step output could not be delivered; the command was stopped. ${outputFailure}`)
 
     if (timedOut) {
       /*

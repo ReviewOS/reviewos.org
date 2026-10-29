@@ -3482,3 +3482,5 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       `tests/e2e/run-page.test.ts` pins it with an **active** runner on a paused queue, so the
       "all runners are disabled" rule cannot answer first and hide the regression again. Verified
       to fail without the column.
+
+- [x] Preserve the cause of runner output-delivery failures and distinguish a pending post-exit delivery, covered by real HTTP/process recovery and orphan cleanup regressions (https://github.com/ReviewOS/reviewos.org/issues/10).

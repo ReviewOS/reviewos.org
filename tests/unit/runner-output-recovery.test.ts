@@ -57,7 +57,10 @@ for (const fixture of [
     if (fixture.permanent) {
       expect(Date.now() - startedAt).toBeLessThan(8000)
       expect(outcome?.reason).toContain('output could not be delivered')
+      expect(outcome?.reason).toContain('The instance did not accept step output after five attempts.')
     }
+    if (fixture.delay > 2000)
+      expect(outcome?.reason).toContain('Output delivery was still pending after the command exited.')
     expect(new Set(attempts).size).toBe(1)
     expect(attempts.length).toBeGreaterThan(1)
     const output = [...received.entries()].sort(([a], [b]) => a - b).map(([, content]) => content).join('')
