@@ -30,6 +30,7 @@
  */
 
 import type { FlatToken, FlatTokenLines, WorkerResponse } from 'ts-syntax-highlighter'
+import { LRUCache } from '@stacksjs/stx/performance-utils'
 import { unpackLines } from 'ts-syntax-highlighter'
 
 /**
@@ -73,6 +74,8 @@ export interface PoolStats {
   active: number
   /** Entries held in the result cache. */
   cacheSize: number
+  /** Conservative bytes retained by the result cache. */
+  cacheBytes: number
 }
 
 const stats: PoolStats = {
@@ -84,11 +87,12 @@ const stats: PoolStats = {
   queued: 0,
   active: 0,
   cacheSize: 0,
+  cacheBytes: 0,
 }
 
 /** What the pool has been doing. For the benchmark harness and a debug page. */
 export function poolStats(): PoolStats {
-  return { ...stats, queued: pending.length, active: busy.size, cacheSize: cache.size }
+  return { ...stats, queued: pending.length, active: busy.size, cacheSize: cache.size, cacheBytes: cache.byteSize }
 }
 
 interface Job {
@@ -391,7 +395,20 @@ export function highlightOnWorker(lines: readonly string[], language: string): H
  * cache is the memory the whole design exists to avoid.
  */
 const CACHE_LIMIT = 256
-const cache = new Map<string, FlatToken[][]>()
+// Entry count alone does not bound large files. Include UTF-16 text and
+// conservative array/object allowances, without serializing another copy.
+const cache = new LRUCache<string, FlatToken[][]>(CACHE_LIMIT, {
+  maxBytes: 32 * 1024 * 1024,
+  sizeOf(lines) {
+    let bytes = 64
+    for (const line of lines) {
+      bytes += 64
+      for (const token of line)
+        bytes += 128 + (token.content.length + token.type.length) * 2
+    }
+    return bytes
+  },
+})
 
 /** A cheap, non-cryptographic digest. Collisions cost a wrong colour, not a wrong line. */
 export function contentKey(lines: readonly string[], language: string): string {
@@ -418,10 +435,6 @@ export function cachedTokens(key: string): FlatToken[][] | undefined {
   if (hit === undefined)
     return undefined
 
-  // Re-inserted so the most recently used is last, which is what makes the
-  // eviction below least-recently-used rather than arbitrary.
-  cache.delete(key)
-  cache.set(key, hit)
   stats.cached += 1
 
   return hit
@@ -429,13 +442,6 @@ export function cachedTokens(key: string): FlatToken[][] | undefined {
 
 export function cacheTokens(key: string, tokens: FlatToken[][]): void {
   cache.set(key, tokens)
-
-  while (cache.size > CACHE_LIMIT) {
-    const oldest = cache.keys().next().value
-    if (oldest === undefined)
-      break
-    cache.delete(oldest)
-  }
 }
 
 /** Drop everything. For tests, and for an operator who wants the memory back. */

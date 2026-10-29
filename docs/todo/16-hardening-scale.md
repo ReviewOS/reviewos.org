@@ -104,6 +104,12 @@ use already exists.
       text; a normal diff is byte-identical to the old output
       (`tests/unit/pull-diff-bounded.test.ts`, asserting against the old argv run buffered).
 
+- [x] The code-highlighting result cache uses the shared byte-bounded LRU as well as its
+      256-entry ceiling. Token text and object/array allowances count toward a 32 MiB budget;
+      oversized results remain renderable without being retained. Cache byte accounting is
+      exposed in pool statistics. The regression exercises many valid large-file results below
+      the entry ceiling, alongside existing hit, eviction, reset and worker-failure checks.
+
 ## M3 - A ceiling on concurrent git processes
 
 There is no limit on how many git processes this app will spawn - the only backpressure is a

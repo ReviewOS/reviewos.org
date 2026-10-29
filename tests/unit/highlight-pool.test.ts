@@ -153,12 +153,24 @@ describe('the result cache', () => {
     expect(cachedTokens('fill-1')).toBeUndefined()
   })
 
+  test('does not retain every large file merely because there are fewer than 256 files', () => {
+    for (let index = 0; index < 128; index++) {
+      const content = `// ${index}\n${'x'.repeat(256 * 1024)}`
+      cacheTokens(`large-${index}`, [[{ type: 'text', content }]])
+    }
+
+    expect(Boolean(cachedTokens('large-0'))).toBe(false)
+    expect(poolStats().cacheBytes).toBeLessThanOrEqual(32 * 1024 * 1024)
+    expect(cachedTokens('large-127')?.[0]?.[0]?.content.startsWith('// 127\n')).toBe(true)
+  })
+
   test('is emptied by a reset, so one test cannot see another one\'s entries', () => {
     cacheTokens('k3', tokens)
     resetHighlightPool()
 
     expect(cachedTokens('k3')).toBeUndefined()
     expect(poolStats().cacheSize).toBe(0)
+    expect(poolStats().cacheBytes).toBe(0)
   })
 })
 
