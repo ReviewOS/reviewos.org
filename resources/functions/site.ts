@@ -14,6 +14,7 @@
  */
 
 import { syntaxThemeCss as syntaxThemeCssImpl, themeChoices as themeChoicesImpl } from '../../app/Actions/Browse/themeCss'
+import { cloneUrl } from '../../app/Actions/Repo/cloneUrl'
 
 /**
  * Every syntax theme the library ships, as CSS rules.
@@ -48,7 +49,7 @@ export const SOURCE_PULLS_PATH = `${SOURCE_PATH}/pulls`
  * Absolute rather than relative because it is copied out of the page into a
  * terminal, where a path beginning with a slash means nothing.
  */
-export const SOURCE_CLONE_URL = `https://reviewos.org${SOURCE_PATH}.git`
+export const SOURCE_CLONE_URL = cloneUrl('https://reviewos.org', SOURCE_OWNER, SOURCE_REPOSITORY)
 
 /** Still true, still linked, no longer the front door. */
 export const UPSTREAM_URL = 'https://github.com/ReviewOS/reviewos.org'

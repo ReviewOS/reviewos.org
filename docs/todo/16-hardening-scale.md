@@ -104,6 +104,10 @@ use already exists.
       text; a normal diff is byte-identical to the old output
       (`tests/unit/pull-diff-bounded.test.ts`, asserting against the old argv run buffered).
 
+- [x] Consume published STX page-render admission: bounded active work, bounded waiting,
+      cancellation/deadlines and retryable overload responses, while API hooks and assets bypass it.
+- [ ] Verify the released render bounds under production page traffic and normal Git clones,
+      with the existing 2 GiB web limit and no diagnostic preloads or forced collection (issue #8).
 - [x] The code-highlighting result cache uses the shared byte-bounded LRU as well as its
       256-entry ceiling. Token text and object/array allowances count toward a 32 MiB budget;
       oversized results remain renderable without being retained. Cache byte accounting is

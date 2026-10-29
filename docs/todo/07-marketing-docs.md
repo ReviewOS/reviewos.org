@@ -5,6 +5,8 @@ decide to run it.
 
 ## Landing page
 
+- [x] Public source clone links use the canonical Git URL builder and its supported mount.
+
 - [x] Design and build `resources/views/index.stx` using the `stacks-design-taste` skill
 - [x] Nav and footer as components in `resources/components/`
 - [x] Light and dark, following the skill's dark mode protocol
