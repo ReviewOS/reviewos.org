@@ -113,6 +113,9 @@ use already exists.
       ordinary shallow clones pass object verification. The initial process held near 959 MiB
       before an external managed restart; the replacement also stays below the unchanged bound.
       Neither observation interval recorded an OOM. Temporary production diagnostics are removed.
+      The normal source CI and production deployment passed before these checks:
+      https://github.com/ReviewOS/reviewos.org/actions/runs/40919521264. The shared runtime
+      release is tracked at https://github.com/stacksjs/stx/issues/2136.
 - [x] The code-highlighting result cache uses the shared byte-bounded LRU as well as its
       256-entry ceiling. Token text and object/array allowances count toward a 32 MiB budget;
       oversized results remain renderable without being retained. Cache byte accounting is
