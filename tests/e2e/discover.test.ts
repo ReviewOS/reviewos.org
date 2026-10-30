@@ -151,7 +151,7 @@ describe('discover feed', () => {
     const html = await answer.text()
 
     expect(answer.status).toBe(200)
-    expect(html).toContain('Discover')
+    expect(html).toContain('Activity')
     expect(html).toContain('Recent activity')
     expect(html).toContain('Trending this week')
     expect(html).toContain('discover-public-first')

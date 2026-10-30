@@ -199,7 +199,7 @@ const commits = rows.reduce((sum: number, row: any) => sum + Number(row.commits 
     font-size: 15px;
     font-weight: 600;
     color: var(--muted);
-    background: var(--surface-strong, var(--surface));
+    background: var(--surface-tint);
     border: 1px solid var(--line);
   }
 

@@ -76,7 +76,10 @@
     height the viewer measures, and once when it adds the gap. */
   .diff-file-host { padding-bottom: 0; }
 
-  .is-pending .diff-head { opacity: 0.6; }
+  /* A file whose rows have not arrived yet. The header is still the only
+    thing naming the file, so it stays readable: `opacity: 0.6` took its muted
+    half to 2.4:1, which made "loading" and "unreadable" the same picture. */
+  .is-pending .diff-head { color: var(--muted); }
 
   [data-diff-status][data-tone='error'] { color: var(--bad); }
   [data-diff-status][data-tone='warn'] { color: var(--warn, var(--bad)); }

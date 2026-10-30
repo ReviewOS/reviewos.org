@@ -489,7 +489,7 @@ const notFound = !repoRow
     padding: 5px 9px;
     font: inherit;
     font-size: 12.5px;
-    color: var(--fg);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--r-control);
@@ -499,18 +499,37 @@ const notFound = !repoRow
     padding: 5px 10px;
     font: inherit;
     font-size: 12.5px;
-    color: var(--fg);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--r-control);
     cursor: pointer;
   }
-  .bulk-btn:hover { border-color: var(--fg); }
-  .list-filter-primary {
+  .bulk-btn:hover { border-color: var(--text); }
+  /* New issue, which is the reason most people open this screen.
+  
+    It was the page background colour on a fill named for a token - `--fg` - that is not
+    one this palette has, so the fill never applied and the label rendered in
+    the page background colour on the page background: 1.04:1, an invisible
+    primary action. It is the accent now, the same fill `.btn-primary` uses
+    everywhere else, so the one control on the page you are meant to press
+    looks like the ones on every other page. */
+  /* Both class names in the selector, because `.list-filter` is declared
+    below this and would otherwise win the colour on equal specificity - which
+    is how the label ended up `--muted` on `--accent`, 1.1:1, a fixed button
+    with unreadable text on it. */
+  .list-filter.list-filter-primary {
     padding: 5px 11px;
-    color: var(--bg);
-    background: var(--fg);
+    color: var(--on-accent);
+    background: var(--accent);
     border-radius: var(--r-control);
+    font-weight: 500;
+  }
+
+  .list-filter.list-filter-primary:hover {
+    background: var(--accent);
+    filter: brightness(1.06);
+    color: var(--on-accent);
   }
 
   /* Scrolls rather than shrinks - see `RepoTabs.stx`. This row had the worse
@@ -562,5 +581,9 @@ const notFound = !repoRow
   }
 
   .list-page:hover { background: var(--surface-tint); }
-  .list-page.is-disabled { color: var(--muted); opacity: 0.5; }
+
+  /* The end of the list. Muted and un-bordered says "nothing that way" without
+    taking the words under 3:1 - `opacity: 0.5` on top of `--muted` put them at
+    2.1:1, which is not a disabled control, it is an unreadable one. */
+  .list-page.is-disabled { color: var(--muted); border-color: transparent; }
 </style>

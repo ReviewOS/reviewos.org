@@ -196,15 +196,32 @@ const themeCss = syntaxThemeCss()
         --del-line: #f2c9c9;
         --gutter: #f6f8f8;
 
+        /* What a build's own ANSI escapes resolve to. Named here rather than
+          written into the log stylesheet, because the four that were hardcoded
+          there were picked against a dark terminal and then rendered on
+          whichever surface the reader actually had: #555 on a dark panel is
+          2.4:1, and a cyan chosen for black sat at 3.6:1 on ours. Red, green
+          and yellow are the review states above - a log has no business
+          inventing a second red. */
+        --ansi-gray: #4c585b;
+        --ansi-blue: #1b4fc9;
+        --ansi-magenta: #8250df;
+        --ansi-cyan: #10656b;
+
         --r-panel: 14px;
         --r-control: 10px;
         --shadow: 0 1px 2px rgb(18 25 27 / 0.05);
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
-      /* The system's preference, when the reader has not chosen. */
+      /* The system's preference, when the reader has not chosen - and when the
+        bootstrap in the head could not run, which is why `:not([data-theme])`
+        is in the list: with scripting off nothing ever set the attribute, so
+        every selector below missed and a reader on a dark system was served
+        the light palette and nothing else. */
       @media (prefers-color-scheme: dark) {
-        :root[data-theme='system'] {
+        :root[data-theme='system'],
+        :root:not([data-theme]) {
           --bg: #0c1113;
           --surface: #121a1c;
           --surface-tint: #162023;
@@ -230,6 +247,11 @@ const themeCss = syntaxThemeCss()
           --del-bg: #2a1618;
           --del-line: #4d2529;
           --gutter: #101719;
+
+          --ansi-gray: #8b989c;
+          --ansi-blue: #79b8ff;
+          --ansi-magenta: #a371f7;
+          --ansi-cyan: #4ec5c9;
 
           --shadow: none;
         }
@@ -262,6 +284,11 @@ const themeCss = syntaxThemeCss()
           --del-bg: #2a1618;
           --del-line: #4d2529;
           --gutter: #101719;
+
+          --ansi-gray: #8b989c;
+          --ansi-blue: #79b8ff;
+          --ansi-magenta: #a371f7;
+          --ansi-cyan: #4ec5c9;
 
           --shadow: none;
         }
@@ -367,6 +394,22 @@ const themeCss = syntaxThemeCss()
       .btn-quiet:hover {
         border-color: var(--bad);
         background: var(--bad-bg);
+        color: var(--bad);
+      }
+
+      /* The destructive button, in the system rather than in three pages.
+        `labels`, `milestones` and the repository settings each wrote their own
+        against `--danger` or `--del` - tokens this palette does not have - so
+        all three fell back to a hardcoded red that is 3.2:1 on the dark
+        surface. `--bad` is the red that is checked. */
+      .btn-danger {
+        border-color: var(--bad);
+        color: var(--bad);
+      }
+
+      .btn-danger:hover {
+        background: var(--bad-bg);
+        border-color: var(--bad);
         color: var(--bad);
       }
 
@@ -527,14 +570,18 @@ const themeCss = syntaxThemeCss()
         background: var(--surface);
         cursor: pointer;
       }
-      .markdown .task-box:hover { border-color: var(--fg); }
+      .markdown .task-box:hover { border-color: var(--accent); }
       .markdown .task-box.is-checked {
-        border-color: var(--fg);
-        background: var(--fg);
+        border-color: var(--accent);
+        background: var(--accent);
         /* The tick, drawn rather than shipped as an icon: it has to sit inside
-          13 pixels and match the border radius above. */
-        background-image: linear-gradient(45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%),
-                          linear-gradient(-45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%);
+          13 pixels and match the border radius above. Cut out of the fill in
+          `--on-accent`, which is the colour the palette guarantees is legible
+          on `--accent` - this used to be `--bg` over a `--fg` fill, and
+          neither token has ever existed here, so a ticked box rendered as an
+          empty one. */
+        background-image: linear-gradient(45deg, transparent 44%, var(--on-accent) 44%, var(--on-accent) 56%, transparent 56%),
+                          linear-gradient(-45deg, transparent 44%, var(--on-accent) 44%, var(--on-accent) 56%, transparent 56%);
         background-size: 8px 2px, 5px 2px;
         background-position: 4px 7px, 2px 6px;
         background-repeat: no-repeat;
@@ -724,9 +771,13 @@ const themeCss = syntaxThemeCss()
 
       .queue-row:hover { border-color: var(--line-strong); }
 
-      /* A draft is at the bottom of the order and looks like it. Dimmed rather
-        than hidden: it is still somebody's work and still worth finding. */
-      .queue-row.is-draft { opacity: 0.6; }
+      /* A draft is at the bottom of the order and looks like it. Quieter
+        rather than hidden: it is still somebody's work and still worth
+        finding - and quieter here means one step down the text scale, not a
+        veil over the row. `opacity: 0.6` dimmed the metadata with it, which
+        put already-muted text at 2.5:1 and made the draft the one row on the
+        page nobody could read. */
+      .queue-row.is-draft .queue-title { color: var(--muted); font-weight: 400; }
 
       .queue-link {
         display: flex;
@@ -802,10 +853,16 @@ const themeCss = syntaxThemeCss()
 
       .inbox-row:hover { border-color: var(--line-strong); }
 
-      /* Read is dimmed, not hidden. Somebody looking for the thing they read an
-        hour ago is the second most common visit an inbox gets, and a list that
-        drops rows on read makes that trip impossible. */
-      .inbox-row.is-read { opacity: 0.55; }
+      /* Read is quieter, not hidden. Somebody looking for the thing they read
+        an hour ago is the second most common visit an inbox gets, and a list
+        that drops rows on read makes that trip impossible.
+        
+        The weight comes off the title and the colour steps down to `--muted`,
+        which is a palette value with a contrast floor under it. The blanket
+        `opacity: 0.55` this replaces took the row's own muted metadata to
+        2.3:1 - so the half of the inbox somebody has already read was the half
+        they could not go back to. */
+      .inbox-row.is-read .inbox-title { color: var(--muted); font-weight: 400; }
 
       /* The unread marker is the left edge rather than a dot, so it reads down
         a column of forty rows without the eye having to find it on each one. */
@@ -1051,7 +1108,7 @@ const themeCss = syntaxThemeCss()
         padding: 8px 12px;
         border-left: 2px solid var(--accent);
         border-radius: 0 8px 8px 0;
-        background: var(--panel-2, transparent);
+        background: var(--surface-tint);
         font-size: 13px;
       }
 
@@ -1756,7 +1813,7 @@ const themeCss = syntaxThemeCss()
       /* A line that ends the file without a newline. Dim, because it is a
         property of the line rather than part of it, and present, because
         adding a trailing newline is otherwise a change nobody can see. */
-      .no-newline { margin-left: 6px; color: var(--muted); opacity: 0.7; }
+      .no-newline { margin-left: 6px; color: var(--muted); }
 
       .line-added { background: var(--add-bg); }
       .line-added .gutter { border-right-color: var(--add-line); }
@@ -2048,7 +2105,7 @@ const themeCss = syntaxThemeCss()
       /* A file the reader has finished with. Dimmed rather than removed: they
         may want to go back to it, and a list that shortens as you work is a
         list you cannot find your place in. */
-      .file-row.is-viewed .file-open { opacity: 0.5; }
+      .file-row.is-viewed .file-open { color: var(--muted); }
       .file-row.is-viewed .file-name { text-decoration: line-through; }
 
       /* A tick that has stopped being true: the file changed after it was read.
@@ -2056,11 +2113,11 @@ const themeCss = syntaxThemeCss()
         row comes back to full strength, because this is one of the few files in
         a long list that still wants reading. Marked, never unticked: which
         files somebody has got through is theirs to keep. */
-      .file-row.is-stale .file-open { opacity: 1; }
+      .file-row.is-stale .file-open { color: var(--text); }
       .file-row.is-stale .file-name { text-decoration: none; }
       .file-row.is-stale .file-viewed {
-        accent-color: var(--warning, #b7791f);
-        outline: 2px solid var(--warning, #b7791f);
+        accent-color: var(--warn);
+        outline: 2px solid var(--warn);
         outline-offset: 1px;
         border-radius: 2px;
       }
@@ -2069,7 +2126,7 @@ const themeCss = syntaxThemeCss()
         a force push, usually. Dotted rather than solid: "cannot tell" is a
         different claim from "changed", and rendering them the same way would
         make the honest one look like the certain one. */
-      .file-row.is-unverifiable .file-open { opacity: 0.75; }
+      .file-row.is-unverifiable .file-open { color: var(--muted); }
       .file-row.is-unverifiable .file-name { text-decoration-style: dotted; }
       .file-row.is-unverifiable .file-viewed {
         outline: 1px dashed var(--muted);
@@ -2382,7 +2439,11 @@ const themeCss = syntaxThemeCss()
         overflow: hidden;
       }
 
-      .thread.is-resolved { opacity: 0.72; }
+      /* Resolved, and still readable. The head already says so in words and
+        the row is collapsed by default; dimming the whole thread on top of
+        that only took its muted metadata under 4.5:1 for the reader who then
+        opens it. */
+      .thread.is-resolved { border-style: dashed; }
 
       .thread-head {
         display: flex;

@@ -490,7 +490,7 @@ const environments = repoRow
     font-size: 12.5px;
     padding: 8px 12px;
     border-left: 2px solid var(--warn);
-    background: var(--panel-2, transparent);
+    background: var(--surface-tint);
   }
 
   .workflow-differences { margin-top: 10px; font-size: 12.5px; }
@@ -508,7 +508,7 @@ const environments = repoRow
     font-size: 12px;
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: var(--panel-2, transparent);
+    background: var(--surface-tint);
   }
   .workflow-badge-note { margin: 8px 0 0; font-size: 12px; }
 
@@ -521,7 +521,7 @@ const environments = repoRow
   .workflow-run select {
     padding: 7px 10px;
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 8px);
+    border-radius: var(--r-control);
     background: var(--bg);
     color: inherit;
     font: inherit;
@@ -554,7 +554,7 @@ const environments = repoRow
     font-size: 12.5px;
     line-height: 1.5;
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 8px);
+    border-radius: var(--r-control);
     background: var(--bg);
   }
 </style>

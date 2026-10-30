@@ -151,6 +151,16 @@ const nativeTools = [
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
+
+    {{-- The reader's light/dark choice, before anything paints. This page
+        carries its own document, so it carries its own copy of the three
+        things every document here needs - and this was the one it did not
+        have: the product honoured the choice and the landing page answered
+        only to the operating system, so choosing light in settings and then
+        clicking the logo took you from a light forge to a dark front door.
+        A file rather than an inline block, for the reason written at the top
+        of `public/theme.js`. --}}
+    <script src="/theme.js"></script>
     {{-- The tab, the home screen, and the bookmark bar.
 
         Four declarations because browsers disagree about what they want, and
@@ -241,8 +251,11 @@ const nativeTools = [
         --shadow: 0 1px 2px rgb(18 25 27 / 0.05);
       }
 
+      /* The system's preference, when the reader has not chosen - and when the
+        script above could not run, which is what `:not([data-theme])` is for. */
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root[data-theme='system'],
+        :root:not([data-theme]) {
           color-scheme: dark;
           --bg: #0c1113;
           --surface: #121a1c;
@@ -260,6 +273,26 @@ const nativeTools = [
           --state-done-bg: #15291f;
           --shadow: none;
         }
+      }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #0c1113;
+        --surface: #121a1c;
+        --surface-tint: #162023;
+        --line: #222e31;
+        --line-strong: #334247;
+        --text: #eef2f2;
+        --muted: #9aa9ac;
+        --accent: #4ec5c9;
+        --accent-quiet: #14292b;
+        --accent-text: #7fd8db;
+        --on-accent: #08201f;
+        --pill-text: #a7b5b8;
+        --state-done: #55c48a;
+        --state-done-bg: #15291f;
+        --shadow: none;
       }
 
       * { box-sizing: border-box; }
@@ -1050,7 +1083,7 @@ const nativeTools = [
 
           <p class="phase-note">
             More of it, and what changed on it today, is on
-            <a href="/discover">Discover</a>.
+            <a href="/discover">Activity</a>.
           </p>
         </section>
       @endif

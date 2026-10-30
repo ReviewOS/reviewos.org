@@ -46,17 +46,47 @@ export function parseTokens(source: string, file: string): TokenDeclaration[] {
   let pending = ''
   let index = 0
 
-  const inDark = (): boolean => stack.some(entry => entry.includes('prefers-color-scheme') && entry.includes('dark'))
+  /*
+   * Dark is a media query, or the attribute the reader's choice sets.
+   *
+   * It used to be only the media query, and that read less of these files than
+   * it looked like it did: the application layout declares its dark palette
+   * twice, once under `prefers-color-scheme` and once under
+   * `:root[data-theme='dark']` for a reader who chose, and *neither* was
+   * counted - the first because its selector is attribute-qualified, the
+   * second because it is not in a media query. So the drift check compared the
+   * landing page to the marketing layout and left the product's own dark
+   * palette out of it entirely.
+   */
+  const inDark = (): boolean =>
+    stack.some(entry => entry.includes('prefers-color-scheme') && entry.includes('dark'))
+    || stack.some(entry => /:root\[data-theme=['"]dark['"]\]/.test(entry))
 
   /*
-   * Only `:root` counts as a palette declaration.
+   * The root palette, in the forms these documents write it.
    *
-   * `:root[data-cvd="deuteranopia"]` is an alternate palette for a reader who
-   * needs one, and a component that overrides a token for itself is making a
+   * `:root` on its own, `:root[data-theme='dark']` and `:root[data-theme=
+   * 'system']` for the reader's choice, and `:root:not([data-theme])` for the
+   * reader whose browser never ran the script that sets it. All four are the
+   * palette.
+   *
+   * `:root[data-cvd="deuteranopia"]`, `:root[data-syntax-theme=…]` and a
+   * component that overrides a token for itself are not: the first two are
+   * alternate palettes for a reader who asked for one, and the third is a
    * local decision. Neither is a disagreement about what the product looks
-   * like, which is what this module is for.
+   * like, which is what this module is for - so the attributes that count are
+   * named rather than "any attribute on :root".
    */
-  const inRoot = (): boolean => stack.length > 0 && stack[stack.length - 1]?.trim() === ':root'
+  const isRootSelector = (selector: string): boolean => {
+    const parts = selector.split(',').map(part => part.trim()).filter(Boolean)
+
+    return parts.length > 0 && parts.every(part =>
+      part === ':root'
+      || /^:root\[data-theme=['"](?:dark|light|system)['"]\]$/.test(part)
+      || part === ':root:not([data-theme])')
+  }
+
+  const inRoot = (): boolean => stack.length > 0 && isRootSelector(stack[stack.length - 1] ?? '')
 
   while (index < text.length) {
     const character = text[index]
@@ -71,7 +101,28 @@ export function parseTokens(source: string, file: string): TokenDeclaration[] {
        * in every file look like it sat inside a dark media query, and the
        * light palette vanished.
        */
-      const selector = pending.split('\n').map(line => line.trim()).filter(Boolean).at(-1) ?? ''
+      /*
+       * The last line, and the lines above it that it continues.
+       *
+       * The last line alone is what stops the HTML in front of the first rule
+       * from being read as a selector - these are `.stx` files, and the head
+       * carries `media="(prefers-color-scheme: dark)"` on a theme-color tag,
+       * which made every file's first `:root` look like it sat in a dark
+       * query. But a selector list is written one selector per line, and
+       * taking only the last line of
+       *
+       *     :root[data-theme='system'],
+       *     :root:not([data-theme]) {
+       *
+       * reads half of it. A line that ends in a comma is continued by the next
+       * one, which is the whole rule and leaves the HTML out.
+       */
+      const lines = pending.split('\n').map(line => line.trim()).filter(Boolean)
+      let first = lines.length - 1
+      while (first > 0 && lines[first - 1]?.endsWith(','))
+        first -= 1
+
+      const selector = lines.slice(first).join(' ')
 
       stack.push(selector)
       pending = ''

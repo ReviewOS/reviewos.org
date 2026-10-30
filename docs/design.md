@@ -52,19 +52,21 @@ white to keep a page from vibrating.
 
 | Token | Value | Declared in |
 |---|---|---|
-| `--accent` | `#4ec5c9` | 2 |
-| `--accent-quiet` | `#14292b` | 2 |
-| `--accent-text` | `#7fd8db` | 2 |
-| `--bg` | `#0c1113` | 2 |
-| `--line` | `#222e31` | 2 |
-| `--line-strong` | `#334247` | 2 |
-| `--muted` | `#9aa9ac` | 2 |
-| `--on-accent` | `#08201f` | 2 |
-| `--pill-text` | `#a7b5b8` | 2 |
-| `--shadow` | `none` | 2 |
-| `--surface` | `#121a1c` | 2 |
-| `--surface-tint` | `#162023` | 2 |
-| `--text` | `#eef2f2` | 2 |
+| `--accent` | `#4ec5c9` | 6 |
+| `--accent-quiet` | `#14292b` | 6 |
+| `--accent-text` | `#7fd8db` | 6 |
+| `--bg` | `#0c1113` | 6 |
+| `--line` | `#222e31` | 6 |
+| `--line-strong` | `#334247` | 6 |
+| `--muted` | `#9aa9ac` | 6 |
+| `--ok` | `#55c48a` | 4 |
+| `--ok-bg` | `#15291f` | 4 |
+| `--on-accent` | `#08201f` | 6 |
+| `--pill-text` | `#a7b5b8` | 6 |
+| `--shadow` | `none` | 6 |
+| `--surface` | `#121a1c` | 6 |
+| `--surface-tint` | `#162023` | 6 |
+| `--text` | `#eef2f2` | 6 |
 
 ## Type
 

@@ -290,9 +290,14 @@ describe('an organization', () => {
 
     // Its members do. A feed here would be a list of other people's names under
     // a heading implying the organization did it.
+    //
+    // The profile's own heading, not the bare word: "Activity" is a
+    // destination in the navigation bar on every page of the site, so asking
+    // whether the string appears asks the wrong question and answers it wrong
+    // the day the bar gains that link.
     const { html } = await fetchPage(`/${created.orgName}`)
 
-    expect(html).not.toContain('Activity')
+    expect(html).not.toContain('<h2 class="profile-heading">Activity</h2>')
   })
 })
 
@@ -329,8 +334,8 @@ describe('a handle nobody has', () => {
     // Items every reader gets, signed in or not: the bar's contents depend on
     // who is reading now, and a marker that only a session sees would make this
     // pass or fail for the wrong reason.
-    expect(html).toContain('Explore')
-    expect(html).toContain('Discover')
+    expect(html).toContain('Repositories')
+    expect(html).toContain('Activity')
     expect(html).toContain('ReviewOS')
   })
 

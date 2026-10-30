@@ -1532,24 +1532,30 @@ const base = `/${ownerHandle}/${repositoryName}`
     height: auto;
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: var(--panel-2, transparent);
+    background: var(--surface-tint);
   }
-  .log-image-caption { margin-top: 4px; font-size: 12px; opacity: 0.75; }
-  .log-image-missing { opacity: 0.75; }
+  .log-image-caption { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .log-image-missing { color: var(--muted); }
   .log-group-body { padding-left: 14px; border-left: 1px solid var(--line); margin-top: 4px; }
 
   /* A build's own colours. Named rather than hardcoded, so a theme decides what
-     "red" is on the background the reader actually has. */
-  .ansi-black { color: #555; }
+     "red" is on the background the reader actually has - which is what the
+     comment claimed while four of the eight were hex literals picked against
+     somebody else's terminal. On this log surface they measured 2.4:1 (black),
+     3.4:1 (magenta, light) and 3.6:1 (cyan, dark). The four live in the
+     palette now, one value per theme, and blue has its own rather than
+     borrowing the accent - cyan is the accent in dark, and two escape codes
+     that render identically are one escape code. */
+  .ansi-black, .ansi-bright-black { color: var(--ansi-gray); }
   .ansi-red, .ansi-bright-red { color: var(--bad); }
   .ansi-green, .ansi-bright-green { color: var(--ok); }
   .ansi-yellow, .ansi-bright-yellow { color: var(--warn); }
-  .ansi-blue, .ansi-bright-blue { color: var(--accent, #2f6feb); }
-  .ansi-magenta, .ansi-bright-magenta { color: #a371f7; }
-  .ansi-cyan, .ansi-bright-cyan { color: #1b7c83; }
-  .ansi-white, .ansi-bright-white { color: var(--fg); }
+  .ansi-blue, .ansi-bright-blue { color: var(--ansi-blue); }
+  .ansi-magenta, .ansi-bright-magenta { color: var(--ansi-magenta); }
+  .ansi-cyan, .ansi-bright-cyan { color: var(--ansi-cyan); }
+  .ansi-white, .ansi-bright-white { color: var(--text); }
   .ansi-bold { font-weight: 700; }
-  .ansi-dim { opacity: 0.7; }
+  .ansi-dim { color: var(--muted); }
   .ansi-italic { font-style: italic; }
   .ansi-underline { text-decoration: underline; }
 
@@ -1563,7 +1569,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .artifact-preview summary { cursor: pointer; color: var(--accent); width: fit-content; padding: 5px 0; }
   .artifact-preview summary:focus-visible, .artifact-image-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .artifact-image-link { display: block; width: fit-content; max-width: 100%; margin: 6px 0 10px; }
-  .artifact-preview img { display: block; max-width: 100%; width: auto; height: auto; max-height: 65dvh; object-fit: contain; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
+  .artifact-preview img { display: block; max-width: 100%; width: auto; height: auto; max-height: 65dvh; object-fit: contain; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
 
   .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
   .run-good { background: var(--ok); }
@@ -1635,7 +1641,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   /* The line a link landed on, so a reader can see where they arrived. */
   .log-line:target {
-    background: var(--surface-strong, rgba(127, 127, 127, 0.16));
+    background: var(--accent-quiet);
   }
 
   /* Where the keyboard is. A focus ring that only appears for a keyboard is the
@@ -1704,9 +1710,9 @@ const base = `/${ownerHandle}/${repositoryName}`
   .job-summary {
     margin: 10px 0 0;
     padding: 12px 14px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 8px;
-    background: var(--surface-2, var(--surface));
+    background: var(--surface-tint);
     font-size: 14px;
     line-height: 1.55;
     overflow-x: auto;
@@ -1715,9 +1721,9 @@ const base = `/${ownerHandle}/${repositoryName}`
   .job-summary > :first-child { margin-top: 0; }
   .job-summary > :last-child { margin-bottom: 0; }
   .job-summary table { border-collapse: collapse; }
-  .job-summary th, .job-summary td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .job-summary th, .job-summary td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 
-  .job-fix { opacity: 0.85; }
+  .job-fix { color: var(--muted); }
 
   .job-group {
     margin: 22px 0 2px;
@@ -1731,7 +1737,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .job-gate {
     margin: 10px 0 0;
     padding: 12px 14px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 8px;
   }
 
@@ -1757,7 +1763,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 6px;
-    font-family: var(--font-mono);
+    font-family: var(--mono);
     font-size: 12.5px;
     line-height: 1.55;
     /* Wrapped rather than scrolled sideways: a build line is long because a
@@ -1776,7 +1782,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     padding: 8px 12px;
     font-size: 12.5px;
     border-left: 2px solid var(--warn);
-    background: var(--panel-2, transparent);
+    background: var(--surface-tint);
   }
   .job-time { font-size: 12.5px; margin-left: auto; }
   .job-meta { font-size: 12.5px; margin: 6px 0 0; }
@@ -1789,7 +1795,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     gap: 9px;
     padding: 6px 10px;
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 10px);
+    border-radius: var(--r-control);
     font-size: 13px;
   }
 
@@ -1798,7 +1804,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .step-time { font-size: 12px; font-variant-numeric: tabular-nums; flex: none; }
   .step-error { font-size: 12px; color: var(--bad); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .step-reused { font-size: 12px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted currentColor; }
-  .step-reused:hover { color: var(--fg); }
+  .step-reused:hover { color: var(--text); }
   .step-restart { margin: 0; }
 
   .step-restart-button {
@@ -1811,5 +1817,5 @@ const base = `/${ownerHandle}/${repositoryName}`
     cursor: pointer;
   }
 
-  .step-restart-button:hover { color: var(--fg); }
+  .step-restart-button:hover { color: var(--text); }
 </style>

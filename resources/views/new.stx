@@ -228,7 +228,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
     color: var(--text);
     background: var(--bg);
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 10px);
+    border-radius: var(--r-control);
   }
 
   .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -246,7 +246,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
     padding: 9px 11px;
     font-size: 13px;
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 10px);
+    border-radius: var(--r-control);
     cursor: pointer;
   }
 

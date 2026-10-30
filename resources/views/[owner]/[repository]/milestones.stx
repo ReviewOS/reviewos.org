@@ -227,10 +227,10 @@ const base = `/${ownerHandle}/${repositoryName}`
   .set-title { font-size: 20px; letter-spacing: -0.01em; }
   .set-sub { margin-top: 6px; font-size: 13px; display: flex; gap: 12px; }
   .set-link { font-size: 13px; color: var(--muted); text-decoration: none; }
-  .set-link:hover { color: var(--fg); }
+  .set-link:hover { color: var(--text); }
 
   .filter-link { color: var(--muted); text-decoration: none; }
-  .filter-link.is-current { color: var(--fg); font-weight: 500; }
+  .filter-link.is-current { color: var(--text); font-weight: 500; }
 
   .set-new { padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 10px; }
   .set-fields, .set-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -239,7 +239,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     padding: 7px 10px;
     font: inherit;
     font-size: 13px;
-    color: var(--fg);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--r-control);
@@ -267,22 +267,19 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .milestone-counts { font-size: 12.5px; }
   .milestone-counts a { color: inherit; text-decoration: none; }
-  .milestone-counts a:hover { color: var(--fg); }
+  .milestone-counts a:hover { color: var(--text); }
 
   .milestone-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
   .milestone-actions .set-form { flex: 1 1 auto; }
 
-  .btn {
-    padding: 7px 12px;
-    font: inherit;
-    font-size: 13px;
-    color: var(--fg);
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--r-control);
-    cursor: pointer;
-  }
-  .btn:hover { border-color: var(--fg); }
-  .btn-primary { color: var(--bg); background: var(--fg); border-color: var(--fg); }
-  .btn-danger:hover { color: var(--danger, #d73a4a); border-color: var(--danger, #d73a4a); }
+  /* The buttons come from the layout.
+  
+    This page used to redeclare them against `--fg`, a token no palette here
+    defines, so the `background` declaration was dropped as invalid and
+    `color: var(--bg)` stayed - which left the primary action on the screen
+    rendering near-background text on a near-background fill, 1.04:1 in light
+    and 1.08:1 in dark. It was not a subtle contrast problem; the button was
+    invisible, in both themes, in the one place this page asks you to press
+    something. `.btn`, `.btn-primary` and `.btn-danger` in `layouts/app.stx`
+    are checked and are what every other screen already uses. */
 </style>

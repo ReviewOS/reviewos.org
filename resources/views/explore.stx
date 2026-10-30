@@ -1,6 +1,12 @@
 <script server>
 /**
- * Explore, as a page.
+ * The repository index, as a page.
+ *
+ * Called "Explore" in the navigation until it sat next to "Discover" and the
+ * pair stopped meaning anything: both read as "look around", and which one
+ * held repositories and which held events was something you learned by
+ * clicking. The path stays `/explore` - links to it are already out there -
+ * and the name says what is on it.
  *
  * Rendered on the server from the same reads the JSON endpoint calls, for the
  * reason `search.stx` gives: a page that reimplemented the visibility filter
@@ -89,21 +95,21 @@ function windowHref(value) {
 
 @layout('app')
 
-@section('title', 'Explore · ReviewOS')
+@section('title', 'Repositories · ReviewOS')
 @section('description', 'Every public repository on this instance, by language, activity, and recent review.')
 
 @section('content')
   <div class="page">
     <header class="explore-head">
-      <h1 class="explore-title">Explore</h1>
+      <h1 class="explore-title">Repositories</h1>
       <p class="explore-subtitle muted">
-        What is being worked on here. Public repositories only.
+        Every public repository on this instance, by activity, language and topic.
       </p>
     </header>
 
     @if (filtered)
       <nav class="explore-crumbs" aria-label="Filter">
-        <a href="/explore" class="explore-crumb">Explore</a>
+        <a href="/explore" class="explore-crumb">Repositories</a>
         <span class="muted">/</span>
         <span class="explore-crumb is-current">{{ topic ? `#${topic}` : language }}</span>
       </nav>
@@ -244,8 +250,12 @@ function windowHref(value) {
     border-radius: var(--r-control, 8px);
   }
 
-  .explore-window:hover { color: var(--text); background: var(--bg-subtle, rgba(127, 127, 127, 0.08)); }
-  .explore-window.is-current { color: var(--text); background: var(--bg-subtle, rgba(127, 127, 127, 0.12)); font-weight: 600; }
+  .explore-window:hover { color: var(--text); background: var(--surface-tint); }
+  /* Chosen, rather than merely pointed at. Both states painted the same grey
+    wash at two opacities nobody can tell apart at a glance, so the only thing
+    separating "this week" from "whatever is under the cursor" was a hundred
+    units of font weight. */
+  .explore-window.is-current { color: var(--accent-text); background: var(--accent-quiet); font-weight: 600; }
 
   /*
    * `auto-fill` with a minimum, so the grid is one column on a phone and as
@@ -289,5 +299,5 @@ function windowHref(value) {
     border-radius: 999px;
   }
 
-  .explore-language-link:hover { background: var(--bg-subtle, rgba(127, 127, 127, 0.08)); }
+  .explore-language-link:hover { background: var(--surface-tint); }
 </style>

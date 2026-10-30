@@ -32,7 +32,7 @@ const action = props.action || 'Open it'
   <EmailText size="heading">{{ title }}</EmailText>
 
   @if (repository)
-    <EmailText size="sm" color="#6b7280">{{ repository }}</EmailText>
+    <EmailText size="sm">{{ repository }}</EmailText>
   @endif
 
   {{-- One button, going to the screen that answers the question the
@@ -42,19 +42,19 @@ const action = props.action || 'Open it'
 
   <EmailDivider />
 
-  <EmailText size="sm" color="#6b7280" spacing="0">
+  <EmailText size="sm" spacing="0">
     You are getting this because {{ reason }}.
   </EmailText>
 
   @if (unsubscribe)
-    <EmailText size="sm" color="#6b7280" spacing="0">
-      <a href="{{ unsubscribe }}" style="color:#6b7280;">Stop emails about this one</a>
+    <EmailText size="sm" spacing="0">
+      <a class="email-muted" href="{{ unsubscribe }}" style="color:#565f6d;">Stop emails about this one</a>
     </EmailText>
   @endif
 
   <template #footer>
     <tr>
-      <td style="padding:20px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+      <td class="email-muted" style="padding:20px 40px;text-align:center;color:#565f6d;font-size:12px;">
         {{ appName }}
       </td>
     </tr>

@@ -44,6 +44,16 @@ catch {
  * where the identifier is not bound; a card is not worth throwing over, so a
  * render with no request behind it resolves to the site card.
  */
+/**
+ * The theme bootstrap, as markup.
+ *
+ * Inline, in the head, and blocking on purpose: read the choice a frame late
+ * and the reader watches a light page turn dark. It reads the key
+ * `resources/functions/diffprefs.ts` writes and sets the attribute that file's
+ * `applyColourScheme` sets, so the two cannot disagree.
+ */
+const THEME_BOOTSTRAP = `<script>try{var s=JSON.parse(localStorage.getItem('reviewos:diff')||'{}').scheme;document.documentElement.dataset.theme=s==='light'||s==='dark'?s:'system'}catch(e){document.documentElement.dataset.theme='system'}</${''}script>`
+
 const ambientContext = (globalThis as any).__stxServeContext
 const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path ?? '/') })
 </script>
@@ -54,6 +64,22 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'ReviewOS')</title>
+
+    {{-- The reader's theme, read before anything paints.
+
+        The same three lines `layouts/app.stx` runs, and here because they were
+        not: the product honoured the light/dark choice and the marketing pages
+        answered only to the operating system, so choosing light in settings
+        and then clicking the logo took you from a light forge to a dark
+        landing page. One choice, every page.
+
+        Printed as raw markup rather than written as a `<script>` element,
+        which is the part that is not obvious. stx compiles a `<script>` in a
+        template into a scoped client block and hands it to its runtime - and
+        these pages do not load the runtime, so the block is compiled and then
+        dropped. The first version of this was in the file, looked right, and
+        emitted nothing at all. --}}
+    <script src="/theme.js"></script>
     <meta name="description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
 
     {{-- Query strings stripped, so `/explore?page=2` does not compete with
@@ -145,8 +171,12 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
+      /* The system's preference, when the reader has not chosen - and when the
+        bootstrap above could not run at all, which is why `:not([data-theme])`
+        is in the list rather than only the `system` value. */
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root[data-theme='system'],
+        :root:not([data-theme]) {
           --bg: #0c1113;
           --surface: #121a1c;
           --surface-tint: #162023;
@@ -164,6 +194,26 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
           --shadow: none;
           --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.45);
         }
+      }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] {
+        --bg: #0c1113;
+        --surface: #121a1c;
+        --surface-tint: #162023;
+        --line: #222e31;
+        --line-strong: #334247;
+        --text: #eef2f2;
+        --muted: #9aa9ac;
+        --accent: #4ec5c9;
+        --accent-quiet: #14292b;
+        --accent-text: #7fd8db;
+        --on-accent: #08201f;
+        --pill-text: #a7b5b8;
+        --ok: #55c48a;
+        --ok-bg: #15291f;
+        --shadow: none;
+        --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.45);
       }
 
       * { box-sizing: border-box; }
@@ -287,7 +337,6 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         border-right: 1.25px solid currentColor;
         border-bottom: 1.25px solid currentColor;
         transform: translateY(-1px) rotate(45deg);
-        opacity: 0.6;
       }
 
       .mega-panel {
@@ -508,7 +557,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
           </div>
           <div>
             <p class="footer-title">Project</p>
-            <a class="footer-link" href="/discover">Discover</a>
+            <a class="footer-link" href="/discover">Activity</a>
             <a class="footer-link" href="/docs">Documentation</a>
             <a class="footer-link" href="/docs/todo/">Roadmap</a>
             {{-- Ours, then the mirror. Labelled, so nobody clicks the second

@@ -339,3 +339,75 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 - [x] Correct the self-hosting search port and failure behavior, link all scale-out roadmap phases in the sidebar, and require BunPress message-preview support in the source Stacks docs package. Harden preview links in BunPress itself.
 
 - [x] Avoid claiming configuration variables with no direct application reader are necessarily framework-only.
+
+## The interface, measured rather than eyeballed
+
+The box above that says "every text pair passes WCAG AA in both themes" was true of the *palette*
+and not of the *pages*. The tokens have always passed - `--muted` on `--surface` is 5.5:1 in light
+and 7.3:1 in dark, and a unit test said so. What nobody had measured was what the browser computes
+after a stylesheet is done with those tokens: a name that no palette declares, a fill that drops
+out as invalid, an `opacity` on a row that multiplies through to the muted text inside it. Every
+text node on twenty-nine pages, in both themes, was read out of a real headless Chrome and scored
+against its own composited backdrop.
+
+- [x] **The primary button on three screens was invisible, in both themes.** `labels`,
+      `milestones` and the issue list each drew it as `color: var(--bg)` on
+      `background: var(--fg)`, and `--fg` is not a token any palette here declares. An undeclared
+      custom property is not a parse error: the declaration is dropped at computed-value time, the
+      property falls back to inherited or initial, and the page renders. So the fill never applied
+      and the label rendered in the page background colour on the page background - 1.04:1 in
+      light, 1.08:1 in dark, measured. "Create label", "Create milestone" and "New issue" are the
+      one control each of those screens is built around. The buttons come from the layout now,
+      which has had a correct `.btn-primary` the whole time, and `.btn-danger` moved there too so
+      the three pages that invented one against `--danger` or `--del` - also undeclared, also
+      falling back to a hardcoded red at 3.2:1 on the dark surface - can stop.
+- [x] **A ticked task box in rendered Markdown looked unticked**, for the same reason and with the
+      same two tokens: the fill was `--fg` and the tick was cut out of it in `--bg`.
+- [x] **The run log's ANSI colours were half a palette.** The comment above them said "named rather
+      than hardcoded, so a theme decides what red is on the background the reader actually has",
+      and four of the eight were hex literals chosen against somebody else's terminal: black at
+      2.4:1, magenta at 3.4:1 in light, cyan at 3.6:1 in dark. They are `--ansi-gray`,
+      `--ansi-blue`, `--ansi-magenta` and `--ansi-cyan` now, one value per theme, and blue has its
+      own rather than borrowing the accent, which cyan already is in dark.
+- [x] **Six states were dimmed with `opacity` and `opacity` does not know what is underneath it.**
+      A read inbox row, a draft in the review queue, a resolved thread, a file already reviewed,
+      one whose tick cannot be verified, and the end of a paginated list. Each one dimmed a whole
+      container, so the `--muted` metadata inside it dimmed too: 2.3:1 for a read row, 2.5:1 for a
+      draft, 2.1:1 for the pager. All of them say the same thing with colour instead - `--muted`
+      has a floor under it, and the structural signals that were already there (the unread marker
+      on the left edge, the strike-through, the word "resolved") carry the rest.
+- [x] **Twenty-five more references to tokens that do not exist**, found by scanning every
+      `var()` in `resources/` against every declaration: `--border`, `--font-mono`, `--panel`,
+      `--panel-2`, `--surface-2`, `--surface-strong`, `--bg-subtle`, `--r-field`, `--add`, `--del`,
+      `--danger`, `--warning`. Most carried a fallback and so were merely a second vocabulary
+      nobody maintained; `--border` carried none, so five borders computed to `currentColor` and
+      drew at full text strength.
+- [x] **The light/dark choice now reaches every page.** It was honoured by the application layout
+      and ignored by the marketing layout and the landing page, which answered only to the
+      operating system - so choosing light in settings and then clicking the logo took you from a
+      light forge to a dark front door. All three documents read the same key now. The landing
+      page and the marketing layout load it from `public/theme.js` rather than inline, because
+      stx compiles an inline `<script>` in a template into a scoped client block and hands it to
+      its runtime, and those pages do not load the runtime: written inline it was compiled and
+      then silently dropped.
+- [x] **The palette applied at all without scripting.** Every dark selector was
+      `:root[data-theme='…']`, and the attribute is set by a script - so with scripting off
+      nothing matched and a reader on a dark system got the light palette. `:not([data-theme])`
+      is in each list now.
+- [x] `tests/unit/interface-contrast.test.ts` holds the floor: every pair of the six palettes the
+      site ships, scored out of the stylesheets, plus the check that would have caught all of the
+      above - every bare `var()` in `resources/` names a property something declares.
+- [x] The drift check in `tests/unit/design-tokens.test.ts` was reading less than it looked like it
+      was. Its parser counted a palette only under a bare `:root` inside a `prefers-color-scheme`
+      query, so the application layout's dark palette - declared twice, both times under a
+      `data-theme` selector - was never compared to anything, and a selector list written one
+      selector per line was read from its last line only. Thirteen dark tokens were being checked
+      across two files; it is fifteen across six declarations now, `--ok` and `--ok-bg` among them.
+
+## Naming
+
+- [x] **"Explore" and "Discover" sat next to each other in the navigation bar.** They are
+      synonyms in English and two different things in the product, so the only way to learn which
+      held repositories and which held events was to click both. They are **Repositories** and
+      **Activity** now, named for what is on them. The paths stay `/explore` and `/discover`:
+      links to them are already out there, and a URL is not a label.

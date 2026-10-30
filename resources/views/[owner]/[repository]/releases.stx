@@ -256,7 +256,7 @@ function fileSize(bytes: number): string {
     gap: 8px;
     padding: 6px 11px;
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 10px);
+    border-radius: var(--r-control);
     font-size: 12.5px;
     color: inherit;
     text-decoration: none;

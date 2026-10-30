@@ -881,7 +881,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
     color: var(--text);
     background: var(--bg);
     border: 1px solid var(--line);
-    border-radius: var(--r-field, 10px);
+    border-radius: var(--r-control);
   }
 
   .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -890,7 +890,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
   .hint { font-size: 12.5px; line-height: 1.45; }
   .actions { display: flex; gap: 8px; }
 
-  .danger { border-color: var(--del, #b3261e); }
+  .danger { border-color: var(--bad); }
 
   .row {
     display: flex;
@@ -917,8 +917,9 @@ const fullName = `${ownerHandle}/${repositoryName}`
   .merge-choice input[type='checkbox'] { margin-top: 3px; flex: none; }
   .merge-choice span { display: grid; gap: 2px; font-size: 13.5px; }
 
-  .btn-danger { border-color: var(--del, #b3261e); color: var(--del, #b3261e); }
-  .btn-danger:hover { background: var(--del, #b3261e); color: #fff; }
+  /* `.btn-danger` is in `layouts/app.stx` now, with the rest of the buttons.
+    The copy that was here filled on hover with a hardcoded `#fff` label, which
+    is not a colour this palette ever checks against anything. */
 
   @media (max-width: 720px) {
     .row { flex-direction: column; align-items: stretch; }

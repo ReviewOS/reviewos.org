@@ -72,8 +72,8 @@ const signedIn = Boolean(viewer)
     <nav class="topbar-nav" aria-label="Main">
       @if (signedIn)
         {{-- First, because it is the question somebody opens a forge to
-            answer. Explore is for finding somebody else's work; this is for
-            finding your own. --}}
+            answer. Repositories is for finding somebody else's work; this
+            is for finding your own. --}}
         <a class="topbar-link {{ onReviews ? 'is-current' : '' }}" aria-current="{{ onReviews ? 'page' : 'false' }}" href="/reviews">Reviews<ReviewQueueBadge /></a>
         {{-- Second, and deliberately not first. Reviews is what needs the
             reader; the inbox is what happened to them, and a product that
@@ -109,8 +109,14 @@ const signedIn = Boolean(viewer)
         </details>
       @endif
 
-      <a class="topbar-link {{ onExplore ? 'is-current' : '' }}" aria-current="{{ onExplore ? 'page' : 'false' }}" href="/explore">Explore</a>
-      <a class="topbar-link {{ onDiscover ? 'is-current' : '' }}" aria-current="{{ onDiscover ? 'page' : 'false' }}" href="/discover">Discover</a>
+      {{-- Named for what each one holds, not for the mood of looking around.
+          "Explore" and "Discover" sat side by side meaning the same thing in
+          English and two different things in the product, so the only way to
+          learn which was which was to click both. One lists repositories; the
+          other lists events. The labels now say so, and the URLs stay put
+          because links to them are already in the wild. --}}
+      <a class="topbar-link {{ onExplore ? 'is-current' : '' }}" aria-current="{{ onExplore ? 'page' : 'false' }}" href="/explore">Repositories</a>
+      <a class="topbar-link {{ onDiscover ? 'is-current' : '' }}" aria-current="{{ onDiscover ? 'page' : 'false' }}" href="/discover">Activity</a>
       <a class="topbar-link {{ onDocs ? 'is-current' : '' }}" aria-current="{{ onDocs ? 'page' : 'false' }}" href="/docs">Docs</a>
     </nav>
 
@@ -215,8 +221,8 @@ const signedIn = Boolean(viewer)
   .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
   /* Below the point where the bar stops fitting, the destinations that survive
-    are the two nothing else in the product replaces. Explore and Discover are
-    both reachable from the pages that remain. */
+    are the two nothing else in the product replaces. Repositories and
+    Activity are both reachable from the pages that remain. */
   @media (max-width: 860px) {
     .topbar-link[href='/explore'], .topbar-link[href='/discover'], .topbar-link[href='/docs'] { display: none; }
   }
@@ -261,7 +267,6 @@ const signedIn = Boolean(viewer)
     border-right: 1.25px solid currentColor;
     border-bottom: 1.25px solid currentColor;
     transform: translateY(-1px) rotate(45deg);
-    opacity: 0.55;
   }
 
   .mega-panel {

@@ -2,6 +2,10 @@
 /**
  * Public activity across this instance.
  *
+ * "Activity" in the navigation, `/discover` on the wire. The two surfaces that
+ * face outward are split by what they hold rather than by a shade of the word
+ * "find": repositories on `/explore`, the events on them here.
+ *
  * The first page is rendered here from the same read as `/api/discover`, so a
  * client and a search engine see the same visibility decision. The cursor is an
  * event id rather than an offset, which keeps later pages the same cost as the
@@ -33,21 +37,21 @@ function repositoryHref(entry) {
 
 @layout('app')
 
-@section('title', 'Discover · ReviewOS')
-@section('description', 'Repositories worth reading on this instance, and the reviews happening on them now.')
+@section('title', 'Activity · ReviewOS')
+@section('description', 'What people are pushing, opening, reviewing and releasing across this instance, newest first.')
 
 @section('content')
   <div class="discover-shell shell">
     <header class="discover-head">
-      <h1>Discover</h1>
-      <p class="muted">Public work happening across this instance.</p>
+      <h1>Activity</h1>
+      <p class="muted">What people are doing across this instance, newest first.</p>
     </header>
 
     <div class="discover-layout">
       <main class="discover-main" aria-labelledby="activity-heading">
         <div class="discover-section-head">
           <h2 id="activity-heading">Recent activity</h2>
-          <a href="/explore">Explore repositories</a>
+          <a href="/explore">Browse repositories</a>
         </div>
 
         <div class="discover-feed panel">

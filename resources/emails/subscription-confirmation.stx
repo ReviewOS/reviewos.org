@@ -63,7 +63,7 @@ const year = props.year || new Date().getFullYear()
               <!-- Links -->
               <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%;">
                 <tr>
-                  <td style="color: #666; font-size: 13px;">
+                  <td style="color: #9a9a9a; font-size: 13px;">
                     <a href="https://stacksjs.com/docs" style="color: #888; text-decoration: none;">Docs</a>
                     &nbsp;&middot;&nbsp;
                     <a href="https://github.com/stacksjs/stacks" style="color: #888; text-decoration: none;">GitHub</a>
@@ -79,13 +79,13 @@ const year = props.year || new Date().getFullYear()
           <!-- Footer -->
           <tr>
             <td style="text-align: center; padding-top: 32px;">
-              <p style="color: #555; font-size: 13px; margin: 0 0 8px;">
+              <p style="color: #949494; font-size: 13px; margin: 0 0 8px;">
                 You received this email because {{ email }} subscribed at {{ appUrl }}.
               </p>
               <p style="margin: 0;">
-                <a href="{{ unsubscribeUrl }}" style="color: #666; font-size: 12px; text-decoration: underline;">Unsubscribe</a>
+                <a href="{{ unsubscribeUrl }}" style="color: #9a9a9a; font-size: 12px; text-decoration: underline;">Unsubscribe</a>
               </p>
-              <p style="color: #444; font-size: 11px; margin: 12px 0 0;">
+              <p style="color: #949494; font-size: 11px; margin: 12px 0 0;">
                 &copy; {{ year }} {{ appName }}. All rights reserved.
               </p>
             </td>

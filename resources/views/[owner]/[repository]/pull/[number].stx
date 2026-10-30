@@ -1419,7 +1419,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
   .checks-summary > :first-child { margin-top: 0; }
   .checks-summary > :last-child { margin-bottom: 0; }
   .checks-summary table { border-collapse: collapse; }
-  .checks-summary th, .checks-summary td { border: 1px solid var(--border); padding: 3px 7px; text-align: left; }
+  .checks-summary th, .checks-summary td { border: 1px solid var(--line); padding: 3px 7px; text-align: left; }
 
   /* A check's findings, in the diff. Bordered on the left rather than boxed:
      it sits under a line of code, and a box there reads as a second file. */

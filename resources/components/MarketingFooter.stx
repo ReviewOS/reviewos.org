@@ -4,7 +4,7 @@
  *
  * Where Use cases and Compare live now. They came off the top bar because they
  * are read once, before deciding, and the bar has to carry the things a
- * returning reader uses - Discover, the source, the docs. Demoting them is not
+ * returning reader uses - Activity, the source, the docs. Demoting them is not
  * hiding them: every page in both catalogs is linked here, which is more than
  * the mega menus showed, since those capped at what fitted in a panel.
  *
@@ -26,7 +26,7 @@ const columns = [
   {
     heading: 'Project',
     links: [
-      { label: 'Discover', href: '/discover' },
+      { label: 'Activity', href: '/discover' },
       { label: 'Roadmap', href: '/docs/todo/' },
       { label: 'Documentation', href: '/docs' },
       // Ours first. The GitHub mirror is still listed, one line down and

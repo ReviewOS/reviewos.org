@@ -24,10 +24,10 @@ const accent = props.accent || '#0f6d72'
   <EmailText size="heading">{{ title }}</EmailText>
 
   @if (repository)
-    <EmailText size="sm" color="#6b7280">{{ repository }}</EmailText>
+    <EmailText size="sm">{{ repository }}</EmailText>
   @endif
 
-  <ul style="margin:0;padding:0 0 0 20px;color:#4b5563;font-size:14px;">
+  <ul class="email-text" style="margin:0;padding:0 0 0 20px;color:#3f3f46;font-size:14px;">
     @foreach (lines as line)
       <li style="margin-bottom:8px;">{{ line }}</li>
     @endforeach
@@ -39,19 +39,19 @@ const accent = props.accent || '#0f6d72'
 
   <EmailDivider />
 
-  <EmailText size="sm" color="#6b7280" spacing="0">
+  <EmailText size="sm" spacing="0">
     These were held until your notification window opened.
   </EmailText>
 
   @if (unsubscribe)
-    <EmailText size="sm" color="#6b7280" spacing="0">
-      <a href="{{ unsubscribe }}" style="color:#6b7280;">Stop emails about this one</a>
+    <EmailText size="sm" spacing="0">
+      <a class="email-muted" href="{{ unsubscribe }}" style="color:#565f6d;">Stop emails about this one</a>
     </EmailText>
   @endif
 
   <template #footer>
     <tr>
-      <td style="padding:20px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+      <td class="email-muted" style="padding:20px 40px;text-align:center;color:#565f6d;font-size:12px;">
         {{ appName }}
       </td>
     </tr>
