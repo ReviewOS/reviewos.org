@@ -404,6 +404,30 @@ against its own composited backdrop.
       selector per line was read from its last line only. Thirteen dark tokens were being checked
       across two files; it is fifteen across six declarations now, `--ok` and `--ok-bg` among them.
 
+## The documentation site
+
+- [x] **The search control on `/docs` was the least readable thing on the page.** Its label
+      measured 2.87:1 in light and 3.37:1 in dark, and its border 1.29:1, because bunpress drew
+      both from tokens that had never been measured - `--bp-c-text-3`, which it also uses for
+      code block language tags and line numbers, and `--bp-c-divider`, the content hairline,
+      which every control in the theme had borrowed because `--bp-c-border` was declared and
+      never used. Fixed upstream in bunpress 0.2.31 (stacksjs/bunpress@e96789f) along with nine
+      more: the dark filled button at 2.02:1, the bun theme's links at 2.05:1, GitHub Light's
+      comment and keyword tokens on a non-white code block, a gradient heading no checker can
+      see, focus-mode dimming, and a 404 page whose only link had no colour of its own.
+- [x] **bunpress applied the reader's light/dark choice after the document had parsed**, from a
+      script at the end of the body - so every page load started light and turned, and with
+      scripting off there was no dark palette at all. The stored choice is resolved in the head
+      now and the dark rules are mirrored under `prefers-color-scheme`, generated from the rules
+      themselves rather than written out beside them. Same two faults this repository had in its
+      own layouts, found the same way.
+- [x] **`syntaxHighlightTheme` was `github-dark` while the docs render in both.** The
+      highlighter resolves one theme at build time and writes it inline on every token, and
+      bunpress corrects it for dark mode with `!important` - a correction that only runs from a
+      light theme toward a dark one. So the dark half worked by accident and the light half had
+      GitHub Dark's palette on a `#f6f6f7` block: string literals at 1.42:1 on every code sample
+      in the documentation. It is `github-light`, and bunpress supplies the dark half.
+
 ## Naming
 
 - [x] **"Explore" and "Discover" sat next to each other in the navigation bar.** They are

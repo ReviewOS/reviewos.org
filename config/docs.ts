@@ -97,7 +97,22 @@ const config: BunPressOptions = {
       // matter how good the card is.
       'twitter:card': 'summary_large_image',
     },
-    syntaxHighlightTheme: 'github-dark',
+    /*
+     * Light, and the dark half is bunpress's job.
+     *
+     * The highlighter resolves one theme at build time and writes it as an
+     * inline style on every token, so this setting is not a preference - it is
+     * the only palette the markup carries. bunpress corrects it for dark mode
+     * from its own stylesheet, with `!important`, because an inline style
+     * cannot be beaten by specificity. That correction only runs one way:
+     * light theme in, dark palette asserted over it when `html.dark` is set.
+     *
+     * Set to `github-dark`, the dark half worked by accident - the correction
+     * reasserted colours that were already there - and the light half had
+     * GitHub Dark's palette inline on a #f6f6f7 block. String literals at
+     * 1.42:1, numeric constants at 1.80:1, on every code sample in the docs.
+     */
+    syntaxHighlightTheme: 'github-light',
     toc: {
       enabled: true,
       minDepth: 2,
