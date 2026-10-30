@@ -1250,4 +1250,4 @@ to their own timezone gets every timestamp wrong by it.
   which is sixty requests an hour and enough for descriptions on a handful of
   repositories.
 
-- [x] Fix ts-cloud storage reclamation upstream so busy backup locks defer optional cleanup and unchanged placements deploy without waiting for backups.
+- [x] Fix ts-cloud storage reclamation upstream and consume published 0.16.89, so busy backup locks defer optional cleanup and unchanged placements deploy without waiting for backups.
