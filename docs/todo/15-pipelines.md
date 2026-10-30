@@ -3484,3 +3484,12 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       to fail without the column.
 
 - [x] Preserve the cause of runner output-delivery failures and distinguish a pending post-exit delivery, covered by real HTTP/process recovery and orphan cleanup regressions (https://github.com/ReviewOS/reviewos.org/issues/10).
+
+- [x] Deliver environment-scoped runner secrets after the environment's actual
+      protection passes, including branch-only environments with no human
+      reviewer. Recheck protection before issuing a job credential, preserve
+      elapsed waits at claim, and fail closed on missing run context or policy
+      read errors. Do not manufacture a human approval timestamp. Real HTTP
+      claims on disposable PostgreSQL cover delivery, elapsed waits and changed
+      protection; existing reviewer and untrusted-run regressions remain green.
+      https://github.com/ReviewOS/reviewos.org/issues/12

@@ -8,6 +8,7 @@ import type { DefaultsInput } from '../Workflow/defaults'
 import { callMarkerOf } from '../Workflow/callOutputs'
 import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJobDetailed } from '../Workflow/secrets'
+import { gateFor } from '../Workflow/settle'
 import { isOwnerDefined } from '../Workflow/ownerWorkflows'
 import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
@@ -367,7 +368,7 @@ export default new Action({
     const jobRow = await db
       .selectFrom('workflow_jobs')
       .select([
-        'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id',
+        'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'started_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id',
         // `strategy.fail-fast` and `strategy.max-parallel`, which were copied
         // onto the run and read by the graph and by nothing a workflow could see.
         'fail_fast', 'max_parallel',
@@ -377,6 +378,20 @@ export default new Action({
       ])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
+
+    // A policy can pass without a human reviewer. Recheck the current gate
+    // before issuing any job credential; approved_at records only a person's
+    // approval and cannot stand in for branch, timer and check protection.
+    let protection: Awaited<ReturnType<typeof gateFor>> | null = null
+    if (context && jobRow) {
+      try { protection = await gateFor(claimed.runId, jobRow, new Date()) }
+      catch { /* Unavailable protection must never release credentials. */ }
+    }
+    if (protection?.verdict !== 'run') {
+      const reason = protection?.reason ?? "Could not verify this job's environment protection."
+      const failed = await failJobDefinition(runner.facts, claimed, reason)
+      return runnerJson({ job: null, runner_id: runner.facts.id, error: failed.ok ? reason : failed.reason }, failed.ok ? 200 : 409)
+    }
 
     const definitionJob = await db
       .selectFrom('workflow_version_jobs')
@@ -664,7 +679,7 @@ export default new Action({
        */
       poolId: claimed.poolId ?? null,
       environment: environmentOfJob(jobRow?.settings),
-      approved: Boolean(jobRow?.approved_at),
+      approved: protection.verdict === 'run',
       /*
        * What this job asked for, when it asked.
        *

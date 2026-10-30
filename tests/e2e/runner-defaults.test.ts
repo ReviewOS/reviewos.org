@@ -3,6 +3,7 @@ import { SQL } from 'bun'
 import { authenticateRunner, hashToken } from '../../app/Actions/Runner/authenticate'
 import { RUNNER_PROTOCOL } from '../../app/Actions/Runner/protocol'
 import { dispatchPush, startRun } from '../../app/Actions/Workflow/dispatch'
+import { settleRun } from '../../app/Actions/Workflow/settle'
 import { putSecret } from '../../app/Actions/Workflow/secrets'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 import { verifyWork } from '../../app/Actions/Workflow/stepSignature'
@@ -706,3 +707,84 @@ jobs:
     expect(attempts).toHaveLength(0)
   }
 }, 30_000)
+
+
+async function environmentDeliveryFixture(waitMinutes = 0) {
+  const name = `gate-${crypto.randomUUID()}`
+  const environment = await db.insertInto('environments').values({
+    repository_id: created.repositoryId, name, branches: 'main',
+    wait_minutes: waitMinutes, require_checks: false,
+  }).returning(['id']).executeTakeFirst()
+  const value = `synthetic-gate-value-${name}`
+  await putSecret({ scope: 'environment', scopeId: Number(environment.id), key: 'GATE_DELIVERY_KEY', value })
+  const definition = await syncWorkflowFile({
+    repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId,
+    path: `.reviewos/workflows/${name}.yml`,
+    source: `name: Environment delivery
+on: workflow_dispatch
+jobs:
+  verify:
+    runs-on: defaults-test
+    environment: ${name}
+    reviewos:
+      secrets: [GATE_DELIVERY_KEY]
+    steps:
+      - run: echo fixture-only
+`,
+  })
+  expect(definition.ok, JSON.stringify(definition.errors)).toBe(true)
+  const runId = await startRun({
+    values: {
+      workflow_version_id: definition.versionId, repository_id: created.repositoryId,
+      state: 'queued', event: 'workflow_dispatch', event_ref: 'refs/heads/main',
+      head_sha: 'e'.repeat(40), definition_sha: 'e'.repeat(40), trusted: true,
+    },
+    versionId: Number(definition.versionId),
+  })
+  const job = await db.selectFrom('workflow_jobs').select(['id', 'approved_at', 'state', 'started_at'])
+    .where('workflow_run_id', '=', runId).executeTakeFirst()
+  return { environmentId: Number(environment.id), value, runId, job }
+}
+
+test('delivers scoped secrets after environment policy passes without fabricating a human approval', async () => {
+  const fixture = await environmentDeliveryFixture()
+  expect(fixture.job.state).toBe('queued')
+  expect(fixture.job.approved_at).toBeNull()
+  const { job } = await post('claim')
+  expect(job?.run?.id).toBe(fixture.runId)
+  try {
+    expect(job?.secrets?.GATE_DELIVERY_KEY).toBe(fixture.value)
+    const stored = await db.selectFrom('workflow_jobs').select(['approved_at', 'approved_by_id']).where('id', '=', fixture.job.id).executeTakeFirst()
+    expect(stored.approved_at).toBeNull()
+    expect(stored.approved_by_id).toBeNull()
+  }
+  finally { if (job?.token) await post('report', job.token, { state: 'succeeded' }) }
+})
+
+test('keeps an elapsed environment wait elapsed when the runner claims it', async () => {
+  const fixture = await environmentDeliveryFixture(1)
+  const readyAt = new Date(Date.now() - 120000).toISOString()
+  await db.updateTable('workflow_jobs').set({ started_at: readyAt }).where('id', '=', fixture.job.id).execute()
+  await settleRun(fixture.runId)
+  const { job } = await post('claim')
+  expect(job?.run?.id).toBe(fixture.runId)
+  try {
+    expect(job?.secrets?.GATE_DELIVERY_KEY).toBe(fixture.value)
+    const stored = await db.selectFrom('workflow_jobs').select(['started_at']).where('id', '=', fixture.job.id).executeTakeFirst()
+    expect(new Date(stored.started_at).getTime()).toBe(new Date(readyAt).getTime())
+  }
+  finally { if (job?.token) await post('report', job.token, { state: 'succeeded' }) }
+})
+
+test('refuses delivery when environment branch protection changes after enqueue', async () => {
+  const fixture = await environmentDeliveryFixture()
+  await db.updateTable('environments').set({ branches: 'release' }).where('id', '=', fixture.environmentId).execute()
+  const result = await post('claim')
+  try {
+    expect(result.job).toBeNull()
+    const stored = await db.selectFrom('workflow_jobs').select(['state', 'error']).where('id', '=', fixture.job.id).executeTakeFirst()
+    expect(stored.state).toBe('failed')
+    expect(stored.error).toContain('may not deploy')
+  }
+  finally { if (result.job?.token) await post('report', result.job.token, { state: 'succeeded' }) }
+})

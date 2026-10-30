@@ -94,6 +94,7 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
       'workflow_jobs.lease_expires_at as lease_expires_at',
       'workflow_jobs.max_parallel as max_parallel',
       'workflow_jobs.settings as settings',
+      'workflow_jobs.started_at as started_at',
       'workflow_runs.id as run_id',
       'workflow_runs.number as run_number',
       'workflow_runs.repository_id as repository_id',

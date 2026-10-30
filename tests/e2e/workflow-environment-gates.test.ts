@@ -9,7 +9,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { releaseElapsedWaits } from '../../app/Actions/Workflow/releaseWaits'
-import { settleRun } from '../../app/Actions/Workflow/settle'
+import { gateFor, settleRun } from '../../app/Actions/Workflow/settle'
+import { environmentRules } from '../../app/Actions/Workflow/environments'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 
 const created = { ownerId: 0, reviewerId: 0, repositoryId: 0, handle: '', reviewer: '', name: '', environmentId: 0 }
@@ -331,4 +332,20 @@ describe('what a gate is actually protecting', () => {
     expect(again.approved_at).toBeNull()
     expect(['blocked', 'paused']).toContain(String(again.state))
   }, 120_000)
+})
+
+
+test('a missing run cannot open environment protection', async () => {
+  if (!available) throw new Error('A real disposable database is required')
+  const runId = await runTo('refs/heads/main')
+  await db.deleteFrom('workflow_runs').where('id', '=', runId).execute()
+  expect(await gateFor(runId, { settings: JSON.stringify({ environment: 'production' }) }, new Date()))
+    .toMatchObject({ verdict: 'refuse' })
+})
+
+test.skipIf(process.env.DB_CONNECTION !== 'postgres')('does not hide a failed PostgreSQL protection lookup as an unconfigured environment', async () => {
+  if (!available) throw new Error('A real disposable database is required')
+  // Force a malformed integer-parameter failure without changing shared schema,
+  // stopping a server, or replacing the database module with a mock.
+  await expect(environmentRules('not-an-integer-fixture-id' as unknown as number, 'production')).rejects.toThrow()
 })

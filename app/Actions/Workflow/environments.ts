@@ -189,7 +189,6 @@ export async function environmentRules(repositoryId: number, name: string): Prom
     .where('repository_id', '=', repositoryId)
     .where('name', '=', clean)
     .executeTakeFirst()
-    .catch(() => null)
 
   /*
    * An environment nothing has configured is not protected.
@@ -206,7 +205,6 @@ export async function environmentRules(repositoryId: number, name: string): Prom
     .select(['user_id'])
     .where('environment_id', '=', Number(row.id))
     .execute()
-    .catch(() => [])
 
   return {
     id: Number(row.id),

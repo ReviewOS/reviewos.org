@@ -522,10 +522,9 @@ export async function gateFor(runId: number, job: any, now: Date): Promise<GateD
     .select(['repository_id', 'event_ref', 'head_sha'])
     .where('id', '=', runId)
     .executeTakeFirst()
-    .catch(() => null)
 
   if (!run)
-    return { verdict: 'run' }
+    return { verdict: 'refuse', reason: 'This workflow run no longer exists.' }
 
   const rules = await environmentRules(Number(run.repository_id), name)
 
