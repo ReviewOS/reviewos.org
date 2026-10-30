@@ -494,7 +494,7 @@ describe('expiry', () => {
 
 describe('fetching one back inside the run', () => {
   /** What a later job in the same run does: ask by name, with its own token. */
-  async function fetchByName(token: string, name: string) {
+  async function fetchByName(token: string, name: string, jobId?: number) {
     const answer = await fetch(`http://127.0.0.1:${port}/api/runner/artifacts/fetch`, {
       method: 'POST',
       headers: {
@@ -502,7 +502,7 @@ describe('fetching one back inside the run', () => {
         'Content-Type': 'application/json',
         'X-Runner-Protocol': '1',
       },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, job_id: jobId }),
     })
 
     return {
@@ -511,6 +511,39 @@ describe('fetching one back inside the run', () => {
       text: await answer.text(),
     }
   }
+
+  test('a collected file remains downloadable by its original path when one job produced it', async () => {
+    if (!available) return
+    const builder = await claimOne()
+    await upload(builder.token, `job-${builder.id}-out-report.txt`, 'owned report')
+    const result = await fetchByName(builder.token, 'out/report.txt')
+    expect(result.status).toBe(200)
+    expect(result.text).toBe('owned report')
+  })
+
+  test('collected matrix files require a producer when their paths are ambiguous', async () => {
+    if (!available) return
+    const builder = await claimOne()
+    const parent = await db.selectFrom('workflow_jobs').select(['workflow_run_id']).where('id', '=', builder.id).executeTakeFirst()
+    const second = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(parent.workflow_run_id), job_id: 'build', name: 'Second matrix copy', position: 1, state: 'queued',
+      runs_on: 'ubuntu-latest', matrix_values: JSON.stringify({ app: 'legacy' }),
+    }).returning(['id']).executeTakeFirst()
+    const claim = await fetch(`http://127.0.0.1:${port}/api/runner/claim`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` }, body: '{}',
+    })
+    const claimed = await claim.json() as any
+    expect(Number(claimed.job.id)).toBe(Number(second.id))
+    expect((await upload(builder.token, `job-${second.id}-out-report.txt`, 'wrong producer')).status).toBe(403)
+    expect((await upload(builder.token, `JOB-${second.id}-out-report.txt`, 'wrong producer')).status).toBe(403)
+    await upload(builder.token, `job-${builder.id}-out-report.txt`, 'HQ report')
+    await upload(String(claimed.job.token), `job-${second.id}-out-report.txt`, 'LSU report')
+    expect((await fetchByName(builder.token, 'out/report.txt')).status).toBe(409)
+    expect((await fetchByName(builder.token, 'out/report.txt', builder.id)).text).toBe('HQ report')
+    expect((await fetchByName(builder.token, 'out/report.txt', Number(second.id))).text).toBe('LSU report')
+    const stranger = await claimOne()
+    expect((await fetchByName(stranger.token, 'out/report.txt', builder.id)).status).toBe(404)
+  })
 
   test('a later job gets what an earlier one produced, by name', async () => {
     if (!available)

@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { storeArtifact } from '../Artifact/store'
-import { MAX_ARTIFACT_BYTES, megabytes } from '../Artifact/storage'
+import { artifactName, MAX_ARTIFACT_BYTES, megabytes } from '../Artifact/storage'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
@@ -53,6 +53,7 @@ export default new Action({
     426: { description: 'This runner speaks a protocol version the server does not.' },
     401: { description: 'No job credential, or one this instance does not recognise.' },
     404: { description: 'The credential names a job whose run has gone.' },
+    403: { description: 'A job cannot publish in another producer’s collected-artifact namespace.' },
   },
 
   responseHeaders: {
@@ -80,6 +81,11 @@ export default new Action({
     if (!job)
       return runnerJson({ error: 'No such job' }, 404)
 
+    const name = header(request, 'X-Artifact-Name') || 'artifact'
+    const producer = /^job-(\d+)-/i.exec(artifactName(name))
+    if (producer && Number(producer[1]) !== Number(job.id))
+      return runnerJson({ error: 'A job cannot publish another producer’s collected artifacts' }, 403)
+
     const bytes = await readBody(request)
 
     if (!bytes)
@@ -101,7 +107,7 @@ export default new Action({
       runId: Number(job.workflow_run_id),
       repositoryId: Number(job.repository_id) || null,
       jobId: Number(job.id),
-      name: header(request, 'X-Artifact-Name') || 'artifact',
+      name,
       bytes,
       contentType: header(request, 'Content-Type'),
       retentionDays: Number(header(request, 'X-Artifact-Retention-Days')) || null,
@@ -113,7 +119,7 @@ export default new Action({
 
     return runnerJson({
       id: stored.id,
-      name: header(request, 'X-Artifact-Name') || 'artifact',
+      name,
       digest: stored.digest,
       size_bytes: stored.size,
       expires_at: stored.expiresAt,

@@ -1159,6 +1159,62 @@ describe('artifact-paths', () => {
       await db.updateTable('runners').set({ labels: 'ubuntu-latest\nself-hosted' }).where('id', '=', created.runnerId).execute()
   })
 
+  test('matrix jobs retain and download their own copy of the same output path', async () => {
+    if (!available) return
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+    const version: any = await db.selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id']).where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc').executeTakeFirst()
+    const definition: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id), job_id: 'artifact-matrix', name: 'Artifact matrix', position: 32, runs_on: 'artifact-fixture',
+    }).returning(['id']).executeTakeFirst()
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(definition.id), position: 0, name: 'Produce',
+      command: 'mkdir -p out && printf "%s" "${{ matrix.app }}" > out/report.txt',
+    }).execute()
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id), repository_id: created.repositoryId, number: 702, state: 'queued', event: 'push',
+      event_ref: 'refs/heads/artifact-matrix', head_sha: created.headSha, definition_sha: created.headSha, trusted: true,
+    }).returning(['id']).executeTakeFirst()
+    const producers: number[] = []
+    for (const [position, app] of ['hq', 'legacy'].entries()) {
+      const producer = await db.insertInto('workflow_jobs').values({
+        workflow_run_id: Number(run.id), job_id: 'artifact-matrix', name: `Artifact ${app}`, position, state: 'queued', runs_on: 'artifact-fixture',
+        matrix_values: JSON.stringify({ app }), settings: JSON.stringify({ artifactPaths: ['out/report.txt'] }),
+      }).returning(['id']).executeTakeFirst()
+      producers.push(Number(producer.id))
+    }
+    const consumer: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id), job_id: 'artifact-download', name: 'Download both', position: 33, runs_on: 'artifact-fixture',
+    }).returning(['id']).executeTakeFirst()
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(consumer.id), position: 0, name: 'Download',
+      command: `if reviewos-download out/report.txt ambiguous.txt; then exit 8; fi
+reviewos-download out/report.txt hq.txt ${producers[0]}
+reviewos-download out/report.txt legacy.txt ${producers[1]}
+test "$(cat hq.txt)" = hq && test "$(cat legacy.txt)" = legacy`,
+    }).execute()
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id), job_id: 'artifact-download', name: 'Download both', position: 2, state: 'queued', runs_on: 'artifact-fixture',
+    }).execute()
+    expect((await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' }))?.state).toBe('succeeded')
+    expect((await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' }))?.state).toBe('succeeded')
+    const listing = await fetch(`${baseUrl}/api/repos/workflow-runs/artifacts?owner=${created.handle}&repo=${created.name}&number=702`)
+    expect(listing.status).toBe(200)
+    const { artifacts } = await listing.json() as any
+    expect(artifacts).toHaveLength(2)
+    expect(new Set(artifacts.map((row: any) => row.job_id)).size).toBe(2)
+    const contents: string[] = []
+    for (const artifact of artifacts) {
+      const download = await fetch(`${baseUrl}/api/repos/workflow-runs/artifact?owner=${created.handle}&repo=${created.name}&id=${artifact.id}`)
+      expect(download.status).toBe(200)
+      contents.push(await download.text())
+    }
+    expect(contents.sort()).toEqual(['hq', 'legacy'])
+    expect((await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' }))?.state).toBe('succeeded')
+  }, 180_000)
+
   test('a failing job retains every artifact through controller throttling', async () => {
     if (!available)
       return
@@ -1239,9 +1295,9 @@ describe('artifact-paths', () => {
      */
     const names = artifacts.map(row => String(row.name))
     expect(artifacts).toHaveLength(127)
-    expect(names[0]).toBe('previews-screen.png')
-    expect(names).toContain('out-report.txt')
-    expect(names).toContain('out-125.txt')
+    expect(names[0]).toBe(`job-${runJob.id}-previews-screen.png`)
+    expect(names).toContain(`job-${runJob.id}-out-report.txt`)
+    expect(names).toContain(`job-${runJob.id}-out-125.txt`)
     expect(names).not.toContain('out-ignored.log')
     expect(names).not.toContain('out-empty.txt')
     expect(artifacts.every(row => Number(row.size_bytes) > 0)).toBe(true)

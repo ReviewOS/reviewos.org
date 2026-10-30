@@ -1711,6 +1711,13 @@ gate, in order.
       without a file is an unpleasant 404, a file without a row is a byte nobody can reach and
       nobody will ever delete. A blob another artifact still points at survives its own row
       expiring, which on a matrix is the ordinary case.
+- [x] Automatic artifact collection retains every matrix producer’s files under its own job
+      namespace, including bounded distinct long names. Original-path downloads remain compatible
+      when unique; ambiguous paths require a producing job inside the same run. The generated
+      download command accepts that selection and producers expose `REVIEWOS_JOB_ID`. Explicit
+      run-wide uploads retain their contract; another job cannot reserve a collected namespace.
+      Real runner/HTTP/PostgreSQL cases reproduce the original two-reports-to-one loss and verify
+      both retained downloads, the generated command, ambiguity and foreign-run rejection.
 - [x] Log streaming applies backpressure and redaction before persistence, with configurable
       retention and a hard ceiling per job
 

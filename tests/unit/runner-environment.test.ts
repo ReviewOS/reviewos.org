@@ -12,6 +12,7 @@ import { environmentFor } from '../../app/Actions/Runner/localExecutor'
 import { eventPayload } from '../../app/Actions/Workflow/eventPayload'
 
 const job = {
+  id: 56,
   key: 'build',
   repository_full_name: 'acme/widgets',
   event_path: '/w/.reviewos-runner/event.json',
@@ -38,6 +39,8 @@ describe('the default environment', () => {
     expect(environment.GITHUB_REPOSITORY_OWNER).toBe('acme')
     expect(environment.GITHUB_WORKFLOW).toBe('CI')
     expect(environment.GITHUB_JOB).toBe('build')
+    expect(environment.REVIEWOS_JOB_ID).toBe('56')
+    expect(environment.GITHUB_JOB_ID).toBeUndefined()
     expect(environment.GITHUB_ACTOR).toBe('ada')
     expect(environment.GITHUB_RUN_ID).toBe('12')
     expect(environment.GITHUB_RUN_NUMBER).toBe('34')

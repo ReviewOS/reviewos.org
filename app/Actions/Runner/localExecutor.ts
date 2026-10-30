@@ -27,6 +27,7 @@ import { tmpdir, userInfo } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fetchWithBudget } from '@stacksjs/http'
+import { collectedArtifactName } from '../Artifact/storage'
 import { fetchAction } from './actionCache'
 import { verifyWork } from '../Workflow/stepSignature'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
@@ -2280,17 +2281,19 @@ printf '%s' "$answer" | ${JSON.stringify(process.execPath)} -e 'let d="";process
  *
  *     reviewos-download out-report.txt
  *     reviewos-download out-report.txt ./report.txt
+ *     reviewos-download out/report.txt ./report.txt 123
  */
 export function writeDownloadCommand(directory: string, baseUrl: string, jobToken: string): void {
   try {
     const path = join(directory, 'reviewos-download')
 
     writeFileSync(path, `#!/bin/sh
-# An artifact from earlier in this run. Usage: reviewos-download NAME [path]
+# An artifact from earlier in this run. Usage: reviewos-download NAME [path] [producer-job-id]
 set -e
 name="\${1:?a name is required}"
 out="\${2:-$name}"
-body=$(${JSON.stringify(process.execPath)} -e 'process.stdout.write(JSON.stringify({ name: process.argv[1] }))' "$name")
+producer="\${3:-}"
+body=$(${JSON.stringify(process.execPath)} -e 'const id=process.argv[2];if(id&&!/^[1-9][0-9]*$/.test(id))process.exit(2);process.stdout.write(JSON.stringify({ name: process.argv[1], ...(id ? { job_id: Number(id) } : {}) }))' "$name" "$producer")
 # Fails on an error status rather than writing the JSON error into the file a
 # step is about to read as a binary.
 curl -sS --fail-with-body -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/artifacts/fetch`)} \
@@ -2474,13 +2477,12 @@ async function publishArtifacts(input: {
           'Content-Type': 'application/octet-stream',
           'X-Runner-Protocol': '1',
           /*
-           * The path inside the workspace, not the basename. The store flattens
-           * a name's separators, so `out/report.txt` is stored as
-           * `out-report.txt` - which keeps two files called `report.xml` in two
-           * directories apart, where sending the basename would make the second
-           * one a name collision the endpoint refuses.
+           * Include the producing job. Matrix copies write the same paths but
+           * different evidence; run/name immutability must retain both rather
+           * than reject the second one with 409. Explicit named uploads keep
+           * their existing run-wide contract.
            */
-          'X-Artifact-Name': file,
+          'X-Artifact-Name': collectedArtifactName(Number(input.job.id), file),
         },
         body: bytes,
       })
@@ -2827,6 +2829,8 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     environment[`GITHUB_${name}`] = value
     environment[`REVIEWOS_${name}`] = value
   }
+  // A producer can publish this as a step output for a matrix artifact download.
+  environment.REVIEWOS_JOB_ID = String(job?.id ?? '')
 
   /*
    * Which shard this is, for a job that asked for `parallelism:`.

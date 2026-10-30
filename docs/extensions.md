@@ -429,9 +429,18 @@ The alternative is a step that uploads its own output, which has to be written
 screenshot in it.
 
 The files land as ordinary artifacts on the run, downloadable from the run page
-and from `/api/repos/workflow-runs/artifacts`. The path is kept in the name -
-`screenshots/failure.png` is stored as `screenshots-failure.png` - so two
-`report.xml` files in two directories are two artifacts rather than a collision.
+and from `/api/repos/workflow-runs/artifacts`. Names include the producing job:
+`screenshots/failure.png` from job 123 is `job-123-screenshots-failure.png`.
+Matrix copies retain separate evidence even when they write identical paths.
+Long paths retain a fingerprint and their filename extension within the name limit.
+
+`reviewos-download screenshots/failure.png ./failure.png` still works when one
+job collected the path. If several did, select the producer with a third argument:
+`reviewos-download screenshots/failure.png ./failure.png 123`. A producing step
+can publish `REVIEWOS_JOB_ID` as an output for a dependent job. Ambiguous paths
+return 409; a producer selection never grants access to another run. Explicit
+`reviewos-upload` names keep their run-wide behavior, with `job-<id>-` reserved
+for that job’s own collected artifacts.
 
 A glob that matches nothing says so in the log rather than failing the job:
 usually it is a typo or a build that wrote somewhere else, and the job has

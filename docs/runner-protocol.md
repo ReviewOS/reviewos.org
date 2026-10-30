@@ -297,6 +297,18 @@ same name with *different* content is a 409: silently replacing an artifact
 somebody may already have downloaded leaves two people holding different files
 under one name and no way to tell.
 
+Automatic `artifact-paths` collection prefixes each name with its producing
+`job-<id>-`, so matrix copies retain separate logs. This prefix is reserved:
+another job’s credential cannot publish there. Long collected paths retain a
+fingerprint and filename extension inside the 200-character limit.
+
+`POST /api/runner/artifacts/fetch` accepts `{ "name": "out/report.txt" }` for an
+explicit run-wide upload or a uniquely collected path. Multiple collected
+producers return 409; add `job_id` to select one. That selection is still scoped
+to the caller’s run. The generated command accepts
+`reviewos-download NAME [output-path] [producer-job-id]`; a producer can publish
+its `REVIEWOS_JOB_ID` as a step output for a dependent job.
+
 There are two ceilings, per artifact and per run. One without the other is not a
 ceiling - a per-artifact limit alone is walked around by a matrix of fifty jobs
 each uploading just under it.

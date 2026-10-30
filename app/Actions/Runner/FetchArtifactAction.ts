@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { artifactName } from '../Artifact/storage'
+import { artifactName, collectedArtifactName } from '../Artifact/storage'
 import { openArtifact } from '../Artifact/read'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
@@ -30,11 +30,14 @@ export default new Action({
 
   validations: {
     name: { rule: schema.string() },
+    job_id: { rule: schema.number(), required: false },
   },
 
   responses: {
     200: { description: 'The bytes, with X-Artifact-Digest so the job can check them.' },
     404: { description: 'This run has no artifact by that name - or it expired, which is the same answer to a job that needed it.' },
+    409: { description: 'Several jobs collected this path. Select its producing job_id.' },
+    422: { description: 'The producing job_id is invalid.' },
     410: { description: 'The row is here but the bytes are gone, which is a disk that lost them rather than a name that was wrong.' },
     426: { description: 'This runner speaks a protocol version the server does not.' },
     401: { description: 'No job credential, or one this instance does not recognise.' },
@@ -67,14 +70,50 @@ export default new Action({
     if (!job)
       return runnerJson({ error: 'The credential names a job that has gone' }, 404)
 
-    const name = artifactName(request.get('name'))
+    const sourceName = String(request.get('name') ?? '')
+    const name = artifactName(sourceName)
+    const requestedProducer = request.get('job_id')
+    const producerId = requestedProducer == null || requestedProducer === '' ? undefined : Number(requestedProducer)
+    if (producerId !== undefined && (!Number.isSafeInteger(producerId) || producerId <= 0))
+      return runnerJson({ error: 'A positive producing job_id is required' }, 422)
 
-    const row = await db
+    const artifacts = () => db
       .selectFrom('workflow_artifacts')
-      .select(['id', 'name', 'digest', 'size_bytes', 'expires_at'])
+      .select(['id', 'name', 'digest', 'blob_key', 'size_bytes', 'expires_at', 'workflow_job_id'])
       .where('workflow_run_id', '=', Number(job.workflow_run_id))
-      .where('name', '=', name)
-      .executeTakeFirst()
+
+    let row
+    if (producerId !== undefined) {
+      // The requested producer never replaces the token's run boundary.
+      row = await artifacts().where('workflow_job_id', '=', producerId)
+        .where('name', '=', collectedArtifactName(producerId, sourceName)).executeTakeFirst()
+      row ??= await artifacts().where('workflow_job_id', '=', producerId).where('name', '=', name).executeTakeFirst()
+    }
+    else {
+      // Explicit run-wide uploads and existing artifacts keep their names.
+      row = await artifacts().where('name', '=', name).executeTakeFirst()
+      if (!row) {
+        const producers = await db.selectFrom('workflow_jobs').select(['id'])
+          .where('workflow_run_id', '=', Number(job.workflow_run_id)).limit(1001).execute()
+        if (producers.length > 1000)
+          return runnerJson({ error: 'Select a producing job_id for this run' }, 409)
+        const matches = []
+        // Bound SQL parameter counts on every supported database.
+        for (let start = 0; start < producers.length; start += 200) {
+          const names = producers.slice(start, start + 200).map(producer => collectedArtifactName(Number(producer.id), sourceName))
+          if (!names.length) continue
+          const candidates = await artifacts().where('name', 'in', names).execute()
+          for (const candidate of candidates) {
+            const owner = Number(candidate.workflow_job_id)
+            if (Number.isSafeInteger(owner) && owner > 0 && candidate.name === collectedArtifactName(owner, sourceName))
+              matches.push(candidate)
+          }
+          if (matches.length > 1)
+            return runnerJson({ error: 'Several jobs collected this path; select its producing job_id' }, 409)
+        }
+        row = matches[0]
+      }
+    }
 
     if (!row)
       return runnerJson({ error: `This run has no artifact called ${name}` }, 404)
