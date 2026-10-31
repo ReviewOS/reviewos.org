@@ -244,6 +244,60 @@ describe('the ceiling', () => {
     expect(bytes).toBeLessThan(MAX_JOB_LOG_BYTES + 70_000)
   }, 60_000)
 
+  /*
+   * The end is the part a full log must keep.
+   *
+   * HQ's unit job (run 2443, job 6809) failed past the ceiling, and the stored
+   * log was its first two megabytes - checkout and install - with the failure
+   * summary dropped. Now the start and the newest output stay, and one line at
+   * the gap says how many bytes went.
+   */
+  test('keeps the start and the end, with one marker saying what was dropped', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    const size = 60_000
+    const count = Math.ceil(MAX_JOB_LOG_BYTES / size) * 2
+    const block = (sequence: number) => `chunk ${String(sequence).padStart(4, '0')} `.padEnd(size - 1, '.') + '\n'
+
+    for (let sequence = 1; sequence <= count; sequence++)
+      await appendLog({ jobId: job.id, sequence, content: block(sequence) })
+
+    // The summary a test runner prints last.
+    const summary = await appendLog({ jobId: job.id, sequence: count + 1, content: ' 5340 pass\n 1 fail\n' })
+    expect(summary.ok).toBe(true)
+
+    const rows: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['sequence', 'content'])
+      .where('workflow_job_id', '=', job.id)
+      .orderBy('sequence', 'asc')
+      .execute()
+
+    const text = rows.map(row => String(row.content)).join('')
+    const bytes = new TextEncoder().encode(text).length
+
+    expect(bytes).toBeLessThanOrEqual(MAX_JOB_LOG_BYTES)
+    expect(text.startsWith('chunk 0001 ')).toBe(true)
+    expect(text.endsWith(' 5340 pass\n 1 fail\n')).toBe(true)
+    expect(text).toContain(`chunk ${String(count).padStart(4, '0')} `)
+
+    const markers = [...text.matchAll(/\[log truncated: (\d+) bytes dropped here/g)]
+    expect(markers).toHaveLength(1)
+
+    // The count is exactly the output that is missing.
+    const kept = new Set(rows.map(row => Number(row.sequence)))
+    const missing = Array.from({ length: count }, (_, index) => index + 1).filter(sequence => !kept.has(sequence))
+    expect(missing.length).toBeGreaterThan(0)
+    expect(Number(markers[0]![1])).toBe(missing.length * size)
+
+    // A resend of a dropped chunk is accepted and stays dropped.
+    const resent = await appendLog({ jobId: job.id, sequence: missing[0]!, content: block(missing[0]!) })
+    expect(resent.ok).toBe(true)
+    expect(resent.truncated).toBe(true)
+  }, 120_000)
+
   // Accepted and dropped rather than refused: a 4xx here makes a correct runner
   // retry a chunk that will never be wanted.
   test('an append past the ceiling still answers ok', async () => {
@@ -382,10 +436,9 @@ describe('a job producing faster than the instance wants to store', () => {
       return
 
     /*
-     * The per-job ceiling truncates at the *end*, visibly, and that is
-     * survivable. Dropping the middle is not: a log missing the part where
-     * something went wrong is worse than one that stops, because a reader
-     * cannot tell it happened.
+     * The per-job ceiling drops the middle *visibly*, with a marker line at
+     * the gap. Dropping chunks to a rate limit would not be visible: a log
+     * missing an unmarked piece is worse than one that says what it lost.
      *
      * So a chunk over the instance's budget is refused with a wait and sent
      * again. It is idempotent on its sequence, so the retry costs nothing and

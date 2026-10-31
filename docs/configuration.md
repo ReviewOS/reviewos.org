@@ -838,8 +838,10 @@ how long any of it is kept.
 
 The ceiling is enforced on the way in, because a runner that streams forever
 is not stopped by a policy that runs tomorrow - it fills the disk tonight.
-Past it an append is accepted and discarded with one line saying so, which is
-honest; failing the upload would fail the job for a reason nobody can act on.
+Past it the log keeps its first quarter and its most recent output, and drops
+the middle with one marker line at the gap saying how many bytes went - the
+end is where a test summary and the error are. Appends are never refused for
+size; failing the upload would fail the job for a reason nobody can act on.
 
 *No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 

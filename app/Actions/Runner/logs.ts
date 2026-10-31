@@ -9,9 +9,11 @@
  *
  * **The ceiling is per job and enforced on the way in.** A runner that streams
  * forever is not stopped by a retention policy that runs tomorrow: it fills the
- * disk tonight. Past the ceiling the append is accepted and discarded, with one
- * line recorded saying so - refusing it would make a correct runner retry a
- * chunk that will never be wanted, which is worse than dropping it.
+ * disk tonight. Past the ceiling the log keeps its start and its most recent
+ * output and drops the middle, with one marker line at the gap saying how much
+ * went ([logCeiling.ts](./logCeiling.ts)). The end is where a test summary and
+ * the error are, so it is the part a full log must not lose. Appends are never
+ * refused for size - refusing would make a correct runner retry a chunk.
  */
 
 import { maxJobLogBytes } from '../../../config/ci-logs'
@@ -20,6 +22,7 @@ import { countRedactions, MARKER, redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
 import { eventsAsText } from './logevents'
 import { isNotFalse } from '../Support/sql'
+import { droppedMarker, markerOf, planCeiling, withoutMarker } from './logCeiling'
 
 /**
  * How much output one job may keep.
@@ -73,17 +76,18 @@ function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
 
-async function storedBytes(jobId: number): Promise<number> {
+async function storedChunks(jobId: number, attempt: number): Promise<Array<{ sequence: number, content: string }>> {
   const rows = await db
     .selectFrom('workflow_job_logs')
-    .select(['content'])
+    .select(['sequence', 'content'])
     .where('workflow_job_id', '=', jobId)
     // This attempt's budget, not the sum of every attempt's: a re-run of a job
     // that filled the ceiling would otherwise be silent from its first line.
-    .where('attempt', '=', (await attemptOf(jobId)).attempt)
+    .where('attempt', '=', attempt)
+    .orderBy('sequence', 'asc')
     .execute()
 
-  return rows.reduce((total, row) => total + byteLength(String(row.content ?? '')), 0)
+  return rows.map(row => ({ sequence: Number(row.sequence), content: String(row.content ?? '') }))
 }
 
 /**
@@ -123,33 +127,74 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   /*
    * Backpressure, before anything is written.
    *
-   * The ceiling below truncates at the *end*, which is a documented and
-   * survivable loss. Dropping the middle is not: a log missing the part where
-   * something went wrong is worse than a log that stops, because a reader
-   * cannot tell it happened. So a job producing faster than this instance wants
-   * to store is asked to wait and send the same chunk again, which slows the
-   * job and keeps its output whole - the chunk is idempotent on
-   * `(job, attempt, sequence)`, so a retry costs nothing.
+   * The ceiling below drops the middle of a log that is too big, *visibly*:
+   * one marker line at the gap says how many bytes went. Losing chunks to a
+   * rate limit would drop them silently, and a log missing an unmarked piece
+   * is worse than one that says what it lost. So a job producing faster than
+   * this instance wants to store is asked to wait and send the same chunk
+   * again, which slows the job and keeps its output whole - the chunk is
+   * idempotent on `(job, attempt, sequence)`, so a retry costs nothing.
    */
   const wait = await throttleFor(byteLength(text))
 
   if (wait > 0)
     return { ok: false, duplicate: false, truncated: false, reason: 'too fast', retryAfterMs: wait }
 
-  const already = await storedBytes(input.jobId)
+  const job = await attemptOf(input.jobId)
+  const stored = await storedChunks(input.jobId, job.attempt)
 
-  if (already >= MAX_JOB_LOG_BYTES) {
-    // Accepted and dropped. Refusing would make a correct runner retry a chunk
-    // that will never be wanted.
-    return { ok: true, duplicate: false, truncated: true, reason: 'this job has reached its log ceiling' }
+  const plan = planCeiling(stored.map((chunk) => {
+    const marker = markerOf(chunk.content)
+
+    return { sequence: chunk.sequence, bytes: byteLength(chunk.content), dropped: marker.dropped, markerBytes: marker.length }
+  }), { sequence: input.sequence, bytes: byteLength(content) }, MAX_JOB_LOG_BYTES)
+
+  if (plan.action === 'drop') {
+    // A resend of a chunk already dropped from the middle. Accepted, because
+    // refusing would make a correct runner retry it forever.
+    return { ok: true, duplicate: false, truncated: true, reason: 'this chunk was dropped at the log ceiling' }
   }
 
-  const room = MAX_JOB_LOG_BYTES - already
-  const clipped = byteLength(content) > room
-    ? `${content.slice(0, room)}\n[log truncated: this job reached ${MAX_JOB_LOG_BYTES} bytes]\n`
-    : content
+  let clipped = content
 
-  const job = await attemptOf(input.jobId)
+  if (plan.action === 'rotate') {
+    const marker = droppedMarker(plan.dropped, MAX_JOB_LOG_BYTES)
+
+    /*
+     * Make room by deleting the oldest chunks after the head, then put the one
+     * marker on the first chunk that survives after them. In one transaction,
+     * so a reader never sees the gap without the line explaining it.
+     */
+    await db.transaction(async (handle) => {
+      const client: any = handle
+
+      if (plan.remove.length > 0) {
+        await client.deleteFrom('workflow_job_logs')
+          .where('workflow_job_id', '=', input.jobId)
+          .where('attempt', '=', job.attempt)
+          .where('sequence', 'in', plan.remove)
+          .execute()
+      }
+
+      const survivor = stored.find(chunk => chunk.sequence === plan.markerOn)
+
+      if (survivor) {
+        await client.updateTable('workflow_job_logs')
+          // The structured form would no longer match the text, so it goes and
+          // a screen falls back to the text, marker and all.
+          .set({ content: `${marker}${withoutMarker(survivor.content)}`, events: null })
+          .where('workflow_job_id', '=', input.jobId)
+          .where('attempt', '=', job.attempt)
+          .where('sequence', '=', survivor.sequence)
+          .execute()
+      }
+    })
+
+    if (plan.markerOn === input.sequence) {
+      const bytes = new TextEncoder().encode(content)
+      clipped = `${marker}${new TextDecoder().decode(bytes.subarray(plan.clipIncoming))}`
+    }
+  }
 
   try {
     await db
@@ -190,7 +235,7 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   return {
     ok: true,
     duplicate: false,
-    truncated: clipped !== content,
+    truncated: plan.action === 'rotate',
     reason: 'stored',
   }
 }
