@@ -111,9 +111,20 @@ export default {
    */
   queryLogging: {
     /**
-     * Enable query logging to database
+     * Persist every query to `query_logs`. On outside production, off in it.
+     *
+     * This said `?? true`, overriding the framework's own default (which is
+     * already production opt-in), so production wrote a row - and an EXPLAIN
+     * for each slow SELECT - for every statement it ran: about 650,000 rows an
+     * hour. On 2026-10-31 the table was 39 GB, the root disk filled, Postgres
+     * PANICked writing WAL, and every app sharing that server was at risk.
+     *
+     * Opt in with `DB_QUERY_LOGGING_ENABLED=true` when you need it. The deploy
+     * rewrites the release `.env` from `config/cloud.ts`, so a line added by
+     * hand on the server does not survive the next deploy - which is why the
+     * default has to be right here.
      */
-    enabled: env.DB_QUERY_LOGGING_ENABLED ?? true,
+    enabled: env.DB_QUERY_LOGGING_ENABLED ?? !['production', 'prod'].includes(String(env.APP_ENV || '')),
 
     /**
      * The threshold in milliseconds to mark a query as slow
