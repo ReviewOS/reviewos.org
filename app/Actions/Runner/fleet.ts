@@ -117,6 +117,12 @@ export type RunnerLifecycle =
   | 'running'
   /** Polling, with nothing to do. */
   | 'idle'
+  /**
+   * Polling and refusing work - out of disk, over its load limit - and saying
+   * why. Not idle: idle is a machine a job would go to, and this is the one
+   * that looks exactly like it while every job for it waits.
+   */
+  | 'holding'
   /** Was working and stopped talking. The one nobody sets. */
   | 'lost'
 
@@ -128,6 +134,8 @@ export interface RunnerObservation {
   holdsJob: boolean
   /** Whether the lease on that job has already passed. */
   leaseLapsed: boolean
+  /** The capacity hold it last reported, when it is refusing work. */
+  holdReason?: string | null
 }
 
 /**
@@ -162,7 +170,10 @@ export function runnerLifecycle(runner: RunnerObservation, now: Date = new Date(
   if (runner.stopRequested)
     return 'stopping'
 
-  return runner.holdsJob ? 'running' : 'idle'
+  if (runner.holdsJob)
+    return 'running'
+
+  return runner.holdReason ? 'holding' : 'idle'
 }
 
 /**

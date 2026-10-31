@@ -14,6 +14,7 @@ import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob, stopRequestedFor } from './claim'
+import { holdFromClaim, recordHold } from './hold'
 import { failJobDefinition } from './report'
 import { eventPayload } from '../Workflow/eventPayload'
 import { signWork } from '../Workflow/stepSignature'
@@ -219,6 +220,10 @@ export default new Action({
 
   validations: {
     accept_work: { rule: schema.boolean(), required: false },
+    // Why a held runner is holding, in its own words. No length rule on
+    // purpose: a long reason is truncated rather than turning the poll that
+    // carries a stop request into a validation failure.
+    hold_reason: { rule: schema.string(), required: false },
   },
 
   responses: {
@@ -255,7 +260,13 @@ export default new Action({
 
     // Protocol 2 makes a held poll safe: an older server rejects the version
     // before authentication rather than ignoring this flag and leasing work.
-    const claimed = request.get('accept_work') === false ? null : await claimNextJob(runner.facts)
+    const holding = request.get('accept_work') === false
+
+    // Kept on the row, so a queued job can say which machine is refusing it and
+    // why - the one thing a held runner's own log knew and the instance did not.
+    await recordHold(runner.facts.id, holdFromClaim(request.get('accept_work'), request.get('hold_reason')))
+
+    const claimed = holding ? null : await claimNextJob(runner.facts)
 
     if (!claimed) {
       /*

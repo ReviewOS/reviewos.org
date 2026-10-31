@@ -9214,6 +9214,23 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "hold_reason",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "hold_started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -16087,7 +16104,7 @@
       }
     ]
   },
-  "hash": "6f34524e5d6f0709ff32354f11f4d8d6c17c33980bf661349d3792cd3fe60615",
+  "hash": "b07730640ba2c21fa31dfbe37bba1ca3f7bf94a54892f6ce4806c3c666b3f88d",
   "dialect": "postgres",
-  "updatedAt": "2026-10-26T17:56:54.494Z"
+  "updatedAt": "2026-10-31T10:05:01.828Z"
 }

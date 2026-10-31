@@ -104,6 +104,38 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * Why this machine is refusing work, in its own words, while it is.
+     *
+     * A runner that checks its own disk or load before claiming can decline
+     * every poll and look, from the instance, exactly like a healthy idle
+     * machine: it is seen every few seconds and takes nothing. The reason it
+     * gives - "9355 MiB available, 24576 MiB required" - used to exist only in
+     * that machine's local log, so a job waited all night with nothing on the
+     * run page saying why.
+     *
+     * Written on the poll that holds and cleared on the first one that accepts
+     * work again. Null is the ordinary case: not holding.
+     */
+    hold_reason: {
+      order: 16,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /**
+     * When the current hold began, so a screen can say "since 22:04" rather
+     * than leave somebody to guess whether it started a minute or a night ago.
+     * Kept across consecutive holding polls and cleared with the reason.
+     */
+    hold_started_at: {
+      order: 17,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
     /** What a person calls it in a list: `mac-mini-01`. */
     name: {
       order: 1,

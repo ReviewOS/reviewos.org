@@ -9374,6 +9374,23 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "hold_reason",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "hold_started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -16087,7 +16104,7 @@
       }
     ]
   },
-  "hash": "f3cd08ccf45b44477b44cfab532e734f7e70886caa662c34c81c2fe9ccadf4b2",
+  "hash": "0c4bbc669ac3b588531333e5e37cd91b028ab0ebed311d02d76a1b0e4acf8409",
   "dialect": "mysql",
-  "updatedAt": "2026-10-26T17:56:52.461Z"
+  "updatedAt": "2026-10-31T10:04:58.338Z"
 }

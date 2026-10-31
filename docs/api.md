@@ -3379,6 +3379,7 @@ _Takes no parameters._
 | `200` | Successful response |
 | `201` | The artifact, with the digest a client can check what it downloads against and the date it stops being available. |
 | `401` | No job credential, or one this instance does not recognise. |
+| `403` | A job cannot publish in another producer’s collected-artifact namespace. |
 | `404` | The credential names a job whose run has gone. |
 | `409` | This run already has an artifact under that name with different content. Replacing it silently would leave two people holding different files with one name. |
 | `413` | Past the per-artifact or per-run ceiling. The message says which and by how much. |
@@ -3393,14 +3394,16 @@ Response headers: `X-Runner-Protocol-Supported`.
 | Name | In | Required | Type |
 |---|---|---|---|
 | `name` | body | optional | string |
+| `job_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
 | `200` | The bytes, with X-Artifact-Digest so the job can check them. |
 | `401` | No job credential, or one this instance does not recognise. |
 | `404` | This run has no artifact by that name - or it expired, which is the same answer to a job that needed it. |
+| `409` | Several jobs collected this path. Select its producing job_id. |
 | `410` | The row is here but the bytes are gone, which is a disk that lost them rather than a name that was wrong. |
-| `422` | Validation failed |
+| `422` | The producing job_id is invalid. |
 | `426` | This runner speaks a protocol version the server does not. |
 | `500` | Server error |
 
@@ -3445,6 +3448,7 @@ Response headers: `X-Cache-Scope`, `X-Cache-Exact`, `X-Cache-Digest`, `X-Cache-M
 | Name | In | Required | Type |
 |---|---|---|---|
 | `accept_work` | body | optional | boolean |
+| `hold_reason` | body | optional | string |
 
 | Status | Means |
 |---|---|

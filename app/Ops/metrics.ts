@@ -289,7 +289,7 @@ async function collectFleet(): Promise<void> {
   const queues = await db.selectFrom('runner_queues').select(['id', 'name']).execute()
   const runners = await db
     .selectFrom('runners')
-    .select(['id', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .select(['id', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested', 'hold_reason'])
     .execute()
 
   const jobs = await db
@@ -343,7 +343,7 @@ async function collectFleet(): Promise<void> {
 
     const held = jobs.filter(job => String(job.state) === 'running')
 
-    for (const lifecycle of ['idle', 'running', 'stopping', 'lost', 'disabled', 'never-seen']) {
+    for (const lifecycle of ['idle', 'holding', 'running', 'stopping', 'lost', 'disabled', 'never-seen']) {
       const count = machines.filter((runner) => {
         const holding = held.find(job => String(job.runner_id ?? '') === String(runner.id))
         const lease = holding?.lease_expires_at ? Date.parse(String(holding.lease_expires_at)) : Number.NaN
@@ -354,6 +354,7 @@ async function collectFleet(): Promise<void> {
           stopRequested: runner.stop_requested ? String(runner.stop_requested) : null,
           holdsJob: Boolean(holding),
           leaseLapsed: Boolean(holding) && Number.isFinite(lease) && lease <= now,
+          holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
         }, new Date(now)) === lifecycle
       }).length
 

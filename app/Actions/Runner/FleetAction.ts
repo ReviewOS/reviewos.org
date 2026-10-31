@@ -732,7 +732,7 @@ async function fleet(): Promise<Record<string, unknown>> {
   const assigned = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
   const runners = await db
     .selectFrom('runners')
-    .select(['id', 'name', 'state', 'labels', 'tags', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .select(['id', 'name', 'state', 'labels', 'tags', 'runner_queue_id', 'last_seen_at', 'stop_requested', 'hold_reason', 'hold_started_at'])
     .execute()
 
   const tokens = await db
@@ -769,8 +769,17 @@ async function fleet(): Promise<Record<string, unknown>> {
         stopRequested: runner.stop_requested ? String(runner.stop_requested) : null,
         holdsJob: Boolean(holding),
         leaseLapsed: Boolean(holding) && Number.isFinite(lease) && lease <= now.getTime(),
+        holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
       }, now),
       last_seen_at: runner.last_seen_at ? String(runner.last_seen_at) : null,
+      /*
+       * Why it is refusing work, in the machine's own words, and since when.
+       * Null when it is not holding. Kept even when the lifecycle says `lost`:
+       * the last thing a machine said before it went quiet is often the clue.
+       */
+      hold: runner.hold_reason
+        ? { reason: String(runner.hold_reason), since: runner.hold_started_at ? String(runner.hold_started_at) : null }
+        : null,
       // What the machine says it is, which is what an `agents:` query selects on.
       tags: String(runner.tags ?? '').split('\n').map(tag => tag.trim()).filter(Boolean),
     }

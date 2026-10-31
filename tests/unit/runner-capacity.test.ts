@@ -17,7 +17,7 @@ test('host load holds job admission while stop requests and recovery remain live
   ])
   if (code !== 0) throw new Error(stderr)
   const result = JSON.parse(stdout.trim().split('\n').at(-1)!)
-  expect(result.polls).toEqual([{ accept_work: false }, {}])
+  expect(result.polls).toEqual([{ accept_work: false, hold_reason: expect.stringContaining('load') }, {}])
   expect(result.stop).toBe('graceful')
   expect(result.messages[0]).toContain('load')
   expect(result.messages.at(-1)).toContain('capacity restored')
@@ -52,7 +52,7 @@ test('insufficient workspace space holds work but still receives a graceful stop
       say: line => messages.push(line),
     })
     expect(outcome).toBeNull()
-    expect(polls).toEqual([{ protocol: '2', body: { accept_work: false } }])
+    expect(polls).toEqual([{ protocol: '2', body: { accept_work: false, hold_reason: expect.stringContaining('MiB required') } }])
     expect(takeStopRequest()).toBe('graceful')
     expect(messages.join('\n')).toContain('disk')
   }
@@ -77,7 +77,7 @@ test('unmeasurable workspace space holds work and an older controller refuses th
       baseUrl: `http://127.0.0.1:${server.port}`, token: 'capacity-fixture',
       workspaceRoot: join(root, 'missing'), minimumFreeDiskMb: 1,
     })).rejects.toThrow('upgrade the server')
-    expect(polls).toEqual([{ accept_work: false }])
+    expect(polls).toEqual([{ accept_work: false, hold_reason: expect.stringContaining('Cannot verify available workspace disk space') }])
   }
   finally {
     server.stop(true)
@@ -104,7 +104,7 @@ test('resumes normal polling after capacity returns without logging every held p
     expect(messages).toHaveLength(1)
     options.minimumFreeDiskMb = 1
     await runOnce(options)
-    expect(polls).toEqual([{ accept_work: false }, { accept_work: false }, {}])
+    expect(polls).toEqual([{ accept_work: false, hold_reason: expect.stringContaining('disk space') }, { accept_work: false, hold_reason: expect.stringContaining('disk space') }, {}])
     expect(messages.at(-1)).toContain('restored')
   }
   finally {
@@ -125,7 +125,7 @@ test.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 0.5, Number.MAX_SAFE_INTEGE
       baseUrl: `http://127.0.0.1:${server.port}`, token: 'capacity-fixture', minimumFreeDiskMb,
       say: line => messages.push(line),
     })).toBeNull()
-    expect(polls).toEqual([{ accept_work: false }])
+    expect(polls).toEqual([{ accept_work: false, hold_reason: expect.stringContaining('setting') }])
     expect(messages.join('\n')).toContain('setting')
   }
   finally { server.stop(true) }

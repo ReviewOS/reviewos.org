@@ -4698,6 +4698,7 @@ export interface paths {
       "200": { content: { "application/json": Record<string, unknown> } }
       "201": { content: { "application/json": { "id"?: number; "name"?: string; "digest"?: string; "size_bytes"?: number; "expires_at"?: string; "duplicate"?: boolean } } }
       "401": { content: never }
+      "403": { content: never }
       "404": { content: never }
       "409": { content: never }
       "413": { content: never }
@@ -4722,11 +4723,12 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "name"?: string } } }
+    requestBody?: { content: { "application/json": { "name"?: string; "job_id"?: number } } }
     responses: {
       "200": { content: never }
       "401": { content: never }
       "404": { content: never }
+      "409": { content: never }
       "410": { content: never }
       "422": { content: never }
       "426": { content: never }
@@ -4805,7 +4807,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "accept_work"?: boolean } } }
+    requestBody?: { content: { "application/json": { "accept_work"?: boolean; "hold_reason"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "401": { content: never }

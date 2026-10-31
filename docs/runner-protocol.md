@@ -85,7 +85,15 @@ Authenticated with the **registration token**. Asks for one job.
 
 Protocol 2 also accepts `{ "accept_work": false }` for a capacity hold. The
 controller updates the runner's last-seen time and delivers a requested stop,
-but does not select or lease a job. Protocol 1 runners remain supported. Deploy
+but does not select or lease a job. A held runner also sends `hold_reason`, the
+sentence it logged, for example
+`{ "accept_work": false, "hold_reason": "Insufficient workspace disk space at /work: 9355 MiB available, 24576 MiB required" }`.
+The controller stores it on the runner, with the time the hold began, and clears
+both on the first claim that accepts work again. The fleet listing shows it as
+`hold`, and a queued job whose only matching runners are holding says so on the
+run page and in the run API. The field is optional in both directions: an older
+controller ignores it, and a hold from an older runner that sends none is
+recorded with a generic reason. Protocol 1 runners remain supported. Deploy
 the controller before the new runner: a protocol 1 controller refuses version 2
 with 426 before it could ignore the hold and lease work.
 

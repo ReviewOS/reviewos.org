@@ -333,7 +333,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     say('Runner capacity restored; accepting work')
     capacityNotifications.delete(options)
   }
-  const claim = await post(options.baseUrl, '/api/runner/claim', options.token, capacity.acceptWork ? {} : { accept_work: false })
+  // The reason rides with the hold so the instance can show it beside the jobs
+  // waiting on this machine; an older instance ignores the field.
+  const claim = await post(options.baseUrl, '/api/runner/claim', options.token, capacity.acceptWork ? {} : { accept_work: false, hold_reason: capacity.reason })
   if (claim.status === 426)
     throw new Error(String(claim.body?.error ?? 'The controller does not support this runner protocol; upgrade the controller'))
   // A capacity hold never executes work, even if a broken controller sends it.

@@ -207,6 +207,39 @@ describe('claiming over HTTP', () => {
     expect(answer.body.job).toBeNull()
   })
 
+  /*
+   * A held claim leaves its reason on the runner, and the first claim that
+   * accepts work takes it off again. Before this, a runner refusing work for
+   * want of disk looked exactly like an idle one to everything but its own log.
+   */
+  test('a held claim records why, keeps when it began, and accepting work clears it', async () => {
+    if (!available)
+      return
+
+    const runnerId = created.runnerIds[0]!
+    const reason = 'Insufficient workspace disk space at /work: 9355 MiB available, 24576 MiB required'
+    const row = async () => await db.selectFrom('runners').select(['hold_reason', 'hold_started_at']).where('id', '=', runnerId).executeTakeFirst()
+
+    const held = await call('/runner/claim', { accept_work: false, hold_reason: reason }, TOKEN, String(RUNNER_PROTOCOL.current))
+    expect(held.status).toBe(200)
+    expect(held.body.job).toBeNull()
+
+    const first: any = await row()
+    expect(first.hold_reason).toBe(reason)
+    expect(first.hold_started_at).toBeTruthy()
+
+    await call('/runner/claim', { accept_work: false, hold_reason: reason }, TOKEN, String(RUNNER_PROTOCOL.current))
+    expect((await row() as any).hold_started_at).toBe(first.hold_started_at)
+
+    // An older runner holds without a reason: still recorded as holding.
+    await call('/runner/claim', { accept_work: false }, TOKEN, String(RUNNER_PROTOCOL.current))
+    expect(String((await row() as any).hold_reason)).toContain('did not say why')
+
+    const resumed = await call('/runner/claim', {}, TOKEN, String(RUNNER_PROTOCOL.current))
+    expect(resumed.status).toBe(200)
+    expect(await row()).toEqual({ hold_reason: null, hold_started_at: null })
+  })
+
   test('and hands over the job with the steps to run', async () => {
     if (!available)
       return

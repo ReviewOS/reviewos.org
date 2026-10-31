@@ -12,6 +12,7 @@ reviewos_ci_jobs_waiting{queue="linux-x64-large"} 7
 reviewos_ci_jobs_running{queue="linux-x64-large"} 2
 reviewos_ci_jobs_oldest_waiting_seconds{queue="linux-x64-large"} 94
 reviewos_ci_runners{queue="linux-x64-large",lifecycle="idle"} 1
+reviewos_ci_runners{queue="linux-x64-large",lifecycle="holding"} 0
 reviewos_ci_runners{queue="linux-x64-large",lifecycle="running"} 2
 reviewos_ci_runners{queue="linux-x64-large",lifecycle="stopping"} 0
 reviewos_ci_runners{queue="linux-x64-large",lifecycle="lost"} 0
@@ -23,7 +24,7 @@ Three facts per queue - work waiting, work running, how long the oldest has
 waited - and machines by what they are actually doing. A scaler that needed more
 than this would be making decisions that belong to the instance.
 
-Four things worth knowing about the shape:
+Five things worth knowing about the shape:
 
 **Every series is reported at zero.** A gauge that disappears when it reaches
 zero is how a scaler concludes there is no work, when what happened is that
@@ -32,6 +33,11 @@ nobody reported any.
 **`unassigned` is a real queue name.** It carries the machines nobody put in a
 queue, and the jobs whose `runs-on:` matches no runner anywhere. On an instance
 that has started using pools, that bucket is where the surprises are.
+
+**`holding` is not idle.** A machine that polls but refuses work because its
+own disk or load check failed is counted here, not under `idle`. Treat it as
+capacity you do not have: the jobs for it wait, and the reason it gave is on the
+runner in the fleet listing.
 
 **`lost` is the one nobody sets.** A machine that stopped talking is not
 `stopped`, because nothing stopped it - it is a lease that lapsed and a poll

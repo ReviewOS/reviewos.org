@@ -127,6 +127,18 @@ describe('what a runner is doing', () => {
     expect(runnerLifecycle(observation(), now)).toBe('idle')
   })
 
+  /*
+   * The 2026-10-31 case: a Mac runner out of disk polled every few seconds,
+   * took nothing, and the fleet listing called it idle all night.
+   */
+  test('polling while refusing work is holding, not idle', () => {
+    expect(runnerLifecycle(observation({ holdReason: 'Insufficient workspace disk space' }), now)).toBe('holding')
+  })
+
+  test('a hold left on a machine that went quiet is lost, not holding', () => {
+    expect(runnerLifecycle(observation({ holdReason: 'Insufficient workspace disk space', lastSeenAt: seen(600) }), now)).toBe('lost')
+  })
+
   test('holding a job is running', () => {
     expect(runnerLifecycle(observation({ holdsJob: true }), now)).toBe('running')
   })

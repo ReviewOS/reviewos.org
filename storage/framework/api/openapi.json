@@ -17834,6 +17834,17 @@
               }
             }
           },
+          "403": {
+            "description": "A job cannot publish in another producer’s collected-artifact namespace.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "404": {
             "description": "The credential names a job whose run has gone.",
             "headers": {
@@ -17942,6 +17953,17 @@
               }
             }
           },
+          "409": {
+            "description": "Several jobs collected this path. Select its producing job_id.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "410": {
             "description": "The row is here but the bytes are gone, which is a disk that lost them rather than a name that was wrong.",
             "headers": {
@@ -17954,7 +17976,7 @@
             }
           },
           "422": {
-            "description": "Validation failed",
+            "description": "The producing job_id is invalid.",
             "headers": {
               "X-Artifact-Digest": {
                 "description": "SHA-256 of the bytes, so a job can verify what it received.",
@@ -17996,6 +18018,9 @@
                 "properties": {
                   "name": {
                     "type": "string"
+                  },
+                  "job_id": {
+                    "type": "number"
                   }
                 }
               }
@@ -18362,6 +18387,9 @@
                 "properties": {
                   "accept_work": {
                     "type": "boolean"
+                  },
+                  "hold_reason": {
+                    "type": "string"
                   }
                 }
               }

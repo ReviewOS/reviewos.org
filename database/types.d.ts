@@ -2335,6 +2335,8 @@ declare module '@stacksjs/database' {
       stop_requested: "graceful" | "forced"
       tags: string
       runner_registration_token_id: number
+      hold_reason: string
+      hold_started_at: string
       name: string
       scope_type: "instance" | "organization" | "repository"
       scope_id: number
