@@ -273,6 +273,31 @@ async function dispatchForPush(repository: any, event: any): Promise<void> {
         deleted: update.change === 'deleted',
       },
     }).catch(() => null)
+
+    /*
+     * A newer commit already skips the queued runs of the same workflow
+     * through its concurrency group. A workflow this commit deleted or renamed
+     * has no newer run to replace it, so its old runs would go on executing
+     * from a file that no longer exists on the branch.
+     */
+    if (gitDir && update.kind === 'branch')
+      await retireVanished(gitDir, Number(repository.id), String(update.ref), String(update.after))
   }
 
+}
+
+/** Cancel this branch's live runs of workflows its new head no longer has. */
+async function retireVanished(gitDir: string, repositoryId: number, ref: string, headSha: string): Promise<void> {
+  const { workflowFilesAt } = await import('../Actions/Workflow/discover')
+  const { supersedeVanishedWorkflows } = await import('../Actions/Workflow/vanished')
+  const { isSafeRevision, runGit } = await import('../Actions/Git/git')
+
+  await supersedeVanishedWorkflows({
+    repositoryId,
+    ref,
+    headSha,
+    present: await workflowFilesAt(gitDir, headSha).catch(() => null),
+    isAncestor: async sha => isSafeRevision(sha)
+      && (await runGit(gitDir, ['merge-base', '--is-ancestor', sha, headSha], { timeoutMs: 30_000 })).ok,
+  }).catch(() => null)
 }

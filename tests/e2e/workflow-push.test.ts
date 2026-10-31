@@ -481,13 +481,27 @@ describe('and the runs it starts', () => {
       .execute()
   }
 
+  /*
+   * Its own workflow, because the ones above were deleted by the last test -
+   * and a push that drops a workflow now retires that workflow's queued runs,
+   * so the first run in the repository is no longer one that is waiting.
+   */
+  const AGAIN = '.reviewos/workflows/again.yml'
+  const againRuns = async (): Promise<any[]> => runsOf(AGAIN)
+    .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.event as event', 'workflow_runs.event_ref as event_ref', 'workflow_runs.trusted as trusted'])
+    .orderBy('workflow_runs.id')
+    .execute()
+
   test('a push to the default branch queues a run', async () => {
     if (!available)
       return
 
-    await push('src/again.ts', 'export const again = 2\n')
+    // On a path of its own, so it starts nothing during the docs-only
+    // assertion below.
+    await push(AGAIN, CI.replace('    branches: [main]\n', '    branches: [main]\n    paths:\n      - \'again/**\'\n'))
+    await push('again/one.txt', 'again\n')
 
-    const runs = await waitFor(runsHere, found => found.length > 0)
+    const runs = await waitFor(againRuns, found => found.length > 0)
 
     expect(runs.length).toBeGreaterThan(0)
     expect(runs[0].state).toBe('queued')
@@ -502,7 +516,7 @@ describe('and the runs it starts', () => {
     if (!available)
       return
 
-    const runs = await runsHere()
+    const runs = await againRuns()
     const jobs: any[] = await db
       .selectFrom('workflow_jobs')
       .select(['job_id', 'state'])
@@ -1283,5 +1297,80 @@ jobs:
     const release = warnings.find((warning: any) => warning.key === 'on.release')
 
     expect(String(release.message)).toContain('published')
+  }, 30_000)
+})
+
+/*
+ * A workflow the newer commit renamed.
+ *
+ * Concurrency groups skip queued runs of the *same* workflow, and a renamed
+ * workflow has no newer run in its group to replace it, so its old run kept
+ * its place in line. On 2026-10-31 HQ renamed `lsu-native-*.yml` to
+ * `enterprise-native-*.yml` and the old runs held the only Mac runner ahead of
+ * the real ones for hours. The push that drops the file now retires them.
+ */
+describe('a workflow the newer commit no longer has', () => {
+  test('has its queued run on that branch skipped, through the real push path', async () => {
+    if (!available)
+      return
+
+    const OLD = '.reviewos/workflows/lsu-native-voice.yml'
+    const NEW = '.reviewos/workflows/enterprise-native-voice.yml'
+
+    await push(OLD, `name: Voice
+on:
+  push:
+    paths:
+      - 'voice/**'
+jobs:
+  voice:
+    runs-on: macos-arm64
+    steps:
+      - run: bun test
+`)
+
+    await push('voice/one.txt', 'one\n')
+
+    const queued = async (): Promise<any[]> => runsOf(OLD)
+      .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.conclusion_reason as reason'])
+      .orderBy('workflow_runs.id')
+      .execute()
+
+    const before = await waitFor(queued, (rows: any[]) => rows.length === 1)
+    expect(before[0].state).toBe('queued')
+
+    // The rename, with a filter the rename itself does not match, so the only
+    // thing this push can do to the old run is retire it.
+    const work = join(created.temp, 'work')
+    await git(work, 'mv', OLD, NEW)
+    writeFileSync(join(work, NEW), `name: Voice
+on:
+  push:
+    paths:
+      - 'never/**'
+jobs:
+  voice:
+    runs-on: macos-arm64
+    steps:
+      - run: bun test
+`)
+    await git(work, 'add', '-A')
+    await git(work, 'commit', '-m', 'rename the voice workflow')
+
+    const from = await git(work, 'rev-parse', 'HEAD~1')
+    await git(work, 'push', created.diskPath, 'main')
+    const to = await git(work, 'rev-parse', 'HEAD')
+
+    const { parseRefUpdates } = await import('../../app/Actions/Git/push')
+    const { default: ProcessPushJob } = await import('../../app/Jobs/ProcessPushJob')
+    await ProcessPushJob.handle({ gitDir: created.diskPath, updates: parseRefUpdates(`${from} ${to} refs/heads/main`) })
+
+    const after = await waitFor(queued, (rows: any[]) => String(rows[0]?.state) === 'cancelled')
+
+    expect(after[0].state).toBe('cancelled')
+    expect(String(after[0].reason)).toBe(`Skipped: a newer commit (${to.slice(0, 9)}) no longer has \`${OLD}\`.`)
+
+    const jobs: any[] = await db.selectFrom('workflow_jobs').select(['state']).where('workflow_run_id', '=', Number(after[0].id)).execute()
+    expect(jobs.every(job => String(job.state) === 'cancelled')).toBe(true)
   }, 30_000)
 })

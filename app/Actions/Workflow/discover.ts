@@ -143,3 +143,35 @@ export async function discoverWorkflows(
 
   return found
 }
+
+/**
+ * Every file under either workflow directory at a commit, or null when the
+ * commit could not be listed.
+ *
+ * Deliberately not `discoverWorkflows`: that answers "which definitions does
+ * this instance read", and prefers one directory over the other. This answers
+ * "is the file still in the tree", which is what decides whether a run started
+ * from it has been left behind by a newer commit. An empty list is a real
+ * answer here - the commit deleted its workflows - and a failure is null, so
+ * "git timed out" never reads as "every workflow was deleted".
+ */
+export async function workflowFilesAt(gitDir: string, sha: string): Promise<string[] | null> {
+  if (!isSafeRevision(sha))
+    return null
+
+  const listing = await runGit(gitDir, [
+    'ls-tree',
+    '-r',
+    '--name-only',
+    '-z',
+    sha,
+    '--',
+    REVIEWOS_WORKFLOW_DIRECTORY,
+    WORKFLOW_DIRECTORY,
+  ], { timeoutMs: 30_000 })
+
+  if (!listing.ok)
+    return null
+
+  return listing.stdout.split('\0').map(path => path.trim()).filter(Boolean)
+}
