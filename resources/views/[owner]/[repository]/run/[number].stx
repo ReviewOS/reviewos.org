@@ -393,9 +393,15 @@ const queuesById = new Map<number, any>(queueRows.map((row: any) => [Number(row.
  * rather than an error.
  */
 const runnerFacts = anyQueued
-  ? (await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels', 'runner_queue_id']).execute())
+  ? (await db.selectFrom('runners').select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'runner_queue_id', 'last_seen_at', 'hold_reason', 'hold_started_at']).execute())
       .map(runner => ({
         id: Number(runner.id),
+        // The name, last poll and hold are what turn "queued" into "waiting:
+        // hq-macos-arm64 is holding: 9355 MiB available, 24576 MiB required".
+        name: String(runner.name ?? ''),
+        lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
+        holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
+        holdStartedAt: runner.hold_started_at ? String(runner.hold_started_at) : null,
         state: String(runner.state),
         scopeType: String(runner.scope_type),
         scopeId: runner.scope_id === null ? null : Number(runner.scope_id),

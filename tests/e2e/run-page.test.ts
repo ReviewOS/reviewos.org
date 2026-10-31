@@ -798,6 +798,71 @@ describe('a run that is waiting for a runner', () => {
       await db.deleteFrom('runner_pools').where('id', '=', Number(pool.id)).execute().catch(() => {})
     }
   }, 60_000)
+  /*
+   * A machine that is up and refusing work, and says why.
+   *
+   * On 2026-10-31 HQ's Mac runner held itself for want of disk from 22:04 until
+   * morning while this page said a runner "will take it on its next poll". The
+   * reason was in the machine's own log and nowhere here. Now the claim carries
+   * it onto the runner's row, and this page reads it - and a machine that has
+   * stopped polling is called offline rather than ready.
+   */
+  test('and gives a holding runner\'s own reason, or says it is offline', async () => {
+    if (!available)
+      return
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    const unique = Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')
+    const label = `capacitylabel${unique}`
+    const number = await makeRun(Number(version.id), 'queued', 'queued', '', 'e'.repeat(40))
+
+    const runRow: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    await db.updateTable('workflow_jobs').set({ runs_on: label } as any).where('workflow_run_id', '=', Number(runRow.id)).execute()
+
+    const reason = 'Insufficient workspace disk space at /work: 9355 MiB available, 24576 MiB required'
+    const runner: any = await db.insertInto('runners').values({
+      name: `holding-${unique}`,
+      scope_type: 'instance',
+      scope_id: null,
+      token_hash: 'h'.repeat(56) + unique,
+      labels: label,
+      state: 'active',
+      version: '1',
+      last_seen_at: new Date().toISOString(),
+      hold_reason: reason,
+      hold_started_at: new Date(Date.now() - 3_600_000).toISOString(),
+    } as any).returning(['id']).executeTakeFirst()
+
+    try {
+      const html = await page(`/${created.handle}/${created.name}/run/${number}`, created.ownerToken)
+
+      expect(html).toContain(`Waiting: holding-${unique} is holding since`)
+      expect(html).toContain('9355 MiB available, 24576 MiB required')
+      expect(html).not.toContain('will take it on its next poll')
+
+      await db.updateTable('runners').set({ last_seen_at: new Date(Date.now() - 3_600_000).toISOString() } as any).where('id', '=', Number(runner.id)).execute()
+
+      const offline = await page(`/${created.handle}/${created.name}/run/${number}`, created.ownerToken)
+
+      expect(offline).toContain(`Waiting: holding-${unique} is offline: last seen`)
+      expect(offline).not.toContain('9355 MiB available')
+    }
+    finally {
+      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
+    }
+  }, 60_000)
 })
 
 /*

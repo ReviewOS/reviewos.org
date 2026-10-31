@@ -149,3 +149,80 @@ describe('what to do about it', () => {
     expect(explainWaiting(job, [runner({ labels: ['ubuntu-latest'] })]).fix).toBe('')
   })
 })
+
+/*
+ * A runner that polls and refuses work.
+ *
+ * On 2026-10-31 HQ's Mac runner held itself for want of disk from 22:04 until
+ * morning, and the jobs for it sat at "queued" with this page saying a runner
+ * "will take it on its next poll". The machine's reason was only in its own
+ * log. These are the answers the run page and the run API now give.
+ */
+describe('a runner that is up but refusing work', () => {
+  const now = new Date('2026-10-31T09:00:00.000Z')
+  const mac = { ...job, runsOn: ['self-hosted', 'macos-arm64', 'hq-mobile'] }
+  const reason = 'Insufficient workspace disk space at /Users/ci/work: 9355 MiB available, 24576 MiB required'
+
+  function machine(overrides: Record<string, unknown> = {}): any {
+    return runner({
+      id: 2,
+      name: 'hq-macos-arm64',
+      labels: ['self-hosted', 'macos-arm64', 'hq-mobile'],
+      lastSeenAt: '2026-10-31T08:59:55.000Z',
+      holdReason: null,
+      holdStartedAt: null,
+      ...overrides,
+    })
+  }
+
+  test('names the machine and gives its reason when every match is holding', () => {
+    const answer = explainWaiting(mac, [machine({ holdReason: reason, holdStartedAt: '2026-10-30T22:04:00.000Z' })], now)
+
+    expect(answer.kind).toBe('holding')
+    expect(answer.summary).toBe(`Waiting: hq-macos-arm64 is holding since 2026-10-30 22:04 UTC (11 hours): ${reason}.`)
+    expect(answer.fix).toContain('next poll')
+  })
+
+  test('one machine holding while another takes work is still ready', () => {
+    const answer = explainWaiting(mac, [machine({ holdReason: reason }), machine({ id: 3, name: 'mac-2' })], now)
+
+    expect(answer.kind).toBe('ready')
+    expect(answer.summary).toContain('A runner matches')
+  })
+
+  test('a machine that stopped polling is offline, whatever it last said', () => {
+    // A stale hold on a machine that is gone would send somebody to clean a
+    // disk that is not the problem.
+    const answer = explainWaiting(mac, [machine({ holdReason: reason, lastSeenAt: '2026-10-30T21:00:00.000Z' })], now)
+
+    expect(answer.kind).toBe('offline')
+    expect(answer.summary).toBe('Waiting: hq-macos-arm64 is offline: last seen 2026-10-30 21:00 UTC (12 hours ago).')
+    expect(answer.summary).not.toContain('disk')
+  })
+
+  test('a machine that never polled says so', () => {
+    const answer = explainWaiting(mac, [machine({ lastSeenAt: null })], now)
+
+    expect(answer.kind).toBe('offline')
+    expect(answer.summary).toContain('has never polled')
+  })
+
+  test('holding and offline together name both machines', () => {
+    const answer = explainWaiting(mac, [
+      machine({ holdReason: reason }),
+      machine({ id: 3, name: 'mac-2', lastSeenAt: '2026-10-31T08:00:00.000Z' }),
+    ], now)
+
+    expect(answer.kind).toBe('holding')
+    expect(answer.summary).toContain('hq-macos-arm64 is holding: Insufficient workspace disk space')
+    expect(answer.summary).toContain('mac-2 is offline: last seen 2026-10-31 08:00 UTC (60 minutes ago)')
+  })
+
+  test('a caller that does not report liveness keeps its old answer', () => {
+    expect(explainWaiting(job, [runner()], now).kind).toBe('ready')
+  })
+
+  test('a disabled machine is still explained as disabled, not holding', () => {
+    expect(explainWaiting(mac, [machine({ state: 'disabled', holdReason: reason })], now).kind).toBe('all-disabled')
+  })
+})

@@ -169,11 +169,17 @@ export default new Action({
     const waiting = jobs.some(job => String(job.state) === 'queued' || String(job.state) === 'blocked')
 
     const runners: any[] = waiting
-      ? await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels']).execute()
+      ? await db.selectFrom('runners').select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'last_seen_at', 'hold_reason', 'hold_started_at']).execute()
       : []
 
     const runnerFacts = runners.map(runner => ({
       id: Number(runner.id),
+      // Name, last poll and hold: what lets the answer say which machine is
+      // refusing the job and why, rather than "will take it on its next poll".
+      name: String(runner.name ?? ''),
+      lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
+      holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
+      holdStartedAt: runner.hold_started_at ? String(runner.hold_started_at) : null,
       state: String(runner.state),
       scopeType: String(runner.scope_type),
       scopeId: runner.scope_id === null ? null : Number(runner.scope_id),

@@ -14,7 +14,7 @@
  */
 
 import type { QueueFacts } from '../Runner/fleet'
-import { queueAccepts } from '../Runner/fleet'
+import { queueAccepts, SILENT_SECONDS } from '../Runner/fleet'
 import type { JobFacts, RunnerFacts } from '../Runner/protocol'
 import { runnerReaches, runnerSatisfies, satisfiesTags } from '../Runner/protocol'
 
@@ -31,6 +31,10 @@ export type WaitingKind =
   | 'pool-refuses'
   /** No machine reported the tags this job's `agents:` query asks for. */
   | 'no-tags'
+  /** Every matching runner is up and refusing work, and said why. */
+  | 'holding'
+  /** Every matching runner has stopped polling, or never started. */
+  | 'offline'
 
 export interface WaitingExplanation {
   kind: WaitingKind
@@ -77,9 +81,21 @@ export interface WaitingExplanation {
  */
 export interface FleetRunner extends RunnerFacts {
   queue?: QueueFacts | null
+  /** What a person calls it, for a sentence that names the machine. */
+  name?: string
+  /**
+   * When it last polled. `null` is "never"; absent is "the caller did not
+   * say", which is treated as recently - so a caller that has not been taught
+   * about liveness keeps the answers it always gave.
+   */
+  lastSeenAt?: string | null
+  /** Why it is refusing work, in its own words, while it is. */
+  holdReason?: string | null
+  /** When the current hold began. */
+  holdStartedAt?: string | null
 }
 
-export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[]): WaitingExplanation {
+export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[], now: Date = new Date()): WaitingExplanation {
   const wanted = [...job.runsOn]
 
   if (runners.length === 0) {
@@ -200,17 +216,107 @@ export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[]): 
     }
   }
 
+  /*
+   * Liveness, then holds - in that order because a hold is only believed from
+   * a machine that is still saying it. A runner that went quiet mid-hold left
+   * its last reason on the row, and "holding: out of disk" about a machine
+   * that has been off for a day sends somebody to clean a disk that is not the
+   * problem.
+   */
+  const online = active.filter(runner => isOnline(runner, now))
+
+  if (online.length === 0) {
+    return {
+      kind: 'offline',
+      summary: `Waiting: ${active.map(runner => `${nameOf(runner)} ${silence(runner, now)}`).join('; ')}.`,
+      fix: active.length === 1
+        ? 'Start the runner on that machine, or check that it can still reach this instance.'
+        : 'Start one of those runners, or check that they can still reach this instance.',
+      wanted,
+      available,
+    }
+  }
+
+  const taking = online.filter(runner => !runner.holdReason)
+
+  if (taking.length === 0) {
+    const held = online.map(runner => `${nameOf(runner)} is holding${since(runner.holdStartedAt, now)}: ${String(runner.holdReason).replace(/[.\s]+$/, '')}`)
+    const quiet = active.filter(runner => !online.includes(runner)).map(runner => `${nameOf(runner)} ${silence(runner, now)}`)
+
+    return {
+      kind: 'holding',
+      summary: `Waiting: ${[...held, ...quiet].join('; ')}.`,
+      // The runner resumes by itself on the first poll after the condition
+      // clears, so the fix is the condition, never the job.
+      fix: 'Free what the runner says it is short of; it starts taking work again on its next poll without a restart.',
+      wanted,
+      available,
+    }
+  }
+
   return {
     kind: 'ready',
-    summary: active.length === 1
+    summary: taking.length === 1
       ? 'A runner matches this job and will take it on its next poll.'
-      : `${active.length} runners match this job; the next one to poll will take it.`,
+      : `${taking.length} runners match this job; the next one to poll will take it.`,
     // Nothing to fix: this is the ordinary case, and inventing advice for it
     // would teach people to ignore the line that matters.
     fix: '',
     wanted,
     available,
   }
+}
+
+/** Whether a runner has polled recently enough to be believed. */
+function isOnline(runner: FleetRunner, now: Date): boolean {
+  if (runner.lastSeenAt === undefined)
+    return true
+
+  const seen = runner.lastSeenAt ? Date.parse(runner.lastSeenAt) : Number.NaN
+
+  return Number.isFinite(seen) && (now.getTime() - seen) / 1000 <= SILENT_SECONDS
+}
+
+function nameOf(runner: FleetRunner): string {
+  return runner.name || `runner ${runner.id}`
+}
+
+/** `has not polled since 2026-10-30 22:04 UTC (11 hours ago)`, or `has never polled`. */
+function silence(runner: FleetRunner, now: Date): string {
+  const seen = runner.lastSeenAt ? Date.parse(runner.lastSeenAt) : Number.NaN
+
+  if (!Number.isFinite(seen))
+    return 'is offline: it has never polled this instance'
+
+  return `is offline: last seen ${stamp(seen)} (${ago(now.getTime() - seen)} ago)`
+}
+
+/** ` since 2026-10-30 22:04 UTC`, or nothing when the start is unknown. */
+function since(startedAt: string | null | undefined, now: Date): string {
+  const started = startedAt ? Date.parse(startedAt) : Number.NaN
+
+  return Number.isFinite(started) ? ` since ${stamp(started)} (${ago(now.getTime() - started)})` : ''
+}
+
+/** Minutes, in UTC, said the same way on every page and in every API answer. */
+function stamp(at: number): string {
+  return `${new Date(at).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+}
+
+function ago(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / 60_000))
+
+  if (minutes < 1)
+    return 'under a minute'
+  if (minutes < 90)
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`
+
+  const hours = Math.round(minutes / 60)
+
+  if (hours < 48)
+    return `${hours} hours`
+
+  return `${Math.round(hours / 24)} days`
 }
 
 /** `a`, `b` and `c` - the shape a sentence wants rather than a JSON array. */
