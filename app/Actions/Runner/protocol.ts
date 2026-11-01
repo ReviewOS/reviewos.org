@@ -160,6 +160,9 @@ export function mayClaim(runner: RunnerFacts, job: JobFacts, now: Date): ClaimDe
     if (leaseIsLive(job, now))
       return { ok: false, reason: 'another runner holds this job' }
 
+    if (!leaseIsReclaimable(job, now))
+      return { ok: false, reason: 'the previous holder is still inside its grace period' }
+
     return runnerSatisfies(runner, job)
       ? { ok: true, reason: 'the previous lease expired' }
       : { ok: false, reason: `this runner does not have ${job.runsOn.join(', ')}` }
@@ -178,6 +181,25 @@ export function leaseIsLive(job: Pick<JobFacts, 'leaseExpiresAt'>, now: Date): b
     return false
 
   return expires > now.getTime()
+}
+
+/**
+ * How long after a lease lapses before the job may go to another machine.
+ *
+ * A lapsed lease says the instance stopped hearing from a runner, not that the
+ * runner stopped working: it may be cut off while its steps are still running,
+ * and it only notices when its own clock runs out. Handing the job on at the
+ * first instant of the lapse is how one attempt was still running its
+ * PostgreSQL on a Mac while the next attempt of the same job started beside it
+ * (HQ job 7011, 2026-11-01). The runner gives the lease up early and stops its
+ * processes (`LOCAL_LEASE_MARGIN_SECONDS`); this is the instance's half of the
+ * same margin, so neither end has to be exact for the other to be safe.
+ */
+export const RECLAIM_GRACE_SECONDS = 30
+
+/** Whether a lapsed lease is old enough for its job to be given to someone else. */
+export function leaseIsReclaimable(job: Pick<JobFacts, 'leaseExpiresAt'>, now: Date, graceSeconds = RECLAIM_GRACE_SECONDS): boolean {
+  return !leaseIsLive(job, new Date(now.getTime() - graceSeconds * 1000))
 }
 
 export interface ReportDecision {

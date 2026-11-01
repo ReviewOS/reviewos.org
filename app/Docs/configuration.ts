@@ -378,6 +378,9 @@ function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
   return paths.length > 0 && paths.every(path =>
     path.includes('Runner/standalone')
     || path === 'app/Actions/Runner/capacity.ts'
+    // How long the runner rides out an unreachable instance: a fact about
+    // the network between that machine and this one.
+    || path === 'app/Actions/Runner/delivery.ts'
     // The runner's own container support, which is configuration of the
     // machine that runs the work rather than of this instance: whether docker
     // or podman is there is a fact about that host.

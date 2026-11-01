@@ -426,6 +426,20 @@ written down here so it does not get relitigated:
       is a separate machine, which an autoscaled fleet already gives you one of per job; and the
       common case behind `container: node:20` is a toolchain, which a pantry dependency file
       already answers with no image and no registry.
+- [x] A job never runs twice at once on a runner that was restarted, and an unreachable instance
+      no longer ends a job or the runner (HQ jobs 7010/7011, 2026-11-01). `launchctl kickstart -k`
+      restarted the Mac runner mid-job; the old SIGTERM handler signalled the steps' groups and
+      exited, so a PostgreSQL a setup step had daemonised kept running, the lease lapsed, and the
+      requeued attempt ran beside it in a workspace that could never be retired. Now: a stop
+      abandons the job like a lost lease (steps, services and every process with the tracking id
+      stopped, nothing reported, at most 15 s); each attempt is written to a ledger until its
+      processes are verified gone, and the next claim first stops whatever an abandoned attempt
+      left (by tracking id, or by working directory for system binaries whose environment macOS
+      hides) and holds work if anything survives SIGKILL; the runner's lease runs out 20 s before
+      the instance's and the instance waits 30 s past a lapse before handing the job on. Step
+      output and conclusions ride out a restarting gateway (retried for up to a lease, not three
+      seconds; a 502 no longer counts as delivered, and a lost conclusion is never turned into a
+      failure), and a claim that cannot connect is retried instead of crashing the process.
 - [x] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.

@@ -11,13 +11,17 @@
 
 import { describe, expect, test } from 'bun:test'
 import type { JobFacts, RunnerFacts } from '../../app/Actions/Runner/protocol'
+import { HEARTBEAT_MS, LOCAL_LEASE_MS, RunnerLease, RunnerStopped } from '../../app/Actions/Runner/lease'
 import {
   describeProtocol,
+  LEASE_SECONDS,
   leaseIsLive,
+  leaseIsReclaimable,
   leaseUntil,
   mayClaim,
   mayReport,
   negotiate,
+  RECLAIM_GRACE_SECONDS,
   runnerReaches,
   runnerSatisfies,
   RUNNER_PROTOCOL,
@@ -142,6 +146,54 @@ describe('claiming', () => {
     const decision = mayClaim(runner({ id: 1 }), stale, LATER)
     expect(decision.ok).toBe(true)
     expect(decision.reason).toContain('expired')
+  })
+
+  /*
+   * But not at the first instant of the lapse. The holder may only have been
+   * cut off, with its steps still running; it gives the lease up early and
+   * stops them, and the instance waits out the grace before anybody else may
+   * start the same job (HQ job 7011, 2026-11-01).
+   */
+  test('a lapsed lease waits out the grace before the job goes to anyone else', () => {
+    const lapsed = job({ state: 'running', runnerId: 2, leaseExpiresAt: leaseUntil(NOW) })
+    const justAfter = new Date(NOW.getTime() + (LEASE_SECONDS + 5) * 1000)
+    const afterGrace = new Date(NOW.getTime() + (LEASE_SECONDS + RECLAIM_GRACE_SECONDS + 1) * 1000)
+
+    expect(leaseIsLive(lapsed, justAfter)).toBe(false)
+    expect(leaseIsReclaimable(lapsed, justAfter)).toBe(false)
+    expect(mayClaim(runner({ id: 1 }), lapsed, justAfter)).toEqual({ ok: false, reason: 'the previous holder is still inside its grace period' })
+
+    expect(leaseIsReclaimable(lapsed, afterGrace)).toBe(true)
+    expect(mayClaim(runner({ id: 1 }), lapsed, afterGrace).ok).toBe(true)
+  })
+
+  test('a held job with no lease at all is reclaimable at once', () => {
+    expect(leaseIsReclaimable(job({ leaseExpiresAt: null }), NOW)).toBe(true)
+    expect(leaseIsReclaimable(job({ leaseExpiresAt: 'soon-ish' }), NOW)).toBe(true)
+  })
+
+  test('a runner gives its lease up well before the instance would hand the job on', () => {
+    // Its clock starts when the heartbeat's answer arrives, after the instance
+    // set the expiry; it must still run out first, with time to stop the steps.
+    expect(LOCAL_LEASE_MS).toBeLessThanOrEqual((LEASE_SECONDS - 15) * 1000)
+    // Losing one heartbeat to a restarting gateway is not losing the job.
+    expect(HEARTBEAT_MS * 3).toBeLessThan(LOCAL_LEASE_MS)
+  })
+
+  test('a lease abandoned because the runner is stopping says so, and nothing revives it', () => {
+    const lease = new RunnerLease(10_000)
+    lease.abandon('The runner on this machine was stopped (SIGTERM) during this job')
+
+    expect(lease.signal.aborted).toBe(true)
+    expect(lease.abandoned).toBe(true)
+    expect(lease.signal.reason).toBeInstanceOf(RunnerStopped)
+    lease.renew()
+    expect(lease.signal.aborted).toBe(true)
+
+    const revoked = new RunnerLease(10_000)
+    revoked.refuse(409, 'no longer yours')
+    revoked.abandon('too late')
+    expect(revoked.abandoned).toBe(false)
   })
 
   test('a finished job is not handed out again', () => {

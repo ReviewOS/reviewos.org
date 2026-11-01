@@ -27,7 +27,7 @@
  * in. The runner itself is excluded by name, whatever matches.
  */
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, readlinkSync } from 'node:fs'
 import process from 'node:process'
 
 /** The variable Actions uses for the same purpose, kept so workflows can opt out the same way. */
@@ -36,9 +36,20 @@ export const TRACKING_VARIABLE = 'RUNNER_TRACKING_ID'
 /** Process groups started per tracking id. */
 const groups = new Map<string, Set<number>>()
 
+/**
+ * Tracking ids of the jobs this runner is running now, whether or not a step
+ * has started a group yet - a stopped runner has to find a daemon by its
+ * environment even when the step that started it has already ended.
+ */
+const active = new Set<string>()
+
 /** A tracking id for one job: unguessable, so nothing else can be carrying it. */
 export function trackingIdFor(jobId: unknown): string {
-  return `reviewos_${String(jobId ?? 'job').replace(/\W+/g, '')}_${crypto.randomUUID().replace(/-/g, '')}`
+  const id = `reviewos_${String(jobId ?? 'job').replace(/\W+/g, '')}_${crypto.randomUUID().replace(/-/g, '')}`
+
+  active.add(id)
+
+  return id
 }
 
 /**
@@ -244,19 +255,62 @@ export async function cleanUpOrphans(
   }
 
   groups.delete(trackingId)
+  active.delete(trackingId)
 
   return found
 }
 
+/**
+ * How long a stopped runner spends putting its job away before it exits.
+ *
+ * Under launchd's twenty seconds before SIGKILL, so the graceful path - steps
+ * stopped, services stopped, the job's daemons found and stopped - finishes
+ * rather than being cut off by the very thing it is answering.
+ */
+export const STOP_DEADLINE_MS = 15_000
+
+/** What the job in hand does when the runner is asked to stop, set by the executor. */
+type StopHandler = (signal: NodeJS.Signals) => Promise<void>
+
+let stopHandler: StopHandler | null = null
+
+/** Register (or clear) how the job in hand is abandoned when the runner stops. */
+export function onRunnerStop(handler: StopHandler | null): void {
+  stopHandler = handler
+}
+
 let handlersInstalled = false
+let stopping = false
+
+/**
+ * Whether this runner has been told to stop and is putting its job away.
+ *
+ * Checked before every claim: between the job being abandoned and the process
+ * exiting, the loop must not take another one.
+ */
+export function stopInProgress(): boolean {
+  return stopping
+}
+
+/** For a caller that finished first: wait for the signal handler to end the process. */
+export async function awaitStop(): Promise<never> {
+  return await new Promise<never>(() => {})
+}
 
 /**
  * Stop the job's processes when the runner itself is stopped.
  *
- * Needed because each step now leads a process group of its own: a Ctrl-C at
- * the runner's terminal reaches the runner's group and no longer the steps',
- * so without this a stopped runner would leave its job's processes running.
- * Installed once, by the runner, rather than when this module loads.
+ * Needed because each step leads a process group of its own: a Ctrl-C at the
+ * runner's terminal, or `launchctl kickstart -k`, reaches the runner and not
+ * the steps. The first version signalled the steps' groups and exited at once,
+ * which missed everything that had left its group - a PostgreSQL a setup step
+ * started as a daemon kept running in a job workspace nobody owned any more
+ * (HQ job 7011, 2026-11-01), and the next attempt of that job ran beside it.
+ *
+ * So a stop now abandons the job the way a lost lease does - steps stopped,
+ * services stopped, every process carrying the job's tracking id stopped - and
+ * only then exits, within `STOP_DEADLINE_MS`. Whatever is still found at the
+ * deadline is killed outright. A second signal skips the wait.
  */
 export function installStopHandlers(): void {
   if (handlersInstalled)
@@ -266,22 +320,145 @@ export function installStopHandlers(): void {
 
   for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
     process.on(signal, () => {
-      killAllTracked()
-      process.exit(code)
+      if (stopping) {
+        killAllTracked('SIGKILL')
+        process.exit(code)
+      }
+
+      stopping = true
+      const graceful = stopHandler ? stopHandler(signal).catch(() => {}) : Promise.resolve()
+
+      void Promise.race([graceful, Bun.sleep(STOP_DEADLINE_MS)]).finally(() => {
+        killAllTracked('SIGKILL')
+        process.exit(code)
+      })
     })
   }
 }
 
-/** Every job's tracked groups, for a runner that is itself being stopped. */
-export function killAllTracked(): void {
+/**
+ * Every running job's processes, for a runner that is itself being stopped:
+ * the groups its steps led and anything carrying a tracking id, the same two
+ * ways `survivors` finds them.
+ */
+export function killAllTracked(signal: NodeJS.Signals = 'SIGTERM'): void {
   for (const known of groups.values()) {
     for (const pgid of known) {
       try {
-        process.kill(-pgid, 'SIGTERM')
+        process.kill(-pgid, signal)
       }
       catch {
         // An empty group.
       }
     }
   }
+
+  const ids = new Set([...active, ...groups.keys()])
+
+  if (ids.size === 0)
+    return
+
+  let rows: ProcessRow[]
+  try {
+    rows = listProcesses()
+  }
+  catch {
+    return
+  }
+
+  for (const id of ids) {
+    for (const row of survivors(id, rows)) {
+      try {
+        process.kill(row.pid, signal)
+      }
+      catch {
+        // Gone already.
+      }
+    }
+  }
+}
+
+/**
+ * Stop these processes: SIGTERM, a grace period, SIGKILL for anything that
+ * ignored it. Answers with whatever is still alive afterwards.
+ */
+export async function terminateProcesses(rows: readonly ProcessRow[], graceMs = 5000): Promise<ProcessRow[]> {
+  const targets = rows.filter(row => row.pid > 1 && row.pid !== process.pid)
+
+  for (const row of targets) {
+    try {
+      process.kill(row.pid, 'SIGTERM')
+    }
+    catch {
+      // Gone already.
+    }
+  }
+
+  const until = Date.now() + graceMs
+
+  while (Date.now() < until && targets.some(row => alive(row.pid)))
+    await Bun.sleep(100)
+
+  for (const row of targets.filter(one => alive(one.pid))) {
+    try {
+      process.kill(row.pid, 'SIGKILL')
+    }
+    catch {
+      // Exited between the check and the signal.
+    }
+  }
+
+  const killDeadline = Date.now() + 1000
+
+  while (Date.now() < killDeadline && targets.some(row => alive(row.pid)))
+    await Bun.sleep(25)
+
+  return targets.filter(row => alive(row.pid))
+}
+
+/**
+ * Each process's working directory, for the user this runner runs as.
+ *
+ * How a job's processes are recognised when their environment cannot be read:
+ * macOS hides the environment of system binaries (`/bin/sh`, `sleep`) from
+ * `ps`, but a process a step started in the job's workspace still has it as
+ * its working directory, and that workspace is a directory this runner made
+ * with a random name for one job.
+ */
+export function workingDirectories(): Map<number, string> {
+  const directories = new Map<number, string>()
+
+  if (process.platform === 'linux') {
+    let pids: string[] = []
+    try {
+      pids = readdirSync('/proc').filter(name => /^\d+$/.test(name))
+    }
+    catch {
+      return directories
+    }
+
+    for (const pid of pids) {
+      try {
+        directories.set(Number(pid), readlinkSync(`/proc/${pid}/cwd`))
+      }
+      catch {
+        // Somebody else's process, or one that has already gone.
+      }
+    }
+
+    return directories
+  }
+
+  const uid = process.getuid?.()
+  const result = Bun.spawnSync(['lsof', '-nP', '-a', '-d', 'cwd', ...(uid === undefined || uid === 0 ? [] : ['-u', String(uid)]), '-F', 'pn'], { stdout: 'pipe', stderr: 'ignore' })
+  let pid = 0
+
+  for (const line of result.stdout.toString().split('\n')) {
+    if (line.startsWith('p'))
+      pid = Number(line.slice(1))
+    else if (line.startsWith('n') && pid > 0)
+      directories.set(pid, line.slice(1))
+  }
+
+  return directories
 }

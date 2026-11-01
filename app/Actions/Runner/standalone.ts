@@ -24,6 +24,7 @@
 
 import process from 'node:process'
 import { runLoop, runOnce } from './localExecutor'
+import { awaitStop, stopInProgress } from './orphans'
 import { defaultPolicy } from './actionRef'
 import { containerRuntime } from './container'
 import { maintainRunnerWorkspaces } from './workspaceMaintenance'
@@ -288,6 +289,9 @@ if (import.meta.main) {
     })
 
     console.log(outcome ? `${outcome.state}: ${outcome.reason}` : 'nothing to run')
+    // Stopped by a signal: its handler exits, with the signal's status.
+    if (stopInProgress())
+      await awaitStop()
     process.exit(0)
   }
 

@@ -10,7 +10,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { CANCEL_GRACE_SECONDS } from '../../app/Jobs/ReclaimLapsedLeasesJob'
-import { leaseUntil } from '../../app/Actions/Runner/protocol'
+import { leaseUntil, RECLAIM_GRACE_SECONDS } from '../../app/Actions/Runner/protocol'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 
@@ -206,6 +206,33 @@ describe('a runner that is still alive', () => {
     const after = await buildJob(runId)
     expect(after.state).toBe('running')
     expect(String(after.runner_id)).toBe('9004')
+  })
+
+  /*
+   * Nor from one whose lease lapsed a moment ago. It may only have been cut
+   * off, with its steps still running until its own clock runs out; requeuing
+   * at the first instant of the lapse is how the next attempt of HQ job 7011
+   * started while the first one's PostgreSQL was still running (2026-11-01).
+   */
+  test('keeps its job through the grace after a lapse', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('9'.repeat(40))
+    const job = await buildJob(runId)
+
+    await hold(Number(job.id), '9006', leaseUntil(new Date(Date.now() - 10_000), 0))
+
+    await sweep.handle({})
+
+    const after = await buildJob(runId)
+    expect(after.state).toBe('running')
+    expect(String(after.runner_id)).toBe('9006')
+
+    // And past the grace it is given back as before.
+    await hold(Number(job.id), '9006', leaseUntil(new Date(Date.now() - (RECLAIM_GRACE_SECONDS + 5) * 1000), 0))
+    await sweep.handle({})
+    expect((await buildJob(runId)).state).toBe('queued')
   })
 
   test('and a sweep with nothing to do reports nothing', async () => {

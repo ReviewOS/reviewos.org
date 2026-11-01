@@ -23,7 +23,7 @@
  */
 
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir, userInfo } from 'node:os'
+import { homedir, tmpdir, userInfo } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fetchWithBudget } from '@stacksjs/http'
@@ -50,10 +50,12 @@ import { resolveServices, serviceEnvironment, servicesContext, startServices, st
 import type { ExpressionContext } from '../Workflow/expression'
 import { HASH_FILES, interpolate, shouldRun } from '../Workflow/expression'
 import { hashFilesIn } from './hashFiles'
-import { cleanUpOrphans, installStopHandlers, pruneGroup, recordGroup, remainingJobProcesses, TRACKING_VARIABLE, trackingIdFor } from './orphans'
+import { awaitStop, cleanUpOrphans, installStopHandlers, onRunnerStop, pruneGroup, recordGroup, remainingJobProcesses, stopInProgress, TRACKING_VARIABLE, trackingIdFor } from './orphans'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
-import { RunnerLease } from './lease'
+import { HEARTBEAT_MS, RunnerLease } from './lease'
+import { deliveryDeadlineMs } from './delivery'
+import { AttemptLedger, reapAbandonedAttempts } from './attempts'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
 import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
@@ -92,6 +94,12 @@ export interface LocalRunnerOptions {
   workspaceTemporaryRoot?: string
   /** Private recovery journal, outside job-controlled checkouts. */
   workspaceJournalRoot?: string
+  /**
+   * Where this runner writes down the job attempts it has started, until each
+   * one's processes are verified gone. Defaults beside the workspace journal,
+   * or inside `workspaceRoot`.
+   */
+  attemptLedgerRoot?: string
   /**
    * Where this machine's own hooks live, outside repository control.
    *
@@ -319,9 +327,85 @@ export function installPlugins(workspace: string, job: any): InstalledPlugin[] {
 
 const capacityNotifications = new WeakMap<LocalRunnerOptions, number>()
 
+/**
+ * A problem no amount of waiting fixes: the controller speaks another protocol,
+ * or broke one of the runner's own rules. Everything else `runLoop` survives.
+ */
+export class RunnerConfigurationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RunnerConfigurationError'
+  }
+}
+
+/**
+ * Where this runner's attempt records live.
+ *
+ * Per controller, and known before the first claim - unlike the workspace
+ * journal, which waits for the instance to say which runner this is, and so
+ * would not exist yet at the one moment it matters most: the first claim after
+ * a restart. Two runners sharing an operating-system user may share it; each
+ * record names the process that owns it, and a live owner's records are never
+ * touched.
+ */
+export function attemptLedgerFor(options: LocalRunnerOptions): AttemptLedger | null {
+  if (options.attemptLedgerRoot)
+    return new AttemptLedger(options.attemptLedgerRoot)
+
+  if (options.workspaceRoot)
+    return new AttemptLedger(join(options.workspaceRoot, '.reviewos-attempts'))
+
+  try {
+    const controller = new URL(options.baseUrl).href.replace(/\/+$/, '')
+    const identity = new Bun.CryptoHasher('sha256').update(controller).digest('hex').slice(0, 32)
+    const root = options.workspaceJournalRoot
+      ? join(options.workspaceJournalRoot, '..', 'job-attempts')
+      : join(homedir(), '.local/share/reviewos/job-attempts')
+
+    return new AttemptLedger(join(root, identity))
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * Stop what earlier attempts on this machine left behind, and say whether any
+ * of it would not stop.
+ *
+ * Before every claim, because the claim is the moment that matters: a job is
+ * never started here while an abandoned attempt of any job still has processes
+ * running in its workspace - one of them could be an earlier attempt of the
+ * very job being handed out.
+ */
+async function abandonedAttemptHold(options: LocalRunnerOptions): Promise<string | null> {
+  const say = options.say ?? (() => {})
+  const ledger = attemptLedgerFor(options)
+  const reaped = await reapAbandonedAttempts(ledger, say).catch(() => null)
+
+  if (!reaped)
+    return null
+
+  if (reaped.reaped > 0)
+    say(`Stopped ${reaped.stopped} process(es) left by ${reaped.reaped} abandoned job attempt(s)`)
+
+  if (reaped.surviving.length === 0)
+    return null
+
+  const jobs = reaped.surviving.map(record => `${record.jobId} (${record.workspace})`).join(', ')
+
+  return `Processes from an abandoned attempt of job ${jobs} are still running after SIGKILL; new work waits until they are gone`
+}
+
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
-  const capacity = runnerCapacity(options)
+
+  // Told to stop: no new work between abandoning a job and exiting.
+  if (stopInProgress())
+    return null
+
+  const abandoned = await abandonedAttemptHold(options)
+  const capacity = abandoned ? { acceptWork: false, reason: abandoned } : runnerCapacity(options)
   const lastNotification = capacityNotifications.get(options)
   if (!capacity.acceptWork) {
     if (lastNotification === undefined || Date.now() - lastNotification >= 60_000) {
@@ -337,10 +421,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   // waiting on this machine; an older instance ignores the field.
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, capacity.acceptWork ? {} : { accept_work: false, hold_reason: capacity.reason })
   if (claim.status === 426)
-    throw new Error(String(claim.body?.error ?? 'The controller does not support this runner protocol; upgrade the controller'))
+    throw new RunnerConfigurationError(String(claim.body?.error ?? 'The controller does not support this runner protocol; upgrade the controller'))
   // A capacity hold never executes work, even if a broken controller sends it.
   if (!capacity.acceptWork && claim.body?.job)
-    throw new Error('The controller leased work during a capacity hold; upgrade or repair the controller')
+    throw new RunnerConfigurationError('The controller leased work during a capacity hold; upgrade or repair the controller')
   if (claim.ok && Number.isSafeInteger(claim.body?.runner_id) && claim.body.runner_id > 0)
     options.runnerId = claim.body.runner_id
 
@@ -504,6 +588,20 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   job.tracking_id = trackingIdFor(job.id)
   installStopHandlers()
 
+  /*
+   * Written down before the first process starts, and removed only once every
+   * process the attempt started is verified gone - so a runner killed at any
+   * point leaves a record the next one acts on before it takes more work.
+   */
+  const ledger = attemptLedgerFor(options)
+  let attempt: { jobId: number, trackingId: string } | null = null
+  try {
+    attempt = ledger?.begin({ jobId: Number(job.id), trackingId: String(job.tracking_id), workspace }) ?? null
+  }
+  catch (error) {
+    say(`job ${job.id}: the attempt could not be recorded (${error instanceof Error ? error.message : String(error)}); a restart could not find what it leaves running`)
+  }
+
   let sequence = 1
 
   /*
@@ -585,6 +683,18 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   const lease = new RunnerLease()
 
   /*
+   * What a stopped runner does with this job: give it up as a lost lease would,
+   * and wait for the `finally` below to have stopped everything it started.
+   * The signal handler exits once this settles (or at its deadline).
+   */
+  let concluded: () => void = () => {}
+  const finished = new Promise<void>((resolve) => { concluded = resolve })
+  onRunnerStop(async (signal) => {
+    lease.abandon(`The runner on this machine was stopped (${signal}) during this job`)
+    await finished
+  })
+
+  /*
    * What each step did, collected as it goes and sent with the conclusion.
    *
    * Collected rather than written as it happens because nothing reads a
@@ -658,7 +768,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   try {
     // Preparation owns the lease too: a checkout, cache restore, tool install
     // or hook can take longer than a workflow step. Keep one pulse throughout.
-    pulse = setInterval(() => { void handUpResults() }, Math.max(5000, (LEASE_SECONDS / 3) * 1000))
+    pulse = setInterval(() => { void handUpResults() }, HEARTBEAT_MS)
     await renewLease()
     await send(`Running job ${job.key} of run ${job.run?.number} on this host.\n`)
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
@@ -1739,8 +1849,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * delivered when an answer was lost: every field a step reports is stated
      * rather than accumulated, so the second write of a result is the same row.
      */
-    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus, timings.slice(sentThrough))
-    say(`job ${job.id} ${state}`)
+    const delivered = await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus, timings.slice(sentThrough))
+    say(delivered.ok
+      ? `job ${job.id} ${state}`
+      : `job ${job.id} ${state}, but the instance did not take the conclusion (${delivered.reason}); it requeues the job once the lease lapses`)
 
     return { jobId: Number(job.id), state, reason: failed ?? 'every step succeeded' }
   }
@@ -1758,7 +1870,23 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
     stopPulse()
 
-    await report(options.baseUrl, jobToken, state, reason).catch(() => {})
+    /*
+     * A runner that is being stopped reaches no verdict about the work.
+     *
+     * Reported as cancelled, the job would end as though somebody stopped it;
+     * as failed, it would read as the commit's fault. Neither is true, so
+     * nothing is reported: the instance returns the job to the queue once the
+     * lease lapses, after this runner has stopped everything it started.
+     */
+    if (lease.abandoned) {
+      await append(options.baseUrl, jobToken, sequence++, `${reason}. Its processes were stopped; the job returns to the queue when its lease lapses.
+`, 'stderr', undefined, 3000).catch(() => {})
+      say(`job ${job.id} abandoned: ${reason}`)
+
+      return { jobId: Number(job.id), state: 'cancelled', reason }
+    }
+
+    await report(options.baseUrl, jobToken, state, reason)
     say(`job ${job.id} ${state}: ${reason}`)
 
     return { jobId: Number(job.id), state, reason }
@@ -1780,8 +1908,19 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     if (jobServices.length > 0)
       await stopServices(jobServices).catch(() => { resourcesStopped = false })
 
+    if (attempt && resourcesStopped) {
+      try { ledger?.end(attempt) }
+      catch {}
+    }
+    else if (attempt) {
+      say(`job ${job.id}: processes it started are still running; they are stopped before this runner takes more work`)
+    }
+
     if (journal && journaledWorkspace && (!resourcesStopped || !journal.complete(journaledWorkspace)))
       say(`job ${job.id}: workspace preserved for maintenance because resource shutdown or ownership could not be verified`)
+
+    onRunnerStop(null)
+    concluded()
   }
 
   /** Stop the heartbeat timer, whichever way this job ended. */
@@ -1837,8 +1976,13 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
   async function pollForJobs(): Promise<JobOutcome[]> {
   let idleSince = Date.now()
   let recoveryDue = 0
+  let unreachable = 0
 
   for (;;) {
+    // SIGTERM or SIGINT: the handler ends the process once the job is put away.
+    if (stopInProgress())
+      await awaitStop()
+
     // A stop that arrived while idle is honoured before the next claim, not after it.
     const pending = takeStopRequest()
     if (pending) {
@@ -1848,6 +1992,9 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
 
     if (Date.now() >= recoveryDue) {
       recoveryDue = Date.now() + 60_000
+      // Abandoned attempts first: a workspace whose processes were just
+      // stopped can be retired in this same pass.
+      await abandonedAttemptHold(options).catch(() => null)
       try {
         const recovered = await recoverWorkspaces(options, jobIds => confirmRetirableWorkspaces(options.baseUrl, options.token, options.runnerId, jobIds))
         if (recovered.retired) options.say?.(`Retired ${recovered.retired} terminal job workspace(s)`)
@@ -1855,7 +2002,33 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
       }
       catch { options.say?.('Workspace recovery could not be verified; existing workspaces were preserved') }
     }
-    const outcome = await runOnce(options)
+    /*
+     * The instance being unreachable is weather, not a reason to exit.
+     *
+     * A claim that met a deploy restarting the instance's gateway used to throw
+     * out of this loop and end the process, and the service manager started a
+     * new one: a restart for every blip, each with its banner in the log. Said
+     * once per outage instead, and retried with a growing pause.
+     */
+    let outcome: JobOutcome | null
+    try {
+      outcome = await runOnce(options)
+      if (unreachable > 0)
+        options.say?.('The instance answered again; accepting work')
+      unreachable = 0
+    }
+    catch (error) {
+      if (error instanceof RunnerConfigurationError)
+        throw error
+
+      if (unreachable === 0)
+        options.say?.(`The instance could not be reached (${error instanceof Error ? error.message : String(error)}); retrying`)
+
+      unreachable++
+      await new Promise(resolve => setTimeout(resolve, Math.min(60_000, idle * 2 ** Math.min(unreachable, 4))))
+
+      continue
+    }
 
     if (outcome) {
       outcomes.push(outcome)
@@ -3674,9 +3847,25 @@ async function runStep(input: {
      */
     await Promise.race([pumping, Bun.sleep(OUTPUT_DRAIN_MS)])
 
-    // Background writers retain the fixed grace above. If delivery is still
-    // pending at its end, cancelling could discard buffered command output;
-    // that is an unproven result, never a successful step.
+    /*
+     * Output still on its way is waited for, up to the delivery deadline.
+     *
+     * The fixed grace above is for background writers holding the pipe, not
+     * for an instance that is briefly unreachable: a step that happened to end
+     * during a five-second gateway restart used to be failed here although
+     * every byte of its output would have landed a moment later. A delivery
+     * in flight is already bounded by that deadline, and a quiet background
+     * process has nothing in flight, so this only waits when there is
+     * something to wait for.
+     */
+    const deliveryCeiling = Date.now() + deliveryDeadlineMs()
+
+    while (delivering > 0 && !outputFailure && Date.now() < deliveryCeiling)
+      await Promise.race([pumping, Bun.sleep(50)])
+
+    // If delivery is still pending past that, cancelling could discard
+    // buffered command output; that is an unproven result, never a successful
+    // step.
     if (delivering > 0)
       outputFailure ??= 'Output delivery was still pending after the command exited.'
 
@@ -3716,9 +3905,35 @@ async function runStep(input: {
 
 /* ------------------------------------------------------- the wire, verbatim */
 
-async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr', lease?: RunnerLease): Promise<void> {
+/** A pause that a lost lease cuts short. */
+async function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await Bun.sleep(ms)
+    return
+  }
+
+  signal.throwIfAborted()
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+
+    function done(): void {
+      clearTimeout(timer)
+      signal!.removeEventListener('abort', done)
+      resolve()
+    }
+  })
+  signal.throwIfAborted()
+}
+
+/** Whether an answer says "try again" rather than "no". */
+function retryable(answer: { status: number, body: any }): boolean {
+  return Boolean(answer.body?.retry_after_ms) || answer.status >= 500 || answer.status === 408 || answer.status === 429
+}
+
+async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr', lease?: RunnerLease, deadlineMs = deliveryDeadlineMs()): Promise<void> {
   /*
-   * Retried when the instance asks this runner to slow down.
+   * Retried until the instance takes it, says no, or the deadline passes.
    *
    * The chunk is idempotent on its sequence, so sending it again costs nothing
    * and the log stays whole - which is the point: the ceiling truncates at the
@@ -3726,26 +3941,28 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
    * part where something went wrong with nothing to say it happened.
    *
    * Bounded, because a runner that waits forever on a server that keeps saying
-   * no is a job nobody can cancel. Exhaustion fails the command: missing logs
-   * must not turn an unverified result into a successful job.
+   * no is a job nobody can cancel; the lease cuts it short sooner. Exhaustion
+   * fails the command: missing logs must not turn an unverified result into a
+   * successful job.
    */
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const deadline = Date.now() + deadlineMs
+  let lastProblem = ''
+
+  for (let attempt = 0; ; attempt++) {
     lease?.signal.throwIfAborted()
-    let answer: Awaited<ReturnType<typeof post>>
+    let answer: Awaited<ReturnType<typeof post>> | null = null
     try {
       answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
     }
     catch (error) {
       // The instance can restart while a step writes. Retry this same sequence
       // so a lost response neither duplicates output nor closes its reader.
-      if (attempt === 4) throw error
-      await Bun.sleep(200 * 2 ** attempt)
-      continue
+      lastProblem = error instanceof Error ? error.message : String(error)
     }
 
-    if (answer.ok) return
+    if (answer?.ok) return
 
-    if (!answer.body?.retry_after_ms && answer.status < 500 && ![408, 429].includes(answer.status)) {
+    if (answer && !retryable(answer)) {
       // A cancellation can revoke output before the next heartbeat arrives.
       // Revoke locally before unwinding, so the runner acknowledges cancelled
       // instead of reporting a failure against an expired lease.
@@ -3753,10 +3970,15 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
       throw new Error(`The instance refused step output (HTTP ${answer.status}).`)
     }
 
-    if (attempt === 4)
-      throw new Error('The instance did not accept step output after five attempts.')
+    if (answer)
+      lastProblem = `HTTP ${answer.status}`
 
-    await Bun.sleep(Math.min(2000, Number(answer.body?.retry_after_ms) || 200 * 2 ** attempt))
+    const wait = Math.min(5000, Number(answer?.body?.retry_after_ms) || 200 * 2 ** Math.min(attempt, 5))
+
+    if (Date.now() + wait > deadline)
+      throw new Error(`The instance did not accept step output within ${Math.round(deadlineMs / 1000)}s (${attempt + 1} attempts; last: ${lastProblem}).`)
+
+    await pause(wait, lease?.signal)
   }
 }
 
@@ -3801,7 +4023,7 @@ async function report(
   outputs?: Record<string, string>,
   exitStatus?: number | null,
   steps?: StepTiming[],
-): Promise<void> {
+): Promise<{ ok: boolean, reason: string }> {
   // The outputs travel with the conclusion: a job that reported values and then
   // failed to report its result would leave them attached to a job nobody can
   // tell finished.
@@ -3809,13 +4031,50 @@ async function report(
   // The steps travel with it for the same reason, and because nothing reads a
   // step's recorded result until its job is over - so a call per step would be
   // forty requests to deliver information nobody is waiting for.
-  await post(baseUrl, '/api/runner/report', jobToken, {
+  const body = {
     state,
     error,
     outputs: outputs ?? null,
     exit_status: exitStatus ?? null,
     steps: steps && steps.length > 0 ? steps : null,
-  })
+  }
+
+  /*
+   * Retried through an outage, like step output, and never thrown.
+   *
+   * The conclusion used to be one request whose answer nobody read: a 503 from
+   * a restarting gateway counted as delivered, and a refused connection threw -
+   * into the handler that then reported the job *failed* instead. A report is
+   * idempotent (a repeat is answered as the first was), so it is sent until it
+   * lands, is refused, or the lease it rides on would be gone; past that the
+   * instance requeues the job, which is the honest outcome of not knowing.
+   */
+  const deadline = Date.now() + Math.min(deliveryDeadlineMs(), (LEASE_SECONDS - 15) * 1000)
+  let lastProblem = ''
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const answer = await post(baseUrl, '/api/runner/report', jobToken, body)
+
+      if (answer.ok)
+        return { ok: true, reason: '' }
+
+      lastProblem = `HTTP ${answer.status}${answer.body?.error ? ` ${refusalText(answer.body.error)}` : ''}`
+
+      if (!retryable(answer))
+        return { ok: false, reason: lastProblem }
+    }
+    catch (problem) {
+      lastProblem = problem instanceof Error ? problem.message : String(problem)
+    }
+
+    const wait = Math.min(5000, 250 * 2 ** Math.min(attempt, 5))
+
+    if (Date.now() + wait > deadline)
+      return { ok: false, reason: lastProblem }
+
+    await Bun.sleep(wait)
+  }
 }
 
 /**

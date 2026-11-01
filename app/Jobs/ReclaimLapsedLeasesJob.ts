@@ -4,6 +4,7 @@ import { rowsChanged as changed } from '../Actions/Support/sql'
 import { settleRun } from '../Actions/Workflow/settle'
 import { announceRunIfMoved } from '../Actions/Workflow/announce'
 import { claimableSince } from '../Actions/Runner/claim'
+import { leaseIsReclaimable } from '../Actions/Runner/protocol'
 import { queueTimeoutHours } from '../../config/ci-quotas'
 import { raw } from 'bun-query-builder'
 
@@ -77,10 +78,9 @@ export default new Job({
       // make the one unrecoverable case the one this job is for.
       .execute()
 
-    const expired = lapsed.filter((job) => {
-      const at = job.lease_expires_at ? Date.parse(String(job.lease_expires_at)) : Number.NaN
-      return !Number.isFinite(at) || at <= now.getTime()
-    })
+    // Lapsed, and past the grace a cut-off runner gets to stop its own
+    // processes: requeuing sooner is how one job ends up running twice.
+    const expired = lapsed.filter(job => leaseIsReclaimable({ leaseExpiresAt: job.lease_expires_at ? String(job.lease_expires_at) : null }, now))
 
     if (expired.length === 0)
       return { ok: true, reclaimed: 0, cancelled: forced, timedOut, unclaimed }

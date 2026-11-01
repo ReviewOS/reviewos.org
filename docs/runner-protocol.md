@@ -120,6 +120,31 @@ and Windows hosts with an enabled load policy refuse work. Control polls and
 automatic recovery remain active during a hold. This guards admission only;
 operators must still coordinate other host workloads after a job starts.
 
+### Restarts, outages and the lease
+
+A runner gives its lease up 20 seconds before the instance would (its clock
+starts when the heartbeat's answer arrives, after the instance set the expiry),
+heartbeats every 10 seconds, and stops the job's processes when it does. The
+instance waits `RECLAIM_GRACE_SECONDS` (30) past a lapse before another claim or
+the reclaim sweep may hand the job on, so a runner that was only cut off has
+stopped its work before the next attempt can start anywhere.
+
+`SIGTERM` or `SIGINT` abandons the job in hand: steps, services and every
+process carrying the job's `RUNNER_TRACKING_ID` are stopped within 15 seconds
+(under launchd's 20 before `SIGKILL`), nothing is reported, and the instance
+requeues the job when the lease lapses. A second signal exits at once. Each
+attempt is also written to a ledger (`~/.local/share/reviewos/job-attempts/`,
+beside a configured journal root, or inside `REVIEWOS_WORKSPACE`) until its
+processes are verified gone; before every claim the runner stops whatever an
+attempt whose runner process is gone left behind, found by tracking id or by a
+working directory inside that attempt's workspace, and holds new work if any of
+it survives `SIGKILL`.
+
+Step output and conclusions are retried through an unreachable instance - a
+deploy restarting its gateway - for up to a lease
+(`REVIEWOS_RUNNER_DELIVERY_DEADLINE_MS`), and a claim that cannot connect is
+retried with a growing pause rather than ending the process.
+
 ```json
 { "job": null }
 ```
