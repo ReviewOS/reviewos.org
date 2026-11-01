@@ -1040,11 +1040,12 @@ describe('a repository that declares its tools', () => {
 
     /*
      * One of the two, and both are correct: pantry resolved the dependency
-     * file, or the machine does not have pantry and the job carried on with
-     * what it had. A step that installs its own tools is how every workflow
-     * written for Actions already works.
+     * file, or it did not provide them (absent, too old, or an install that
+     * failed - each now says which) and the job carried on with what it had. A
+     * step that installs its own tools is how every workflow written for
+     * Actions already works.
      */
-    expect(/Using .*git|pantry is not available here/.test(text)).toBe(true)
+    expect(/Using .*git|pantry did not provide them|pantry is not installed here/.test(text)).toBe(true)
 
     // And the job succeeded regardless, which is the property that matters.
     expect(text).toContain('git version')
