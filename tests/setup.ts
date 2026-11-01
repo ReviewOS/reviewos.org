@@ -175,3 +175,26 @@ afterAll(() => {
   if (Bun.env.TESTS_REQUIRE_ALL === '1' && demanded.length > 0)
     throw new Error(`TESTS_REQUIRE_ALL=1 and a suite skipped itself: ${demanded.join(' / ')}`)
 })
+
+/*
+ * Every file hands its database pools back before the next one starts.
+ *
+ * `buddy test` runs `bun test --isolate`, which gives each file a fresh global
+ * but one process and one event loop. A Postgres connection the finished file
+ * still owned kept its connect timer armed on that loop, and when the timer
+ * fired after the file's global was gone, Bun closed a socket whose TLS state
+ * was already freed: `PostgresSQLConnection::on_connection_timeout` ->
+ * `us_internal_ssl_close`, a segfault on CI (2026-11-01) and a bus error
+ * locally, partway through the Postgres suite. It is Bun's bug (1.4.2) and it
+ * is timing-dependent, so a rerun passes - which is how it got through once
+ * already, as a 14 GB "out of memory" kill on 2026-10-31.
+ *
+ * Closing the framework's pools here takes their sockets and timers down
+ * through the normal path while the file's global still exists. The next query
+ * after a close opens a fresh pool, so a run without `--isolate`, where files
+ * share modules, keeps working.
+ */
+afterAll(async () => {
+  const { closeDatabaseConnection } = await import('@stacksjs/database')
+  await closeDatabaseConnection()
+})
