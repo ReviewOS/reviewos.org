@@ -32,3 +32,43 @@ test('says pantry is not here and carries on, rather than failing the job', asyn
   expect(said.join('')).toContain('pantry is not installed here')
   expect(said.at(-1)).toBe('::endgroup::\n')
 })
+
+test('names why pantry gave no environment instead of its progress header', async () => {
+  const { toolchainFailure, PANTRY_ENV_JSON_VERSION } = await import('../../app/Actions/Runner/localExecutor')
+
+  // An install that failed: its report says why, on stdout.
+  expect(toolchainFailure('{"ok":false,"error":"pantry install failed"}', 'pantry install v0.11.154\n\n- x@1 (PackageNotFound)'))
+    .toContain('pantry install failed')
+
+  // A pantry too old for the flags.
+  const old = toolchainFailure('', "Error: Unknown option '--install'\nError: error.UnknownOption")
+  expect(old).toContain('predates `pantry env --json`')
+  expect(old).toContain(PANTRY_ENV_JSON_VERSION)
+
+  // Anything else shows the end of stderr, not its first line.
+  const other = toolchainFailure('', 'pantry install v0.11.154\n\nline a\nline b\nline c\nthe real reason')
+  expect(other).toContain('the real reason')
+  expect(other).not.toContain('pantry install v0.11.154')
+})
+
+test('puts a pantry-provided PATH ahead of the job, and reports a failed install without using it', async () => {
+  workspace = mkdtempSync(join(tmpdir(), 'reviewos-toolchain-'))
+  writeFileSync(join(workspace, 'deps.yaml'), 'dependencies:\n  bun.sh: ^1\n')
+
+  const fake = (body: string) => {
+    const path = join(workspace, 'fake-pantry')
+    writeFileSync(path, `#!/bin/sh\n${body}\n`, { mode: 0o755 })
+
+    return path
+  }
+
+  const said: string[] = []
+  const provided = await provideTools(workspace, async (line) => { said.push(line) }, fake(`echo '{"ok":true,"path":["/a/bin","/b/bin"],"dependencies":["bun.sh 1.4.4"]}'`))
+  expect(provided).toBe('/a/bin:/b/bin')
+  expect(said.join('')).toContain('Using bun.sh 1.4.4')
+
+  const failed: string[] = []
+  const none = await provideTools(workspace, async (line) => { failed.push(line) }, fake(`echo '{"ok":false,"path":["/a/bin"],"error":"not installed: bun.sh"}'; exit 1`))
+  expect(none).toBe('')
+  expect(failed.join('')).toContain('not installed: bun.sh')
+})

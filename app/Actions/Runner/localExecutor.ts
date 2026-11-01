@@ -2642,6 +2642,38 @@ function readEnvFile(path: string): Record<string, string> {
   }
 }
 
+/** The oldest pantry whose `env` prints the environment as JSON (`--json --dir`). */
+export const PANTRY_ENV_JSON_VERSION = '0.11.154'
+
+/**
+ * What to tell a job's log when `pantry env --install --json` did not give an
+ * environment.
+ *
+ * Three different problems used to read as one "pantry is not available here"
+ * with the first 300 characters of stderr - which, for an install, is the
+ * progress header rather than the reason: a pantry too old to know the flags
+ * (`Unknown option '--install'`), an install that failed (its report names why
+ * on stdout), and everything else.
+ */
+export function toolchainFailure(out: string, error: string): string {
+  const prefix = 'This repository declares its tools, and pantry did not provide them'
+
+  try {
+    const report = JSON.parse(out)
+
+    if (typeof report?.error === 'string' && report.error)
+      return `${prefix}: ${report.error}; the job's own steps provide them.`
+  }
+  catch {}
+
+  if (/unknown option/i.test(error) || /unknown option/i.test(out))
+    return `${prefix}: this pantry predates \`pantry env --json\` (needs ${PANTRY_ENV_JSON_VERSION} or newer; \`pantry upgrade\`); the job's own steps provide them.`
+
+  const detail = (error || out).trim().split('\n').filter(line => line.trim()).slice(-3).join(' | ').slice(-300)
+
+  return `${prefix}${detail ? `: ${detail}` : ''}; the job's own steps provide them.`
+}
+
 /**
  * Install and locate what the checked-out repository says it needs.
  *
@@ -2703,7 +2735,7 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
      * jobs install their own tools, which is how every workflow written for
      * Actions already works.
      */
-    await say(`This repository declares its tools, and pantry is not available here: ${(error || out).trim().slice(0, 300)}\n`)
+    await say(`${toolchainFailure(out, error)}\n`)
     await say('::endgroup::\n')
 
     return ''
@@ -2711,6 +2743,16 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
 
   try {
     const answer = JSON.parse(out)
+
+    // `pantry env --json` exits 0 only for a complete environment; a report
+    // that says otherwise is still not one to put on a PATH.
+    if (answer?.ok === false) {
+      await say(`${toolchainFailure(out, error)}\n`)
+      await say('::endgroup::\n')
+
+      return ''
+    }
+
     const entries: string[] = Array.isArray(answer?.path) ? answer.path.map(String) : []
 
     if (Array.isArray(answer?.dependencies) && answer.dependencies.length > 0)
