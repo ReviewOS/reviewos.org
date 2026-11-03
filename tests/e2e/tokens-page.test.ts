@@ -205,6 +205,33 @@ describe('the access tokens page', () => {
     expect(html).toContain(`value="${created.repositoryId}"`)
   })
 
+  test('offers an organization repository without broadening the token selection', async () => {
+    if (!available)
+      return
+
+    const organization = await db.insertInto('organizations').values({ handle: unique('scopeorg'), name: 'Token picker organization' }).returning(['id']).executeTakeFirst()
+    const organizationId = Number(organization.id)
+    let repositoryId = 0
+    try {
+      await db.insertInto('org_members').values({ organization_id: organizationId, user_id: created.userId, role: 'owner', joined_at: new Date().toISOString() }).execute()
+      const repository = await db.insertInto('repositories').values({ owner_type: 'organization', owner_id: organizationId, name: 'organization-private-scope', visibility: 'private', default_branch: 'main', disk_path: `${organizationId}/organization-private-scope.git` }).returning(['id']).executeTakeFirst()
+      repositoryId = Number(repository.id)
+      const { scopableRepositories } = await import('../../app/Actions/Tokens/load')
+      expect((await scopableRepositories(created.userId)).filter(entry => entry.id === repositoryId)).toHaveLength(1)
+      const html = await fetchPage('/settings/tokens', created.token)
+      expect(html).toContain(`<option value="${repositoryId}">organization-private-scope</option>`)
+
+      await db.deleteFrom('org_members').where('organization_id', '=', organizationId).where('user_id', '=', created.userId).execute()
+      expect((await scopableRepositories(created.userId)).some(entry => entry.id === repositoryId)).toBe(false)
+      expect(await fetchPage('/settings/tokens', created.token)).not.toContain('organization-private-scope')
+    }
+    finally {
+      if (repositoryId)
+        await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
+      await db.deleteFrom('organizations').where('id', '=', organizationId).execute()
+    }
+  })
+
   test('offers to rotate a live token, and explains the overlap', async () => {
     if (!available)
       return

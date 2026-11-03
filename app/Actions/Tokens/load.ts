@@ -232,8 +232,8 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
  *
  * The same set `CreateTokenAction` filters against, read once for the form so
  * somebody cannot pick a repository the endpoint is going to drop. Owned and
- * collaborating only: an organization's repositories are reachable through the
- * organization selection, which is the honest way to express that.
+ * collaborating on, or reaching through organization membership. Selecting one
+ * organization repository must not require selecting the entire organization.
  */
 export async function scopableRepositories(userId: number): Promise<{ id: number, name: string }[]> {
   const owned = await db
@@ -250,10 +250,18 @@ export async function scopableRepositories(userId: number): Promise<{ id: number
     .where('repo_collaborators.user_id', '=', userId)
     .execute()
 
+  const organizationRepositories = await db
+    .selectFrom('org_members')
+    .innerJoin('repositories', 'repositories.owner_id', '=', 'org_members.organization_id')
+    .select(['repositories.id as id', 'repositories.name as name'])
+    .where('repositories.owner_type', '=', 'organization')
+    .where('org_members.user_id', '=', userId)
+    .execute()
+
   const seen = new Set<number>()
   const all: { id: number, name: string }[] = []
 
-  for (const row of [...owned, ...collaborating] as any[]) {
+  for (const row of [...owned, ...collaborating, ...organizationRepositories] as any[]) {
     const id = Number(row.id)
     if (seen.has(id))
       continue
