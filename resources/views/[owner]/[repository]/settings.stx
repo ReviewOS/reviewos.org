@@ -22,6 +22,7 @@ import { deployKeysFor, parseRestrictions, repositoryForView, repositoryHeaderAc
 // says is enforced and is not.
 import { isNotFalse, isTrue } from '../../../functions/truth'
 import { resolveVariables, settingsFor } from '../../../functions/variables'
+import { secretNames } from '../../../functions/secrets'
 import { branchNames, relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
@@ -66,6 +67,8 @@ const mayTransfer = Boolean(repoAccess?.can('repository:transfer'))
 // this page would tell a crawler the settings of every repository exist.
 if (!repoRow || !mayEdit)
   setStatus(404)
+
+const workflowSecrets = repoRow && mayEdit ? await secretNames(Number(repoRow.id)) : []
 
 const branches = repoRow && mayEdit ? await branchNames(String(repoAccess?.diskPath ?? '')) : []
 
@@ -678,6 +681,64 @@ const fullName = `${ownerHandle}/${repositoryName}`
               </li>
             @endforeach
           </ul>
+        @endif
+      </section>
+
+      <section class="card panel" id="secrets">
+        <h2 class="card-title">Workflow secrets</h2>
+        <p class="card-note muted">
+          Encrypted credentials for trusted workflow jobs. Values cannot be read back.
+          A job receives only the secrets its workflow requests. Environment secrets keep their existing approval rules.
+        </p>
+
+        <form class="grid" method="post" action="/api/repos/secrets" autocomplete="off">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+          <input type="hidden" name="operation" value="set">
+          <input type="hidden" name="scope" value="repository">
+
+          <label class="field">
+            <span class="label">Secret name</span>
+            <input class="input mono" name="key" placeholder="PUBLISH_TOKEN" pattern="[A-Za-z_][A-Za-z0-9_]*" required>
+          </label>
+          <label class="field">
+            <span class="label">Secret value</span>
+            <input class="input mono" type="password" name="value" autocomplete="new-password" required>
+            <span class="hint muted">Setting an existing name replaces its value for this repository.</span>
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Save repository secret</button>
+          </div>
+        </form>
+
+        @if (workflowSecrets.length > 0)
+          <ul class="deploy-list">
+            @foreach (workflowSecrets as secret)
+              <li class="deploy-row">
+                <div class="deploy-main">
+                  <span class="deploy-name mono">{{ secret.key }}</span>
+                  <span class="deploy-meta muted">{{ secret.scope }} scope</span>
+                  @if (secret.updatedAt)
+                    <span class="deploy-meta muted">Updated {{ relativeTime(secret.updatedAt) }}</span>
+                  @endif
+                </div>
+                @if (secret.scope === 'repository')
+                  <form class="inline" method="post" action="/api/repos/secrets">
+                    <CsrfField />
+                    <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                    <input type="hidden" name="repo" value="{{ repositoryName }}">
+                    <input type="hidden" name="operation" value="unset">
+                    <input type="hidden" name="scope" value="repository">
+                    <input type="hidden" name="key" value="{{ secret.key }}">
+                    <button class="btn" type="submit">Remove {{ secret.key }}</button>
+                  </form>
+                @endif
+              </li>
+            @endforeach
+          </ul>
+        @else
+          <p class="muted">No workflow secrets configured.</p>
         @endif
       </section>
 

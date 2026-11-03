@@ -3507,3 +3507,5 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       claims on disposable PostgreSQL cover delivery, elapsed waits and changed
       protection; existing reviewer and untrusted-run regressions remain green.
       https://github.com/ReviewOS/reviewos.org/issues/12
+
+- [x] Repository settings manage encrypted workflow secrets through CSRF-protected forms. List names and scopes only, mask replacement values, restrict removal to repository scope, and return successful browser writes to settings.

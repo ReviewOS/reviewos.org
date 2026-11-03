@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
+import { response } from '@stacksjs/router'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { environmentIdOf, putSecret, secretNames } from './secrets'
@@ -189,6 +190,9 @@ export default new Action({
         detail: { key, scope, scope_id: scopeId },
       }).catch(() => null)
 
+      if (String(request.headers?.get?.('accept') ?? '').includes('text/html'))
+        return response.redirect(`/${encodeURIComponent(String(request.get('owner')))}/${encodeURIComponent(String(repository.name))}/settings#secrets`, 303)
+
       return response.json({ secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })) })
     }
 
@@ -230,6 +234,9 @@ export default new Action({
       repositoryId,
       detail: { key, scope, scope_id: scopeId, reference: reference || null },
     }).catch(() => null)
+
+    if (String(request.headers?.get?.('accept') ?? '').includes('text/html'))
+      return response.redirect(`/${encodeURIComponent(String(request.get('owner')))}/${encodeURIComponent(String(repository.name))}/settings#secrets`, 303)
 
     return response.json({
       secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })),

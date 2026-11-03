@@ -9,7 +9,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { putSecret, secretNames, secretsForJob } from '../../app/Actions/Workflow/secrets'
 
-const created = { ownerId: 0, repositoryId: 0, environmentId: 0, handle: '', name: '', token: '' }
+const created = { ownerId: 0, repositoryId: 0, environmentId: 0, handle: '', name: '', token: '', session: '' }
 
 let available = false
 let db: any = null
@@ -58,6 +58,10 @@ beforeAll(async () => {
       .executeTakeFirst()
 
     created.ownerId = Number(owner?.id)
+
+    const { createToken } = await import('@stacksjs/auth')
+    const issued: any = await createToken(created.ownerId, 'secret settings browser')
+    created.session = String(issued.plainTextToken ?? issued.token ?? issued.accessToken ?? issued)
     created.name = unique('repo')
 
     const repository: any = await db
@@ -189,6 +193,57 @@ describe('the endpoint', () => {
     const { status } = await api({ operation: 'set', scope: 'environment', environment: 'nowhere', key: 'X', value: 'y' })
 
     expect(status).toBe(404)
+  }, 120_000)
+})
+
+describe('repository secret settings in a browser session', () => {
+  test('renders names without values, enforces CSRF, and accepts masked form writes', async () => {
+    if (!available)
+      return
+
+    const settings = `/${created.handle}/${created.name}/settings`
+    const visit = () => fetch(`http://127.0.0.1:${port}${settings}`, {
+      headers: { Accept: 'text/html', Cookie: `auth-token=${created.session}` },
+    })
+    const page = await visit()
+    expect(page.status).toBe(200)
+    const html = await page.text()
+    expect(html).toContain('Workflow secrets')
+    expect(html).toContain('DEPLOY_TOKEN')
+    expect(html).not.toContain(VALUE)
+    expect(html).not.toContain('npm-abc-123')
+    expect(html).toMatch(/type="password" name="value"/)
+    const csrf = /name="_token"[^>]*value="([^"]+)"/.exec(html)?.[1] ?? ''
+    expect(csrf).toBeTruthy()
+
+    const submit = (operation: string, token: string) => fetch(`http://127.0.0.1:${port}/api/repos/secrets`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: {
+        Accept: 'text/html',
+        Cookie: `auth-token=${created.session}; X-CSRF-Token=${csrf}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ owner: created.handle, repo: created.name, operation, scope: 'repository', key: 'BROWSER_TOKEN', value: 'browser-private-value', _token: token }),
+    })
+    expect((await submit('set', 'wrong-token')).status).toBe(403)
+    expect((await secretNames(created.repositoryId)).some(one => one.key === 'BROWSER_TOKEN')).toBe(false)
+
+    const saved = await submit('set', csrf)
+    expect(saved.status).toBe(303)
+    expect(saved.headers.get('location')).toBe(`${settings}#secrets`)
+    expect(await saved.text()).not.toContain('browser-private-value')
+    const updated = await (await visit()).text()
+    expect(updated).toContain('BROWSER_TOKEN')
+    expect(updated).not.toContain('browser-private-value')
+
+    const removed = await submit('unset', csrf)
+    expect(removed.status).toBe(303)
+    expect((await secretNames(created.repositoryId)).some(one => one.key === 'BROWSER_TOKEN')).toBe(false)
+
+    const anonymous = await fetch(`http://127.0.0.1:${port}${settings}`, { headers: { Accept: 'text/html' } })
+    expect(anonymous.status).toBe(404)
+    expect(await anonymous.text()).not.toContain('DEPLOY_TOKEN')
   }, 120_000)
 })
 
