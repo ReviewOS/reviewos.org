@@ -1,4 +1,5 @@
 import { route } from '@stacksjs/router'
+import { gitRequestBody, UnsupportedGitContentEncoding } from '../app/Actions/Git/requestBody'
 import { isMirrored, parseActionUrl } from '../app/Actions/Actions/store'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
@@ -131,6 +132,16 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
   if (!mirror)
     return new Response('No such mirrored action', { status: 404 })
 
+  let body: ReadableStream<Uint8Array> | null
+  try {
+    body = gitRequestBody(request.raw ?? request)
+  }
+  catch (error) {
+    if (error instanceof UnsupportedGitContentEncoding)
+      return new Response(error.message, { status: 415, headers: { 'Accept-Encoding': 'gzip, identity' } })
+    throw error
+  }
+
   const child = await spawnGitLimited('heavy', mirror.path, serviceArgs(mirror.path, 'upload-pack', { advertiseRefs: false }))
 
   if (!child)
@@ -139,8 +150,6 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
   // Streamed both ways. A packfile is larger than anything worth holding in
   // memory, and buffering it passes every test written against a small
   // repository and falls over on the first real one.
-  const body = request.raw?.body ?? request.body
-
   if (body) {
     const reader = (body as ReadableStream<Uint8Array>).getReader()
 
@@ -159,7 +168,7 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
       }
 
       child.stdin.end()
-    })()
+    })().catch(() => child.kill('SIGKILL'))
   }
   else {
     child.stdin.end()

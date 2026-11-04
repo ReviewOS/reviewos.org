@@ -3,6 +3,7 @@ import { basicAuthSecret, findRepositoryByPath, mayUseService, pushActorFor, ser
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
+import { gitRequestBody, UnsupportedGitContentEncoding } from '../app/Actions/Git/requestBody'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { CONFIGURED_SCAN_BUDGET_MS, ConfiguredPatternError, instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
@@ -893,12 +894,12 @@ function saturated(): Response {
  * is not the streaming body that matters.
  */
 async function servePackFromCache(request: any, repositoryId: number): Promise<Response | null> {
+  // Invalid transport bytes are a request failure, not a cache miss. Reading
+  // here keeps the cache's optional storage failures separate from decoding.
+  const raw = await readRequestBody(request)
+  if (!raw)
+    return null
   try {
-    const raw = await readRequestBody(request)
-
-    if (!raw)
-      return null
-
     const { packCacheKey, parseClone } = await import('../app/Actions/Git/packCache')
     const plan = parseClone(raw)
 
@@ -933,7 +934,7 @@ async function readRequestBody(request: any): Promise<Uint8Array | null> {
   if (request.__reviewosBody instanceof Uint8Array)
     return request.__reviewosBody
 
-  const body: ReadableStream | null = request.body ?? null
+  const body: ReadableStream | null = request.__reviewosInputBody ?? null
 
   if (!body)
     return null
@@ -971,6 +972,14 @@ async function packCacheTarget(repositoryId: number, body: Uint8Array): Promise<
 }
 
 async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack', repositoryId?: number, env: Record<string, string> = {}): Promise<Response> {
+  try {
+    request.__reviewosInputBody = gitRequestBody(request.raw ?? request)
+  }
+  catch (error) {
+    if (error instanceof UnsupportedGitContentEncoding)
+      return new Response(error.message, { status: 415, headers: { 'Accept-Encoding': 'gzip, identity' } })
+    throw error
+  }
   /*
    * The pack cache, for the one shape a runner fleet produces: fifty jobs on
    * one commit sending fifty identical clone requests, each making git walk
@@ -982,10 +991,14 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
    * git, which is the behavior this file has always had.
    */
   if (service === 'upload-pack' && repositoryId) {
-    const cached = await servePackFromCache(request, repositoryId)
-
-    if (cached)
-      return cached
+    try {
+      const cached = await servePackFromCache(request, repositoryId)
+      if (cached)
+        return cached
+    }
+    catch {
+      return new Response('Invalid Git request body', { status: 400 })
+    }
   }
 
   const child = await spawnGitLimited('heavy', path, serviceArgs(path, service), env)
@@ -1002,7 +1015,7 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
    * `receive-pack` skips the cache entirely, so its packfile still streams.
    */
   const remembered: Uint8Array | null = request.__reviewosBody ?? null
-  const body: ReadableStream | null = remembered ? null : (request.body ?? null)
+  const body: ReadableStream | null = remembered ? null : request.__reviewosInputBody
 
   if (remembered) {
     child.stdin.write(remembered)
