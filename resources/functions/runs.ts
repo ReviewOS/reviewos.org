@@ -123,6 +123,10 @@ import { explainWaiting as explainWaitingImpl } from '../../app/Actions/Workflow
 
 export const explainWaiting = explainWaitingImpl
 
+import { waitingFleet as waitingFleetImpl } from '../../app/Actions/Workflow/waitingFleet'
+
+export const waitingFleet = waitingFleetImpl
+
 /**
  * Starter workflows for a repository that has none.
  *

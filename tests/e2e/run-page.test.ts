@@ -731,6 +731,55 @@ describe('a run that is waiting for a runner', () => {
    * queue anywhere to notice it. The runner here is deliberately **active**,
    * so the "all disabled" rule cannot answer first and mask it.
    */
+  test('page and API explain occupied capacity, expired leases and run admission consistently', async () => {
+    if (!available)
+      return
+
+    const version: any = await db.selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id']).where('workflows.repository_id', '=', created.repositoryId).executeTakeFirst()
+    const number = await makeRun(Number(version.id), 'queued', 'queued', '', 'c'.repeat(40))
+    const run: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    const label = unique('capacity')
+    await db.updateTable('workflow_jobs').set({ runs_on: label }).where('workflow_run_id', '=', Number(run.id)).execute()
+    const runner: any = await db.insertInto('runners').values({
+      name: label, scope_type: 'repository', scope_id: created.repositoryId,
+      token_hash: 'z'.repeat(64), labels: label, state: 'active',
+      last_seen_at: new Date().toISOString(),
+    }).returning(['id']).executeTakeFirst()
+    const held: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id), job_id: 'occupied', position: 1, state: 'cancelling',
+      runs_on: label, runner_id: String(runner.id), lease_expires_at: new Date(Date.now() + 120_000).toISOString(),
+    }).returning(['id']).executeTakeFirst()
+    const path = `/${created.handle}/${created.name}/run/${number}`
+    const apiPath = `/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`
+    const explanation = async () => {
+      const response = await fetch(`http://127.0.0.1:${port}${apiPath}`)
+      expect(response.status).toBe(200)
+      const body: any = await response.json()
+      return body.workflow_run.jobs.find((job: any) => job.job_id === 'build').waiting
+    }
+    try {
+      expect((await explanation()).kind).toBe('all-busy')
+      expect(await page(path, created.ownerToken)).toContain('The matching runner is executing another job')
+
+      await db.updateTable('workflow_jobs').set({ lease_expires_at: new Date(Date.now() - 120_000).toISOString() })
+        .where('id', '=', Number(held.id)).execute()
+      expect((await explanation()).kind).toBe('ready')
+      expect(await page(path, created.ownerToken)).not.toContain('The matching runner is executing another job')
+
+      const reason = 'Waiting for run #42 in concurrency group ci-main'
+      await db.updateTable('workflow_runs').set({ state: 'waiting', conclusion_reason: reason }).where('id', '=', Number(run.id)).execute()
+      expect(await explanation()).toMatchObject({ kind: 'run-waiting', summary: reason })
+      expect(await page(path, created.ownerToken)).toContain(reason)
+    }
+    finally {
+      await db.deleteFrom('workflow_jobs').where('id', '=', Number(held.id)).execute()
+      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute()
+    }
+  })
+
   test('and names the paused queue when the machines are simply not taking work', async () => {
     if (!available)
       return

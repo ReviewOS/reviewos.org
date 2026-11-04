@@ -98,6 +98,26 @@ describe('explaining a queued job', () => {
     expect(answer.summary).toContain('next poll')
   })
 
+  test('a live runner executing another job is capacity, not an idle next poll', () => {
+    const answer = explainWaiting(job, [runner({ busy: true })])
+    expect(answer.kind).toBe('all-busy')
+    expect(answer.summary).toContain('another job')
+    expect(answer.summary).not.toContain('next poll')
+  })
+
+  test('counts only idle matching runners in the ready explanation', () => {
+    const answer = explainWaiting(job, [runner({ busy: true }), runner({ id: 2 }), runner({ id: 3, busy: true })])
+    expect(answer.kind).toBe('ready')
+    expect(answer.summary).toBe('A runner matches this job and will take it on its next poll.')
+  })
+
+  test('a run held by concurrency explains its blocker before looking for a runner', () => {
+    const answer = explainWaiting(job, [], new Date(), { state: 'waiting', reason: 'Waiting for run #3137 in concurrency group `ci-main`.' })
+    expect(answer.kind).toBe('run-waiting')
+    expect(answer.summary).toContain('run #3137')
+    expect(answer.wanted).toEqual(['ubuntu-latest'])
+  })
+
   /*
    * The dispatcher's rule, not this screen's: a job asking for nothing runs
    * anywhere, which is what an empty `runs-on` means to whoever wrote it. This

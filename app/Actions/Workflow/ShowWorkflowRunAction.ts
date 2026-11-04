@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { explainEnv } from './env'
-import { splitLabels } from '../Runner/protocol'
+import { waitingFleet } from './waitingFleet'
 import { defaultsOf, resolveDefaults } from './defaults'
 import { explainWaiting } from './waiting'
 import { resolvePermissions } from './permissions'
@@ -42,7 +42,7 @@ function envFor(job: any, definitionJobs: readonly any[], version: any): any[] {
 }
 
 /** Why a queued job has not been picked up, in the shape a screen can render. */
-function waitingFor(job: any, repositoryId: number, ownerId: number, runners: any[]): any {
+function waitingFor(job: any, repositoryId: number, ownerId: number, runners: any[], run: any, now: Date): any {
   const explained = explainWaiting(
     {
       id: Number(job.id),
@@ -54,6 +54,8 @@ function waitingFor(job: any, repositoryId: number, ownerId: number, runners: an
       leaseExpiresAt: job.lease_expires_at ?? null,
     },
     runners,
+    now,
+    { state: String(run.state), reason: run.conclusion_reason ?? null },
   )
 
   return {
@@ -168,23 +170,8 @@ export default new Action({
      */
     const waiting = jobs.some(job => String(job.state) === 'queued' || String(job.state) === 'blocked')
 
-    const runners: any[] = waiting
-      ? await db.selectFrom('runners').select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'last_seen_at', 'hold_reason', 'hold_started_at']).execute()
-      : []
-
-    const runnerFacts = runners.map(runner => ({
-      id: Number(runner.id),
-      // Name, last poll and hold: what lets the answer say which machine is
-      // refusing the job and why, rather than "will take it on its next poll".
-      name: String(runner.name ?? ''),
-      lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
-      holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
-      holdStartedAt: runner.hold_started_at ? String(runner.hold_started_at) : null,
-      state: String(runner.state),
-      scopeType: String(runner.scope_type),
-      scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
-      labels: splitLabels(runner.labels),
-    }))
+    const now = new Date()
+    const runnerFacts = waiting ? await waitingFleet(now) : []
 
     const definitionJobs = await db
       .selectFrom('workflow_version_jobs')
@@ -317,7 +304,7 @@ export default new Action({
            * matches was switched off this morning.
            */
           waiting: String(job.state) === 'queued'
-            ? waitingFor(job, Number(run.repository_id), Number(repository.owner_id ?? 0), runnerFacts)
+            ? waitingFor(job, Number(run.repository_id), Number(repository.owner_id ?? 0), runnerFacts, run, now)
             : null,
           name: job.name ?? null,
           error: job.error ?? null,

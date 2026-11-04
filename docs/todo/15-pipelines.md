@@ -3518,3 +3518,9 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       bodies. A real PostgreSQL/HTTP regression covers compressed private Git
       traffic, fetching an advanced origin with only the job lease, cross-repository
       refusal and lease expiry. https://github.com/ReviewOS/reviewos.org/issues/18
+
+- [x] Explain occupied runner capacity from live running/cancelling leases and
+      distinguish whole-run admission waits from runner availability. Share the
+      fleet snapshot between the run page and API, including queue and tag
+      policies; never expose the occupying repository or treat an expired lease
+      as occupied capacity. Real HTTP/page regression covers both surfaces.

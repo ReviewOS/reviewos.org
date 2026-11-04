@@ -24,6 +24,7 @@ export type WaitingKind =
   | 'none-reach'
   | 'no-labels'
   | 'all-busy'
+  | 'run-waiting'
   | 'all-disabled'
   /** Every matching runner is in a queue somebody drained. */
   | 'queue-paused'
@@ -80,6 +81,8 @@ export interface WaitingExplanation {
  * remedies.
  */
 export interface FleetRunner extends RunnerFacts {
+  /** A currently live execution lease, read for the same fleet snapshot. */
+  busy?: boolean
   queue?: QueueFacts | null
   /** What a person calls it, for a sentence that names the machine. */
   name?: string
@@ -95,8 +98,18 @@ export interface FleetRunner extends RunnerFacts {
   holdStartedAt?: string | null
 }
 
-export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[], now: Date = new Date()): WaitingExplanation {
+export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[], now: Date = new Date(), run: { state?: string, reason?: string | null } = {}): WaitingExplanation {
   const wanted = [...job.runsOn]
+
+  if (run.state === 'waiting' || run.state === 'paused') {
+    return {
+      kind: 'run-waiting',
+      summary: run.reason || 'This run is waiting for its admission gate before a runner can take its jobs.',
+      fix: 'Resolve the run\'s waiting condition; adding a runner does not release this gate.',
+      wanted,
+      available: [],
+    }
+  }
 
   if (runners.length === 0) {
     return {
@@ -254,11 +267,24 @@ export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[], n
     }
   }
 
+  const idle = taking.filter(runner => !runner.busy)
+  if (idle.length === 0) {
+    return {
+      kind: 'all-busy',
+      summary: taking.length === 1
+        ? 'The matching runner is executing another job. This job waits until it is free.'
+        : `All ${taking.length} matching runners are executing other jobs. This job waits until one is free.`,
+      fix: 'Let the current jobs finish, or provide another runner in this pool.',
+      wanted,
+      available,
+    }
+  }
+
   return {
     kind: 'ready',
-    summary: taking.length === 1
+    summary: idle.length === 1
       ? 'A runner matches this job and will take it on its next poll.'
-      : `${taking.length} runners match this job; the next one to poll will take it.`,
+      : `${idle.length} runners match this job; the next one to poll will take it.`,
     // Nothing to fix: this is the ordinary case, and inventing advice for it
     // would teach people to ignore the line that matters.
     fix: '',

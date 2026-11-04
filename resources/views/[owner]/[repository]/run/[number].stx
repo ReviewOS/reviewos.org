@@ -16,7 +16,7 @@ import { repositoryForView, repositoryHeaderActions } from '../../../../function
 import { relativeTime, shortSha } from '../../../../functions/browse'
 import { artifactSize, millisFor, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 import { eventsFromText, renderLog } from '../../../../functions/runs'
-import { explainWaiting } from '../../../../functions/runs'
+import { explainWaiting, waitingFleet } from '../../../../functions/runs'
 import { criticalPath, layersOf } from '../../../../functions/runs'
 import { searchLog } from '../../../../functions/runs'
 import { MAX_INLINE_IMAGE_BYTES } from '../../../../../app/Actions/Workflow/LogImageAction'
@@ -342,73 +342,8 @@ const runAttempt = Number(run?.attempt ?? 1)
  */
 const anyQueued = jobRows.some(job => String(job.state) === 'queued')
 
-/*
- * The queues runners serve, so the explanation below can tell a drained queue
- * from a machine that is switched off. Read once for the page rather than per
- * job: a run with forty queued jobs asks the same question forty times.
- */
-const queueRows: any[] = anyQueued
-  ? await db
-      .selectFrom('runner_queues')
-      .innerJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
-      .select([
-        'runner_queues.id as id',
-        'runner_queues.name as name',
-        'runner_queues.state as state',
-        'runner_queues.paused_reason as paused_reason',
-        'runner_pools.id as pool_id',
-        'runner_pools.name as pool_name',
-      ])
-      .execute()
-  : []
-
-const poolRepositoryRows: any[] = queueRows.length > 0
-  ? await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
-  : []
-
-const queuesById = new Map<number, any>(queueRows.map((row: any) => [Number(row.id), {
-  id: Number(row.id),
-  name: String(row.name),
-  state: String(row.state),
-  poolId: Number(row.pool_id),
-  poolName: String(row.pool_name),
-  pausedReason: row.paused_reason ? String(row.paused_reason) : null,
-  repositoryIds: poolRepositoryRows
-    .filter((entry: any) => Number(entry.runner_pool_id) === Number(row.pool_id))
-    .map((entry: any) => Number(entry.repository_id)),
-}]))
-
-/*
- * `runner_queue_id` is in this select because the line below reads it.
- *
- * It was not, so `queuesById.get(Number(undefined))` looked up `NaN`, every
- * runner came back with `queue: null`, and `queueAccepts(null, ...)` admits
- * everything. The effect was that two of `explainWaiting`'s answers -
- * `queue-paused` and `pool-refuses` - could never be reached on this page: a
- * job held up by a drained queue was explained as whatever the next rule said
- * instead, and the queue it was actually waiting on went unmentioned.
- *
- * Nothing failed, which is why it survived: the page had no queued job to
- * explain until one was seeded, and a missing column in a select is undefined
- * rather than an error.
- */
-const runnerFacts = anyQueued
-  ? (await db.selectFrom('runners').select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'runner_queue_id', 'last_seen_at', 'hold_reason', 'hold_started_at']).execute())
-      .map(runner => ({
-        id: Number(runner.id),
-        // The name, last poll and hold are what turn "queued" into "waiting:
-        // hq-macos-arm64 is holding: 9355 MiB available, 24576 MiB required".
-        name: String(runner.name ?? ''),
-        lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
-        holdReason: runner.hold_reason ? String(runner.hold_reason) : null,
-        holdStartedAt: runner.hold_started_at ? String(runner.hold_started_at) : null,
-        state: String(runner.state),
-        scopeType: String(runner.scope_type),
-        scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
-        labels: String(runner.labels ?? '').split('\n').map(line => line.trim()).filter(Boolean),
-        queue: queuesById.get(Number(runner.runner_queue_id ?? 0)) ?? null,
-      }))
-  : []
+const waitingNow = new Date()
+const runnerFacts = anyQueued ? await waitingFleet(waitingNow) : []
 
 /**
  * A gate's prompt and fields, out of the settings column.
@@ -558,7 +493,7 @@ const jobs = jobRows.map((job) => {
           ownerId: Number(repoRow?.owner_id ?? 0),
           runnerId: job.runner_id ? Number(job.runner_id) : null,
           leaseExpiresAt: job.lease_expires_at ?? null,
-        }, runnerFacts)
+        }, runnerFacts, waitingNow, { state: String(run?.state), reason: run?.conclusion_reason ?? null })
       : null,
     /*
      * Why this job is in the state it is, when the state alone does not say.
