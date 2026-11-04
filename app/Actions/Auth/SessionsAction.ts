@@ -1,10 +1,12 @@
+import { revokeBrowserSession } from '@stacksjs/auth'
+import { coerced } from '../inputs'
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { describeAgent, sessionsFor } from './sessions'
-import { sessionCookieName } from './session'
+import { currentSessionCredential } from './session'
 
 /**
  * The browsers signed in as you, and the button that ends one.
@@ -38,7 +40,7 @@ export default new Action({
 
   validations: {
     operation: { rule: schema.enum(['list', 'revoke', 'revoke-others']) },
-    id: { rule: schema.number() },
+    id: { rule: coerced },
   },
 
   async handle(request: RequestInstance) {
@@ -46,8 +48,7 @@ export default new Action({
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
 
-    const name = await sessionCookieName()
-    const current = cookieValue(request, name)
+    const current = await currentSessionCredential(request)
     const operation = String(request.get('operation') ?? 'list').trim()
 
     if (operation === 'list') {
@@ -96,9 +97,10 @@ export default new Action({
     if (operation !== 'revoke')
       return response.json({ error: `Unknown operation: ${operation}` }, 422)
 
-    const id = Number(request.get('id') ?? 0)
+    const rawId = String(request.get('id') ?? '')
+    const id = /^[1-9]\d*$/.test(rawId) ? Number(rawId) : rawId
 
-    if (!Number.isInteger(id) || id <= 0)
+    if (!(typeof id === 'number' ? Number.isSafeInteger(id) && id > 0 : /^bs1:[a-f0-9]{64}$/.test(id)))
       return response.json({ error: 'Which session?' }, 422)
 
     /*
@@ -128,26 +130,7 @@ export default new Action({
   },
 })
 
-/** Revoke one session row, scoped to its owner in the statement. */
-async function revoke(id: number, userId: number): Promise<void> {
-  await db
-    .updateTable('oauth_access_tokens')
-    .set({ revoked: true })
-    .where('id', '=', id)
-    .where('user_id', '=', userId)
-    .execute()
-}
-
-/** The value of one cookie on this request, or an empty string. */
-function cookieValue(request: any, name: string): string {
-  const header = String(request?.headers?.get?.('cookie') ?? request?.header?.('cookie') ?? '')
-
-  for (const part of header.split(';')) {
-    const [key, ...rest] = part.trim().split('=')
-
-    if (key === name)
-      return decodeURIComponent(rest.join('='))
-  }
-
-  return ''
+/** The framework revokes the credential and its refresh partner atomically. */
+async function revoke(id: number | string, userId: number): Promise<void> {
+  await revokeBrowserSession(userId, typeof id === 'number' ? `access:${id}` : id)
 }

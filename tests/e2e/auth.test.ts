@@ -378,7 +378,12 @@ describe('signing in', () => {
     )
 
     expect(answer.status).toBe(303)
-    expect(cookieFrom(answer)).toBeTruthy()
+    const browser = answer.headers.getSetCookie().find(value => value.startsWith('session_id=') && !value.includes('Max-Age=0'))
+    expect(browser).toBeTruthy()
+    const credential = decodeURIComponent(browser!.split(';')[0]!.slice('session_id='.length))
+    const { viewerFromCookies } = await import('../../app/Actions/Identity/lookup')
+    expect((await viewerFromCookies({ session_id: credential }))?.handle).toBe(account.handle)
+    expect(cookieFrom(answer)).toBe('')
   })
 
   test('and it will not redirect off this host', async () => {

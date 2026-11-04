@@ -53,6 +53,8 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   `next` accepts only a path on this host, including refusing `//evil.example` and a backslash. An
   open redirect on a sign-in page is the good one for an attacker: somebody is sent to their site in
   the second after typing a password, on a link that genuinely started here.
+- [x] Durable browser sign-in through published framework sessions, separate
+      from API bearer expiry, with device revocation and account-wide cleanup.
 - [x] `app/Actions/Profile/UpdateProfileAction.ts`
 
   Only your own, and there is no parameter that could say otherwise. An endpoint that takes a user

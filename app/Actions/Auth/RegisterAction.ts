@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { setting } from '../../Ops/settings'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
-import { isSecureRequest, safeRedirect, sessionCookie, sessionCookieName, wantsHtml } from './session'
+import { safeRedirect, signInCookies, wantsHtml } from './session'
 
 /** The shortest password worth having. Long enough to matter, short enough to type. */
 const MIN_PASSWORD = 10
@@ -154,22 +154,22 @@ export default new Action({
     if (!result?.token)
       return refuse(request, 'The account was created but could not be signed in. Try signing in.')
 
-    const cookie = sessionCookie(await sessionCookieName(), String(result.token), {
-      maxAgeSeconds: Number(result.expiresIn ?? 60 * 60 * 24 * 7),
-      secure: isSecureRequest(request),
-    })
+    const headers = new Headers({ 'Cache-Control': 'no-store' })
+    for (const cookie of await signInCookies(request, result)) headers.append('Set-Cookie', cookie)
 
     // Straight to their own profile. It is the page that proves the account
     // exists, and the one they will want to fill in.
     const next = safeRedirect(request.get('next'), `/${handle}`)
 
     if (wantsHtml(request)) {
+      headers.set('Location', next)
       return new Response(null, {
         status: 303,
-        headers: { 'Location': next, 'Set-Cookie': cookie },
+        headers,
       })
     }
 
+    headers.set('Content-Type', 'application/json')
     return new Response(JSON.stringify({
       access_token: result.token,
       refresh_token: result.refreshToken,
@@ -178,7 +178,7 @@ export default new Action({
       handle,
     }), {
       status: 201,
-      headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie },
+      headers,
     })
   },
 })

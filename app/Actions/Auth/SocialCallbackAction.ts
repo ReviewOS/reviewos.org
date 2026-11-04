@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { timingSafeEqual } from 'node:crypto'
 import { Buffer } from 'node:buffer'
-import { clearedCookie, isSecureRequest, sessionCookie, sessionCookieName } from './session'
+import { clearedCookie, isSecureRequest, signInCookies } from './session'
 import { STATE_COOKIE } from './SocialRedirectAction'
 import { providerFor, provisionFromSocial } from './social'
 import { providerNameFromAuthPath } from './socialPath'
@@ -101,12 +101,11 @@ export default new Action({
 
     const { userId } = await provisionFromSocial(name, profile)
     const result: any = await Auth.loginUsingId(Number(userId))
+    if (!result?.token)
+      return fail('That sign-in could not be completed. Please try again.')
 
     const headers = new Headers()
-    headers.append('Set-Cookie', sessionCookie(await sessionCookieName(), String(result.token), {
-      maxAgeSeconds: Number(result.expiresIn ?? 60 * 60 * 24 * 7),
-      secure,
-    }))
+    for (const cookie of await signInCookies(request, result, { browser: true })) headers.append('Set-Cookie', cookie)
     headers.append('Set-Cookie', forget)
     headers.set('Location', stored.next)
     headers.set('Cache-Control', 'no-store')

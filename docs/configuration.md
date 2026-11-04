@@ -143,6 +143,25 @@ as `auth,email`. Unset means `all`, so this line is doing work.
 
 *No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
+## Sessions and tokens
+
+### `AUTH_BROWSER_SESSION_LIFETIME`
+
+Default: `2592000000`.
+
+Browser forms use an HttpOnly database session lasting 30 days. Milliseconds.
+API access and refresh token lifetimes are configured separately.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
+### `AUTH_IDLE_TIMEOUT`
+
+Default: `0`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+
+Optional time without activity before any session expires. 0 disables it.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
 ## Ports
 
 ### `PORT`

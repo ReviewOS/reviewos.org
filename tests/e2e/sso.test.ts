@@ -578,7 +578,10 @@ describe('deprovisioning', () => {
      */
     const db = (globalThis as any).db
 
-    expect((await signIn({ sub: 'provider-subject-leaver', preferred_username: 'leaver' })).status).toBe(303)
+    const signedIn = await signIn({ sub: 'provider-subject-leaver', preferred_username: 'leaver' })
+    expect(signedIn.status).toBe(303)
+    const browserCookie = signedIn.cookies.find(cookie => cookie.startsWith('session_id='))?.split(';')[0]
+    expect(browserCookie).toBeDefined()
 
     const identity: any = await db
       .selectFrom('sso_identities')
@@ -603,10 +606,16 @@ describe('deprovisioning', () => {
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
     }).execute()
 
+    const { Auth, findToken } = await import('@stacksjs/auth')
+    const api = await Auth.loginUsingId(userId)
+    expect(api).toBeTruthy()
+    const apiRow = await findToken(api!.token)
+    expect(apiRow).toBeTruthy()
+
     const counts = async () => ({
-      sessions: (await db.selectFrom('oauth_access_tokens').select(['id']).where('user_id', '=', userId).execute()).length,
+      sessions: (await (await import('../../app/Actions/Auth/sessions')).sessionsFor(userId, '')).length,
       tokens: (await db.selectFrom('access_tokens').select(['id']).where('user_id', '=', userId).execute()).length,
-      refresh: (await db.selectFrom('oauth_refresh_tokens').selectAll().execute()).length,
+      refresh: (await db.selectFrom('oauth_refresh_tokens').selectAll().where('revoked', '=', false).execute()).length,
     })
 
     const before = await counts()
@@ -630,7 +639,14 @@ describe('deprovisioning', () => {
      * the refresh tokens behind. A refresh token outliving its session is
      * exactly the failure this function is named after.
      */
-    expect(after.refresh).toBeLessThanOrEqual(before.refresh - before.sessions)
+    expect(after.refresh).toBeLessThan(before.refresh)
+    expect(await findToken(api!.token)).toBeNull()
+    const partners = await db.selectFrom('oauth_refresh_tokens').select(['revoked']).where('access_token_id', '=', apiRow!.id).execute()
+    expect(partners.length).toBeGreaterThan(0)
+    expect(partners.every(partner => Boolean(partner.revoked))).toBe(true)
+    const ended = await fetch(`http://127.0.0.1:${port}/api/user`, { headers: { Cookie: browserCookie!, Accept: 'application/json' } })
+    await ended.text()
+    expect(ended.status).toBe(401)
 
     // The account survives. Deleting it would take their review history and
     // every comment with it, and "this person has left" is not the same

@@ -309,50 +309,14 @@ function isGroupShaped(slug: string): boolean {
  * same statement as "this work never happened".
  */
 export async function revokeEverything(userId: number): Promise<{ sessions: number, tokens: number }> {
-  let sessions = 0
-  let tokens = 0
-
-  try {
-    const rows = await db.selectFrom('oauth_access_tokens').select(['id']).where('user_id', '=', userId).execute()
-    sessions = rows.length
-
-    /*
-     * Refresh tokens go first, and by `access_token_id`.
-     *
-     * `oauth_refresh_tokens` has **no `user_id` column** - it hangs off the
-     * access token. The first version of this deleted `where('user_id', ...)`
-     * there, which throws, was caught and logged, and then the access tokens
-     * were deleted anyway - leaving orphaned refresh tokens behind. A refresh
-     * token that outlives the session it belonged to is precisely the
-     * credential-outliving-the-account failure this function exists to prevent,
-     * and it would have been left in place by the function named
-     * `revokeEverything`.
-     */
-    if (rows.length > 0) {
-      await db
-        .deleteFrom('oauth_refresh_tokens')
-        .where('access_token_id', 'in', rows.map(row => Number(row.id)))
-        .execute()
-    }
-
-    await db.deleteFrom('oauth_access_tokens').where('user_id', '=', userId).execute()
-  }
-  catch (error) {
-    console.error('[sso] could not revoke sessions:', error)
-  }
-
-  try {
+  const { browserSessions, revokeAccountCredentials } = await import('@stacksjs/auth')
+  return db.transaction(async () => {
+    const sessions = (await browserSessions(userId)).length
     const rows = await db.selectFrom('access_tokens').select(['id']).where('user_id', '=', userId).execute()
-    tokens = rows.length
-
+    await revokeAccountCredentials(userId)
     for (const row of rows)
       await db.deleteFrom('access_token_permissions').where('access_token_id', '=', Number(row.id)).execute()
-
     await db.deleteFrom('access_tokens').where('user_id', '=', userId).execute()
-  }
-  catch (error) {
-    console.error('[sso] could not revoke tokens:', error)
-  }
-
-  return { sessions, tokens }
+    return { sessions, tokens: rows.length }
+  })
 }

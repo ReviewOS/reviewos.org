@@ -51,8 +51,8 @@ export default {
    *
    * Access tokens are deliberately short-lived: a leaked bearer (logs,
    * proxy, browser storage) is then usable for an hour, not a month. The
-   * paired refresh token (`refreshTokenExpiry`) carries the long-lived
-   * session and is rotated on use, so UX is unaffected.
+   * paired refresh token (`refreshTokenExpiry`) lets API clients renew it.
+   * Browser forms use the separate database-session policy below.
    */
   tokenExpiry: env.AUTH_TOKEN_EXPIRY || 60 * 60 * 1000,
 
@@ -61,6 +61,11 @@ export default {
    * long-lived credential exchanged for fresh access tokens.
    */
   refreshTokenExpiry: env.AUTH_REFRESH_TOKEN_EXPIRY || 30 * 24 * 60 * 60 * 1000,
+
+  /** Browser sessions have their own absolute deadline; API bearers stay short-lived. */
+  session: {
+    lifetime: Number(env.AUTH_BROWSER_SESSION_LIFETIME ?? 30 * 24 * 60 * 60 * 1000),
+  },
 
   /**
    * How long a session may go **unused** before it stops working.

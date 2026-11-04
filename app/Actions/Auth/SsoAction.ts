@@ -7,7 +7,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { discover, exchangeCode, startAuthorization, verifyIdToken } from './oidc'
 import { provisionFromClaims } from './provision'
-import { clearedCookie, isSecureRequest, safeRedirect, sessionCookie, sessionCookieName } from './session'
+import { clearedCookie, isSecureRequest, safeRedirect, sessionCookie, signInCookies } from './session'
 
 /**
  * Single sign-on: start the redirect, and come back from it.
@@ -151,10 +151,8 @@ async function finish(request: any, config: ReturnType<typeof ssoConfig> & objec
   const secure = isSecureRequest(request)
   const headers = new Headers()
 
-  headers.append('Set-Cookie', sessionCookie(await sessionCookieName(), String(issued.token), {
-    maxAgeSeconds: Number(issued.expiresIn ?? 60 * 60 * 24 * 7),
-    secure,
-  }))
+  for (const cookie of await signInCookies(request, issued, { browser: true })) headers.append('Set-Cookie', cookie)
+  headers.set('Cache-Control', 'no-store')
 
   // The handshake is spent. Left behind, its `state` would still match a
   // second callback carrying a different code.

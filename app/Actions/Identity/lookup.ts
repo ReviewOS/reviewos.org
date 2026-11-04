@@ -106,10 +106,13 @@ export async function resolveRepository(owner: string, name: string): Promise<an
  * `browseContext`, which pass the whole token to the permission check.
  */
 export async function currentUser(request: any): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
-  const user = await request.user?.()
-  const id = Number(user?.id ?? 0)
-    || await frameworkTokenUserId(request)
-    || await cookieUserId(request)
+  const { requestToken } = await import('@stacksjs/auth')
+  const credential = requestToken(request)
+  // An offered bearer/access cookie is authoritative, including when it is
+  // invalid. It cannot silently select the account in a secondary cookie.
+  const id = credential
+    ? await frameworkCredentialUserId(credential)
+    : Number((await request.user?.())?.id ?? 0) || await cookieUserId(request)
 
   if (!id)
     return null
@@ -126,38 +129,13 @@ export async function currentUser(request: any): Promise<{ id: number, handle: s
   return { id: Number(row.id), handle: String(row.handle), is_admin: Boolean(row.is_admin) }
 }
 
-/**
- * The user behind an `Authorization: Bearer` header, for routes with no auth
- * middleware.
- *
- * Never throws: an expired or unknown token is an ordinary state for a request
- * to be in, and it has to read as "nobody is signed in" rather than as a failed
- * request - the endpoint may well serve a public repository perfectly happily.
- */
-async function frameworkTokenUserId(request: any): Promise<number> {
-  const header = String(
-    request.headers?.get?.('authorization') ?? request.header?.('authorization') ?? '',
-  )
-
-  if (!header.startsWith('Bearer '))
-    return 0
-
-  const token = header.slice('Bearer '.length).trim()
-
-  // This application's own tokens start with their scheme, and are deliberately
-  // not resolved here. See the note above.
-  if (!token || token.startsWith('ros_'))
-    return 0
-
+/** Resolve the framework-selected credential without a second transport fallback. */
+async function frameworkCredentialUserId(credential: string): Promise<number> {
   try {
     const { Auth } = await import('@stacksjs/auth')
-    const found = await Auth.getUserFromToken(token)
-
-    return Number((found as any)?.id ?? 0) || 0
+    return Number((await Auth.getUserFromToken(credential))?.id ?? 0) || 0
   }
-  catch {
-    return 0
-  }
+  catch { return 0 }
 }
 
 /**
@@ -251,10 +229,9 @@ export async function viewerFromCookies(
     return null
 
   try {
-    const { Auth, sessionUser } = await import('@stacksjs/auth')
-    const { config } = await import('@stacksjs/config')
+    const { Auth, authCookieName, sessionUser } = await import('@stacksjs/auth')
 
-    const tokenCookie = cookies[config.auth?.defaultTokenName || 'auth-token']
+    const tokenCookie = cookies[authCookieName()]
     const user = tokenCookie
       ? await Auth.getUserFromToken(tokenCookie)
       : (cookies.session_id ? await sessionUser(cookies.session_id) : null)

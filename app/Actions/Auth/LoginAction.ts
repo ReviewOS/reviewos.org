@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
-import { clearedCookie, isSecureRequest, safeRedirect, sessionCookie, sessionCookieName, wantsHtml } from './session'
+import { clearedCookie, isSecureRequest, safeRedirect, sessionCookie, signInCookies, wantsHtml } from './session'
 
 /**
  * Sign in, and leave the browser actually signed in.
@@ -193,7 +193,7 @@ export default new Action({
  */
 async function signedIn(
   request: any,
-  result: { token: unknown, refreshToken?: unknown, expiresIn?: unknown },
+  result: { token: string, refreshToken?: string, expiresIn?: number },
   userId: number,
   options: { clearChallenge?: boolean } = {},
 ): Promise<Response> {
@@ -216,25 +216,16 @@ async function signedIn(
     ...deviceOf(request),
   })
 
-  const name = await sessionCookieName()
   const secure = isSecureRequest(request)
-
-  // The cookie's life matches the token's, so neither outlives the other. A
-  // cookie that outlives its token means a reader who looks signed in and is
-  // refused by every write; a token that outlives its cookie is a credential
-  // nothing will clear.
-  const cookie = sessionCookie(name, String(result.token), {
-    maxAgeSeconds: Number(result.expiresIn ?? 60 * 60 * 24 * 7),
-    secure,
-  })
+  const cookies = await signInCookies(request, result)
 
   // The challenge is spent. Left behind it would be a five-minute window in
   // which a code alone signs somebody in again on that browser.
-  const cookies = options.clearChallenge
-    ? [cookie, clearedCookie(CHALLENGE_COOKIE, secure)]
-    : [cookie]
+  if (options.clearChallenge)
+    cookies.push(clearedCookie(CHALLENGE_COOKIE, secure))
 
   const headers = new Headers()
+  headers.set('Cache-Control', 'no-store')
   for (const value of cookies)
     headers.append('Set-Cookie', value)
 
@@ -406,31 +397,10 @@ function applicationKey(): string {
   return ephemeralKey
 }
 
-/**
- * The id of the session row a plaintext token hashes to.
- *
- * So the session that was just created can be excluded from "have we seen this
- * device before" - without it, every sign-in matches itself and nobody is ever
- * told about anything. Recomputed here rather than imported from the auth
- * package, because the hashing helper's shape has changed twice and a silent
- * mismatch would turn this feature off rather than break it visibly.
- */
+/** Exclude the freshly issued sign-in from the existing device history. */
 async function tokenIdOf(plaintext: string): Promise<number | null> {
-  try {
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plaintext))
-    const hashed = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
-
-    const row = await db
-      .selectFrom('oauth_access_tokens')
-      .select(['id'])
-      .where('token', '=', hashed)
-      .executeTakeFirst()
-
-    return row ? Number(row.id) : null
-  }
-  catch {
-    return null
-  }
+  const { findToken } = await import('@stacksjs/auth')
+  return (await findToken(plaintext))?.id ?? null
 }
 
 /**

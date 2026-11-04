@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { passwordResets } from '@stacksjs/auth'
-import { wantsHtml } from './session'
+import { clearedSignInCookies, wantsHtml } from './session'
 
 /**
  * Ask for a password reset link, and use one.
@@ -95,7 +95,10 @@ export default new Action({
      * end of that would undo the one useful thing the reset just did for every
      * device except this one.
      */
-    return answer(request, 200, { reset: true }, '/login?reset=done')
+    const answered = answer(request, 200, { reset: true }, '/login?reset=done')
+    for (const cookie of await clearedSignInCookies(request)) answered.headers.append('Set-Cookie', cookie)
+    answered.headers.set('Cache-Control', 'no-store')
+    return answered
   },
 })
 

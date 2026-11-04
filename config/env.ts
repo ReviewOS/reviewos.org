@@ -9,6 +9,11 @@ import { schema } from '@stacksjs/validation'
  * have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
+  AUTH_BROWSER_SESSION_LIFETIME: {
+    validation: schema.number().min(1000),
+    default: 30 * 24 * 60 * 60 * 1000,
+  },
+
   APP_NAME: {
     validation: schema.string(),
     default: 'Stacks',

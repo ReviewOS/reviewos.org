@@ -236,6 +236,7 @@ The values that have to be right:
 | `DB_HOST` | `127.0.0.1` | `database` inside compose, which is the service name. |
 | `DB_PORT` | `3306` | `5432` on Postgres. A stray space or quote here reads as a connection refused, which sends people to look at the network. |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `root` / - | A pantry-managed MySQL initialises with `root` and no password, so `root` is not a placeholder. On Postgres it is `postgres`, whose cluster is initialised with exactly one role. |
+| `AUTH_BROWSER_SESSION_LIFETIME` | `2592000000` (30 days) | Absolute lifetime of the HttpOnly database browser session, in milliseconds. This does not extend API access tokens. |
 | `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
 | `MAIL_HOST` and friends | `127.0.0.1:1025` for local SMTP | The example points at the local catcher started by `buddy mail:dev`. External delivery needs a real transport. Failed auth sends are logged; queued notification attempts are recorded in `notification_deliveries`. See [Emails and SMS](./messages.md). |
 | `TYPESENSE_HOST` / `TYPESENSE_PORT` / `TYPESENSE_API_KEY` | `127.0.0.1` / `8208` / `pantry-dev` | The search node. Without it, search requests return 503. The named port avoids collisions with other pantry projects. The development key must not protect an externally reachable production node. |
@@ -1160,9 +1161,14 @@ connected from, because a list you cannot recognise a row in is a list where
 "revoke" is guesswork - which is why "somebody is signed in as me on a laptop I
 sold" has no answer in most self-hosted software.
 
-Two things an operator decides:
+Three lifetimes are configured independently:
 
-- `AUTH_TOKEN_EXPIRY` - how long a session may live at all.
+- `AUTH_BROWSER_SESSION_LIFETIME` - the browser session's absolute lifetime in
+  milliseconds, 30 days by default. Its HttpOnly cookie survives browser and
+  server restarts. Sign in again after changing from the old access-cookie
+  transport; existing API cookies retain their original deadline.
+- `AUTH_TOKEN_EXPIRY` - API access-token lifetime, one hour by default. API
+  clients use their paired refresh credential to renew it.
 - `AUTH_IDLE_TIMEOUT` - how long it may live unused. Off by default, because
   this is a policy about your building rather than about the software, and one
   imposed by surprise reads to the person it logs out as being logged out at

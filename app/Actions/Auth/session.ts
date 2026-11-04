@@ -1,21 +1,7 @@
-/**
- * Turning a verified identity into a signed-in browser.
- *
- * **The framework's auth actions answer with JSON and set no cookie.** That is
- * right for an API client, which reads `access_token` and sends it back as a
- * bearer - and wrong for a form, which would show a reader the raw JSON and
- * leave them signed out, because every page in this product identifies its
- * reader from the `auth-token` cookie.
- *
- * So the actions under `app/Actions/Auth/` override the defaults and end here.
- * The cookie name is read from config rather than written down, because
- * `viewerFromCookies` reads the same key from the same place and a page and the
- * endpoint its form posts to must never disagree about who is signed in.
- *
- * Pure over plain values where it can be. The cookie *string* is built by a
- * function with no request in it, so its flags can be tested without a browser -
- * and its flags are the whole security surface of a session.
- */
+import { authCookie, authCookieName, authCookieToken } from '@stacksjs/auth/cookie'
+
+/** Shared response and cookie adapters for verified sign-in actions. Browser forms
+ * receive a durable framework session; API clients retain their token contract. */
 
 export interface CookieOptions {
   /** Seconds. Matches the token's own life, so neither outlives the other. */
@@ -44,18 +30,11 @@ export interface CookieOptions {
  * symptom is a login form that appears to work and returns you signed out.
  */
 export function sessionCookie(name: string, value: string, options: CookieOptions): string {
-  const parts = [
-    `${name}=${encodeURIComponent(value)}`,
-    'Path=/',
-    'HttpOnly',
-    `SameSite=${options.sameSite ?? 'Lax'}`,
-    `Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`,
-  ]
-
-  if (options.secure)
-    parts.push('Secure')
-
-  return parts.join('; ')
+  return authCookie(value, {
+    name, path: '/', domain: '',
+    maxAge: Math.max(0, Math.floor(options.maxAgeSeconds)),
+    secure: options.secure, sameSite: options.sameSite ?? 'Lax',
+  })
 }
 
 /** The same cookie, expired. Clearing it needs the same flags to match. */
@@ -84,14 +63,49 @@ export function isSecureRequest(request: RequestInstance): boolean {
 
 /** The cookie name every page and every endpoint agrees on. */
 export async function sessionCookieName(): Promise<string> {
-  try {
-    const { config } = await import('@stacksjs/config')
+  return authCookieName()
+}
 
-    return String(config.auth?.defaultTokenName || 'auth-token')
+/** The active credential follows the framework's bearer/cookie precedence. */
+export async function currentSessionCredential(request: RequestInstance): Promise<string> {
+  const { requestToken } = await import('@stacksjs/auth')
+  return requestToken(request) ?? authCookieToken(request, { name: 'session_id' }) ?? ''
+}
+
+/** One browser transport shared by every completed sign-in, after verification. */
+export async function signInCookies(
+  request: RequestInstance,
+  issued: { token: string, expiresIn?: number },
+  options: { browser?: boolean } = {},
+): Promise<string[]> {
+  const { SessionAuth, browserSessionCookie, clearedBrowserSessionCookie, clearAuthCookie, revokeToken, startBrowserSession } = await import('@stacksjs/auth')
+  const { db } = await import('@stacksjs/database')
+  const { HttpError } = await import('@stacksjs/error-handling')
+  const secure = isSecureRequest(request)
+  const name = await sessionCookieName()
+  if (options.browser ?? wantsHtml(request)) {
+    const session = await startBrowserSession(issued.token)
+    if (!session) throw new HttpError(401, 'Sign-in could not be completed. Please sign in again.')
+    // Retire both the old host-only writer and the canonical configured scope.
+    return [...new Set([browserSessionCookie(session), clearedCookie(name, secure), clearAuthCookie()])]
   }
-  catch {
-    return 'auth-token'
-  }
+
+  const previousSession = authCookieToken(request, { name: 'session_id' })
+  const previousToken = authCookieToken(request)
+  await db.transaction(async () => {
+    if (previousSession) await SessionAuth.logout(previousSession)
+    if (previousToken && previousToken !== issued.token) await revokeToken(previousToken)
+  })
+  return [
+    sessionCookie(name, issued.token, { maxAgeSeconds: Number(issued.expiresIn ?? 60 * 60), secure }),
+    ...(previousSession ? [clearedBrowserSessionCookie()] : []),
+  ]
+}
+
+/** Clear every supported sign-in cookie after account-wide credential revocation. */
+export async function clearedSignInCookies(request: RequestInstance): Promise<string[]> {
+  const { clearAuthCookie, clearedBrowserSessionCookie } = await import('@stacksjs/auth')
+  return [...new Set([clearedCookie(authCookieName(), isSecureRequest(request)), clearAuthCookie(), clearedBrowserSessionCookie()])]
 }
 
 /**
