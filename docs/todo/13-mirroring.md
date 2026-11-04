@@ -399,3 +399,5 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Reconcile existing account mirrors with the explicitly linked local owner instead of treating an upstream match as ownership. Reuse repository transfers so Git objects, repository ids and discussions survive, preserve private visibility and mirror policy, and accept already-proven organization memberships. Verify legacy-owner repair against real Git history.
 
 - [x] Boot application event listeners in the account discovery command so transfers performed by a local operator reach the audit log, as they already do from a worker or HTTP request.
+
+- [x] Declare framework mirror CI so native macOS source evidence runs on its repository-scoped Mac runner and can be verified through public workflow metadata before SDK publication.

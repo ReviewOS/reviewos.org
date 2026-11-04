@@ -26,6 +26,14 @@ mirrors:
   - remote: stacksjs/.github
     owner: stacks
 
+  # Native Mac source acceptance uses this instance's repository-scoped runner.
+  # The framework's .reviewos/workflows is authoritative; publication reads
+  # public execution metadata and requires its exact commit and workflow hash.
+  - remote: stacksjs/stacks
+    owner: stacks
+    ci: true
+    interval: 60
+
   # HQ.training, whose CI runs here instead of on GitHub Actions: the
   # repository is private, so Actions bills it by the minute (~16 a push),
   # while its runner here is one flat-rate box that takes this repository's
