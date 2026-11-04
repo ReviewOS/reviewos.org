@@ -3511,3 +3511,10 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       https://github.com/ReviewOS/reviewos.org/issues/12
 
 - [x] Repository settings manage encrypted workflow secrets through CSRF-protected forms. List names and scopes only, mask replacement values, restrict removal to repository scope, and return successful browser writes to settings.
+
+- [x] Decode gzip smart-HTTP request streams before Git or pack-cache inspection,
+      for repository transfers and mirrored actions. Preserve identity streams
+      and upload backpressure; refuse unsupported encodings and malformed fetch
+      bodies. A real PostgreSQL/HTTP regression covers compressed private Git
+      traffic, fetching an advanced origin with only the job lease, cross-repository
+      refusal and lease expiry. https://github.com/ReviewOS/reviewos.org/issues/18

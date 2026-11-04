@@ -228,6 +228,76 @@ describe('a busy job', () => {
 })
 
 describe('a running job, reading over HTTP', () => {
+  // The real Git/HTTP boundary catches a lost checkout credential. Deployment
+  // proxy behavior and an older fleet binary still require a real runner job.
+  test('retains only its lease credential for subsequent private origin fetches', async () => {
+    expect(available, 'owned database and real HTTP routes must be ready').toBe(true)
+    // Exercise real history and an origin that advances after checkout. The
+    // explicit compressed request below also covers Git's larger POST shape.
+    const author = join(created.temp, created.mine.name)
+    for (let index = 0; index < 64; index++)
+      expect((await git(author, 'commit', '--allow-empty', '-m', `history ${index}`)).code).toBe(0)
+    expect((await git(author, 'push', created.mine.path, 'main')).code).toBe(0)
+    const secret = await claim(created.mine.id)
+    expect(secret).not.toBe('')
+    const { checkoutCode } = await import('../../app/Actions/Runner/checkout')
+    const sha = (await git(created.mine.path, 'rev-parse', 'refs/heads/main')).stdout.trim()
+    const workspace = join(created.temp, 'origin-fetch', 'job')
+    mkdirSync(workspace, { recursive: true })
+    let errors = ''
+    const outcome = await checkoutCode({
+      reposRoot: join(created.temp, 'no-repositories-here'),
+      fullName: `${created.handle}/${created.mine.name}`, sha, workspace,
+      baseUrl: `http://127.0.0.1:${port}`, cloneToken: secret, jobToken: secret,
+      options: { depth: 0 }, onOutput: async () => {},
+      run: async ({ command, cwd, environment }) => {
+        const child = Bun.spawn(['/bin/sh', '-c', command], {
+          cwd, env: { ...process.env, ...environment, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+          stdout: 'pipe', stderr: 'pipe',
+        })
+        const [, stderr, exitCode] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
+        errors += stderr
+        return { ok: exitCode === 0, exitCode }
+      },
+    })
+    expect(outcome.ok, errors).toBe(true)
+    expect((await git(author, 'commit', '--allow-empty', '-m', 'advance origin after checkout')).code).toBe(0)
+    expect((await git(author, 'push', created.mine.path, 'main')).code).toBe(0)
+    const latest = (await git(created.mine.path, 'rev-parse', 'refs/heads/main')).stdout.trim()
+    const want = `want ${latest} side-band-64k ofs-delta\n`
+    const body = `${(want.length + 4).toString(16).padStart(4, '0')}${want}00000009done\n`
+    const compressed = await fetch(`http://127.0.0.1:${port}/git/${created.handle}/${created.mine.name}.git/git-upload-pack`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`x-job:${secret}`).toString('base64')}`,
+        'Content-Type': 'application/x-git-upload-pack-request',
+        'Content-Encoding': 'gzip',
+      },
+      body: Bun.gzipSync(Buffer.from(body)),
+    })
+    expect(compressed.status).toBe(200)
+    expect((await compressed.arrayBuffer()).byteLength, 'a valid gzip-encoded Git request must produce its pack response').toBeGreaterThan(4)
+    for (const [encoding, expected] of [['gzip', 400], ['br', 415]] as const) {
+      const invalid = await fetch(`http://127.0.0.1:${port}/git/${created.handle}/${created.mine.name}.git/git-upload-pack`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`x-job:${secret}`).toString('base64')}`,
+          'Content-Type': 'application/x-git-upload-pack-request',
+          'Content-Encoding': encoding,
+        },
+        body: 'not compressed',
+      })
+      expect(invalid.status).toBe(expected)
+    }
+    const fetched = await git(workspace, 'fetch', 'origin', 'main:refs/remotes/origin/main')
+    expect(fetched.code, fetched.stderr).toBe(0)
+    expect((await git(workspace, 'rev-parse', 'refs/remotes/origin/main')).stdout.trim()).toBe(latest)
+    const config = (await git(workspace, 'config', '--local', '--list')).stdout
+    expect(config).not.toContain(secret)
+    const elsewhere = await git(workspace, 'fetch', `http://127.0.0.1:${port}/git/${created.handle}/${created.other.name}.git`, 'main')
+    expect(elsewhere.code).not.toBe(0)
+  }, 30_000)
+
   test('clones its own private repository with the credential it was claimed with', async () => {
     if (!available)
       return
