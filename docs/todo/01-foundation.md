@@ -55,6 +55,7 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   the second after typing a password, on a link that genuinely started here.
 - [x] Durable browser sign-in through published framework sessions, separate
       from API bearer expiry, with device revocation and account-wide cleanup.
+- [x] Preserve middleware-verified fine-grained bearer identity and grants when a browser cookie accompanies it, without cookie fallback after bearer revocation.
 - [x] `app/Actions/Profile/UpdateProfileAction.ts`
 
   Only your own, and there is no parameter that could say otherwise. An endpoint that takes a user

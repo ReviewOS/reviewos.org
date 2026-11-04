@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Complete (68/68) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (84/84) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (85/85) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (139/139) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (43/43) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (106/106) |

@@ -110,8 +110,14 @@ export async function currentUser(request: any): Promise<{ id: number, handle: s
   const credential = requestToken(request)
   // An offered bearer/access cookie is authoritative, including when it is
   // invalid. It cannot silently select the account in a secondary cookie.
+  // Auth middleware has already verified a fine-grained bearer and retained
+  // its grants/reach on this request. Keep that identity without resolving
+  // unguarded fine-grained requests as the owner's full authority.
+  const fineGrainedId = credential?.startsWith('ros_')
+    ? Number(request.__fineGrainedToken?.userId ?? 0)
+    : 0
   const id = credential
-    ? await frameworkCredentialUserId(credential)
+    ? fineGrainedId || await frameworkCredentialUserId(credential)
     : Number((await request.user?.())?.id ?? 0) || await cookieUserId(request)
 
   if (!id)

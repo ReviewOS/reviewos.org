@@ -28,12 +28,13 @@ afterAll(async () => {
   // The enclosing test database owns these accounts and all related rows.
 })
 
-function post(path: string, data: Record<string, unknown>, options: { cookie?: string, html?: boolean, csrf?: boolean } = {}): Promise<Response> {
+function post(path: string, data: Record<string, unknown>, options: { cookie?: string, html?: boolean, csrf?: boolean, authorization?: string } = {}): Promise<Response> {
   return fetch(`${base}${path}`, {
     method: 'POST', redirect: 'manual',
     headers: {
       'Content-Type': 'application/json', Accept: options.html ? 'text/html' : 'application/json',
       Cookie: `${options.cookie ?? ''}; ${csrf.cookie}`,
+      ...(options.authorization ? { Authorization: options.authorization } : {}),
       ...(options.csrf === false ? {} : { 'x-csrf-token': csrf.token }),
     },
     body: JSON.stringify(data),
@@ -109,6 +110,24 @@ test('browser forms retain a revocable 30-day session after the API bearer expir
   expect((await me(cookie)).status).toBe(401)
   expect((await me(otherCookie)).status).toBe(200)
   expect(await browserSessions(users[0]!)).toHaveLength(0)
+
+  // A verified fine-grained bearer keeps its own identity even when another
+  // account's browser cookie accompanies it. Revocation cannot select that cookie.
+  const { generateToken } = await import('../../app/Actions/Tokens/secret')
+  const fine = generateToken()
+  const token = await db.insertInto('access_tokens').values({
+    user_id: users[0]!, name: 'Owned browser precedence', prefix: fine.prefix,
+    token_hash: fine.hash, selection: 'all',
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  }).returning(['id']).executeTakeFirstOrThrow()
+  const fineSessions = await post('/api/user/sessions', { operation: 'list' }, { cookie: otherCookie, authorization: `Bearer ${fine.token}`, csrf: false })
+  expect(fineSessions.status).toBe(200)
+  expect((await fineSessions.json() as { sessions: unknown[] }).sessions).toHaveLength(0)
+  await db.updateTable('access_tokens').set({ revoked_at: new Date().toISOString() }).where('id', '=', Number(token.id)).execute()
+  const revoked = await post('/api/user/sessions', { operation: 'list' }, { cookie: otherCookie, authorization: `Bearer ${fine.token}`, csrf: false })
+  await revoked.text()
+  expect(revoked.status).toBe(401)
+  expect((await me(otherCookie)).status).toBe(200)
 
   const logout = await post('/api/auth/logout', {}, { cookie: otherCookie, html: true })
   await logout.text()
