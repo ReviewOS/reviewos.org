@@ -139,6 +139,7 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
   if (runner.scopeType === 'organization' && runner.scopeId !== null)
     query = query.where('repositories.owner_id', '=', runner.scopeId)
 
+  const now = new Date()
   return query
     /*
      * Priority first, then the default branch, then age.
@@ -150,7 +151,7 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
      * build can starve.
      *
      * Between them, at equal priority, the repository's default branch goes
-     * first. That branch is what deploys: with feature branches qualified on
+     * first while jobs are fresh. That branch is what deploys: with feature branches qualified on
      * the same runners, a branch's half-hour of end-to-end tests used to hold
      * every main run in the queue behind it, and production stopped moving
      * while CI was busy proving branches nobody had merged (HQ, 2026-10-19).
@@ -161,8 +162,8 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
      * And a job that asked to go last does not go last forever: see
      * `effectivePriority`.
      */
-    .orderByRaw(raw(effectivePriority()))
-    .orderByRaw(raw(defaultBranchFirst()))
+    .orderByRaw(raw(effectivePriority(now)))
+    .orderByRaw(raw(defaultBranchFirst(undefined, now)))
     .orderBy('workflow_jobs.id', 'asc')
     .limit(limit)
     .execute()
@@ -207,12 +208,15 @@ export function claimableSince(cutoff: Date): string {
 }
 
 /**
- * `ORDER BY` term: 0 for a run on its repository's default branch, else 1.
+ * Prefer the default branch among fresh equal-priority work. Once a job has
+ * waited through the starvation window, its ref cannot keep it behind fresh
+ * main work forever. Explicit priority still precedes this tie-break.
  * `||` is string concatenation everywhere but MySQL, where it is OR.
  */
-export function defaultBranchFirst(mysql = speaksMysql()): string {
+export function defaultBranchFirst(mysql = speaksMysql(), now: Date = new Date(), minutes = STARVATION_MINUTES): string {
   const ref = mysql ? `CONCAT('refs/heads/', repositories.default_branch)` : `'refs/heads/' || repositories.default_branch`
-  return `CASE WHEN workflow_runs.event_ref = ${ref} THEN 0 ELSE 1 END ASC`
+  const waited = claimableSince(new Date(now.getTime() - minutes * 60_000))
+  return `CASE WHEN (${waited}) THEN 0 WHEN workflow_runs.event_ref = ${ref} THEN 1 ELSE 2 END ASC`
 }
 
 function factsOf(row: any): JobFacts {

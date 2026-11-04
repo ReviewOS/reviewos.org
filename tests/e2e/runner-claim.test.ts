@@ -258,6 +258,36 @@ describe('claiming', () => {
     expect((await claimNextJob(runner))!.runId).toBe(patient)
   })
 
+  test('an aged tag cannot be overtaken forever by fresh default-branch work', async () => {
+    if (!available)
+      return
+    const earlier = await db.selectFrom('workflow_runs').select('id').where('repository_id', '=', created.repositoryId).execute()
+    if (earlier.length)
+      await db.updateTable('workflow_jobs').set({ state: 'cancelled' }).where('state', 'in', ['queued', 'blocked']).where('workflow_run_id', 'in', earlier.map(row => Number(row.id))).execute()
+    await syncWorkflowFile({ repositoryId: created.repositoryId, ownerType: 'user', ownerId: created.ownerId,
+      path: '.github/workflows/ci.yml', sha: 'fa'.repeat(20),
+      source: CI.replace('on: push', 'on:\n  push:\n    branches: ["**"]\n    tags: ["**"]'),
+    })
+    const runner = await runnerFacts(await makeRunner({ scope_type: 'repository', scope_id: created.repositoryId }))
+    const push = async (ref: string, sha: string) => (await dispatchPush({ repositoryId: created.repositoryId, event: { ref }, headSha: sha })).created[0]!
+    for (const clock of ['created_at', 'queued_at'] as const) {
+      const tag = await push(`refs/tags/aged-${clock}`, (clock === 'created_at' ? 'e1' : 'e2').repeat(20))
+      const old = new Date(Date.now() - 40 * 60_000).toISOString()
+      await db.updateTable('workflow_jobs').set(clock === 'queued_at'
+        ? { queued_at: old }
+        : { queued_at: null, created_at: old.slice(0, 19).replace('T', ' ') }).where('workflow_run_id', '=', tag).execute()
+      const main = await push('refs/heads/main', (clock === 'created_at' ? 'e3' : 'e4').repeat(20))
+      expect((await claimNextJob(runner))!.runId).toBe(tag)
+      expect((await claimNextJob(runner))!.runId).toBe(main)
+    }
+    const aged = await push('refs/tags/aged-explicit-priority', 'e5'.repeat(20))
+    await db.updateTable('workflow_jobs').set({ queued_at: new Date(Date.now() - 40 * 60_000).toISOString() }).where('workflow_run_id', '=', aged).execute()
+    const urgent = await push('refs/heads/main', 'e6'.repeat(20))
+    await db.updateTable('workflow_jobs').set({ priority: 5 }).where('workflow_run_id', '=', urgent).execute()
+    expect((await claimNextJob(runner))!.runId).toBe(urgent)
+    expect((await claimNextJob(runner))!.runId).toBe(aged)
+  })
+
   /*
    * The race. Two runners polling at the same instant both read the job as
    * free; the guard is in the `WHERE`, so exactly one write matches and the

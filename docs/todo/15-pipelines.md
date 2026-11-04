@@ -1445,6 +1445,8 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       ordinary failure in a command that was working fine.
 
       The ceiling stays underneath as the default, so nothing hangs forever whatever the file says.
+- [x] Bound the default-branch preference by the starvation window, so older
+      eligible tag and feature jobs can run ahead of fresh equal-priority main work.
 - [x] `priority`, so a deploy jumps a queue full of pull request checks
 
       `reviewos: { priority: 10 }`, read by the claim on every poll - which is why it is a column
