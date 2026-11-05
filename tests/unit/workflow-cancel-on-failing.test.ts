@@ -27,6 +27,17 @@ function row(job_id: string, state: JobState, extra: Partial<Row> = {}): Row {
 }
 
 describe('once the run is going to fail', () => {
+  test('a cancelled required gate also makes opted-in work unnecessary', () => {
+    const decided = cancelOnFailingCasualties([
+      row('unit', 'cancelled'),
+      row('browser', 'queued', { cancel_on_build_failing: true }),
+      row('e2e', 'running', { cancel_on_build_failing: true }),
+      row('cleanup', 'running'),
+    ])
+    expect(decided.cancel.map(one => one.job_id)).toEqual(['browser'])
+    expect(decided.stop.map(one => one.job_id)).toEqual(['e2e'])
+  })
+
   test('a job that asked is stopped, and one that did not is left alone', () => {
     const decided = cancelOnFailingCasualties([
       row('unit', 'failed'),

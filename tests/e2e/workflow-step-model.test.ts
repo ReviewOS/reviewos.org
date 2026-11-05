@@ -992,11 +992,11 @@ describe('cancel-on-build-failing', () => {
     await db.deleteFrom('workflows').where('path', '=', path).execute()
   }
 
-  test('a failed job stops the long sibling that asked, and leaves the others', async () => {
+  test.each(['failed', 'cancelled'] as const)('a %s job stops the long sibling that asked, and leaves the others', async (sunkState) => {
     if (!available)
       return
 
-    const path = '.github/workflows/sunk.yml'
+    const path = `.github/workflows/sunk-${sunkState}.yml`
 
     await syncWorkflowFile({
       repositoryId: created.repositoryId,
@@ -1044,7 +1044,7 @@ jobs:
 
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'failed', finished_at: new Date().toISOString() } as any)
+      .set({ state: sunkState, finished_at: new Date().toISOString() } as any)
       .where('workflow_run_id', '=', runId)
       .where('job_id', '=', 'unit')
       .execute()
@@ -1060,7 +1060,7 @@ jobs:
      * one nothing else can use.
      */
     expect(jobNamed(rows, 'browser').state).toBe('cancelling')
-    expect(String(jobNamed(rows, 'browser').condition_reason)).toContain('had already failed')
+    expect(String(jobNamed(rows, 'browser').condition_reason)).toContain(sunkState === 'failed' ? 'had already failed' : 'had already been cancelled')
 
     // And the job that did not ask keeps going. This is the whole reason the
     // attribute is opt-in: a job that reports the failure exists *because*

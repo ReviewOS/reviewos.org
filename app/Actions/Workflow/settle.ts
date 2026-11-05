@@ -265,12 +265,16 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
    * this is run-wide and opt-in. Running them in one pass would mean one rule
    * with two defaults, which is the shape nobody can read off a run page.
    */
-  const sunk = cancelOnFailingCasualties(graphRows(jobs))
+  const graph = graphRows(jobs)
+  const sunk = cancelOnFailingCasualties(graph)
+  const sunkReason = graph.some(job => effectiveState(job) === 'failed')
+    ? CANCEL_ON_FAILING_REASON
+    : 'Cancelled because another job in this run had already been cancelled.'
 
   for (const job of sunk.cancel) {
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON })
+      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: sunkReason })
       .where('id', '=', job.id)
       .where('state', 'in', ['blocked', 'queued'])
       .execute()
@@ -281,7 +285,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
     // it can no longer report a result over a decision already made.
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON })
+      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: sunkReason })
       .where('id', '=', job.id)
       .where('state', '=', 'running')
       .execute()

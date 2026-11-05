@@ -352,7 +352,9 @@ export function cancelOnFailingCasualties<T extends GraphJob>(jobs: readonly T[]
   const cancel: T[] = []
   const stop: T[] = []
 
-  const sunk = jobs.some(job => job.state === 'failed' && !isTrue(job.continue_on_error))
+  // Cancellation (including an expired/revoked claim) also prevents a green
+  // run. Only failed jobs can be tolerated by continue-on-error.
+  const sunk = jobs.some(job => ['failed', 'cancelled'].includes(effectiveState(job)))
 
   if (!sunk)
     return { cancel, stop }

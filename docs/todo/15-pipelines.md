@@ -3524,3 +3524,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       fleet snapshot between the run page and API, including queue and tag
       policies; never expose the occupying repository or treat an expired lease
       as occupied capacity. Real HTTP/page regression covers both surfaces.
+
+- [x] Stop work that opted into cancel-on-build-failing after a sibling gate is
+      cancelled as well as failed, including expired/revoked claims. Leave
+      cleanup jobs alone, preserve tolerated failures and request a running
+      worker's acknowledgement instead of declaring it stopped.
