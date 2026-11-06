@@ -75,7 +75,7 @@ async function steps(): Promise<any[]> {
 async function jobRow(): Promise<any> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['state', 'attempt', 'resume_from_step'])
+    .select(['state', 'attempt', 'resume_from_step', 'error'])
     .where('id', '=', created.jobId)
     .executeTakeFirst()
 }
@@ -106,7 +106,7 @@ async function seedFinishedRun(): Promise<void> {
 
   await db
     .updateTable('workflow_jobs')
-    .set({ state: 'failed', attempt: 1, resume_from_step: null, finished_at: now })
+    .set({ state: 'failed', attempt: 1, resume_from_step: null, finished_at: now, error: 'the last step failed' })
     .where('id', '=', created.jobId)
     .execute()
 
@@ -367,6 +367,7 @@ describe('restarting from a step', () => {
     expect(String(job.state)).toBe('queued')
     expect(Number(job.attempt)).toBe(2)
     expect(Number(job.resume_from_step)).toBe(3)
+    expect(job.error).toBeNull()
   }, 120_000)
 
   test('and a second restart still credits the attempt that did the work', async () => {

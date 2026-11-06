@@ -862,6 +862,9 @@ run is inspected.
 
 ## Durable runs and the control API
 
+- [x] Clear the previous terminal job error when starting a new attempt, including
+      step restarts and downstream jobs, while retaining prior attempt logs.
+
 The database is the source of truth for orchestration. A runner may disappear after accepting work;
 the run must remain inspectable and resumable without trusting runner memory.
 

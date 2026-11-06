@@ -46,7 +46,7 @@ async function api(body: Record<string, unknown>): Promise<{ status: number, bod
 async function jobs(): Promise<Record<string, any>> {
   const rows: any[] = await db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'attempt', 'outputs', 'started_at', 'finished_at'])
+    .select(['id', 'job_id', 'state', 'attempt', 'outputs', 'started_at', 'finished_at', 'error'])
     .where('workflow_run_id', '=', created.runId)
     .execute()
 
@@ -97,6 +97,7 @@ async function seedFinishedRun(): Promise<void> {
       started_at: now,
       finished_at: now,
       outputs: name === 'build' ? JSON.stringify({ version: '1.0.0' }) : null,
+      error: name === 'test' ? 'the assertion that failed' : name === 'deploy' ? 'test did not succeed' : null,
     }).returning(['id']).executeTakeFirst()
 
     created.jobs[name] = Number(row.id)
@@ -235,6 +236,8 @@ describe('re-running the failed jobs', () => {
     expect(String(after.test.state)).toBe('queued')
     expect(Number(after.test.attempt)).toBe(2)
     expect(String(after.deploy.state)).toBe('blocked')
+    expect(after.test.error).toBeNull()
+    expect(after.deploy.error).toBeNull()
 
     // And `build` is untouched, outputs and all: nothing about it was in doubt.
     expect(String(after.build.state)).toBe('succeeded')

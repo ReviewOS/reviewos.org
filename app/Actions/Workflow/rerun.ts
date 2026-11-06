@@ -374,6 +374,7 @@ export async function rerunRun(input: {
         started_at: null,
         finished_at: null,
         outputs: null,
+        error: null,
         condition_reason: null,
       })
       .where('id', '=', job.id)
