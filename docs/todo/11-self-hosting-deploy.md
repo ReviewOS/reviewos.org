@@ -5,6 +5,10 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Deployment
 
+- [x] Install and verify the declared Bun inside each release before dependency
+      installation. Start web, API, scheduler and workers with that release's
+      native executable, and install the frozen JavaScript dependency graph.
+
 - [x] Route the production `/git` mount directly to the existing authenticated API
       through the typed cloud gateway, so page-server stalls and restarts cannot
       interrupt clones, pushes or CI checkouts. Keep the mount and authorization

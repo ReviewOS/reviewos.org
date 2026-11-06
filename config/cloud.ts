@@ -3,6 +3,21 @@ import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
 import { boxes } from '../cloud/boxes'
 import { servers } from '../cloud/servers'
 import { env } from '@stacksjs/env'
+import toolchain from './deps'
+
+const BUN_VERSION = toolchain.dependencies?.bun
+if (typeof BUN_VERSION !== 'string' || !/^\d+\.\d+\.\d+$/.test(BUN_VERSION))
+  throw new Error('ReviewOS deployments require the exact Bun version declared in config/deps.ts')
+const BUN_DIRECTORY = `pantry/bun.com/v${BUN_VERSION}/bin`
+const BUN_BINARY = `${BUN_DIRECTORY}/bun`
+// Resolve a release's own runtime before installing or starting anything.
+// A shared executable can drift independently of the source's tool pin.
+const INSTALL_RUNTIME = [
+  `pantry install bun.sh@${BUN_VERSION} --no-save`,
+  `export PATH="$PWD/${BUN_DIRECTORY}:$PATH"`,
+  `test "$(bun --version)" = "${BUN_VERSION}"`,
+  'bun install --frozen-lockfile',
+]
 
 /**
  * The port the API process listens on, and the one the page server proxies to.
@@ -800,7 +815,7 @@ export const tsCloud: TsCloudConfig = {
       root: '.',
       path: '/',
       domain: env.APP_DOMAIN || 'reviewos.org',
-      start: 'bun node_modules/@stacksjs/buddy/dist/serve-entry.js',
+      start: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/serve-entry.js`,
       port: 3072,
 
       /*
@@ -843,7 +858,7 @@ export const tsCloud: TsCloudConfig = {
       // vendored `storage/framework/core`, which a core-less app - the default
       // `buddy new` layout - does not have.
       preStart: [
-        'bun install',
+        ...INSTALL_RUNTIME,
         // Repository storage lives beside the releases, not inside one.
         //
         // A release directory is replaced on every deploy; bare repositories
@@ -959,6 +974,7 @@ export const tsCloud: TsCloudConfig = {
       // unit the sweep never fires and the repository silently freezes at
       // whatever it held on the day it was deployed.
       scheduler: true,
+      backgroundBun: BUN_BINARY,
       /*
        * The worker, and why it is a `daemon` rather than a `queues` entry.
        *
@@ -1007,11 +1023,11 @@ export const tsCloud: TsCloudConfig = {
       daemons: [
         {
           name: 'worker',
-          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --concurrency=4 --verbose',
+          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --concurrency=4 --verbose`,
         },
         {
           name: 'mirror-code-worker',
-          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=mirrors-code --concurrency=2 --verbose',
+          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=mirrors-code --concurrency=2 --verbose`,
         },
       ],
       // Bare repositories live on the box and are authoritative there: the
@@ -1186,7 +1202,7 @@ export const tsCloud: TsCloudConfig = {
        * result would be the same silent 502 this whole change exists to end.
        * One flag makes it independent of the inference.
        */
-      start: `bun node_modules/@stacksjs/buddy/dist/cli.js serve:api --port ${API_PORT}`,
+      start: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js serve:api --port ${API_PORT}`,
       port: API_PORT,
 
       /*
@@ -1204,7 +1220,7 @@ export const tsCloud: TsCloudConfig = {
        * corrupts the schema it was trying to create.
        */
       preStart: [
-        'bun install',
+        ...INSTALL_RUNTIME,
         /*
          * The repositories the *other* site keeps, not a second empty copy.
          *
