@@ -5,6 +5,9 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Deployment
 
+- [x] Consume the qualified framework deployment revision guard, rejecting
+      stale automated source and deployments behind the live release.
+
 - [x] Consume the qualified STX client-component lifecycle release with aligned
       renderer overrides, so imported helpers, component props and teardown
       belong to each mounted component scope.
