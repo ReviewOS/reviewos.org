@@ -5,6 +5,10 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Deployment
 
+- [x] Consume the qualified STX client-component lifecycle release with aligned
+      renderer overrides, so imported helpers, component props and teardown
+      belong to each mounted component scope.
+
 - [x] Install and verify the declared Bun inside each release before dependency
       installation. Start web, API, scheduler and workers with that release's
       native executable, and install the frozen JavaScript dependency graph.
