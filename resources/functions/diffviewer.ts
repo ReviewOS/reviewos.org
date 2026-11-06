@@ -1621,6 +1621,8 @@ export interface ManifestStreamOptions {
    * function does not own a viewport and should not go looking for one.
    */
   firstBatchSize?: number
+  /** Monotonic milliseconds for the batch window; defaults to performance.now. */
+  now?: () => number
 }
 
 /**
@@ -1748,6 +1750,7 @@ export async function streamDiffManifest(
   }
 
   const firstSize = options.firstBatchSize ?? FIRST_BATCH_MIN
+  const now = options.now ?? (() => performance.now())
   let batch: DiffFileEntry[] = []
   let published = 0
 
@@ -1780,7 +1783,7 @@ export async function streamDiffManifest(
     handlers.onFiles(batch)
     published++
     batch = []
-    lastFlush = performance.now()
+    lastFlush = now()
 
   }
 
@@ -1800,12 +1803,12 @@ export async function streamDiffManifest(
     if (record.t === 'file') {
       // The first record starts the clock, so the window is measured from when
       // the server began answering rather than from when it was asked.
-      lastFlush ??= performance.now()
+      lastFlush ??= now()
 
       batch.push(toFileEntry(record))
 
       const { size, ms } = limits()
-      if (batch.length >= size || performance.now() - lastFlush >= ms)
+      if (batch.length >= size || now() - lastFlush >= ms)
         flush()
     }
     else if (record.t === 'rows') {

@@ -204,7 +204,7 @@ describe('describeFailure', () => {
 
 describe('the batch clock, on a diff git is slow to compute', () => {
   /** A response whose first record arrives only after `delayMs`. */
-  function slowToStart(files: number, delayMs: number): Response {
+  function slowToStart(files: number, delayMs: number, ready: () => void = () => {}): Response {
     const encoder = new TextEncoder()
 
     const body = new ReadableStream<Uint8Array>({
@@ -212,6 +212,7 @@ describe('the batch clock, on a diff git is slow to compute', () => {
         // Nothing at all until git has finished: this is the shape of an
         // 80,000-file compare, where the first record is seconds away.
         await new Promise(resolve => setTimeout(resolve, delayMs))
+        ready()
 
         for (let index = 0; index < files; index++)
           controller.enqueue(encoder.encode(`{"t":"file","i":${index},"path":"file-${index}.ts"}\n`))
@@ -234,17 +235,17 @@ describe('the batch clock, on a diff git is slow to compute', () => {
      * prevent.
      */
     const original = globalThis.fetch
-    globalThis.fetch = (async () => slowToStart(60, 700)) as typeof fetch
+    let elapsed = 0
+    globalThis.fetch = (async () => slowToStart(60, 700, () => { elapsed = 700 })) as typeof fetch
 
     const batches: number[] = []
 
     try {
       await streamDiffManifest('/manifest', {
-        firstBatchSize: 25,
         onFiles(files) {
           batches.push(files.length)
         },
-      })
+      }, undefined, { firstBatchSize: 25, now: () => elapsed })
     }
     finally {
       globalThis.fetch = original
@@ -267,16 +268,50 @@ describe('the batch clock, on a diff git is slow to compute', () => {
 
     try {
       await streamDiffManifest('/manifest', {
-        firstBatchSize: 25,
         onFiles(files) {
           batches.push(files.length)
         },
-      })
+      }, undefined, { firstBatchSize: 25, now: () => 0 })
     }
     finally {
       globalThis.fetch = original
     }
 
     expect(batches).toEqual([12])
+  })
+
+  test('flushes at the unchanged window while the stream is still open', async () => {
+    const original = globalThis.fetch
+    let elapsed = 0
+    let position = 0
+    const finish = Promise.withResolvers<void>()
+    const encoder = new TextEncoder()
+    globalThis.fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (position < 2) {
+          elapsed = position === 0 ? 0 : 500
+          controller.enqueue(encoder.encode(`{"t":"file","i":${position},"path":"file-${position++}.ts"}\n`))
+          return
+        }
+        await finish.promise
+        controller.enqueue(encoder.encode('{"t":"end","files":2,"additions":0,"deletions":0}\n'))
+        controller.close()
+      },
+    }, { highWaterMark: 0 }))) as typeof fetch
+    const batches: number[] = []
+    try {
+      await streamDiffManifest('/manifest', {
+        onFiles(files) {
+          batches.push(files.length)
+          expect(elapsed).toBe(500)
+          finish.resolve()
+        },
+      }, undefined, { firstBatchSize: 25, now: () => elapsed })
+    }
+    finally {
+      finish.resolve()
+      globalThis.fetch = original
+    }
+    expect(batches).toEqual([2])
   })
 })

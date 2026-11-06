@@ -757,6 +757,9 @@ file while the last one is still on the wire.
 
 ## Publishing: batch against a clock and a work budget
 
+- [x] Control the monotonic batch clock in streaming regressions independently
+      of host scheduling, while retaining the production window and work budgets.
+
 Appending each file as it parses is as bad as waiting for all of them: the main thread never yields
 and the page is unresponsive for the whole download. DiffsHub's numbers, worth starting from and then
 measuring:
