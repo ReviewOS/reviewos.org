@@ -5,8 +5,9 @@ import { readdir } from 'node:fs/promises'
 // Imported rather than relied on as a global: `db` is a server auto-import, and
 // a buddy command does not run through the preloader that injects those.
 import { db } from '@stacksjs/database'
-import { HOOK_DIRECTORY, hookSecret, hookUrl, installHooks, repositoryPaths, useSharedHooks } from '../Actions/Git/hooks'
-import { REPOSITORY_ROOT } from '../Actions/Git/storage'
+import { HOOK_DIRECTORY, hookSecret, hookUrl, installHooks, useSharedHooks } from '../Actions/Git/hooks'
+import { ownerHandleFor } from '../Actions/Repo/owner'
+import { repositoryPath, REPOSITORY_ROOT } from '../Actions/Git/storage'
 
 /**
  * Write the shared hooks and point every repository at them.
@@ -57,16 +58,22 @@ export default function (buddy: CLI): void {
 
       const repositories = await db
         .selectFrom('repositories')
-        .select(['id', 'name', 'disk_path'])
+        .select(['id', 'name', 'disk_path', 'owner_id', 'owner_type'])
         .execute()
 
       let pointed = 0
       const failed: string[] = []
 
       for (const repository of repositories as any[]) {
-        // Rows carry both an absolute and a relative `disk_path`, so the
-        // resolution is shared rather than assumed here.
-        const { absolute: path } = repositoryPaths(String(repository.disk_path ?? ''), REPOSITORY_ROOT)
+        // Stored absolute paths can name a retired release. Resolve the live
+        // owner binding and canonical storage root, as the wire protocol does.
+        const owner = await ownerHandleFor(repository)
+        const located = owner ? repositoryPath(owner, String(repository.name), REPOSITORY_ROOT) : null
+        if (!located?.ok || !located.path) {
+          failed.push(`${repository.id} (invalid repository identity)`)
+          continue
+        }
+        const path = located.path
 
         // A row whose repository is not on disk is a separate problem, and one
         // this command is not the place to fix.

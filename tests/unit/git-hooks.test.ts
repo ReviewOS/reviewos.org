@@ -228,10 +228,11 @@ describe('the generated scripts', () => {
     expect(post).not.toContain('process.exit(1)')
   })
 
-  /** An unreachable application must not stop people pushing. */
-  test('pre-receive refuses only on an explicit refusal', () => {
+  /** Required WAL refuses a callback that cannot confirm durable recovery. */
+  test('pre-receive distinguishes required recovery from advisory protection', () => {
     expect(pre).toContain('process.exit(1)')
-    expect(pre).toContain('if (!response.ok) process.exit(0)')
+    expect(pre).toContain('if (requiredWal)')
+    expect(pre).toContain("if (decision?.ok === true) process.exit(0)")
     expect(pre).toContain('catch')
   })
 })

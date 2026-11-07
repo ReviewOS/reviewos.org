@@ -201,13 +201,13 @@ catch (error) {
  * Everything about it is the opposite of `post-receive`. It runs *before* git
  * writes anything, a non-zero exit refuses the whole push, and it therefore has
  * to be conservative about failure in the other direction: if the application
- * cannot be reached, the push is allowed. A forge that stops accepting pushes
+ * cannot be reached, the push is allowed unless required WAL needs its record. A forge that stops accepting pushes
  * because its web process restarted is a forge people work around by pushing
  * somewhere else, and branch protection is not a security boundary - it is a
  * guard rail against a mistake, and the mistake it prevents is rarer than the
  * outage it would otherwise cause.
  *
- * The timeout is short for the same reason: the pusher is waiting.
+ * Required WAL allows bounded time to stream its recovery bundle to object storage.
  */
 export function preReceiveScript(url: string): string {
   return `${HOOK_RUNTIME}
@@ -216,8 +216,9 @@ export function preReceiveScript(url: string): string {
 //
 // Asks the application whether this push may land. A non-zero exit refuses the
 // whole push, so anything that is not an explicit refusal allows it: branch
-// protection is a guard rail against a mistake, and an unreachable web process
-// must not stop people working.
+// protection normally allows an unreachable callback. Required WAL is different:
+// accepting without its durable record would break the recovery guarantee.
+const requiredWal = process.env.GIT_WAL === 'required'
 
 const chunks = []
 for await (const chunk of Bun.stdin.stream()) chunks.push(chunk)
@@ -266,13 +267,14 @@ try {
     }),
     // Longer than a branch rule needs, because this one reads the patch of
     // every commit in the push.
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(requiredWal ? 10 * 60_000 : 15000),
   })
 
-  if (!response.ok) process.exit(0)
+  if (!response.ok) throw new Error('The forge callback did not succeed')
 
   const decision = await response.json()
-  if (decision?.ok !== false) process.exit(0)
+  if (decision?.ok === true) process.exit(0)
+  if (decision?.ok !== false) throw new Error('The forge callback did not confirm the push')
 
   for (const refusal of decision.refused ?? [])
     console.error(refusal.reason)
@@ -282,7 +284,10 @@ try {
   process.exit(1)
 }
 catch {
-  // Unreachable, slow, or answering nonsense. Allow the push.
+  if (requiredWal) {
+    console.error('This push requires a durable recovery record, but the forge could not confirm it. Nothing was accepted; try again.')
+    process.exit(1)
+  }
   process.exit(0)
 }
 `

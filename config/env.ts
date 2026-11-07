@@ -9,6 +9,7 @@ import { schema } from '@stacksjs/validation'
  * have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
+  GIT_HOOK_SECRET: { validation: schema.string(), default: '' },
   BLOB_S3_BUCKET: { validation: schema.string(), default: '' },
   GIT_WAL: { validation: schema.enum(['off', 'advisory', 'required']), default: 'off' },
   AUTH_BROWSER_SESSION_LIFETIME: {
