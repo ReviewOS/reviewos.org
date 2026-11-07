@@ -12,6 +12,11 @@ import { createRepositoryWorkspace } from './snapshotWorkspace'
 
 // Keep background Git compression bounded on a shared application host.
 const SNAPSHOT_GIT_OPTIONS = ['-c', 'pack.threads=2', '-c', 'pack.windowMemory=128m', '-c', 'pack.deltaCacheSize=64m']
+// Share one bounded Git budget across creation and restoration. A large bundle
+// can take much longer to index than to create; two independent 50-minute
+// ceilings discarded an otherwise healthy WebKit restore. Leave 30 minutes of
+// the existing two-hour queue job for object transfer and checkpoint cleanup.
+const SNAPSHOT_GIT_BUDGET_MS = 90 * 60_000
 
 /** A portable Git snapshot. The live bare repository is never removed or modified. */
 export async function snapshotRepository(repository: { id: number, owner: string, name: string }, store: BlobStore, options: { repositoryRoot?: string, scratchRoot?: string } = {}) {
@@ -35,6 +40,7 @@ export async function snapshotRepository(repository: { id: number, owner: string
   const scratchRoot = resolve(options.scratchRoot || process.env.BLOB_SCRATCH_ROOT || 'storage/scratch/object-storage')
   const workspace = await createRepositoryWorkspace(scratchRoot, `snapshot-${repository.id}`)
   const scratch = workspace.path
+  const deadline = performance.now() + SNAPSHOT_GIT_BUDGET_MS
   try {
     const capacity = await statfs(scratchRoot)
     const objectCount = await runGit(located.path!, ['count-objects', '-v'], { priority: 'background' })
@@ -43,10 +49,10 @@ export async function snapshotRepository(repository: { id: number, owner: string
     const required = (Number(reported.size) + Number(reported['size-pack'])) * 1024 * 2 + 5 * 1024 ** 3
     if (!Number.isFinite(required) || capacity.bavail * capacity.bsize < required) throw new Error('Repository snapshot scratch volume needs at least 5 GiB free')
     const file = join(scratch, 'repository.bundle')
-    const created = await runGit(located.path!, [...SNAPSHOT_GIT_OPTIONS, 'bundle', 'create', file, '--all'], { timeoutMs: 50 * 60_000, priority: 'background' })
+    const created = await runGit(located.path!, [...SNAPSHOT_GIT_OPTIONS, 'bundle', 'create', file, '--all'], { timeoutMs: SNAPSHOT_GIT_BUDGET_MS, deadline, priority: 'background' })
     if (!created.ok) throw new Error(`Repository bundle failed: ${created.stderr.slice(-500)}`)
-    const restored = await runGit(scratch, [...SNAPSHOT_GIT_OPTIONS, 'clone', '--mirror', file, join(scratch, 'restored.git')], { timeoutMs: 50 * 60_000, priority: 'background' })
-    if (!restored.ok) throw new Error('Snapshot could not be restored into a new bare repository')
+    const restored = await runGit(scratch, [...SNAPSHOT_GIT_OPTIONS, 'clone', '--mirror', file, join(scratch, 'restored.git')], { timeoutMs: SNAPSHOT_GIT_BUDGET_MS, deadline, priority: 'background' })
+    if (!restored.ok) throw new Error(`Snapshot could not be restored into a new bare repository: ${restored.stderr.slice(-500)}`)
     if (head) { const restoredHead = await runGit(join(scratch, 'restored.git'), ['symbolic-ref', 'HEAD', head]); if (!restoredHead.ok) throw new Error('Could not restore snapshot default branch') }
     const restoredRefs = [...(await refsOnDisk(join(scratch, 'restored.git'))).entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     // Git captured its own consistent ref set while the live repository stayed writable.

@@ -416,3 +416,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
   successor creation and destination binding. Snapshot, restore and full-checkpoint
   scratch is journaled on the configured data volume, with capacity checks and
   bounded Git compression; only positively abandoned attempts can be reclaimed.
+
+- [x] Stop Git helper process groups before returning from time or output limits, and share a 90-minute Git deadline between snapshot creation and fresh restore within the existing two-hour queued job.

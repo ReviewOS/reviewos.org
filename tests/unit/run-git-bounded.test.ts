@@ -7,7 +7,7 @@
 // chunk boundaries intact.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initBare, runGit } from '../../app/Actions/Git/git'
@@ -92,4 +92,39 @@ describe('utf8 chunk boundaries', () => {
     expect(result.stdout).not.toContain('�')
     expect(result.stdout).toBe(text)
   })
+})
+
+describe('Git helper lifetime', () => {
+  for (const limit of ['timeout', 'output'] as const) {
+    test(`${limit} stops helpers before returning without killing unrelated work`, async () => {
+      const pidFile = join(root, `${limit}.pid`)
+      const quoted = `'${pidFile.replaceAll("'", "'\\''")}'`
+      // Git's shell alias is a real helper, with its own child, just like a
+      // clone and index-pack. Inherit the pipes so close proves both stopped.
+      const alias = `!sleep 30 & echo $! > ${quoted}; ${limit === 'output' ? "printf '%02000d' 0;" : ''} wait`
+      const unrelated = Bun.spawn(['sleep', '30'], { stdout: 'ignore', stderr: 'ignore' })
+      let helper: number | undefined
+      try {
+        const result = await runGit(bare, ['-c', `alias.helper=${alias}`, 'helper'], { timeoutMs: 1000, maxBytes: 100 })
+        helper = Number(readFileSync(pidFile, 'utf8').trim())
+        expect(Number.isSafeInteger(helper) && helper > 1).toBe(true)
+        const state = Bun.spawnSync(['ps', '-o', 'stat=', '-p', String(helper)], { stdout: 'pipe' }).stdout.toString().trim()
+        expect(state === '' || state.startsWith('Z')).toBe(true)
+        expect(unrelated.exitCode).toBeNull()
+        if (limit === 'timeout') {
+          expect(result.ok).toBe(false)
+          expect(result.stderr).toContain('timed out')
+        }
+        else {
+          expect(result.ok).toBe(true)
+          expect(result.truncated).toBe(true)
+        }
+      }
+      finally {
+        unrelated.kill()
+        await unrelated.exited
+        if (helper) { try { process.kill(helper, 'SIGKILL') } catch { /* Already reaped. */ } }
+      }
+    })
+  }
 })

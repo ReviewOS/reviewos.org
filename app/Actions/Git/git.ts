@@ -225,7 +225,11 @@ export async function runGit(repositoryPath: string, args: string[], options: {
   const subcommand = String(args.find(argument => !argument.startsWith('-')) ?? 'unknown')
 
   return await new Promise<GitResult>((resolvePromise) => {
-    const child = spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
+    // Git starts helpers (clone starts index-pack). Give this invocation its
+    // own process group so a timeout cannot leave a helper writing into scratch
+    // after the caller has released its slot or retired that workspace.
+    const grouped = process.platform !== 'win32'
+    const child = spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env), detached: grouped })
 
     const record = () => {
       // The slot is held exactly as long as the child could be running, and
@@ -244,15 +248,26 @@ export async function runGit(repositoryPath: string, args: string[], options: {
     let stdoutBytes = 0
     let stderr = ''
     let settled = false
+    let interrupted: GitResult | undefined
+
+    const interrupt = (result: GitResult) => {
+      if (settled || interrupted) return
+      interrupted = result
+      clearTimeout(timer)
+      try {
+        if (grouped && child.pid) process.kill(-child.pid, 'SIGKILL')
+        else child.kill('SIGKILL')
+      }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') child.kill('SIGKILL')
+      }
+      // Settle on close, after Git and its helpers have closed their pipes.
+      // The caller must not reclaim their workspace while they can still write.
+    }
 
     const timer = setTimeout(() => {
       if (!settled) {
-        child.kill('SIGKILL')
-        settled = true
-        // Timed out is a duration too, and the most interesting one: it is
-        // what a histogram's overflow bucket is for.
-        record()
-        resolvePromise({ ok: false, stdout, stderr: `${stderr}\ngit timed out after ${executionTimeoutMs}ms`, code: -1 })
+        interrupt({ ok: false, stdout, stderr: `${stderr}\ngit timed out after ${executionTimeoutMs}ms`, code: -1 })
       }
     }, executionTimeoutMs)
 
@@ -264,7 +279,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
     child.stderr.setEncoding('utf8')
 
     child.stdout.on('data', (chunk: string) => {
-      if (settled)
+      if (settled || interrupted)
         return
 
       const bytes = Buffer.byteLength(chunk, 'utf8')
@@ -276,11 +291,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
         // leaves, so the kept text ends on a whole character.
         const budget = Math.max(0, maxBytes - stdoutBytes)
         stdout += Buffer.from(chunk, 'utf8').subarray(0, budget).toString('utf8').replace(/�+$/, '')
-        settled = true
-        clearTimeout(timer)
-        child.kill('SIGKILL')
-        record()
-        resolvePromise({ ok: true, stdout, stderr, code: -1, truncated: true })
+        interrupt({ ok: true, stdout, stderr, code: -1, truncated: true })
 
         return
       }
@@ -313,7 +324,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
       settled = true
       clearTimeout(timer)
       record()
-      resolvePromise({ ok: code === 0, stdout, stderr, code: code ?? -1 })
+      resolvePromise(interrupted ?? { ok: code === 0, stdout, stderr, code: code ?? -1 })
     })
 
     if (input !== undefined) {
