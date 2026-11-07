@@ -13,7 +13,9 @@ export function transferTarget(): { bucket: string, provider: string, prefix: st
 
 export async function transferStore() {
   const target = transferTarget()
-  const store = await s3StoreFromEnvironment(target)
+  // Cold missing-object lookups have taken almost a minute at the provider.
+  // Bulk jobs can allow that bounded response without changing interactive defaults.
+  const store = await s3StoreFromEnvironment({ ...target, metadataTimeoutMs: 120_000 })
   if (!store) throw new Error('Object storage migration destination unavailable')
   return store
 }

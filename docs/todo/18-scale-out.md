@@ -405,3 +405,7 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Dispatch scheduled blob transfers and repository snapshots to dedicated durable worker queues so operator pauses and worker lifecycle apply without blocking interactive work.
 
 - [x] Verify private object storage and required push recovery with real Git and Git LFS clients, including authenticated uploads and byte-identical downloads.
+
+- [x] Keep four verified copy slots occupied behind slow objects while checkpointing only the contiguous completed prefix. Allow a bounded bulk metadata response budget through the published SDK, and verify its declaration, override and installed version agree.
+
+- [x] Bind recovery callbacks to canonical live repository identities across release aliases, and refuse required recovery for unbound targets.

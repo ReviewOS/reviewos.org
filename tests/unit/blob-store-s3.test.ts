@@ -107,6 +107,14 @@ describe('S3BlobStore', () => {
     expect(found?.modifiedAtMs).toBe(1_700_000_000_000)
   })
 
+  test('only explicitly selected bulk stores extend the metadata budget', async () => {
+    const client = fakeS3(); const budgets: Array<number | undefined> = []
+    client.headObject = async (...args) => { budgets.push(args[2]?.timeoutMs); return null }
+    await new S3BlobStore({ bucket: 'forge', client }).stat('artifacts/missing')
+    await new S3BlobStore({ bucket: 'forge', client, metadataTimeoutMs: 120_000 }).stat('artifacts/missing')
+    expect(budgets).toEqual([undefined, 120_000])
+  })
+
   test('deleting something absent is a success', async () => {
     const store = new S3BlobStore({ bucket: 'forge', client: fakeS3() })
 

@@ -22,6 +22,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { waitFor } from '@stacksjs/testing/browser'
 import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 import { cloneUrlFor } from '../../app/Actions/Repo/cloneUrl'
 
@@ -384,10 +385,14 @@ describe('the git wire protocol, end to end', () => {
     expect(secondHead).toBe(firstHead)
     expect((await git(second, 'ls-files')).stdout.trim()).toBe((await git(first, 'ls-files')).stdout.trim())
 
-    // And it really was cached: the store holds a pack for this repository.
+    // Cache publication is deliberately asynchronous so a slow store cannot
+    // delay the clone. Observe publication, rather than race the final PUT.
     const { blobStore } = await import('../../app/Actions/Git/blobs')
     const store = await blobStore()
-    const packs = await store.list(`packs/${created.repositoryId}`)
+    const packs = await waitFor(async () => {
+      const found = await store.list(`packs/${created.repositoryId}`)
+      return found.length ? found : null
+    }, undefined, { label: 'the completed clone pack to be published' })
 
     expect(packs.length).toBeGreaterThan(0)
   }, 120_000)

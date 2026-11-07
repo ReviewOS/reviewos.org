@@ -6,19 +6,21 @@ import { readFile, lstat } from 'node:fs/promises'
 import { isSafeKey, UnsafeBlobKey } from './blobs'
 
 export type S3Like = Pick<S3Client, 'putObjectStream' | 'getObjectStream' | 'headObject' | 'deleteObject' | 'listAllObjects'>
-export interface S3BlobStoreOptions { bucket: string, prefix?: string, client: S3Like }
+export interface S3BlobStoreOptions { bucket: string, prefix?: string, client: S3Like, metadataTimeoutMs?: number }
 
 export class S3BlobStore implements BlobStore {
   readonly driver = 's3'
   private readonly bucket: string
   private readonly prefix: string
   private readonly client: S3Like
+  private readonly metadataTimeoutMs?: number
 
   constructor(options: S3BlobStoreOptions) {
     this.bucket = options.bucket
     this.prefix = (options.prefix ?? '').replace(/^\/+|\/+$/g, '')
     if (this.prefix && !isSafeKey(this.prefix)) throw new UnsafeBlobKey(this.prefix)
     this.client = options.client
+    this.metadataTimeoutMs = options.metadataTimeoutMs
   }
 
   private objectFor(key: string): string {
@@ -39,7 +41,9 @@ export class S3BlobStore implements BlobStore {
   }
 
   async stat(key: string): Promise<BlobStat | null> {
-    const head = await this.client.headObject(this.bucket, this.objectFor(key))
+    const head = this.metadataTimeoutMs === undefined
+      ? await this.client.headObject(this.bucket, this.objectFor(key))
+      : await this.client.headObject(this.bucket, this.objectFor(key), { timeoutMs: this.metadataTimeoutMs })
     if (!head) return null
     const modified = head.LastModified ? new Date(head.LastModified).getTime() : null
     return { key, size: Number(head.ContentLength ?? 0), etag: head.ETag, modifiedAtMs: Number.isFinite(modified) ? modified : null }
@@ -75,7 +79,7 @@ function streamOf(body: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
   })
 }
 
-export async function s3StoreFromEnvironment(options: { bucket?: string, provider?: string, prefix?: string } = {}): Promise<BlobStore | null> {
+export async function s3StoreFromEnvironment(options: { bucket?: string, provider?: string, prefix?: string, metadataTimeoutMs?: number } = {}): Promise<BlobStore | null> {
   const bucket = String(options.bucket ?? process.env.BLOB_S3_BUCKET ?? '').trim()
   if (!bucket) return null
   // Host credentials stay in the protected service environment, never payloads.
@@ -90,5 +94,5 @@ export async function s3StoreFromEnvironment(options: { bucket?: string, provide
   const credentials = file ? JSON.parse(await readFile(file, 'utf8')) : undefined
   if (credentials && (typeof credentials.accessKeyId !== 'string' || typeof credentials.secretAccessKey !== 'string')) throw new Error('Invalid protected object storage credentials')
   const client = createObjectStorageClient({ credentials, region: process.env.BLOB_S3_REGION, provider: provider as 'aws' | 'hetzner' | 'backblaze' | 'r2' })
-  return new S3BlobStore({ bucket, prefix: String(options.prefix ?? process.env.BLOB_S3_PREFIX ?? '').trim(), client })
+  return new S3BlobStore({ bucket, prefix: String(options.prefix ?? process.env.BLOB_S3_PREFIX ?? '').trim(), client, metadataTimeoutMs: options.metadataTimeoutMs })
 }
