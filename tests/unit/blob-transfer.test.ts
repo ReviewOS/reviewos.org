@@ -110,3 +110,38 @@ test('bounded parallel copies never checkpoint past an unverified key', async ()
     for (const file of files) expect(await blobDigest(target, file.key)).toEqual(await blobDigest(source, file.key))
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+
+test('a slow first object leaves the other copy slots productive without advancing its checkpoint', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-slots-'))
+  let releaseFirst!: () => void
+  const firstGate = new Promise<void>(resolve => { releaseFirst = resolve })
+  let laterCopied!: () => void
+  const laterReady = new Promise<void>(resolve => { laterCopied = resolve })
+  let migration: Promise<void> | undefined
+  try {
+    const source = new LocalBlobStore(join(root, 'source')); const target = new LocalBlobStore(join(root, 'target'))
+    const files = Array.from({ length: 8 }, (_, index) => ({ key: `fixture/file-${index}` }))
+    for (const file of files) await source.put(file.key, file.key)
+    const put = target.put.bind(target)
+    let active = 0; let maximum = 0
+    target.put = async (key, body) => {
+      active += 1; maximum = Math.max(maximum, active)
+      try {
+        if (key.endsWith('-0')) await firstGate
+        const written = await put(key, body)
+        if (key.endsWith('-7')) laterCopied()
+        return written
+      } finally { active -= 1 }
+    }
+    const checkpoint: string[] = []
+    migration = copyVerifiedBlobs(source, target, files, {}, key => checkpoint.push(key))
+    await laterReady
+    expect(checkpoint).toEqual([])
+    expect(await target.get('fixture/file-7')).not.toBeNull()
+    releaseFirst(); await migration
+    expect(checkpoint).toEqual(files.map(file => file.key))
+    expect(maximum).toBeGreaterThan(1); expect(maximum).toBeLessThanOrEqual(4)
+    expect(active).toBe(0)
+  } finally { releaseFirst(); await migration?.catch(() => {}); rmSync(root, { recursive: true, force: true }) }
+})
