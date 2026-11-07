@@ -56,7 +56,7 @@ function workerCommands(): string[] {
 
   return ((site?.daemons ?? []) as Array<{ command?: string }>)
     .map(daemon => String(daemon?.command ?? ''))
-    .filter(command => command.includes('queue:work'))
+    .filter(command => /queue:work|stacks-queue-worker\.js/.test(command))
 }
 
 /**

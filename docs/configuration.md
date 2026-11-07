@@ -190,8 +190,11 @@ one - but the endpoints answer 404 without it rather than accepting anything,
 because a default shared secret is a published shared secret.
 
 Without it a push lands on disk and nothing is recorded about it: no closed
-issues, no cross references, no `pushed_at`. Generate one with
-`openssl rand -hex 32`, then run `buddy git:hooks`.
+issues, no cross references, no `pushed_at`. Required WAL instead refuses
+a push whose callback cannot confirm its durable recovery record. Generate
+a secret with `openssl rand -hex 32`, then run `buddy git:hooks`.
+Managed production deployments derive a purpose-specific secret from `APP_KEY`
+when this is blank, set the API callback URL and refresh existing hooks.
 
 *No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
@@ -218,7 +221,7 @@ cannot be logged, which deliberately inverts the fail-open rule that governs
 branch protection - see config/git-wal.ts for why the two want opposite
 failure modes. Run advisory first.
 
-*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+Read by `app/Actions/Git/hooks.ts`.
 
 ### `GIT_WAL_KEEP`
 

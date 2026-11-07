@@ -1042,19 +1042,19 @@ export const tsCloud: TsCloudConfig = {
       daemons: [
         {
           name: 'worker',
-          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=default,git,search,webhooks,mirrors,notifications,emails --concurrency=4 --verbose`,
+          command: `./${BUN_BINARY} node_modules/@stacksjs/ts-cloud/dist/bin/stacks-queue-worker.js --queue=default,git,search,webhooks,mirrors,notifications,emails --concurrency=4 --verbose`,
         },
         {
           name: 'storage-worker',
-          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=storage --concurrency=1 --verbose`,
+          command: `./${BUN_BINARY} node_modules/@stacksjs/ts-cloud/dist/bin/stacks-queue-worker.js --queue=storage --concurrency=1 --verbose`,
         },
         {
           name: 'repository-snapshots-worker',
-          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=repository-snapshots --concurrency=1 --verbose`,
+          command: `./${BUN_BINARY} node_modules/@stacksjs/ts-cloud/dist/bin/stacks-queue-worker.js --queue=repository-snapshots --concurrency=1 --verbose`,
         },
         {
           name: 'mirror-code-worker',
-          command: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/cli.js queue:work --queue=mirrors-code --concurrency=2 --verbose`,
+          command: `./${BUN_BINARY} node_modules/@stacksjs/ts-cloud/dist/bin/stacks-queue-worker.js --queue=mirrors-code --concurrency=2 --verbose`,
         },
       ],
       // Bare repositories live on the box and are authoritative there: the
