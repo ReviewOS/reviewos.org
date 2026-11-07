@@ -37,7 +37,7 @@ test('unverifiable recovered ownership never authorizes scratch removal', async 
 })
 
 
-test.skipIf(process.platform !== 'linux')('an exited snapshot worker retires proven-unused scratch and preserves it when native inspection is denied', async () => {
+test.skipIf(process.platform !== 'linux')('an exited snapshot worker retires proven-unused scratch and preserves it when native inspection is unavailable', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-repository-workspace-'))
   try {
     const module = new URL('../../app/Actions/Git/snapshotWorkspace.ts', import.meta.url).pathname
@@ -61,12 +61,20 @@ test.skipIf(process.platform !== 'linux')('an exited snapshot worker retires pro
     const next = await createRepositoryWorkspace(root, 'snapshot-replacement')
     const preserved = existsSync(abandoned!)
     if (preserved) {
-      // A same-user protected process can make /proc inspection unavailable on
-      // a hosted runner. Dead ownership alone must never authorize removal.
+      // A protected process or an unreaped zombie can make /proc inspection
+      // unavailable. Dead ownership alone must never authorize removal.
       const inspection = await journal.inspectRetirement(record.id, () => true)
+      process.stdout.write(JSON.stringify({ inspection }) + '\n')
       expect(inspection.ready).toBe(false)
       expect(inspection.reason).toBe('inspection-unavailable')
-      expect(['EACCES', 'EPERM']).toContain(inspection.usage?.code)
+      if (inspection.usage?.code === 'EINVAL') {
+        expect(inspection.usage.operation).toBe('process-mounts')
+        expect(Number(inspection.usage.pid)).toBeGreaterThan(0)
+        // Confirm the observed Linux case, rather than accepting an arbitrary
+        // inspection error: a zombie has no readable mount namespace.
+        expect(readFileSync(`/proc/${inspection.usage.pid}/stat`, 'utf8')).toMatch(/\) Z /)
+      }
+      else expect(['EACCES', 'EPERM']).toContain(inspection.usage?.code)
       expect(readFileSync(join(abandoned!, 'bundle'), 'utf8')).toBe('interrupted scratch')
       expect(journal.list().some(row => row.id === record.id)).toBe(true)
     }
