@@ -766,6 +766,7 @@ describe('git LFS, over the same server', () => {
     // sees - it is what git lfs will PUT to next.
     expect(body.objects[0].actions.upload.href).toBe(lfsUrl(`/objects/${oid}`))
     expect(body.objects[0].actions.verify.href).toBe(lfsUrl('/verify'))
+    expect(body.objects[0].authenticated).not.toBe(true)
   }, 60_000)
 
   test('the bytes go up, and come back the same', async () => {
@@ -963,7 +964,8 @@ describe('the git lfs client, end to end', () => {
 
     const authenticated = `http://x:${created.token}@127.0.0.1:${port}/${created.handle}/${created.name}.git`
 
-    await git(work, 'init', '--initial-branch=main')
+    const cloned = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', authenticated, work)
+    expect(cloned.ok, cloned.stderr).toBe(true)
     await git(work, 'lfs', 'install', '--local')
     await git(work, 'lfs', 'track', '*.bin')
 
@@ -986,8 +988,8 @@ describe('the git lfs client, end to end', () => {
     expect(pushed.ok, pushed.stderr).toBe(true)
 
     // In the store, under the id the client computed independently of us.
-    const { storeFor } = await import('../../app/Actions/Git/lfs')
-    const stored = await storeFor(created.handle, created.name).lookup(expectedOid)
+    const { blobObjectStore } = await import('../../app/Actions/Git/lfs')
+    const stored = await blobObjectStore(created.handle, created.name).lookup(expectedOid)
 
     expect(stored).toEqual({ oid: expectedOid, size: payload.byteLength })
 
@@ -1005,7 +1007,7 @@ describe('the git lfs client, end to end', () => {
     const into = join(created.temp, 'lfs-clone')
     const authenticated = `http://x:${created.token}@127.0.0.1:${port}/${created.handle}/${created.name}.git`
 
-    const cloned = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', authenticated, into)
+    const cloned = await git(created.temp, '-c', 'credential.helper=', '-c', 'filter.lfs.process=git-lfs filter-process', '-c', 'filter.lfs.required=true', 'clone', '--quiet', authenticated, into)
     expect(cloned.ok, cloned.stderr).toBe(true)
 
     const original = await Bun.file(join(created.temp, 'lfs-work', 'large.bin')).arrayBuffer()

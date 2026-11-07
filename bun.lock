@@ -28,7 +28,7 @@
         "bun-query-builder": "0.3.38",
         "mermaid": "^12.1.0",
         "stacks": "0.75.484",
-        "ts-git-lfs": "^0.1.3",
+        "ts-git-lfs": "0.1.4",
         "ts-images": "^0.2.25",
         "ts-pantry": "^0.11.69",
         "ts-syntax-highlighter": "^0.2.17",
@@ -704,7 +704,7 @@
 
     "ts-gif": ["ts-gif@0.1.2", "", { "dependencies": { "data-uri-to-buffer": "^6.0.2" } }, "sha512-jbraplO1qqJtrtkFeepNPUGPad7w8FQHWIQFsn1OJbHeWKUbdqdkrX18XzNXI5Fw7+s6A3nbNTdj+Ukn4d3f8g=="],
 
-    "ts-git-lfs": ["ts-git-lfs@0.1.3", "", { "bin": { "git-lfs-server": "./dist/bin/cli.js" } }, "sha512-VX2e8C5mYMM+tEScpkRth/PLUl8ODFgZ6pwKGXrTB9AbP5XZ4bSKnAyA0t6fF0dmp74ewT9it+27NxPsqwdUlA=="],
+    "ts-git-lfs": ["ts-git-lfs@0.1.4", "", { "bin": { "git-lfs-server": "./dist/bin/cli.js" } }, "sha512-+8ramGhbK19SSpLgtV2LQPVzREgRzrrk9UbML3TBoEvqfZEINHfPgVdAWGDLwS2ZSEhFxOmRbeU9a74G8FZA0g=="],
 
     "ts-images": ["ts-images@0.2.25", "", { "dependencies": { "@stacksjs/ts-avif": "^0.1.4", "@stacksjs/ts-bmp": "^0.1.0", "@stacksjs/ts-heic": "^0.0.2", "@stacksjs/ts-png": "^0.1.2", "@stacksjs/ts-svg": "^0.1.1", "@stacksjs/ts-webp": "^0.1.6", "ts-gif": "^0.1.2", "ts-jpeg": "^0.3.1" }, "bin": { "imgx": "./dist/bin/cli.js" } }, "sha512-EMxCSF2clDWh765+dJbbFLn/JYJRUwQFwfRcr5fSvfB5I6aa9ihg5c13Aa5/rQOHngrpJu03AiPGZplRBY12zg=="],
 

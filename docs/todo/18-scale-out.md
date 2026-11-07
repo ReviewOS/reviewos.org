@@ -402,4 +402,6 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 
 - [x] Keep blob-transfer concurrency and native Git compression bounded, wait for newly created bucket readiness, and preserve provider failures on authoritative artifact, attachment and LFS paths.
 
-- [x] Dispatch scheduled blob transfers and repository snapshots to the durable storage queue so operator pauses and worker lifecycle apply.
+- [x] Dispatch scheduled blob transfers and repository snapshots to dedicated durable worker queues so operator pauses and worker lifecycle apply without blocking interactive work.
+
+- [x] Verify private object storage and required push recovery with real Git and Git LFS clients, including authenticated uploads and byte-identical downloads.

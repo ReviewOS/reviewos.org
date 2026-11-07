@@ -302,3 +302,5 @@ infrastructure converges on that pattern, and the container path stops being the
       duplicate of `config/deps.ts` rather than a second source of truth.
 
 - [x] Give functional regex tests an explicit startup budget while retaining the production 25 ms isolation deadline.
+
+- [x] Run standalone Git callbacks without application preloads, with real hook and inherited-config regression coverage.

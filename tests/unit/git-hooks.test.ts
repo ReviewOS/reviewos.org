@@ -189,8 +189,8 @@ describe('the generated scripts', () => {
   const pre = preReceiveScript('http://127.0.0.1:3000/internal/git/pre-receive')
 
   test('both are bun scripts git can execute', () => {
-    expect(post.startsWith('#!/usr/bin/env bun')).toBe(true)
-    expect(pre.startsWith('#!/usr/bin/env bun')).toBe(true)
+    expect(post.startsWith('#!/usr/bin/env -S bun --config=/dev/null')).toBe(true)
+    expect(pre.startsWith('#!/usr/bin/env -S bun --config=/dev/null')).toBe(true)
   })
 
   /**
@@ -209,7 +209,7 @@ describe('the generated scripts', () => {
     const transpiler = new Bun.Transpiler({ loader: 'ts' })
 
     for (const [name, script] of [['post-receive', post], ['pre-receive', pre]] as const) {
-      expect(() => transpiler.transformSync(script.replace('#!/usr/bin/env bun', '')), name)
+      expect(() => transpiler.transformSync(script.replace('#!/usr/bin/env -S bun --config=/dev/null', '')), name)
         .not.toThrow()
     }
   })

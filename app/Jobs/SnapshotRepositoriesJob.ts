@@ -7,7 +7,7 @@ import { claimTransfer, saveTransfer, startTransfer, transferStore } from '../Ac
 
 export default new Job({
   name: 'SnapshotRepositoriesJob',
-  queue: 'storage',
+  queue: 'repository-snapshots',
   tries: 6,
   backoff: 120,
   timeout: 7200,
