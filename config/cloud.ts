@@ -2,7 +2,7 @@ import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
 import { boxes } from '../cloud/boxes'
 import { servers } from '../cloud/servers'
-import { reviewosObjectStorage } from '../cloud/object-storage'
+import { objectStorageRuntimeEnvironment, reviewosObjectStorage } from '../cloud/object-storage'
 import { deploymentHookSecret } from '../cloud/git-hooks'
 import { env } from '@stacksjs/env'
 import toolchain from './deps'
@@ -53,11 +53,10 @@ const BLOB_STORAGE_PATHS = ['storage/artifacts', 'storage/attachments', 'storage
 const OBJECT_STORAGE_ENV = {
   BLOB_SCRATCH_ROOT: '/var/lib/stacks-deployments/reviewos-scratch',
   STACKS_QUEUE_RESERVATION_TTL_SEC: '10800',
-  GIT_WAL: String(env.GIT_WAL || 'off'),
+  ...objectStorageRuntimeEnvironment(String(env.APP_ENV || ''), { bucket: env.BLOB_S3_BUCKET, wal: env.GIT_WAL }),
   GIT_HOOK_SECRET: deploymentHookSecret(String(env.APP_KEY || ''), String(env.GIT_HOOK_SECRET || '')),
   GIT_HOOK_URL: `http://127.0.0.1:${API_PORT}`,
   BLOB_LOCAL_ROOT: '/var/www/reviewos-shared/blobs',
-  BLOB_S3_BUCKET: String(env.BLOB_S3_BUCKET || ''),
   BLOB_MIGRATION_S3_BUCKET: reviewosObjectStorage.bucket,
   BLOB_S3_PROVIDER: reviewosObjectStorage.provider,
   BLOB_S3_REGION: reviewosObjectStorage.region,

@@ -1270,3 +1270,5 @@ to their own timezone gets every timestamp wrong by it.
 - [x] Stage large repository bundles in private S3 and restore them in separate durable queue batches; retain exact ref checkpoints and publish verified manifests only after a fresh restore.
 
 - [x] Consume published ts-cloud 0.16.107 with aligned core/aws-types so desired site liveness services survive daemon reconciliation.
+
+- [x] Declare the production S3 bucket and required push recovery in deployment configuration while keeping test and staging stores isolated.
