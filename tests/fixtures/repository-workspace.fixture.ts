@@ -37,7 +37,7 @@ test('unverifiable recovered ownership never authorizes scratch removal', async 
 })
 
 
-test.skipIf(process.platform !== 'linux')('an exited snapshot worker leaves a recoverable journal and the next attempt retires only its scratch', async () => {
+test.skipIf(process.platform !== 'linux')('an exited snapshot worker retires proven-unused scratch and preserves it when native inspection is denied', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-repository-workspace-'))
   try {
     const module = new URL('../../app/Actions/Git/snapshotWorkspace.ts', import.meta.url).pathname
@@ -52,19 +52,31 @@ test.skipIf(process.platform !== 'linux')('an exited snapshot worker leaves a re
     const abandoned = output.match(/^__workspace__(.+)$/m)?.[1]
     expect(abandoned).toBeDefined()
     expect(readFileSync(join(abandoned!, 'bundle'), 'utf8')).toBe('interrupted scratch')
+    const { TemporaryWorkspaceJournal } = await import('@stacksjs/storage')
+    const { processLeaseOwnerStatus } = await import('@stacksjs/queue')
+    const journal = new TemporaryWorkspaceJournal({ directory: join(root, 'repository-journal'), temporaryRoot: root, prefix: 'repository-work-' })
+    const record = journal.list().find(row => row.path === abandoned)!
+    const owner = JSON.parse(readFileSync(join(abandoned!, 'workspace-owner.json'), 'utf8')).owner
+    expect(processLeaseOwnerStatus(owner)).toBe('dead')
     const next = await createRepositoryWorkspace(root, 'snapshot-replacement')
-    if (existsSync(abandoned!)) {
-      const { TemporaryWorkspaceJournal } = await import('@stacksjs/storage')
-      const { processLeaseOwnerStatus } = await import('@stacksjs/queue')
-      const journal = new TemporaryWorkspaceJournal({ directory: join(root, 'repository-journal'), temporaryRoot: root, prefix: 'repository-work-' })
-      const record = journal.list().find(row => row.path === abandoned)
-      const owner = JSON.parse(readFileSync(join(abandoned!, 'workspace-owner.json'), 'utf8')).owner
-      console.error('Recovery inspection', JSON.stringify({ owner: processLeaseOwnerStatus(owner), inspection: record ? await journal.inspectRetirement(record.id, () => true) : null }))
+    const preserved = existsSync(abandoned!)
+    if (preserved) {
+      // A same-user protected process can make /proc inspection unavailable on
+      // a hosted runner. Dead ownership alone must never authorize removal.
+      const inspection = await journal.inspectRetirement(record.id, () => true)
+      expect(inspection.ready).toBe(false)
+      expect(inspection.reason).toBe('inspection-unavailable')
+      expect(['EACCES', 'EPERM']).toContain(inspection.usage?.code)
+      expect(readFileSync(join(abandoned!, 'bundle'), 'utf8')).toBe('interrupted scratch')
+      expect(journal.list().some(row => row.id === record.id)).toBe(true)
     }
-    expect(existsSync(abandoned!)).toBe(false)
+    else {
+      expect(journal.list().some(row => row.id === record.id)).toBe(false)
+    }
     expect(existsSync(next.path)).toBe(true)
     next.complete()
-    expect(readdirSync(join(root, 'repository-journal'))).toEqual([])
+    expect(readdirSync(join(root, 'repository-journal'))).toEqual(preserved ? [record.id + '.json'] : [])
+    console.log(JSON.stringify({ recovery: preserved ? 'preserved-uninspectable' : 'retired-proven-unused', owner: 'dead' }))
   }
   finally { rmSync(root, { recursive: true, force: true }) }
 }, 15000)
