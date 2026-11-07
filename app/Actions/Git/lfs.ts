@@ -59,41 +59,23 @@ export function blobObjectStore(owner: string, name: string): ObjectStoreLike {
 
     /*
      * Synchronous by the library's signature, and the store's `get` is not -
-     * so the stream is opened lazily inside a ReadableStream's `start`. The
+     * so each pull waits for the source reader without reading ahead. The
      * whole point of an object being in LFS is that it is too big to want a
      * copy of in memory, so this must not become a `read`.
      */
     stream(oid: string) {
       const key = keyFor(oid)
 
+      const opened = blobStore().then(store => store.get(key)).then(source => source?.getReader() ?? null)
       return new ReadableStream<Uint8Array>({
-        async start(controller) {
-          const source = await (await blobStore()).get(key).catch(() => null)
-
-          if (!source) {
-            controller.close()
-
-            return
-          }
-
-          const reader = source.getReader()
-
-          try {
-            for (;;) {
-              const { done, value } = await reader.read()
-
-              if (done)
-                break
-
-              if (value)
-                controller.enqueue(value)
-            }
-          }
-          finally {
-            reader.releaseLock()
-            controller.close()
-          }
+        async pull(controller) {
+          const reader = await opened
+          if (!reader) { controller.close(); return }
+          const next = await reader.read()
+          if (next.done) { reader.releaseLock(); controller.close() }
+          else controller.enqueue(next.value)
         },
+        async cancel(reason) { await (await opened)?.cancel(reason) },
       })
     },
 

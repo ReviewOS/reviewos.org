@@ -1,3 +1,5 @@
+import type { BlobStore } from '../Git/blobs'
+
 /**
  * Files attached to a release: a built binary, a checksum file, a signature.
  *
@@ -151,6 +153,9 @@ export function decideAsset(originalName: string, byteLength: number): AssetDeci
   if (!name)
     return { ok: false, error: 'That file name cannot be used', status: 422 }
 
+  if (!Number.isSafeInteger(byteLength))
+    return { ok: false, error: 'That file size is invalid', status: 422 }
+
   if (byteLength <= 0)
     return { ok: false, error: 'That file is empty', status: 422 }
 
@@ -186,4 +191,22 @@ function headerSafe(name: string): string {
     .filter(character => character >= ' ' && character !== '"' && character !== '\\')
     .join('')
     .slice(0, 200) || 'download'
+}
+
+/** Validate actual streamed bytes and hash incrementally, without a second upload buffer. */
+export async function storeAssetUpload(store: BlobStore, key: string, file: Pick<File, 'size' | 'stream'>): Promise<string> {
+  if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > MAX_ASSET_BYTES) throw new Error('Invalid upload size')
+  const hash = new Bun.CryptoHasher('sha256')
+  let received = 0
+  async function* upload() {
+    for await (const chunk of file.stream()) {
+      received += chunk.byteLength
+      if (received > file.size) throw new Error('Upload exceeded its declared size')
+      hash.update(chunk); yield chunk
+    }
+    if (received !== file.size) throw new Error('Upload did not match its declared size')
+  }
+  const written = await store.put(key, upload())
+  if (written.size !== received) throw new Error('Stored upload size differs')
+  return hash.digest('hex')
 }

@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
-import { assetBlobKey, checksumOf, decideAsset, newAssetKey } from './assets'
+import { assetBlobKey, decideAsset, newAssetKey, storeAssetUpload } from './assets'
 
 /**
  * Attach a built artefact to a release.
@@ -53,8 +53,7 @@ export default new Action({
     if (!file)
       return response.json({ error: 'No file was uploaded' }, 422)
 
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    const decision = decideAsset(String(file.name ?? ''), bytes.byteLength)
+    const decision = decideAsset(String(file.name ?? ''), Number(file.size))
 
     if (!decision.ok)
       return response.json({ error: decision.error }, decision.status)
@@ -75,10 +74,11 @@ export default new Action({
     const key = newAssetKey()
     const blobKey = assetBlobKey(key)!
 
+    let checksum: string
     try {
       const { blobStore } = await import('../Git/blobs')
       const store = await blobStore()
-      await store.put(blobKey, bytes)
+      checksum = await storeAssetUpload(store, blobKey, file)
     }
     catch (error) {
       return response.json({ error: `Could not store that file: ${error}` }, 500)
@@ -96,7 +96,7 @@ export default new Action({
         // it says it is.
         content_type: String(file.type ?? 'application/octet-stream').slice(0, 160),
         size_bytes: decision.bytes,
-        checksum: checksumOf(bytes),
+        checksum,
         download_count: 0,
       })
       .returning(['id'])
@@ -108,7 +108,7 @@ export default new Action({
       size_bytes: decision.bytes,
       // Published next to the file, because a checksum nobody can see is a
       // checksum nobody can check.
-      checksum: checksumOf(bytes),
+      checksum,
       url: `/api/repos/releases/assets?owner=${encodeURIComponent(String(request.get('owner') ?? ''))}`
         + `&repository=${encodeURIComponent(repository.name)}`
         + `&tag_name=${encodeURIComponent(tag)}&name=${encodeURIComponent(decision.name)}`,

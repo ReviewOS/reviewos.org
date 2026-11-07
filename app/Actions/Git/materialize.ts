@@ -22,7 +22,8 @@
  * look right.
  */
 
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { db } from '@stacksjs/database'
 import { blobStore } from './blobs'
@@ -142,23 +143,25 @@ async function fetchBundle(
   scratch: string,
   repositoryPath: string,
 ): Promise<boolean> {
-  const stream = await store.get(key).catch(() => null)
+  const stream = await store.get(key)
 
   if (!stream)
     return false
 
-  const path = join(scratch, `${key.replace(/[^A-Za-z0-9]/g, '-')}.bundle`)
-  await Bun.write(path, await new Response(stream).arrayBuffer())
+  const path = join(scratch, `${randomUUID()}.bundle`)
+  try {
+    await Bun.write(path, new Response(stream))
 
-  // `--force` because the log is the authority: an entry moving a ref
-  // backwards is a force push that really happened, and refusing to replay it
-  // would materialize a repository that never existed.
-  const fetched = await runGit(repositoryPath, ['fetch', '--force', path, '+refs/*:refs/*'], {
-    timeoutMs: 30 * 60_000,
-    priority: 'background',
-  })
+    // `--force` because the log is the authority: an entry moving a ref
+    // backwards is a force push that really happened, and refusing to replay it
+    // would materialize a repository that never existed.
+    const fetched = await runGit(repositoryPath, ['fetch', '--force', path, '+refs/*:refs/*'], {
+      timeoutMs: 30 * 60_000,
+      priority: 'background',
+    })
 
-  return fetched.ok
+    return fetched.ok
+  } finally { await rm(path, { force: true }) }
 }
 
 /** The repository row for a path, for callers that only know where it lives. */

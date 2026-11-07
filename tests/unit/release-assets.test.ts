@@ -14,6 +14,7 @@ import {
   assetName,
   assetPath,
   checksumOf,
+  storeAssetUpload,
   decideAsset,
   isAssetKey,
   MAX_ASSET_BYTES,
@@ -156,4 +157,21 @@ describe('checksumOf', () => {
   test('one different byte gives a different answer', () => {
     expect(checksumOf(new TextEncoder().encode('a'))).not.toBe(checksumOf(new TextEncoder().encode('b')))
   })
+})
+
+
+test('a large streamed asset is hashed without reading a whole-file buffer', async () => {
+  const chunk = new Uint8Array(1024 * 1024).fill(137)
+  let supplied = 0; let stored = 0
+  const expected = new Bun.CryptoHasher('sha256')
+  const file = { size: chunk.length * 270, stream: () => new ReadableStream<Uint8Array>({ pull(controller) {
+    if (supplied++ === 270) { controller.close(); return }
+    expected.update(chunk); controller.enqueue(chunk)
+  } }) }
+  const store = { async put(key: string, body: any) { for await (const part of body) stored += part.length; return { key, size: stored, modifiedAtMs: null } } }
+  const checksum = await storeAssetUpload(store as any, 'release-assets/fixture', file)
+  expect(stored).toBe(file.size); expect(checksum).toBe(expected.digest('hex'))
+  await expect(storeAssetUpload(store as any, 'release-assets/fixture', { size: 1, stream: () => new Response('too many').body! })).rejects.toThrow('exceeded')
+  await expect(storeAssetUpload(store as any, 'release-assets/fixture', { size: 10, stream: () => new Response('short').body! })).rejects.toThrow('did not match')
+  expect(decideAsset('file', Number.NaN).ok).toBe(false)
 })

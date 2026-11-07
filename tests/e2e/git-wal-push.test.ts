@@ -18,7 +18,7 @@
 // file exists rather than more fixtures.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -340,6 +340,7 @@ describe('a push with the log on', () => {
     expect(outcome.ok, outcome.reason ?? '').toBe(true)
     expect(outcome.created).toBe(true)
     expect(outcome.bundlesFetched).toBeGreaterThan(0)
+    expect(readdirSync(join(elsewhere, 'materialize')).filter(name => name.endsWith('.bundle'))).toHaveLength(0)
 
     const { runGit } = await import('../../app/Actions/Git/git')
 

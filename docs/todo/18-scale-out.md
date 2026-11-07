@@ -397,3 +397,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Stream large objects through the first-party S3 client with bounded multipart memory, abort incomplete uploads, preserve binary downloads and surface provider failures.
 - [x] Queue preservation-only blob migrations in bounded batches with durable operation checkpoints, compare-and-swap leases, destination binding and downloaded SHA-256 verification.
 - [x] Store Git bundles and ref manifests in object storage after restoring each bundle into a fresh repository; provide an operator restore command that preserves existing destinations and local repositories.
+
+- [x] Apply backpressure and cancellation to LFS downloads, stream release upload checksums, and remove only each materialization attempt's temporary bundle after fetching.
