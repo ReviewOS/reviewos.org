@@ -10,7 +10,7 @@ export default new Job({
   queue: 'storage',
   tries: 6,
   backoff: 120,
-  timeout: 3600,
+  timeout: 7200,
   description: 'Store and verify one repository snapshot per durable queue batch',
   async handle(payload: { operationId?: number } = {}) {
     // An operator can bootstrap before S3 activation; scheduled backups require it active.
@@ -18,6 +18,7 @@ export default new Job({
     const id = payload.operationId || await startTransfer('storage.repositories')
     const claim = await claimTransfer('storage.repositories', id)
     if (!claim) return { skipped: 'no available snapshot operation' }
+    let checkpointSaved = false
     try {
       const rows: any[] = await db.selectFrom('repositories').select(['id', 'name', 'owner_id', 'owner_type']).where('id', '>', Number(claim.progress.cursor) || 0).orderBy('id', 'asc').limit(2).execute()
       const row = rows[0]
@@ -29,8 +30,9 @@ export default new Job({
       }
       const complete = rows.length <= 1
       await saveTransfer(claim, complete)
+      checkpointSaved = true
       if (!complete) await (await import('./SnapshotRepositoriesJob')).default.dispatch({ operationId: Number(claim.row.id) })
       return { complete, ...claim.progress }
-    } catch (error) { await saveTransfer(claim, false, error); throw error }
+    } catch (error) { if (!checkpointSaved) await saveTransfer(claim, false, error); throw error }
   },
 })

@@ -47,3 +47,17 @@ export async function copyVerifiedBlob(source: BlobStore, target: BlobStore, key
   await receipt()
   return { bytes: after.bytes, copied: true }
 }
+
+
+/** At most four streams at once; advance only the contiguous verified prefix. */
+export async function copyVerifiedBlobs(source: BlobStore, target: BlobStore, files: Array<{ key: string }>, options: { receiptScope?: string }, verified: (key: string, result: { bytes: number, copied: boolean }) => void) {
+  for (let offset = 0; offset < files.length; offset += 4) {
+    const group = files.slice(offset, offset + 4)
+    const settled = await Promise.allSettled(group.map(file => copyVerifiedBlob(source, target, file.key, options)))
+    for (let index = 0; index < settled.length; index++) {
+      const result = settled[index]!
+      if (result.status === 'rejected') throw result.reason
+      verified(group[index]!.key, result.value)
+    }
+  }
+}

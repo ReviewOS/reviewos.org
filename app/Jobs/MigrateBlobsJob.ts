@@ -2,7 +2,7 @@ import { Job } from '@stacksjs/queue'
 import process from 'node:process'
 import { LocalBlobStore } from '../Actions/Git/blobs'
 import { claimTransfer, saveTransfer, transferStore } from '../Actions/Storage/operations'
-import { copyVerifiedBlob } from '../Actions/Storage/transfer'
+import { copyVerifiedBlobs } from '../Actions/Storage/transfer'
 
 export default new Job({
   name: 'MigrateBlobsJob',
@@ -14,24 +14,29 @@ export default new Job({
   async handle(payload: { operationId?: number } = {}) {
     const claim = await claimTransfer('storage.blobs', payload.operationId)
     if (!claim) return { skipped: 'no available transfer' }
+    let checkpointSaved = false
     try {
       const source = new LocalBlobStore(process.env.BLOB_LOCAL_ROOT || 'storage')
       const target = await transferStore()
-      const page = await source.page(claim.progress.cursor, 8)
-      let processed = 0
+      const page = await source.page(claim.progress.cursor, 64)
       let batchBytes = 0
+      const batch = []
       for (const file of page.entries) {
-        if (processed && batchBytes + file.size > 512 * 1024 * 1024) break
-        const result = await copyVerifiedBlob(source, target, file.key, { receiptScope: claim.progress.fingerprint })
-        claim.progress.cursor = file.key; claim.progress.verified += 1; claim.progress.bytes += result.bytes
-        batchBytes += result.bytes; processed += 1
+        if (batch.length && batchBytes + file.size > 512 * 1024 * 1024) break
+        batch.push(file); batchBytes += file.size
       }
+      let processed = 0
+      await copyVerifiedBlobs(source, target, batch, { receiptScope: claim.progress.fingerprint }, (key, result) => {
+        claim.progress.cursor = key; claim.progress.verified += 1; claim.progress.bytes += result.bytes
+        processed += 1
+      })
       const complete = !page.more && processed === page.entries.length
       await saveTransfer(claim, complete)
+      checkpointSaved = true
       // The operation checkpoint is durable before the next bounded queue job.
       // The scheduled reconciler resumes queued or abandoned operations too.
       if (!complete) await (await import('./MigrateBlobsJob')).default.dispatch({ operationId: Number(claim.row.id) })
       return { complete, ...claim.progress }
-    } catch (error) { await saveTransfer(claim, false, error); throw error }
+    } catch (error) { if (!checkpointSaved) await saveTransfer(claim, false, error); throw error }
   },
 })

@@ -974,6 +974,8 @@ to their own timezone gets every timestamp wrong by it.
       after it: existing rows keep the values they have. The health check above is what says whether
       a given instance is affected.
 
+- [x] Preview and apply legacy timestamp-default repairs through the published framework UTC DDL generator with `instance:repair-clock`; preserve existing rows and columns without defaults, and verify idempotence on a disposable PostgreSQL database.
+
 ## Developer environment
 
 - [x] Pantry auto-activation under the `den` shell. den now runs `chpwd`, `chpwd_functions`,

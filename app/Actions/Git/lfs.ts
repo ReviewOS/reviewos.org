@@ -42,17 +42,17 @@ export function blobObjectStore(owner: string, name: string): ObjectStoreLike {
 
   return {
     async lookup(oid: string) {
-      const found = await (await blobStore()).stat(keyFor(oid)).catch(() => null)
+      const found = await (await blobStore()).stat(keyFor(oid))
 
       return found ? { oid: oid as any, size: found.size } : null
     },
 
     async has(oid: string) {
-      return Boolean(await (await blobStore()).stat(keyFor(oid)).catch(() => null))
+      return Boolean(await (await blobStore()).stat(keyFor(oid)))
     },
 
     async read(oid: string) {
-      const stream = await (await blobStore()).get(keyFor(oid)).catch(() => null)
+      const stream = await (await blobStore()).get(keyFor(oid))
 
       return stream ? new Uint8Array(await new Response(stream).arrayBuffer()) : null
     },
@@ -102,7 +102,7 @@ export function blobObjectStore(owner: string, name: string): ObjectStoreLike {
       const store = await blobStore()
 
       // Content-addressed, so an object already there is the same bytes.
-      const already = await store.stat(key).catch(() => null)
+      const already = await store.stat(key)
 
       if (already)
         return { ok: true, oid: verified.oid, size: verified.size }
@@ -113,7 +113,7 @@ export function blobObjectStore(owner: string, name: string): ObjectStoreLike {
     },
 
     async remove(oid: string) {
-      await (await blobStore()).delete(keyFor(oid)).catch(() => undefined)
+      await (await blobStore()).delete(keyFor(oid))
 
       return true
     },

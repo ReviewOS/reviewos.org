@@ -399,3 +399,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Store Git bundles and ref manifests in object storage after restoring each bundle into a fresh repository; provide an operator restore command that preserves existing destinations and local repositories.
 
 - [x] Apply backpressure and cancellation to LFS downloads, stream release upload checksums, and remove only each materialization attempt's temporary bundle after fetching.
+
+- [x] Keep blob-transfer concurrency and native Git compression bounded, wait for newly created bucket readiness, and preserve provider failures on authoritative artifact, attachment and LFS paths.

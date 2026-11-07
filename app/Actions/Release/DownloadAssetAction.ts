@@ -74,7 +74,7 @@ export default new Action({
     const { assetKeyFrom } = await import('./assets')
     const store = await blobStore()
     const key = assetKeyFrom(asset.storage_path)
-    const stream = key ? await store.get(key).catch(() => null) : null
+    const stream = key ? await store.get(key) : null
 
     if (!stream)
       return response.json({ error: 'Not found' }, 404)

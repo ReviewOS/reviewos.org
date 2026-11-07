@@ -77,7 +77,7 @@ export default new Action({
 
     const { blobStore } = await import('../Git/blobs')
     const store = await blobStore()
-    const stream = await store.get(attachmentBlobKey(key)!).catch(() => null)
+    const stream = await store.get(attachmentBlobKey(key)!)
 
     if (!stream)
       return response.json({ error: 'Not found' }, 404)

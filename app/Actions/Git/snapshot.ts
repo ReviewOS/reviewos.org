@@ -9,6 +9,9 @@ import { repositoryPath, REPOSITORY_ROOT } from './storage'
 import { refsOnDisk } from './refs'
 import { runGit } from './git'
 
+// Keep background Git compression bounded on a shared application host.
+const SNAPSHOT_GIT_OPTIONS = ['-c', 'pack.threads=2', '-c', 'pack.windowMemory=128m', '-c', 'pack.deltaCacheSize=64m']
+
 /** A portable Git snapshot. The live bare repository is never removed or modified. */
 export async function snapshotRepository(repository: { id: number, owner: string, name: string }, store: BlobStore, options: { repositoryRoot?: string, scratchRoot?: string } = {}) {
   const located = repositoryPath(repository.owner, repository.name, options.repositoryRoot ?? REPOSITORY_ROOT)
@@ -39,9 +42,9 @@ export async function snapshotRepository(repository: { id: number, owner: string
   const scratch = await mkdtemp(join(scratchRoot, 'repository-snapshot-'))
   try {
     const file = join(scratch, 'repository.bundle')
-    const created = await runGit(located.path!, ['bundle', 'create', file, '--all'], { timeoutMs: 50 * 60_000, priority: 'background' })
+    const created = await runGit(located.path!, [...SNAPSHOT_GIT_OPTIONS, 'bundle', 'create', file, '--all'], { timeoutMs: 50 * 60_000, priority: 'background' })
     if (!created.ok) throw new Error(`Repository bundle failed: ${created.stderr.slice(-500)}`)
-    const restored = await runGit(scratch, ['clone', '--mirror', file, join(scratch, 'restored.git')], { timeoutMs: 50 * 60_000, priority: 'background' })
+    const restored = await runGit(scratch, [...SNAPSHOT_GIT_OPTIONS, 'clone', '--mirror', file, join(scratch, 'restored.git')], { timeoutMs: 50 * 60_000, priority: 'background' })
     if (!restored.ok) throw new Error('Snapshot could not be restored into a new bare repository')
     if (head) { const restoredHead = await runGit(join(scratch, 'restored.git'), ['symbolic-ref', 'HEAD', head]); if (!restoredHead.ok) throw new Error('Could not restore snapshot default branch') }
     const restoredRefs = [...(await refsOnDisk(join(scratch, 'restored.git'))).entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
@@ -83,7 +86,7 @@ export async function restoreRepositorySnapshot(repositoryId: number, manifestKe
     await Bun.write(file, new Response(stream))
     const digest = await blobDigest(new LocalBlobStore(scratch), 'repository.bundle')
     if (digest.sha256 !== manifest.sha256 || digest.bytes !== manifest.bytes) throw new Error('Repository restore checksum failed')
-    const restored = await runGit(scratch, ['clone', '--mirror', file, destination], { timeoutMs: 50 * 60_000, priority: 'background' })
+    const restored = await runGit(scratch, [...SNAPSHOT_GIT_OPTIONS, 'clone', '--mirror', file, destination], { timeoutMs: 50 * 60_000, priority: 'background' })
     if (!restored.ok) throw new Error('Repository snapshot restore failed; existing repositories were preserved')
     if (manifest.head) {
       const head = await runGit(destination, ['symbolic-ref', 'HEAD', manifest.head])

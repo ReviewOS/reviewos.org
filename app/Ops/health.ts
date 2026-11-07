@@ -12,11 +12,11 @@
  */
 
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { speaksMysql } from '../Actions/Support/sql'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { draining } from './shutdown'
 import { db } from '@stacksjs/database'
+import { sessionClockDefaults } from './clock'
 
 export type CheckStatus = 'ok' | 'degraded' | 'failed'
 
@@ -154,23 +154,14 @@ async function databaseClock(): Promise<Check> {
      * spelling of the pinned one - which mentions UTC and is what everything
      * correct here reads as.
      */
-    const rows = await db.unsafe(
-      `SELECT table_name, column_name FROM information_schema.columns `
-      + `WHERE table_schema = ${speaksMysql() ? 'DATABASE()' : 'current_schema()'} `
-      + `AND data_type LIKE 'timestamp%' `
-      + `AND column_default IS NOT NULL `
-      + `AND LOWER(column_default) NOT LIKE '%utc%' `
-      + `AND LOWER(column_default) LIKE '%current_timestamp%'`,
-    ).execute()
-
-    const drifting = Array.isArray(rows) ? rows : []
+    const drifting = await sessionClockDefaults()
 
     if (drifting.length === 0)
       return
 
     const named = drifting
       .slice(0, 3)
-      .map((row: any) => `${row.table_name}.${row.column_name}`)
+      .map((row: any) => `${row.table}.${row.column}`)
       .join(', ')
 
     /*
@@ -243,14 +234,17 @@ async function queue(): Promise<Check> {
 
     const depth = Number(pending?.count ?? 0)
 
+    // Running work and delayed retries are not jobs waiting for a worker.
     const oldest = await db
       .selectFrom('jobs')
-      .select(['created_at'])
-      .orderBy('created_at', 'asc')
+      .select(['available_at'])
+      .where('reserved_at', 'is', null)
+      .where('available_at', '<=', Math.floor(Date.now() / 1000) as any)
+      .orderBy('available_at', 'asc')
       .limit(1)
       .executeTakeFirst()
 
-    const waitedMs = oldest?.created_at ? Date.now() - Date.parse(String(oldest.created_at)) : 0
+    const waitedMs = oldest?.available_at ? Date.now() - Number(oldest.available_at) * 1000 : 0
 
     // Five minutes. Long enough that a slow job or a burst does not trip it,
     // short enough that somebody hears about a stopped worker within a

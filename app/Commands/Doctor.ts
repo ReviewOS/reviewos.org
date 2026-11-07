@@ -2,6 +2,7 @@ import type { CLI } from '@stacksjs/types'
 import process from 'node:process'
 import { describe, inspect } from '../Ops/config'
 import { checkHealth } from '../Ops/health'
+import { repairClockDefaults } from '../Ops/clock'
 import { checkRepositories } from '../Ops/repositories'
 import { resolveSecretFiles } from '../Ops/secrets'
 import { onSignals } from '../Ops/shutdown'
@@ -18,6 +19,13 @@ import { onSignals } from '../Ops/shutdown'
  * does the right thing in a shell without anybody parsing output.
  */
 export default function (cli: CLI) {
+  cli.command('instance:repair-clock', 'Preview framework-generated UTC default repairs without rewriting existing rows')
+    .option('--apply', 'Apply the reviewed default-only repairs')
+    .action(async (options: { apply?: boolean }) => {
+      const plan = await repairClockDefaults(options)
+      console.log(JSON.stringify(plan, null, 2))
+    })
+
   cli
     .command('instance:check', 'Check this instance\'s configuration and subsystems')
     .option('--config-only', 'Skip the subsystem checks, which need a database', { default: false })

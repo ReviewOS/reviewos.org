@@ -20,3 +20,14 @@ test('LFS provider errors fail the stream instead of pretending it is empty', as
   try { await expect(new Response(blobObjectStore('fixture', 'repository').stream('a'.repeat(64))).arrayBuffer()).rejects.toThrow('provider unavailable') }
   finally { useBlobStore(null) }
 })
+
+
+test('LFS metadata failures stay retryable instead of reporting absent user data', async () => {
+  useBlobStore({ stat: async () => { throw new Error('provider unavailable') }, get: async () => { throw new Error('provider unavailable') } } as any)
+  try {
+    const store = blobObjectStore('fixture', 'repository')
+    await expect(store.lookup('a'.repeat(64))).rejects.toThrow('provider unavailable')
+    await expect(store.has('a'.repeat(64))).rejects.toThrow('provider unavailable')
+    await expect(store.read('a'.repeat(64))).rejects.toThrow('provider unavailable')
+  } finally { useBlobStore(null) }
+})

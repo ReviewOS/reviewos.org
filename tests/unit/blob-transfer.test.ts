@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { LocalBlobStore } from '../../app/Actions/Git/blobs'
-import { blobDigest, copyVerifiedBlob } from '../../app/Actions/Storage/transfer'
+import { blobDigest, copyVerifiedBlob, copyVerifiedBlobs } from '../../app/Actions/Storage/transfer'
 
 test('a verified transfer preserves every source, skips identical bytes and refuses same-size conflicts', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-'))
@@ -82,5 +82,31 @@ test('bounded local pages preserve lexical order across file and directory names
     }
     expect(found).toEqual([...keys].sort())
     expect(new Set(found).size).toBe(keys.length)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+
+test('bounded parallel copies never checkpoint past an unverified key', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-batch-'))
+  try {
+    const source = new LocalBlobStore(join(root, 'source')); const target = new LocalBlobStore(join(root, 'target'))
+    const files = Array.from({ length: 8 }, (_, index) => ({ key: `fixture/file-${index}` }))
+    for (const file of files) await source.put(file.key, file.key)
+    const put = target.put.bind(target)
+    let active = 0; let maximum = 0; let fail = true
+    target.put = async (key, body) => {
+      active++; maximum = Math.max(maximum, active)
+      try { await Bun.sleep(5); if (fail && key.endsWith('-2')) throw new Error('provider unavailable'); return await put(key, body) }
+      finally { active-- }
+    }
+    const checkpoint: string[] = []
+    await expect(copyVerifiedBlobs(source, target, files, {}, key => checkpoint.push(key))).rejects.toThrow('provider unavailable')
+    expect(checkpoint).toEqual(['fixture/file-0', 'fixture/file-1'])
+    expect(active).toBe(0); expect(maximum).toBeGreaterThan(1); expect(maximum).toBeLessThanOrEqual(4)
+    expect(await target.get('fixture/file-3')).not.toBeNull()
+    fail = false
+    await copyVerifiedBlobs(source, target, files.slice(2), {}, key => checkpoint.push(key))
+    expect(checkpoint).toEqual(files.map(file => file.key))
+    for (const file of files) expect(await blobDigest(target, file.key)).toEqual(await blobDigest(source, file.key))
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

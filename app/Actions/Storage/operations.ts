@@ -34,7 +34,7 @@ export async function claimTransfer(kind: string, operationId?: number) {
   else query = query.where('status', 'in', ['queued', 'running']).orderBy('id', 'asc').limit(1)
   const row: any = await query.executeTakeFirst()
   if (!row || ['succeeded', 'cancelled', 'failed'].includes(row.status)) return null
-  if (row.status === 'running' && Date.now() - Date.parse(String(row.started_at)) < (kind === 'storage.repositories' ? 75 : 35) * 60_000) return null
+  if (row.status === 'running' && Date.now() - Date.parse(String(row.started_at)) < (kind === 'storage.repositories' ? 150 : 35) * 60_000) return null
   const progress = JSON.parse(String(row.result || '{}'))
   if (progress.fingerprint !== transferTarget().fingerprint) throw new Error('Storage destination changed; resume requires the original configuration')
   const lease = new Date().toISOString()

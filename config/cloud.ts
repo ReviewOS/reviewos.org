@@ -45,7 +45,7 @@ const BLOB_STORAGE_PATHS = ['storage/artifacts', 'storage/attachments', 'storage
 // Secrets are resolved from this protected file by each worker, never job payloads.
 const OBJECT_STORAGE_ENV = {
   BLOB_SCRATCH_ROOT: '/var/lib/stacks-deployments/reviewos-scratch',
-  STACKS_QUEUE_RESERVATION_TTL_SEC: '7200',
+  STACKS_QUEUE_RESERVATION_TTL_SEC: '10800',
   GIT_WAL: String(env.GIT_WAL || 'off'),
   BLOB_LOCAL_ROOT: '/var/www/reviewos-shared/blobs',
   BLOB_S3_BUCKET: String(env.BLOB_S3_BUCKET || ''),
