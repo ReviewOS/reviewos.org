@@ -50,8 +50,8 @@ export default function () {
     .everyMinute()
 
   // Recover a transfer interrupted between a durable checkpoint and dispatch.
-  schedule.job('MigrateBlobsJob').everyTenMinutes()
-  schedule.job('SnapshotRepositoriesJob').daily().at('04:20')
+  schedule.job('MigrateBlobsJob').onQueue('storage').everyTenMinutes()
+  schedule.job('SnapshotRepositoriesJob').onQueue('storage').daily().at('04:20')
 
   // Hourly, because nothing depends on the exact moment: a download past its
   // date is already refused, so this is the difference between a disk that

@@ -401,3 +401,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Apply backpressure and cancellation to LFS downloads, stream release upload checksums, and remove only each materialization attempt's temporary bundle after fetching.
 
 - [x] Keep blob-transfer concurrency and native Git compression bounded, wait for newly created bucket readiness, and preserve provider failures on authoritative artifact, attachment and LFS paths.
+
+- [x] Dispatch scheduled blob transfers and repository snapshots to the durable storage queue so operator pauses and worker lifecycle apply.

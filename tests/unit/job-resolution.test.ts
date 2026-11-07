@@ -89,3 +89,10 @@ describe('a job can be found by the name it is dispatched under', () => {
     expect(scheduledNames().length).toBeGreaterThan(0)
   })
 })
+
+
+test('scheduled storage transfers enter their durable queue rather than running inline', () => {
+  const source = readFileSync(SCHEDULER, 'utf8')
+  for (const name of ['MigrateBlobsJob', 'SnapshotRepositoriesJob'])
+    expect(source).toContain(`.job('${name}').onQueue('storage')`)
+})
