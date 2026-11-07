@@ -1266,3 +1266,7 @@ to their own timezone gets every timestamp wrong by it.
 - [x] Fix ts-cloud storage reclamation upstream and consume published 0.16.89, so busy backup locks defer optional cleanup and unchanged placements deploy without waiting for backups.
 
 - [x] Resolve repository consistency checks and maintenance from canonical owner/name identities so retired release paths cannot hide live data.
+
+- [x] Stage large repository bundles in private S3 and restore them in separate durable queue batches; retain exact ref checkpoints and publish verified manifests only after a fresh restore.
+
+- [x] Consume published ts-cloud 0.16.107 with aligned core/aws-types so desired site liveness services survive daemon reconciliation.
