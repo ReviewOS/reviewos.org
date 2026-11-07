@@ -3,7 +3,25 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { LocalBlobStore } from '../../app/Actions/Git/blobs'
-import { blobDigest, copyVerifiedBlob, copyVerifiedBlobs } from '../../app/Actions/Storage/transfer'
+import { blobDigest, boundedTransferBatch, copyVerifiedBlob, copyVerifiedBlobs, TRANSFER_PAGE_SIZE } from '../../app/Actions/Storage/transfer'
+
+test('small-object pages keep the copy pool supplied without increasing stream or byte bounds', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-page-'))
+  try {
+    const source = new LocalBlobStore(root)
+    const keys = Array.from({ length: TRANSFER_PAGE_SIZE + 1 }, (_, index) => `fixture/${String(index).padStart(4, '0')}`)
+    for (const key of keys) await source.put(key, key)
+    const page = await source.page('', TRANSFER_PAGE_SIZE)
+    expect(page.entries.map(file => file.key)).toEqual(keys.slice(0, TRANSFER_PAGE_SIZE))
+    expect(page.more).toBe(true)
+    expect((await source.page(page.entries.at(-1)!.key, TRANSFER_PAGE_SIZE)).entries.map(file => file.key)).toEqual(keys.slice(-1))
+    expect(boundedTransferBatch(page.entries)).toHaveLength(TRANSFER_PAGE_SIZE)
+    const mib = 1024 * 1024
+    expect(boundedTransferBatch(Array.from({ length: 90 }, () => ({ size: 10 * mib })))).toHaveLength(51)
+    expect(boundedTransferBatch([{ size: 600 * mib }, { size: 1 }])).toEqual([{ size: 600 * mib }])
+  }
+  finally { rmSync(root, { recursive: true, force: true }) }
+})
 
 test('a verified transfer preserves every source, skips identical bytes and refuses same-size conflicts', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-'))

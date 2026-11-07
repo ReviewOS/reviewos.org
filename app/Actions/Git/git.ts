@@ -94,13 +94,9 @@ export function isFullSha(value: string): boolean {
  * should not have to have been started from the right directory to find the
  * binaries the project declares.
  *
- * **Appended, not prepended,** and that is a deliberate retreat from the
- * obvious version. Putting it first makes the declared git win over the host's,
- * which sounds better and is a much larger change than the one this is for -
- * and it broke three of the wire-protocol tests, in a way not yet run down.
- * Appending fills a gap rather than taking a decision away: whatever the host
- * already resolves keeps resolving exactly as it did, and a binary it does not
- * have at all - gpg, here - is found in the project instead of not at all.
+ * The declared project tools take precedence over the host's binaries. A host
+ * can otherwise keep using an older Git without required commands even after
+ * Pantry installed the application's declared Git and Git LFS versions.
  */
 export function dependencyPath(root = process.cwd()): string | null {
   const bin = resolve(root, 'pantry/.bin')
@@ -143,7 +139,7 @@ const INSTANCE_IDENTITY = {
 /** The environment every git child gets: no prompts, no host config, our binaries. */
 export function gitEnvironment(extra: Record<string, string> = {}): Record<string, string> {
   const bin = dependencyPath()
-  const path = bin ? `${process.env.PATH ?? ''}:${bin}` : process.env.PATH
+  const path = bin ? `${bin}:${process.env.PATH ?? ''}` : process.env.PATH
 
   return {
     ...process.env as Record<string, string>,

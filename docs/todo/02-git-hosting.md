@@ -887,6 +887,11 @@ took effect. `overrides` pins a single version.
   by, and a public page is a different audience from somebody who has cloned the
   repository and can read `git log`.
 
+  Contributor publication now locks the repository row and replaces its counts
+  in one transaction. Twelve overlapping measurements pass against both
+  supported production databases without unique-index collisions; a reader
+  keeps the previous complete result until the replacement commits.
+
   Three bugs fell out of building it.
 
   `MirrorSyncJob` never queued either measure - only `ProcessPushJob` did, and a

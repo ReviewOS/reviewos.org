@@ -161,5 +161,7 @@ export default {
   'storage:snapshot-repositories': 'StorageSnapshots',
   'storage:provision': 'StorageProvision',
   'storage:migrate': 'StorageMigrate',
+  'storage:cancel-transfer': 'StorageCancel',
+  'storage:restart-transfer': 'StorageRestart',
   'repo:measure': 'MeasureRepositories',
 } satisfies CommandRegistry

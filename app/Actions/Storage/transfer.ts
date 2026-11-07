@@ -1,6 +1,17 @@
 import type { BlobStore } from '../Git/blobs'
 import { createHash } from 'node:crypto'
 
+/** Metadata stays bounded even when a page contains many tiny objects. */
+export const TRANSFER_PAGE_SIZE = 512
+export function boundedTransferBatch<T extends { size: number }>(files: T[]): T[] {
+  const batch: T[] = []; let bytes = 0
+  for (const file of files.slice(0, TRANSFER_PAGE_SIZE)) {
+    if (batch.length && bytes + file.size > 512 * 1024 * 1024) break
+    batch.push(file); bytes += file.size
+  }
+  return batch
+}
+
 /** Hash incrementally. Migration never treats size or an S3 ETag as proof. */
 export async function blobDigest(store: BlobStore, key: string): Promise<{ sha256: string, bytes: number }> {
   const stream = await store.get(key)

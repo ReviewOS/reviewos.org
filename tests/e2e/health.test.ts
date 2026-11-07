@@ -105,6 +105,30 @@ describe('a healthy instance', () => {
   })
 })
 
+describe('probe availability', () => {
+  test('keeps a bounded health budget independent of an exhausted API read budget', async () => {
+    if (!available) return
+    const { default: throttle, resetBuckets } = await import('../../app/Middleware/Throttle')
+    const { DEFAULT_READ_LIMIT } = await import('../../app/Api/rate-limit')
+    const headers = { Accept: 'application/json', 'X-Forwarded-For': '203.0.113.44' }
+    resetBuckets()
+    try {
+      // Fill the real middleware's public read bucket without issuing thousands
+      // of unrelated database requests to prepare the route acceptance check.
+      for (let index = 0; index < DEFAULT_READ_LIMIT.max; index++)
+        await throttle.handle({ method: 'GET', headers: new Headers(headers) } as any)
+      const exhausted = await fetch(`http://127.0.0.1:${port}/api/user`, { headers })
+      expect(exhausted.status).toBe(429)
+      const probe = await fetch(`http://127.0.0.1:${port}/api/health?quick=1`, { headers })
+      expect(probe.status).toBe(200)
+      expect(probe.headers.get('X-RateLimit-Limit')).toBe('120')
+      expect((await probe.json() as any).ok).toBe(true)
+      expect((await fetch(`http://127.0.0.1:${port}/api/user`, { headers })).status).toBe(429)
+    }
+    finally { resetBuckets() }
+  })
+})
+
 describe('the quick probe', () => {
   test('skips the disk write a liveness check does not need', async () => {
     if (!available)

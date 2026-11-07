@@ -16101,10 +16101,49 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "queue_workers",
+        "columns": [
+          {
+            "name": "worker_id",
+            "type": "string",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "snapshot",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "heartbeat_at",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "queue_workers_heartbeat_at_index",
+            "columns": [
+              "heartbeat_at"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "b07730640ba2c21fa31dfbe37bba1ca3f7bf94a54892f6ce4806c3c666b3f88d",
+  "hash": "f04340621c44d5694b1b3c39ca0f66c83e85f1ea81d71e69848587dfa694b621",
   "dialect": "postgres",
-  "updatedAt": "2026-10-31T10:05:01.828Z"
+  "updatedAt": "2026-11-07T06:59:28.743Z"
 }

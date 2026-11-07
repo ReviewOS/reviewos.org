@@ -255,7 +255,7 @@ export class LocalBlobStore implements BlobStore {
   /** Ordered bounded migration page; completed directory subtrees are pruned. */
   async page(after = '', limit = 8): Promise<{ entries: BlobStat[], more: boolean }> {
     if (after && !isSafeKey(after)) throw new UnsafeBlobKey(after)
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid blob page size')
+    if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('Invalid blob page size')
     const found: BlobStat[] = []
     const walk = async (directory: string, prefix: string): Promise<void> => {
       let children: Dirent[]

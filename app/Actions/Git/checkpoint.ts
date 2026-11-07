@@ -26,14 +26,14 @@
 import type { BlobStore } from './blobs'
 import { blobStore } from './blobs'
 import { runGit } from './git'
-import { randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { statfs } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { createRepositoryWorkspace } from './snapshotWorkspace'
 import { db } from '@stacksjs/database'
 
 /** How long a full bundle of a large repository may take. */
 const CHECKPOINT_TIMEOUT_MS = 30 * 60_000
+const CHECKPOINT_GIT_OPTIONS = ['-c', 'pack.threads=2', '-c', 'pack.windowMemory=128m', '-c', 'pack.deltaCacheSize=64m']
 
 /** Under this many bytes, git wrote a header and no pack. */
 const BUNDLE_HEADER_BYTES = 32
@@ -94,7 +94,7 @@ export async function writeCheckpoint(
   repositoryId: number,
   repositoryPath: string,
   sequence: number,
-  options: { repack?: boolean } = {},
+  options: { repack?: boolean, scratchRoot?: string } = {},
 ): Promise<Checkpoint | null> {
   if (options.repack !== false) {
     /*
@@ -103,7 +103,7 @@ export async function writeCheckpoint(
      * sitting between quarantine merge and ref update. A checkpoint is not a
      * reason to become less careful about that.
      */
-    await runGit(repositoryPath, ['gc'], { timeoutMs: CHECKPOINT_TIMEOUT_MS, priority: 'background' })
+    await runGit(repositoryPath, [...CHECKPOINT_GIT_OPTIONS, 'gc'], { timeoutMs: CHECKPOINT_TIMEOUT_MS, priority: 'background' })
   }
 
   /*
@@ -123,10 +123,18 @@ export async function writeCheckpoint(
    */
   const key = checkpointKey(repositoryId, sequence)
   const store = await blobStore()
-  const scratch = join(tmpdir(), `reviewos-checkpoint-${repositoryId}-${sequence}-${randomUUID()}.bundle`)
+  const scratchRoot = resolve(options.scratchRoot || process.env.BLOB_SCRATCH_ROOT || 'storage/scratch/object-storage')
+  const workspace = await createRepositoryWorkspace(scratchRoot, `checkpoint-${repositoryId}-${sequence}`)
+  const scratch = join(workspace.path, 'checkpoint.bundle')
 
   try {
-    const result = await runGit(repositoryPath, ['bundle', 'create', scratch, '--all'], {
+    const capacity = await statfs(scratchRoot)
+    const objects = await runGit(repositoryPath, ['count-objects', '-v'], { priority: 'background' })
+    if (!objects.ok) throw new Error('Cannot inspect checkpoint scratch capacity')
+    const sizes = Object.fromEntries(objects.stdout.trim().split('\n').map(line => line.split(': ')))
+    const required = (Number(sizes.size) + Number(sizes['size-pack'])) * 1024 + 5 * 1024 ** 3
+    if (!Number.isFinite(required) || capacity.bavail * capacity.bsize < required) throw new Error('Checkpoint scratch volume needs at least 5 GiB free')
+    const result = await runGit(repositoryPath, [...CHECKPOINT_GIT_OPTIONS, 'bundle', 'create', scratch, '--all'], {
       timeoutMs: CHECKPOINT_TIMEOUT_MS,
       priority: 'background',
     })
@@ -159,7 +167,7 @@ export async function writeCheckpoint(
     return null
   }
   finally {
-    await rm(scratch, { force: true }).catch(() => undefined)
+    workspace.complete()
   }
 }
 

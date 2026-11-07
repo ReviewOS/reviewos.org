@@ -841,7 +841,7 @@ Read by `app/Actions/Storage/operations.ts`.
 
 Default: `/var/lib/reviewos-scratch`, and the line is commented out.
 
-Read by `app/Actions/Git/snapshot.ts`.
+Read by `app/Actions/Git/checkpoint.ts`, `app/Actions/Git/snapshot.ts`.
 
 ### `BLOB_S3_PREFIX`
 

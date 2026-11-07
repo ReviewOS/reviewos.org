@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /**
  * Every migration comes from a model.
@@ -97,15 +98,12 @@ describe('what the models declare reaches the SQL', () => {
    * one is a file in `app/Models/`, which is cheap; the cost of not having it
    * is a column the schema owns and the models cannot see.
    */
-  it('has a model for every table the corpus touches', () => {
-    const declared = new Set(
-      modelFiles.flatMap((name) => {
-        const source = readFileSync(join(MODELS, name), 'utf8')
-        const table = /\btable:\s*'([^']+)'/.exec(source)?.[1]
-
-        return table ? [table] : []
-      }),
-    )
+  it('has a model for every table the corpus touches', async () => {
+    // Resolve the exported definitions, including adopted framework models.
+    // A re-export is the same schema declaration the migration generator reads.
+    const definitions = await Promise.all(modelFiles.map(async name =>
+      (await import(pathToFileURL(resolve(MODELS, name)).href)).default))
+    const declared = new Set(definitions.map(model => model.table).filter(Boolean))
 
     /*
      * Framework-owned tables this application does not describe and has no

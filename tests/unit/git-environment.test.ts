@@ -58,13 +58,14 @@ describe('gitEnvironment', () => {
     expect(environment.GIT_CONFIG_NOSYSTEM).toBe('1')
   })
 
-  test('keeps the host PATH first', () => {
+  test('prefers declared project tools and retains the host PATH as fallback', () => {
     const environment = gitEnvironment()
     const host = process.env.PATH ?? ''
 
-    // Whatever the host already resolves keeps resolving exactly as it did.
-    // This is the assertion that would fail if somebody "tidied" the order.
-    expect(environment.PATH.startsWith(host)).toBe(true)
+    // Project tools implement the declared commands; host tools remain a fallback.
+    const project = dependencyPath()
+    if (project) expect(environment.PATH.startsWith(`${project}:`)).toBe(true)
+    expect(environment.PATH.endsWith(host)).toBe(true)
   })
 
   test('carries what the caller adds', () => {

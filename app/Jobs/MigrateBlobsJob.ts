@@ -2,7 +2,7 @@ import { Job } from '@stacksjs/queue'
 import process from 'node:process'
 import { LocalBlobStore } from '../Actions/Git/blobs'
 import { claimTransfer, saveTransfer, transferStore } from '../Actions/Storage/operations'
-import { copyVerifiedBlobs } from '../Actions/Storage/transfer'
+import { boundedTransferBatch, copyVerifiedBlobs, TRANSFER_PAGE_SIZE } from '../Actions/Storage/transfer'
 
 export default new Job({
   name: 'MigrateBlobsJob',
@@ -18,13 +18,8 @@ export default new Job({
     try {
       const source = new LocalBlobStore(process.env.BLOB_LOCAL_ROOT || 'storage')
       const target = await transferStore()
-      const page = await source.page(claim.progress.cursor, 64)
-      let batchBytes = 0
-      const batch = []
-      for (const file of page.entries) {
-        if (batch.length && batchBytes + file.size > 512 * 1024 * 1024) break
-        batch.push(file); batchBytes += file.size
-      }
+      const page = await source.page(claim.progress.cursor, TRANSFER_PAGE_SIZE)
+      const batch = boundedTransferBatch(page.entries)
       let processed = 0
       await copyVerifiedBlobs(source, target, batch, { receiptScope: claim.progress.fingerprint }, (key, result) => {
         claim.progress.cursor = key; claim.progress.verified += 1; claim.progress.bytes += result.bytes

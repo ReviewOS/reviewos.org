@@ -10,13 +10,19 @@ import toolchain from './deps'
 const BUN_VERSION = toolchain.dependencies?.bun
 if (typeof BUN_VERSION !== 'string' || !/^\d+\.\d+\.\d+$/.test(BUN_VERSION))
   throw new Error('ReviewOS deployments require the exact Bun version declared in config/deps.ts')
+const GIT_VERSION = toolchain.dependencies?.git
+const LFS_VERSION = toolchain.dependencies?.['git-lfs']
+for (const [name, version] of [['git', GIT_VERSION], ['git-lfs', LFS_VERSION]]) {
+  if (typeof version !== 'string' || !/^\^?\d+\.\d+\.\d+$/.test(version))
+    throw new Error(`ReviewOS deployments require the declared ${name} version`)
+}
 const BUN_DIRECTORY = `pantry/bun.com/v${BUN_VERSION}/bin`
 const BUN_BINARY = `${BUN_DIRECTORY}/bun`
 // Resolve a release's own runtime before installing or starting anything.
 // A shared executable can drift independently of the source's tool pin.
 const INSTALL_RUNTIME = [
-  `pantry install bun.sh@${BUN_VERSION} --no-save`,
-  `export PATH="$PWD/${BUN_DIRECTORY}:$PATH"`,
+  `pantry install bun.sh@${BUN_VERSION} git@${GIT_VERSION} git-lfs@${LFS_VERSION} --no-save`,
+  `export PATH="$PWD/${BUN_DIRECTORY}:$PWD/pantry/.bin:$PATH"`,
   `test "$(bun --version)" = "${BUN_VERSION}"`,
   'bun install --frozen-lockfile',
 ]

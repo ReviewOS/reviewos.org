@@ -1,6 +1,6 @@
 import type { BlobStore } from './blobs'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, rm, statfs } from 'node:fs/promises'
+import { statfs } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { blobDigest } from '../Storage/transfer'
@@ -8,6 +8,7 @@ import { LocalBlobStore } from './blobs'
 import { repositoryPath, REPOSITORY_ROOT } from './storage'
 import { refsOnDisk } from './refs'
 import { runGit } from './git'
+import { createRepositoryWorkspace } from './snapshotWorkspace'
 
 // Keep background Git compression bounded on a shared application host.
 const SNAPSHOT_GIT_OPTIONS = ['-c', 'pack.threads=2', '-c', 'pack.windowMemory=128m', '-c', 'pack.deltaCacheSize=64m']
@@ -32,15 +33,15 @@ export async function snapshotRepository(repository: { id: number, owner: string
     return { empty: false, bytes: manifest.bytes, manifestKey, unchanged: true }
   }
   const scratchRoot = resolve(options.scratchRoot || process.env.BLOB_SCRATCH_ROOT || 'storage/scratch/object-storage')
-  await mkdir(scratchRoot, { recursive: true })
-  const capacity = await statfs(scratchRoot)
-  const objectCount = await runGit(located.path!, ['count-objects', '-v'], { priority: 'background' })
-  if (!objectCount.ok) throw new Error('Cannot inspect repository snapshot capacity')
-  const reported = Object.fromEntries(objectCount.stdout.trim().split('\n').map(line => line.split(': ')))
-  const required = (Number(reported.size) + Number(reported['size-pack'])) * 1024 * 2 + 5 * 1024 ** 3
-  if (!Number.isFinite(required) || capacity.bavail * capacity.bsize < required) throw new Error('Repository snapshot scratch volume needs at least 5 GiB free')
-  const scratch = await mkdtemp(join(scratchRoot, 'repository-snapshot-'))
+  const workspace = await createRepositoryWorkspace(scratchRoot, `snapshot-${repository.id}`)
+  const scratch = workspace.path
   try {
+    const capacity = await statfs(scratchRoot)
+    const objectCount = await runGit(located.path!, ['count-objects', '-v'], { priority: 'background' })
+    if (!objectCount.ok) throw new Error('Cannot inspect repository snapshot capacity')
+    const reported = Object.fromEntries(objectCount.stdout.trim().split('\n').map(line => line.split(': ')))
+    const required = (Number(reported.size) + Number(reported['size-pack'])) * 1024 * 2 + 5 * 1024 ** 3
+    if (!Number.isFinite(required) || capacity.bavail * capacity.bsize < required) throw new Error('Repository snapshot scratch volume needs at least 5 GiB free')
     const file = join(scratch, 'repository.bundle')
     const created = await runGit(located.path!, [...SNAPSHOT_GIT_OPTIONS, 'bundle', 'create', file, '--all'], { timeoutMs: 50 * 60_000, priority: 'background' })
     if (!created.ok) throw new Error(`Repository bundle failed: ${created.stderr.slice(-500)}`)
@@ -63,7 +64,7 @@ export async function snapshotRepository(repository: { id: number, owner: string
     await store.put(snapshotManifestKey, manifest)
     if ((await blobDigest(store, snapshotManifestKey)).sha256 !== createHash('sha256').update(manifest).digest('hex')) throw new Error('Repository manifest verification failed')
     return { empty: false, bytes: digest.bytes, manifestKey: snapshotManifestKey, unchanged: false }
-  } finally { await rm(scratch, { recursive: true, force: true }) }
+  } finally { workspace.complete() }
 }
 
 /** Restore into a new directory only; never replace the working repository. */
@@ -77,9 +78,11 @@ export async function restoreRepositorySnapshot(repositoryId: number, manifestKe
   const manifest = await new Response(body).json() as { repositoryId: number, key: string, sha256: string, bytes: number, head?: string, refs: string[][] }
   if (manifest.repositoryId !== repositoryId || !manifest.key.startsWith(`repositories/${repositoryId}/bundles/`) || !/^[a-f0-9]{64}$/.test(manifest.sha256) || !Array.isArray(manifest.refs)) throw new Error('Invalid repository snapshot manifest')
   const base = resolve(options.scratchRoot || process.env.BLOB_SCRATCH_ROOT || 'storage/scratch/object-storage')
-  await mkdir(base, { recursive: true })
-  const scratch = await mkdtemp(join(base, 'repository-restore-'))
+  const workspace = await createRepositoryWorkspace(base, `restore-${repositoryId}`)
+  const scratch = workspace.path
   try {
+    const capacity = await statfs(base)
+    if (!Number.isSafeInteger(manifest.bytes) || manifest.bytes < 1 || capacity.bavail * capacity.bsize < manifest.bytes * 2 + 5 * 1024 ** 3) throw new Error('Repository restore scratch volume needs room for the bundle, restored objects and 5 GiB free')
     const stream = await store.get(manifest.key)
     if (!stream) throw new Error('Repository snapshot bundle is missing')
     const file = join(scratch, 'repository.bundle')
@@ -95,5 +98,5 @@ export async function restoreRepositorySnapshot(repositoryId: number, manifestKe
     const refs = [...(await refsOnDisk(destination)).entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     if (JSON.stringify(refs) !== JSON.stringify(manifest.refs)) throw new Error('Restored repository refs differ from the verified manifest')
     return { repositoryId, destination, refs: refs.length, bytes: digest.bytes, sha256: digest.sha256 }
-  } finally { await rm(scratch, { recursive: true, force: true }) }
+  } finally { workspace.complete() }
 }

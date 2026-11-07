@@ -244,6 +244,20 @@ describe('the measurement', () => {
 
     expect(rows).toHaveLength(2)
   })
+
+  test('overlapping measurements publish complete counts without unique-index failures', async () => {
+    if (!available)
+      return
+
+    const measurement = (await import('../../app/Jobs/MeasureContributorsJob')).default
+    const results = await Promise.allSettled(Array.from({ length: 12 }, () => measurement.handle({ repositoryId: created.repositoryId })))
+    expect(results.filter(result => result.status === 'rejected').map(result => String(result.reason))).toEqual([])
+    const rows: any[] = await (globalThis as any).db.selectFrom('repository_contributors')
+      .select(['email', 'commits']).where('repository_id', '=', created.repositoryId).orderBy('commits', 'desc').execute()
+    expect(rows).toHaveLength(2)
+    expect(rows.map(row => Number(row.commits))).toEqual([4, 3])
+    expect(new Set(rows.map(row => row.email)).size).toBe(2)
+  })
 })
 
 describe('the contributors page', () => {

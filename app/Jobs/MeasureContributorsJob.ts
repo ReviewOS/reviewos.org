@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { transaction } from '@stacksjs/orm'
 import { Job } from '@stacksjs/queue'
 import { mergeTallies, parseShortlog } from '../Actions/Repo/contributors'
 import { runGit } from '../Actions/Git/git'
@@ -80,26 +81,24 @@ export default new Job({
     // per row. On a mirror the answer is usually none of them.
     const accounts = tallies.length > 0 ? await accountsByEmail(tallies.map(tally => tally.email)) : new Map()
 
-    /*
-     * Replaced in one go, and not wrapped in a transaction - the same trade the
-     * language measure makes. The window where the list is briefly empty is a
-     * panel section missing for a moment on a job that runs after a push, and
-     * the alternative on this query builder is a transaction around a loop of a
-     * hundred inserts.
-     */
-    await db.deleteFrom('repository_contributors').where('repository_id', '=', repositoryId).execute()
-
-    for (const tally of tallies) {
-      await db.insertInto('repository_contributors').values({
+    // Serialize publication for this repository, including its first tally.
+    // Git runs outside the transaction; readers retain the previous complete
+    // result until this short replacement commits, and failures roll it back.
+    const contributors = await transaction(async (tx) => {
+      const live = await tx.selectFrom('repositories').select(['id']).where('id', '=', repositoryId).lockForUpdate().executeTakeFirst()
+      if (!live) return 0
+      await tx.deleteFrom('repository_contributors').where('repository_id', '=', repositoryId).execute()
+      if (tallies.length) await tx.insertInto('repository_contributors').values(tallies.map(tally => ({
         repository_id: repositoryId,
         name: tally.name.slice(0, 200),
         email: tally.email.slice(0, 200),
         commits: tally.commits,
         user_id: accounts.get(tally.email) ?? null,
-      }).execute()
-    }
+      }))).execute()
+      return tallies.length
+    })
 
-    return { contributors: tallies.length }
+    return { contributors }
   },
 })
 

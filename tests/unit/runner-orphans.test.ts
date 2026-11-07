@@ -116,7 +116,12 @@ describe('a job that backgrounds a process', () => {
       await Bun.sleep(50)
 
     expect(isAlive(pid)).toBe(false)
-    expect(logs.join('')).toContain('killed after ignoring SIGTERM')
+    // The process must exit. If its PID remained observable at the cleanup
+    // deadline, the truthful outcome is a preserved workspace for later recovery.
+    const lines = logs.filter(line => line.includes(`process ${pid} (`) || line.includes(`process: ${pid} (`))
+    expect(lines.some(line => line.includes('killed after ignoring SIGTERM') || line.includes('still present after SIGKILL; preserving its workspace'))).toBe(true)
+    if (lines.some(line => line.includes('preserving its workspace')))
+      expect(existsSync(join(workspaceRoot, 'job-9002'))).toBe(true)
   }, 30_000)
 
   test('and a failed job is cleaned up too', async () => {

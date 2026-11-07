@@ -23,7 +23,9 @@ import { route } from '@stacksjs/router'
  * `?quick=1` skips the disk write, for a liveness probe that runs every few
  * seconds. One endpoint serving both probes beats two that drift.
  */
-route.get('/health', 'Actions/Ops/HealthAction')
+// Keep readiness independent of an exhausted public read budget while still
+// bounding the probe's database and disk work.
+route.get('/health', 'Actions/Ops/HealthAction').middleware('throttle:120,1m')
 
 /*
  * Link-preview cards for the pages a build cannot enumerate.

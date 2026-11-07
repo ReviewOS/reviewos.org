@@ -7,7 +7,7 @@
 // are what stop them deleting the only copy of something.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -127,7 +127,7 @@ describe('prunable', () => {
 describe('writeCheckpoint', () => {
   test('writes a bundle with a pack in it, and finds it again', async () => {
     // `repack: false` so the test is about the bundle rather than about gc.
-    const written = await writeCheckpoint(7, bare, 12, { repack: false })
+    const written = await writeCheckpoint(7, bare, 12, { repack: false, scratchRoot: join(root, 'scratch') })
 
     expect(written).not.toBeNull()
     expect(written!.sequence).toBe(12)
@@ -135,6 +135,8 @@ describe('writeCheckpoint', () => {
 
     const found = await latestCheckpoint(7, store)
     expect(found?.sequence).toBe(12)
+    expect(readdirSync(join(root, 'scratch'))).toEqual(['repository-journal'])
+    expect(readdirSync(join(root, 'scratch/repository-journal'))).toEqual([])
   })
 
   /**
@@ -152,7 +154,7 @@ describe('writeCheckpoint', () => {
    */
   test('reads the bundle even when the process is busy, which is the whole ordering', async () => {
     for (const sequence of [21, 22, 23]) {
-      const written = await writeCheckpoint(7, bare, sequence, { repack: false })
+      const written = await writeCheckpoint(7, bare, sequence, { repack: false, scratchRoot: join(root, 'scratch') })
 
       expect(written).not.toBeNull()
       expect(written!.bytes).toBeGreaterThan(100)
@@ -162,10 +164,22 @@ describe('writeCheckpoint', () => {
     }
   })
 
+  test('a failed object-store write releases only its checkpoint scratch', async () => {
+    const original = store.put
+    store.put = async () => { throw new Error('object storage unavailable') }
+    try {
+      expect(await writeCheckpoint(17, bare, 4, { repack: false, scratchRoot: join(root, 'failed-scratch') })).toBeNull()
+      expect(readdirSync(join(root, 'failed-scratch'))).toEqual(['repository-journal'])
+      expect(readdirSync(join(root, 'failed-scratch/repository-journal'))).toEqual([])
+      expect(git(bare, 'rev-parse', 'refs/heads/main')).toBe(headSha)
+    }
+    finally { store.put = original }
+  })
+
   test('the newest wins when there are several', async () => {
-    await writeCheckpoint(8, bare, 5, { repack: false })
-    await writeCheckpoint(8, bare, 40, { repack: false })
-    await writeCheckpoint(8, bare, 9, { repack: false })
+    await writeCheckpoint(8, bare, 5, { repack: false, scratchRoot: join(root, 'scratch') })
+    await writeCheckpoint(8, bare, 40, { repack: false, scratchRoot: join(root, 'scratch') })
+    await writeCheckpoint(8, bare, 9, { repack: false, scratchRoot: join(root, 'scratch') })
 
     expect((await latestCheckpoint(8, store))?.sequence).toBe(40)
   })
@@ -177,12 +191,12 @@ describe('writeCheckpoint', () => {
     // Not a failure - an empty repository is a legitimate state, and a
     // header-only blob in the store would be a checkpoint that restores
     // nothing while looking like one that does.
-    expect(await writeCheckpoint(11, empty, 1, { repack: false })).toBeNull()
+    expect(await writeCheckpoint(11, empty, 1, { repack: false, scratchRoot: join(root, 'scratch') })).toBeNull()
     expect(await latestCheckpoint(11, store)).toBeNull()
   })
 
   test('the checkpoint restores the repository on its own', async () => {
-    const written = await writeCheckpoint(12, bare, 3, { repack: false })
+    const written = await writeCheckpoint(12, bare, 3, { repack: false, scratchRoot: join(root, 'scratch') })
     expect(written).not.toBeNull()
 
     const stream = await store.get(written!.key)

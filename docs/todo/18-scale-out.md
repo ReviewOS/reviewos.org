@@ -409,3 +409,10 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Keep four verified copy slots occupied behind slow objects while checkpointing only the contiguous completed prefix. Allow a bounded bulk metadata response budget through the published SDK, and verify its declaration, override and installed version agree.
 
 - [x] Bind recovery callbacks to canonical live repository identities across release aliases, and refuse required recovery for unbound targets.
+
+  Interrupted queue reservations and transfer leases share the framework's
+  process incarnation proof. Legacy transfers can be cancelled and restarted
+  under a new identity from their preserved checkpoint, with idempotent
+  successor creation and destination binding. Snapshot, restore and full-checkpoint
+  scratch is journaled on the configured data volume, with capacity checks and
+  bounded Git compression; only positively abandoned attempts can be reclaimed.
