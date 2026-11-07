@@ -32,7 +32,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (225/227) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Complete (41/41) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Complete (15/15) |
-| [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (32/32) |
+| [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Complete (34/34) |
 | [19 - Native repository tools](./19-native-tools.md) | Pantry registry, BunPress wiki, issue project boards | Complete (20/20) |
 
 Phases 16 through 18 were written after reading Cursor's
