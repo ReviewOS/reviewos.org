@@ -1272,3 +1272,5 @@ to their own timezone gets every timestamp wrong by it.
 - [x] Consume published ts-cloud 0.16.107 with aligned core/aws-types so desired site liveness services survive daemon reconciliation.
 
 - [x] Declare the production S3 bucket and required push recovery in deployment configuration while keeping test and staging stores isolated.
+
+- [x] Check due mirrors every minute so configured sixty-second intervals do not become overdue between five-minute sweeps; each mirror retains its interval and queued-job guard.

@@ -382,7 +382,7 @@ bun run --bun ./buddy schedule:run
 ```
 
 `app/Scheduler.ts` is the whole list, and none of it happens without this
-running: the mirror sweep every five minutes, the lease reclaim every minute,
+running: the mirror sweep and lease reclaim every minute,
 WAL reconciliation every ten, artifact expiry and the ref-drift audit hourly,
 the repository checkpoint nightly.
 

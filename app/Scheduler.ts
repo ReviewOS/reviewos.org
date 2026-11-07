@@ -29,12 +29,11 @@ export default function () {
     .hourly()
     .setTimeZone('America/Los_Angeles')
 
-  // The backstop behind the mirror webhooks. Five minutes is often enough that
-  // a missed hook is not noticed, and rare enough that it is not a poll - the
-  // per-mirror interval decides what is actually due.
+  // Honor mirrors configured to sync every sixty seconds. Each mirror's own
+  // interval and the queued/reserved job check decide what is actually due.
   schedule
     .job('MirrorSweepJob')
-    .everyFiveMinutes()
+    .everyMinute()
 
   schedule.job('SyncGitHubAccountJob').hourly()
 
