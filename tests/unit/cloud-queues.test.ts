@@ -64,8 +64,8 @@ function workerCommands(): string[] {
  *
  * A worker with no `--queue` covers everything: with the flag absent, the
  * processor reads the distinct queues out of the jobs table and works all of
- * them, re-reading every ten seconds. That is the shape this site uses, and it
- * is why `null` here means "all" rather than "none".
+ * them, re-reading every ten seconds. The general worker explicitly names
+ * its queues here so heavy transfers cannot share its process.
  */
 function queuesWithWorkers(): string[] | null {
   const named: string[] = []
@@ -76,7 +76,7 @@ function queuesWithWorkers(): string[] | null {
     if (flags.length === 0)
       return null
 
-    named.push(...flags)
+    named.push(...flags.flatMap(flag => String(flag).split(',')))
   }
 
   return named
@@ -85,7 +85,12 @@ function queuesWithWorkers(): string[] | null {
 describe('the queue workers on the box', () => {
   test('keeps Git mirror fetches moving independently of a large metadata batch', () => {
     expect(workerCommands().some(command => /--queue=mirrors-code(?:\s|$)/.test(command))).toBe(true)
-    expect(workerCommands().some(command => !/--queue(?:=|\s)/.test(command))).toBe(true)
+    const interactive = workerCommands().find(command => /--queue=default(?:,|\s|$)/.test(command))
+    expect(interactive).toBeDefined()
+    for (const queue of ['storage', 'repository-snapshots', 'mirrors-code']) {
+      expect(interactive).not.toContain(queue)
+      expect(workerCommands().some(command => command.includes(`--queue=${queue} `))).toBe(true)
+    }
   })
 
   test('are declared at all', () => {
@@ -113,6 +118,7 @@ describe('the queue workers on the box', () => {
     // Named rather than counted: "2 queues are unworked" sends somebody to
     // diff two lists by hand, and the names say what stopped working.
     expect(uncovered.sort()).toEqual([])
+    expect(workers.length).toBe(new Set(workers).size)
   })
 
   test('name no queue that nothing dispatches to', () => {
