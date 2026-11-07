@@ -871,9 +871,11 @@ async function supersede(
       // Dispatch callbacks can finish out of order. An older callback must
       // never cancel a newer run that has already entered the same group.
       .where('id', '<', runId)
-      // Not started: no runner has taken any of its jobs. A run that is
-      // `running` is one somebody is already waiting on.
+      // A started run can be queued between stages when no job is currently
+      // running. Its durable start marker, not that temporary state, decides
+      // whether somebody is already waiting on its result.
       .where('state', 'in', ['queued', 'waiting'])
+      .whereNull('started_at')
       .execute()
 
     for (const run of waiting) {
@@ -886,6 +888,7 @@ async function supersede(
         })
         .where('id', '=', Number(run.id))
         .where('state', 'in', ['queued', 'waiting'])
+        .whereNull('started_at')
         .returning(['id'])
         .executeTakeFirst()
 

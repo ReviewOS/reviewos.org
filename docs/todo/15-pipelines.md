@@ -440,6 +440,10 @@ written down here so it does not get relitigated:
       output and conclusions ride out a restarting gateway (retried for up to a lease, not three
       seconds; a 502 no longer counts as delivered, and a lost conclusion is never turned into a
       failure), and a claim that cannot connect is retried instead of crashing the process.
+- [x] Preserve a started workflow between job stages under `intermediate: skip`.
+      A run can be queued again while its next stage waits for a runner. Its durable
+      start marker protects the remaining work; only never-started successors are
+      replaced. Real dispatch, claim and report coverage also verifies group release.
 - [x] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.
