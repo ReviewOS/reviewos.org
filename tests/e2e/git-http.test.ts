@@ -422,17 +422,39 @@ describe('the git wire protocol, end to end', () => {
     await git(work, 'add', '.')
     await git(work, 'commit', '-m', 'pushed over http')
 
-    const pushed = await git(work, '-c', 'credential.helper=', 'push', authenticatedUrl(), 'main')
-    expect(pushed.ok, pushed.stderr).toBe(true)
+    // Older rows can retain an absolute path into a release that no longer
+    // exists. The live owner/name storage identity must still reach both hooks.
+    const database = (globalThis as any).db
+    const relative = `${created.handle}/${created.name}.git`
+    await database.updateTable('repositories').set({ disk_path: `/retired-release/storage/repos/${relative}` }).where('id', '=', created.repositoryId).execute()
+    try {
+      const pushed = await git(work, '-c', 'credential.helper=', 'push', authenticatedUrl(), 'main')
+      expect(pushed.ok, pushed.stderr).toBe(true)
+      pushOutput = pushed.stderr
+      expect(await bare('log', '-1', '--format=%s', 'main')).toBe('pushed over http')
+      if (process.env.GIT_WAL === 'required') {
+        const entry = await database.selectFrom('git_wal_entries').select(['status', 'blob_key', 'blob_bytes']).where('repository_id', '=', created.repositoryId).orderBy('sequence', 'desc').executeTakeFirst()
+        expect(entry?.status).toBe('committed')
+        expect(entry?.blob_key).toBeTruthy()
+        expect(Number(entry?.blob_bytes)).toBeGreaterThan(0)
+        const { blobStore } = await import('../../app/Actions/Git/blobs')
+        expect((await (await blobStore()).stat(entry.blob_key))?.size).toBe(Number(entry.blob_bytes))
+      }
+    } finally {
+      await database.updateTable('repositories').set({ disk_path: relative }).where('id', '=', created.repositoryId).execute()
+    }
+  })
 
-    // Kept for the test below, which asserts on what the *hook* said. git
-    // relays the hook's own output through the push, so the sentence explaining
-    // a failure is already here - it just has to reach the assertion.
-    pushOutput = pushed.stderr
-
-    // Read from the bare repository rather than from the clone: the clone
-    // believing it pushed is not the same as the push having landed.
-    expect(await bare('log', '-1', '--format=%s', 'main')).toBe('pushed over http')
+  test('required recovery refuses a callback whose repository cannot be bound', async () => {
+    if (!available) return
+    const response = await fetch(`http://127.0.0.1:${port}/internal/git/pre-receive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Git-Hook-Secret': process.env.GIT_HOOK_SECRET || '' },
+      body: JSON.stringify({ gitDir: join(created.temp, 'unregistered.git'), updates: `${'0'.repeat(40)} ${await bare('rev-parse', 'main')} refs/heads/main\n` }),
+    })
+    expect(response.status).toBe(200)
+    const result = await response.json() as { ok: boolean }
+    expect(result.ok).toBe(process.env.GIT_WAL !== 'required')
   })
 
   /**

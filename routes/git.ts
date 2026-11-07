@@ -785,8 +785,9 @@ async function recordWal(
   const { walMode } = await import('../config/git-wal')
   const mode = walMode()
 
-  if (mode === 'off' || !target || target.updates.length === 0)
-    return 'skipped'
+  if (mode === 'off') return 'skipped'
+  if (!target) return mode === 'required' && parseRefUpdates(String(payload?.updates ?? '')).length > 0 ? 'failed' : 'skipped'
+  if (target.updates.length === 0) return 'skipped'
 
   try {
     const { recordPush, walUpdatesFrom } = await import('../app/Actions/Git/wal')

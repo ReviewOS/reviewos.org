@@ -27,9 +27,12 @@
  * repository now contains rather than against what the request claimed.
  */
 
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { db } from '@stacksjs/database'
+import { chmod, mkdir, realpath, writeFile } from 'node:fs/promises'
+import { join, relative as pathRelative, resolve } from 'node:path'
 import { runGit } from './git'
+import { findRepositoryByPath } from './access'
+import { repositoryPath, REPOSITORY_ROOT } from './storage'
 
 /** Where the shared hooks live, relative to the project. */
 export const HOOK_DIRECTORY = 'storage/git-hooks'
@@ -70,26 +73,29 @@ export function repositoryPaths(diskPath: string, root = 'storage/repos'): { abs
  * and so allowed every push into a repository whose row stores an absolute one,
  * including the ones a branch rule was supposed to refuse.
  *
- * Both shapes are tried, because both are in the table.
+ * A row can name a retired release, so the live filesystem identity and owner
+ * binding are authoritative; stored deployment paths do not participate.
  */
-export async function repositoryByGitDir(gitDir: string): Promise<any | null> {
-  const { absolute, relative } = repositoryPaths(gitDir)
-
-  for (const candidate of [relative, absolute]) {
-    if (!candidate)
-      continue
-
-    const row = await db
-      .selectFrom('repositories')
-      .selectAll()
-      .where('disk_path', '=', candidate)
-      .executeTakeFirst()
-
-    if (row)
-      return row
+/** Resolve aliases to the live repository root before deriving its owner/name. */
+export async function canonicalRepositoryIdentity(gitDir: string, root = REPOSITORY_ROOT): Promise<{ owner: string, name: string } | null> {
+  try {
+    const [physicalRoot, physicalDirectory] = await Promise.all([realpath(root), realpath(repositoryPaths(gitDir, root).absolute)])
+    const parts = pathRelative(physicalRoot, physicalDirectory).split('/')
+    if (parts.length !== 2 || !parts[1]?.endsWith('.git')) return null
+    const owner = parts[0]!; const name = parts[1].slice(0, -4)
+    const located = repositoryPath(owner, name, physicalRoot)
+    return located.ok && located.path === physicalDirectory ? { owner, name } : null
+  } catch (error) {
+    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code || '')) return null
+    throw error
   }
+}
 
-  return null
+export async function repositoryByGitDir(gitDir: string): Promise<any | null> {
+  const identity = await canonicalRepositoryIdentity(gitDir)
+  if (!identity) return null
+  const found = await findRepositoryByPath(identity.owner, identity.name)
+  return found ? await db.selectFrom('repositories').selectAll().where('id', '=', found.id).executeTakeFirst() ?? null : null
 }
 
 /** Where the hooks post. Root-mounted, like the wire protocol they follow. */
