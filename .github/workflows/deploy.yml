@@ -69,7 +69,10 @@ jobs:
         run: ./buddy typecheck
 
       - name: Test
-        run: bun test tests/unit/
+        env:
+          # Match this instance and the main CI route surface.
+          STACKS_DEFAULT_ROUTES: none
+        run: bun test ./tests/unit/
 
       - name: Authorise the deploy key
         # ts-cloud reaches the server over SSH as root, and it wants the key

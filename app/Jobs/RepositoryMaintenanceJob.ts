@@ -1,9 +1,10 @@
 import { Job } from '@stacksjs/queue'
 import { log } from '@stacksjs/logging'
 import { readdir, rm } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { runGit } from '../Actions/Git/git'
-import { REPOSITORY_ROOT } from '../Actions/Git/storage'
+import { repositoryPath } from '../Actions/Git/storage'
+import { ownerHandleFor } from '../Actions/Repo/owner'
 import { DELETED_DIRECTORY } from '../Actions/Repo/settings'
 import { expiredRetirements, needsPacking, packArguments, RETENTION_DAYS } from '../Actions/Repo/retention'
 import { measure, recordSize } from '../Actions/Repo/size'
@@ -61,7 +62,7 @@ export default new Job({
 async function packRepositories(dryRun: boolean): Promise<{ examined: number, packed: number }> {
   const rows = await db
     .selectFrom('repositories')
-    .select(['id', 'disk_path'])
+    .select(['id', 'disk_path', 'owner_type', 'owner_id', 'name'])
     .execute()
     .catch(() => [])
 
@@ -69,7 +70,10 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
   let packed = 0
 
   for (const row of rows) {
-    const path = resolve(REPOSITORY_ROOT, String(row.disk_path ?? ''))
+    const owner = await ownerHandleFor(row)
+    const resolved = owner ? repositoryPath(owner, String(row.name)) : { ok: false }
+    if (!resolved.ok || !resolved.path) continue
+    const path = resolved.path
 
     try {
       const counts = await measure(path)

@@ -134,6 +134,23 @@ describe('checking repositories', () => {
     expect(named).toEqual([])
   })
 
+  test('legacy release paths do not hide a canonical repository from checks or maintenance', async () => {
+    if (!available) return
+    const db = (globalThis as any).db
+    await db.updateTable('repositories').set({ disk_path: '/retired/release/storage/repos/stale.git' }).where('id', '=', created.soundId).execute()
+    try {
+      const { checkRepositories } = await import('../../app/Ops/repositories')
+      const report = await checkRepositories()
+      expect(report.problems.filter(problem => problem.what.includes(created.soundName))).toEqual([])
+      const maintenance = (await import('../../app/Jobs/RepositoryMaintenanceJob')).default
+      const result = await maintenance.handle({ dryRun: true })
+      expect(result.examined).toBeGreaterThanOrEqual(1)
+      expect(result.dryRun).toBe(true)
+    } finally {
+      await db.updateTable('repositories').set({ disk_path: `${created.handle}/${created.soundName}.git` }).where('id', '=', created.soundId).execute()
+    }
+  })
+
   test('finds a row whose directory is not', async () => {
     if (!available)
       return

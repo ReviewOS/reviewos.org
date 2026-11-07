@@ -26,7 +26,8 @@
 
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { REPOSITORY_ROOT } from '../Actions/Git/storage'
+import { REPOSITORY_ROOT, repositoryPath } from '../Actions/Git/storage'
+import { ownerHandleFor } from '../Actions/Repo/owner'
 import { db } from '@stacksjs/database'
 
 export type ProblemKind = 'missing-directory' | 'unreadable' | 'orphan-directory'
@@ -66,19 +67,18 @@ export async function checkRepositories(options: CheckOptions = {}): Promise<Rep
   const expected = new Set<string>()
 
   for (const row of rows) {
-    const relative = String(row.disk_path ?? '')
-    if (!relative) {
-      problems.push({
-        kind: 'missing-directory',
-        what: String(row.name ?? row.id),
-        detail: 'the row records no path at all',
-      })
+    // The stored disk_path may name a retired release. Use the same identity
+    // resolution as Git requests, including when checking a restored root.
+    const owner = await ownerHandleFor(row)
+    const resolved = owner ? repositoryPath(owner, String(row.name), root) : { ok: false }
+    if (!resolved.ok || !resolved.path || !resolved.relative) {
+      problems.push({ kind: 'missing-directory', what: String(row.name ?? row.id), detail: 'the repository owner or name cannot be resolved' })
       continue
     }
-
+    const relative = resolved.relative
     expected.add(relative)
 
-    const path = join(root, relative)
+    const path = resolved.path
 
     if (!existsSync(path)) {
       problems.push({ kind: 'missing-directory', what: relative, detail: path })

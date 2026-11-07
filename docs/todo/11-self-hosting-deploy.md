@@ -1264,3 +1264,5 @@ to their own timezone gets every timestamp wrong by it.
   repositories.
 
 - [x] Fix ts-cloud storage reclamation upstream and consume published 0.16.89, so busy backup locks defer optional cleanup and unchanged placements deploy without waiting for backups.
+
+- [x] Resolve repository consistency checks and maintenance from canonical owner/name identities so retired release paths cannot hide live data.

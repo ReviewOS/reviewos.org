@@ -1,5 +1,5 @@
 import { db, utcDefaultSql } from '@stacksjs/database'
-import { currentDialect, speaksMysql } from '../Actions/Support/sql'
+import { currentDialect, portable, speaksMysql } from '../Actions/Support/sql'
 
 export interface ClockDatabase { unsafe: (sql: string) => { execute: () => Promise<unknown> } }
 
@@ -23,7 +23,7 @@ export async function repairClockDefaults(options: { apply?: boolean, connection
   const targets = await sessionClockDefaults(connection, dialect)
   const statements = targets.map(target => utcDefaultSql(target, dialect))
   if (options.apply) {
-    for (const sql of statements) await connection.unsafe(sql).execute()
+    for (const sql of statements) await connection.unsafe(portable(sql, dialect)).execute()
     if ((await sessionClockDefaults(connection, dialect)).length) throw new Error('Timestamp defaults remain unpinned; retry the repair after reviewing the schema')
   }
   return { targets, statements, applied: options.apply ? statements.length : 0 }
