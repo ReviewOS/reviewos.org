@@ -418,3 +418,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
   bounded Git compression; only positively abandoned attempts can be reclaimed.
 
 - [x] Stop Git helper process groups before returning from time or output limits, and share a 90-minute Git deadline between snapshot creation and fresh restore within the existing two-hour queued job.
+
+- [x] Pin the native Git runtime to 2.56.0, which fixes child delta-base eviction in `index-pack`, and verify the exact version before each deployment starts its processes. Existing verified artifacts and source repositories remain preserved.

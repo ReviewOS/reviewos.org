@@ -42,7 +42,9 @@ export const config: PantryConfig = {
      * in step.
      */
     bun: '1.4.2',
-    git: '^2.47.0',
+    // Git 2.56 fixes index-pack child delta-base eviction during fresh bundle
+    // restores. Pin the verified runtime so deploys reproduce that behavior.
+    git: '2.56.0',
     // Commit signature verification. git can tell you a commit carries a
     // signature without it, but not whether the signature is good - that is
     // gpg's job, and the same reasoning as git applies: the binary does the

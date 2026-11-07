@@ -11,11 +11,11 @@ const BUN_VERSION = toolchain.dependencies?.bun
 if (typeof BUN_VERSION !== 'string' || !/^\d+\.\d+\.\d+$/.test(BUN_VERSION))
   throw new Error('ReviewOS deployments require the exact Bun version declared in config/deps.ts')
 const GIT_VERSION = toolchain.dependencies?.git
+if (typeof GIT_VERSION !== 'string' || !/^\d+\.\d+\.\d+$/.test(GIT_VERSION))
+  throw new Error('ReviewOS deployments require the exact Git version declared in config/deps.ts')
 const LFS_VERSION = toolchain.dependencies?.['git-lfs']
-for (const [name, version] of [['git', GIT_VERSION], ['git-lfs', LFS_VERSION]]) {
-  if (typeof version !== 'string' || !/^\^?\d+\.\d+\.\d+$/.test(version))
-    throw new Error(`ReviewOS deployments require the declared ${name} version`)
-}
+if (typeof LFS_VERSION !== 'string' || !/^\^?\d+\.\d+\.\d+$/.test(LFS_VERSION))
+  throw new Error('ReviewOS deployments require the declared git-lfs version')
 const BUN_DIRECTORY = `pantry/bun.com/v${BUN_VERSION}/bin`
 const BUN_BINARY = `${BUN_DIRECTORY}/bun`
 // Resolve a release's own runtime before installing or starting anything.
@@ -24,6 +24,7 @@ const INSTALL_RUNTIME = [
   `pantry install bun.sh@${BUN_VERSION} git@${GIT_VERSION} git-lfs@${LFS_VERSION} --no-save`,
   `export PATH="$PWD/${BUN_DIRECTORY}:$PWD/pantry/.bin:$PATH"`,
   `test "$(bun --version)" = "${BUN_VERSION}"`,
+  `test "$(git --version)" = "git version ${GIT_VERSION}"`,
   'bun install --frozen-lockfile',
 ]
 
