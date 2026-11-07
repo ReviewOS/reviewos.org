@@ -1470,7 +1470,7 @@ Transfer leases record the framework's Linux process incarnation proof. A positi
 
 Snapshot, restore and full-checkpoint scratch directories use the configured data-volume scratch root and the framework's private workspace journal. Normal completion retires only that attempt's workspace. Crash recovery requires a positively dead local owner plus the framework's inode, mount and process-reference checks; unknown or unjournaled directories are preserved.
 
-Restore using `buddy storage:restore-repository <id> --manifest <key> --into <new-absolute-path>`. The command checks the downloaded bundle, restores the refs and default branch, and refuses an existing destination. Keep the database and host backup schedule alongside these application snapshots. `GIT_WAL=required` makes newly acknowledged pushes depend on durable blob storage once that path has been verified.
+Restore using `buddy storage:restore-repository <id> --manifest <key> --into <new-absolute-path>`. The command checks the downloaded bundle, restores the refs and default branch, and refuses an existing destination. Operator restores use the same bounded 90-minute Git window as snapshot verification, so a large repository is not rejected by a shorter restore-only timeout. Keep the database and host backup schedule alongside these application snapshots. `GIT_WAL=required` makes newly acknowledged pushes depend on durable blob storage once that path has been verified.
 
 The public health probe has its own bounded request quota so an exhausted API read budget does not hide readiness failures. It still checks the real subsystems and returns 503 when one fails.
 
