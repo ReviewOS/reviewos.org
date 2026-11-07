@@ -422,3 +422,5 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - [x] Pin the native Git runtime to 2.56.0, which fixes child delta-base eviction in `index-pack`, and verify the exact version before each deployment starts its processes. Existing verified artifacts and source repositories remain preserved.
 
 - [x] Consume the published SDK 0.16.109 consistently through the deployment framework and application so retained failed units cannot shadow the active release in liveness selection. The generated shell regression executes the failed-first counterexample.
+
+- [x] Use published STX 0.2.820 for bounded HTML tag and reactive-loop scans; verify the installed public renderer completes malformed whitespace, nested-tag and quoted-tag cases under the unchanged process deadline.
