@@ -2,6 +2,7 @@ import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
 import { boxes } from '../cloud/boxes'
 import { servers } from '../cloud/servers'
+import { reviewosObjectStorage } from '../cloud/object-storage'
 import { env } from '@stacksjs/env'
 import toolchain from './deps'
 
@@ -39,7 +40,21 @@ const SEARCH_PORT = 8208
 
 // These are runtime objects, never contents of a deployment tarball. The
 // production environment points every process at the same absolute blob root.
-const BLOB_STORAGE_PATHS = ['storage/artifacts', 'storage/attachments', 'storage/lfs', 'storage/release-assets', 'storage/wal']
+const BLOB_STORAGE_PATHS = ['storage/artifacts', 'storage/attachments', 'storage/lfs', 'storage/release-assets', 'storage/wal', 'storage/packs', 'storage/archives', 'storage/scratch', 'storage/restored', 'storage/repos-deleted']
+
+// Secrets are resolved from this protected file by each worker, never job payloads.
+const OBJECT_STORAGE_ENV = {
+  BLOB_SCRATCH_ROOT: '/var/lib/stacks-deployments/reviewos-scratch',
+  STACKS_QUEUE_RESERVATION_TTL_SEC: '7200',
+  GIT_WAL: String(env.GIT_WAL || 'off'),
+  BLOB_LOCAL_ROOT: '/var/www/reviewos-shared/blobs',
+  BLOB_S3_BUCKET: String(env.BLOB_S3_BUCKET || ''),
+  BLOB_MIGRATION_S3_BUCKET: reviewosObjectStorage.bucket,
+  BLOB_S3_PROVIDER: reviewosObjectStorage.provider,
+  BLOB_S3_REGION: reviewosObjectStorage.region,
+  BLOB_S3_PREFIX: reviewosObjectStorage.prefix,
+  BLOB_S3_CREDENTIALS_FILE: reviewosObjectStorage.credentialsFile,
+}
 
 /**
  * Stacks Cloud Configuration
@@ -1159,6 +1174,7 @@ export const tsCloud: TsCloudConfig = {
          * hand a job to anybody. `0000000297-alter-jobs-columns.sql` is that
          * repair, and it runs in preStart before this takes effect.
          */
+        ...OBJECT_STORAGE_ENV,
         QUEUE_DRIVER: 'database',
       },
     },
@@ -1279,6 +1295,7 @@ export const tsCloud: TsCloudConfig = {
         // process dispatches too - a webhook received here, a run cancelled
         // through the API - and on `sync` it would do that work inside the
         // request rather than handing it to the worker.
+        ...OBJECT_STORAGE_ENV,
         QUEUE_DRIVER: 'database',
       },
     },

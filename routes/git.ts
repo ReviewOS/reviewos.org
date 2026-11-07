@@ -2,7 +2,7 @@ import { route } from '@stacksjs/router'
 import { basicAuthSecret, findRepositoryByPath, mayUseService, pushActorFor, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
-import { stdoutStream } from '../app/Actions/Git/stream'
+import { cacheStdout, stdoutStream } from '../app/Actions/Git/stream'
 import { gitRequestBody, UnsupportedGitContentEncoding } from '../app/Actions/Git/requestBody'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
@@ -1047,8 +1047,8 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
   /*
    * A miss that is cacheable fills the cache on the way out.
    *
-   * `tee` so the client is never waiting on the store: it takes the bytes as
-   * git produces them, and the cache's branch is drained in the background. A
+   * The client controls pulls. A bounded cache branch is abandoned if the
+   * store cannot keep up, so a slow peer cannot grow an unbounded tee queue. A
    * failed write means the next identical clone misses too, which is the
    * correct cost of a cache that cannot be written.
    */
@@ -1056,9 +1056,7 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
     const stored = await packCacheTarget(repositoryId, remembered)
 
     if (stored) {
-      const [toClient, toCache] = stdoutStream(child).tee()
-
-      void stored.put(toCache).catch(() => undefined)
+      const toClient = cacheStdout(child, stored.put)
 
       return new Response(toClient, {
         headers: {

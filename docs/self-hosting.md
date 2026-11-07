@@ -1455,3 +1455,15 @@ remove an obsolete CMS author reference when the correct user reference is
 already enforced, relax model-optional columns, and widen truncated text fields.
 It preserves rows. The application also declares the native failed-job UUID and
 attempt metrics, so an exhausted import remains available for inspection and retry.
+
+## Large repository and blob storage
+
+The production object-store declaration is `cloud/object-storage.ts`: a private, versioned Hetzner bucket for application data, separate from the host backup repositories. API, page and worker processes share the same provider, region, prefix and protected credentials file. `BLOB_S3_BUCKET` activates object storage; `BLOB_MIGRATION_S3_BUCKET` lets an operator populate it before activation. Large uploads use bounded multipart streams, and downloads preserve backpressure.
+
+Run `buddy storage:provision --apply` to create the declared bucket and verify versioning. Keep the credential JSON (`accessKeyId`, `secretAccessKey`) in the declared absolute file with private permissions. Secrets stay out of job payloads and logs.
+
+Run `buddy storage:migrate`, then follow its durable operation with `buddy storage:migrate --status <id>`. Each queued batch copies one blob, reads it back and checks SHA-256. A retry resumes the checkpoint and preserves a conflicting destination. Sources stay intact. Verified receipts bind the source inode and nanosecond timestamps to the target object identity, so a final delta pass can skip unchanged, previously checksummed bodies. Pause local writers and run a final complete pass before activating `BLOB_S3_BUCKET`; this catches keys created behind an online pass's cursor. Activate the same configuration in every process together.
+
+`buddy storage:snapshot-repositories` queues restore-verified Git bundles and ref manifests, one repository per batch. The daily schedule maintains them after object storage is active. Git keeps local bare repositories on the persistent working volume while durable bundles live in S3. Snapshots preserve history, tags, binary objects and the default branch. They are verified by a fresh mirror clone plus a downloaded checksum before their manifest is published.
+
+Restore using `buddy storage:restore-repository <id> --manifest <key> --into <new-absolute-path>`. The command checks the downloaded bundle, restores the refs and default branch, and refuses an existing destination. Keep the database and host backup schedule alongside these application snapshots. `GIT_WAL=required` makes newly acknowledged pushes depend on durable blob storage once that path has been verified.

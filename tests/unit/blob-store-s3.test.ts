@@ -9,7 +9,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import type { S3Like } from '../../app/Actions/Git/blobsS3'
-import { MAX_BUFFERED_BYTES, S3BlobStore } from '../../app/Actions/Git/blobsS3'
+import { S3BlobStore } from '../../app/Actions/Git/blobsS3'
 import { UnsafeBlobKey } from '../../app/Actions/Git/blobs'
 
 /** An S3 that is a Map, so the calls it receives can be asserted. */
@@ -18,13 +18,16 @@ function fakeS3(): S3Like & { objects: Map<string, Uint8Array> } {
 
   return {
     objects,
-    async putObject({ bucket, key, body }) {
-      objects.set(`${bucket}/${key}`, body)
+    async putObjectStream({ bucket, key, body }) {
+      const data = new Uint8Array(await new Response(body as ReadableStream<Uint8Array>).arrayBuffer())
+      objects.set(`${bucket}/${key}`, data)
+      return { bytes: data.byteLength }
     },
-    async getObjectBytes(bucket, key) {
+    async getObjectStream(bucket, key) {
       const body = objects.get(`${bucket}/${key}`)
 
-      return body ? { body } : null
+      if (!body) throw Object.assign(new Error('missing'), { statusCode: 404 })
+      return { body: new Response(body).body! }
     },
     async headObject(bucket, key) {
       const body = objects.get(`${bucket}/${key}`)
@@ -34,7 +37,7 @@ function fakeS3(): S3Like & { objects: Map<string, Uint8Array> } {
     async deleteObject(bucket, key) {
       objects.delete(`${bucket}/${key}`)
     },
-    async list({ bucket, prefix }) {
+    async listAllObjects({ bucket, prefix }) {
       return [...objects.entries()]
         .filter(([full]) => full.startsWith(`${bucket}/`))
         .map(([full, body]) => ({ Key: full.slice(bucket.length + 1), Size: body.byteLength }))
@@ -118,28 +121,17 @@ describe('S3BlobStore', () => {
     expect(client.objects.size).toBe(0)
   })
 
-  /**
-   * S3 will not take a PUT without a length, so a stream has to be collected -
-   * and a driver that collects without a ceiling is one OOM away from taking
-   * the process down. It refuses with a message naming multipart instead.
-   */
-  test('refuses a body past the buffering ceiling, naming the fix', async () => {
-    const store = new S3BlobStore({ bucket: 'forge', client: fakeS3() })
+  test('streams past the old ceiling and propagates authorization failures', async () => {
+    const client = fakeS3()
+    let bytes = 0
+    client.putObjectStream = async ({ body }) => { for await (const chunk of body) bytes += chunk.byteLength; return { bytes } }
+    const store = new S3BlobStore({ bucket: 'forge', client })
     const chunk = new Uint8Array(1024 * 1024)
-
-    const body = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        // Endless, so only the ceiling can stop it.
-        controller.enqueue(chunk)
-      },
-    })
-
-    await expect(store.put('artifacts/1/huge.bin', body)).rejects.toThrow(/multipart/)
-  })
-
-  test('the ceiling is under the artifact ceiling it has to survive', () => {
-    // If this ever exceeds what a small box can hold, the refusal above stops
-    // being a safety property and becomes the thing that kills the process.
-    expect(MAX_BUFFERED_BYTES).toBeLessThanOrEqual(512 * 1024 * 1024)
+    async function* input() { for (let index = 0; index < 270; index++) yield chunk }
+    expect((await store.put('wal/1/checkpoint.bundle', input())).size).toBe(270 * chunk.byteLength)
+    client.getObjectStream = async () => { throw Object.assign(new Error('denied'), { statusCode: 403 }) }
+    await expect(store.get('wal/1/checkpoint.bundle')).rejects.toThrow('denied')
+    client.headObject = async () => { throw new Error('provider unavailable') }
+    await expect(store.stat('wal/1/checkpoint.bundle')).rejects.toThrow('provider unavailable')
   })
 })

@@ -12,7 +12,7 @@ import {
 } from './download'
 import { blobStore } from './blobs'
 import { runGit, spawnGitLimited } from './git'
-import { stdoutStream } from './stream'
+import { cacheStdout } from './stream'
 
 /**
  * A repository at a ref, as a zip or a tar.gz.
@@ -109,17 +109,14 @@ export default new Action({
     }
 
     /*
-     * Tee'd: the client gets its bytes as git produces them, and the store
+     * Pull-based: the client gets its bytes as git produces them, and the store
      * gets a copy for the next asker. The response is never delayed by the
-     * write - a `tee` hands both branches the same chunks, and the store's
-     * branch is consumed in the background.
+     * write. The cache has a bounded queue and is abandoned if it falls behind.
      *
      * A failed cache write is swallowed on purpose: this download is already
      * correct, and the next request simply misses again.
      */
-    const [toClient, toStore] = stdoutStream(child).tee()
-
-    void store.put(cacheKey, toStore).catch(() => undefined)
+    const toClient = cacheStdout(child, stream => store.put(cacheKey, stream))
 
     // Pull-based (`stdoutStream`): a rate-limited download of a large archive
     // holds process memory flat, because git only produces what the client

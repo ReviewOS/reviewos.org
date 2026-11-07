@@ -9,6 +9,8 @@ import { schema } from '@stacksjs/validation'
  * have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
+  BLOB_S3_BUCKET: { validation: schema.string(), default: '' },
+  GIT_WAL: { validation: schema.enum(['off', 'advisory', 'required']), default: 'off' },
   AUTH_BROWSER_SESSION_LIFETIME: {
     validation: schema.number().min(1000),
     default: 30 * 24 * 60 * 60 * 1000,

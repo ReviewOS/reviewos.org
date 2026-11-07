@@ -6,7 +6,7 @@ import process from 'node:process'
 import { tsCloud } from '../../config/cloud'
 
 const root = resolve(import.meta.dir, '../..')
-const paths = ['storage/artifacts', 'storage/attachments', 'storage/lfs', 'storage/release-assets', 'storage/wal']
+const paths = ['storage/artifacts', 'storage/attachments', 'storage/lfs', 'storage/release-assets', 'storage/wal', 'storage/packs', 'storage/archives', 'storage/scratch', 'storage/restored', 'storage/repos-deleted']
 
 describe('blob storage across atomic releases', () => {
   test('production names one absolute blob root outside disposable releases', () => {

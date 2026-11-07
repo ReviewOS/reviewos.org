@@ -157,5 +157,9 @@ export default {
    * and a mirror sync each queue these; nothing else does, so a repository
    * that has not changed since the worker was fixed would stay blank forever.
    */
+  'storage:restore-repository': 'StorageRestore',
+  'storage:snapshot-repositories': 'StorageSnapshots',
+  'storage:provision': 'StorageProvision',
+  'storage:migrate': 'StorageMigrate',
   'repo:measure': 'MeasureRepositories',
 } satisfies CommandRegistry

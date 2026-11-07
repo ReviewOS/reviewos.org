@@ -391,3 +391,9 @@ Named so they stop being re-proposed, same as the [index](./index.md) list:
 - **No stored diffs.** Diffs stay computed from git per request; phase 14 already proved the
   streaming path is cheap enough, and a diff cache is an invalidation bug factory the design note
   in `DiffRowsAction` argues against.
+
+## Production object storage hardening
+
+- [x] Stream large objects through the first-party S3 client with bounded multipart memory, abort incomplete uploads, preserve binary downloads and surface provider failures.
+- [x] Queue preservation-only blob migrations in bounded batches with durable operation checkpoints, compare-and-swap leases, destination binding and downloaded SHA-256 verification.
+- [x] Store Git bundles and ref manifests in object storage after restoring each bundle into a fresh repository; provide an operator restore command that preserves existing destinations and local repositories.

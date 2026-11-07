@@ -36,9 +36,10 @@
  */
 
 import type { Dirent } from 'node:fs'
-import { mkdir, readdir, rm, stat as statFile } from 'node:fs/promises'
+import { mkdir, readdir, rename, rm, stat as statFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
 
 /** What a stored blob weighs and when it was written. */
 export interface BlobStat {
@@ -46,6 +47,10 @@ export interface BlobStat {
   size: number
   /** Milliseconds since the epoch. Null when the driver cannot say. */
   modifiedAtMs: number | null
+  /** Stable identity for preservation-only migration delta checks. */
+  fingerprint?: string
+  /** Provider object identity, never used as a content checksum. */
+  etag?: string
 }
 
 /** Anything that can be written to the store. */
@@ -198,7 +203,7 @@ export class LocalBlobStore implements BlobStore {
      * complete because the file exists and has a size. The interrupted case
      * leaves a `.partial` file rather than a corrupt blob.
      */
-    const temporary = `${path}.partial`
+    const temporary = `${path}.${randomUUID()}.partial`
     const file = Bun.file(temporary)
     const writer = file.writer()
 
@@ -207,10 +212,10 @@ export class LocalBlobStore implements BlobStore {
         writer.write(chunk)
 
       await writer.end()
-      await Bun.write(Bun.file(path), Bun.file(temporary))
-      await rm(temporary, { force: true })
+      await rename(temporary, path)
     }
     catch (error) {
+      try { await writer.end() } catch {}
       await rm(temporary, { force: true }).catch(() => undefined)
 
       throw error
@@ -232,17 +237,47 @@ export class LocalBlobStore implements BlobStore {
     const path = this.pathFor(key)
 
     try {
-      const found = await statFile(path)
+      const found = await statFile(path, { bigint: true })
 
-      return found.isFile() ? { key, size: found.size, modifiedAtMs: found.mtimeMs } : null
+      return found.isFile() ? { key, size: Number(found.size), modifiedAtMs: Number(found.mtimeNs) / 1e6,
+        fingerprint: [found.dev, found.ino, found.size, found.mtimeNs, found.ctimeNs].join(':') } : null
     }
-    catch {
-      return null
+    catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code || '')) return null
+      throw error
     }
   }
 
   async delete(key: string): Promise<void> {
     await rm(this.pathFor(key), { force: true })
+  }
+
+  /** Ordered bounded migration page; completed directory subtrees are pruned. */
+  async page(after = '', limit = 8): Promise<{ entries: BlobStat[], more: boolean }> {
+    if (after && !isSafeKey(after)) throw new UnsafeBlobKey(after)
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid blob page size')
+    const found: BlobStat[] = []
+    const walk = async (directory: string, prefix: string): Promise<void> => {
+      let children: Dirent[]
+      try { children = await readdir(directory, { withFileTypes: true }) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error }
+      const sortKey = (item: Dirent): string => item.name + (item.isDirectory() ? '/' : '')
+      children.sort((a, b) => sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0)
+      for (const entry of children) {
+        if (found.length > limit) return
+        const key = prefix ? `${prefix}/${entry.name}` : entry.name
+        if (entry.isDirectory()) {
+          if (after && key + '/' < after && !after.startsWith(key + '/')) continue
+          await walk(join(directory, entry.name), key)
+        } else if (key > after && !entry.name.endsWith('.partial')) {
+          if (!isSafeKey(key) || !entry.isFile()) throw new UnsafeBlobKey(key)
+          const metadata = await this.stat(key)
+          if (metadata) found.push(metadata)
+        }
+      }
+    }
+    await walk(this.root, '')
+    return { entries: found.slice(0, limit), more: found.length > limit }
   }
 
   async list(prefix: string): Promise<BlobStat[]> {

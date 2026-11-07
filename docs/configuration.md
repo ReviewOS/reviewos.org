@@ -804,7 +804,7 @@ Atomic deployments must use one absolute directory outside releases, shared
 by the API, page server and workers. Copy and verify existing blobs before
 changing it, then reconcile the old roots after every old process has stopped.
 
-Read by `app/Actions/Git/blobs.ts`.
+Read by `app/Actions/Git/blobs.ts`, `app/Jobs/MigrateBlobsJob.ts`.
 
 ### `BLOB_S3_BUCKET`
 
@@ -814,7 +814,31 @@ Naming a bucket is what switches the driver to object storage. There is no
 separate BLOB_DRIVER on purpose: "use s3" without a bucket is a setting that
 tells you nothing until the first upload fails.
 
-Read by `app/Actions/Git/blobs.ts`, `app/Actions/Git/blobsS3.ts`.
+Read by `app/Actions/Git/blobs.ts`, `app/Actions/Git/blobsS3.ts`, `app/Actions/Storage/operations.ts`, `app/Jobs/SnapshotRepositoriesJob.ts`.
+
+### `BLOB_S3_REGION`
+
+Default: `hel1`, and the line is commented out.
+
+Read by `app/Actions/Git/blobsS3.ts`.
+
+### `BLOB_S3_CREDENTIALS_FILE`
+
+Default: `/etc/reviewos/object-storage.json`, and the line is commented out.
+
+Read by `app/Actions/Git/blobsS3.ts`.
+
+### `BLOB_MIGRATION_S3_BUCKET`
+
+Default: `reviewos-production`, and the line is commented out.
+
+Read by `app/Actions/Storage/operations.ts`.
+
+### `BLOB_SCRATCH_ROOT`
+
+Default: `/var/lib/reviewos-scratch`, and the line is commented out.
+
+Read by `app/Actions/Git/snapshot.ts`.
 
 ### `BLOB_S3_PREFIX`
 
@@ -823,7 +847,7 @@ Default: unset.
 Everything this instance writes goes under this prefix, so one bucket can
 hold several instances.
 
-Read by `app/Actions/Git/blobsS3.ts`.
+Read by `app/Actions/Git/blobsS3.ts`, `app/Actions/Storage/operations.ts`.
 
 ### `BLOB_S3_PROVIDER`
 
@@ -832,7 +856,7 @@ Default: `aws`, and the line is commented out.
 aws, hetzner, or backblaze. Credentials come from the provider's own
 variables - HETZNER_S3_* for Hetzner, the AWS chain for AWS.
 
-Read by `app/Actions/Git/blobsS3.ts`.
+Read by `app/Actions/Git/blobsS3.ts`, `app/Actions/Storage/operations.ts`.
 
 ## Object
 

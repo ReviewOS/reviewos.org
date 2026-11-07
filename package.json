@@ -85,7 +85,7 @@
     "@stacksjs/search-engine": "0.75.484",
     "@stacksjs/server": "0.75.484",
     "@stacksjs/stx": "0.2.818",
-    "@stacksjs/ts-cloud": "0.16.93",
+    "@stacksjs/ts-cloud": "0.16.97",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.38",
@@ -121,7 +121,7 @@
     "stx-router": "0.2.818",
     "bun-plugin-stx": "0.2.818",
     "@stacksjs/components": "0.2.818",
-    "@stacksjs/ts-cloud": "0.16.93",
+    "@stacksjs/ts-cloud": "0.16.97",
     "@stacksjs/buddy": "0.75.484"
   }
 }
