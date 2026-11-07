@@ -282,13 +282,14 @@ export function divergence(ledger: readonly LedgerEntry[], onDisk: ReadonlyMap<s
 }
 
 /** What a repository's refs are, right now, as a map. */
-export async function refsOnDisk(repositoryPath: string): Promise<Map<string, string>> {
+export async function refsOnDisk(repositoryPath: string, options: { strict?: boolean } = {}): Promise<Map<string, string>> {
   const listed = await runGit(repositoryPath, ['for-each-ref', '--format=%(refname) %(objectname)'], {
     priority: 'background',
   })
 
   const found = new Map<string, string>()
 
+  if (options.strict && (!listed.ok || listed.truncated)) throw new Error('Repository refs could not be read completely')
   if (!listed.ok)
     return found
 

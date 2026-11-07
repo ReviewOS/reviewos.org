@@ -33,5 +33,32 @@ test('repository snapshots retain history, tags, binary files and default branch
     await expect(restoreRepositorySnapshot(1, result.manifestKey!, destination, store, options)).rejects.toThrow('already exists')
     expect((await snapshotRepository({ id: 1, owner: 'fixture', name: 'example' }, store, options)).unchanged).toBe(true)
     expect(git(['rev-list', '--all', '--count'], destination).trim()).toBe('2')
+    const prepared = await snapshotRepository({ id: 2, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true })
+    expect(prepared.pending).toBe(true)
+    expect(prepared.bytes).toBe(0)
+    expect(await store.list('repositories/2/snapshots')).toHaveLength(0)
+    const checkpoint = await new Response(await store.get(prepared.candidateKey!)).json() as any
+    expect(checkpoint.verifiedAt).toBeUndefined()
+    // A push between queue batches must not silently replace the prepared revision.
+    writeFileSync(join(source, 'third'), 'new live history'); git(['add', '.']); git(['commit', '-m', 'third'])
+    git(['fetch', source, '+refs/*:refs/*'], destination)
+    const verified = await snapshotRepository({ id: 2, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true, candidateKey: prepared.candidateKey })
+    expect(verified.pending).not.toBe(true)
+    expect((await snapshotRepository({ id: 2, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true, candidateKey: prepared.candidateKey })).unchanged).toBe(true)
+    const pinnedRestore = join(root, 'pinned-restored.git')
+    await restoreRepositorySnapshot(2, verified.manifestKey!, pinnedRestore, store, options)
+    expect(git(['rev-list', '--all', '--count'], pinnedRestore).trim()).toBe('2')
+    expect(git(['rev-list', '--all', '--count'], destination).trim()).toBe('3')
+    // Current refs still need a later backup; the old candidate cannot claim them.
+    expect((await snapshotRepository({ id: 2, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true })).pending).toBe(true)
+    const corrupt = await snapshotRepository({ id: 3, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true })
+    const bad = await new Response(await store.get(corrupt.candidateKey!)).json() as any
+    await store.put(bad.key, 'corrupted prepared bytes')
+    await expect(snapshotRepository({ id: 3, owner: 'fixture', name: 'example' }, store, { ...options, prepareBatch: true, candidateKey: corrupt.candidateKey })).rejects.toThrow('checksum failed')
+    expect(await store.list('repositories/3/snapshots')).toHaveLength(0)
+    await expect(snapshotRepository({ id: 3, owner: 'fixture', name: 'example' }, store, { ...options, candidateKey: prepared.candidateKey })).rejects.toThrow('Invalid repository preparation checkpoint')
+    const invalid = join(root, 'storage/repos/fixture/invalid.git'); mkdirSync(invalid); writeFileSync(join(invalid, 'HEAD'), 'not a repository')
+    await expect(snapshotRepository({ id: 4, owner: 'fixture', name: 'invalid' }, store, options)).rejects.toThrow('refs could not be read completely')
+
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
