@@ -1274,3 +1274,5 @@ to their own timezone gets every timestamp wrong by it.
 - [x] Declare the production S3 bucket and required push recovery in deployment configuration while keeping test and staging stores isolated.
 
 - [x] Check due mirrors every minute so configured sixty-second intervals do not become overdue between five-minute sweeps; each mirror retains its interval and queued-job guard.
+
+- [x] Consume published STX 0.2.826 so warm component renders yield to HTTP sockets and deadlines while retaining fresh request-scoped data.

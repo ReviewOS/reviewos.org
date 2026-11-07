@@ -33,7 +33,7 @@ export default new Job({
     let queued = 0
     let queuedMetadata = 0
     // A first account import can outlast several sweeps. Include reserved jobs
-    // so a slow fetch does not accumulate another copy every five minutes.
+    // so a slow fetch does not accumulate another copy on each sweep.
     const pending = new Set<string>()
     if (config.queue.default === 'database') {
       const jobs = await db.selectFrom('jobs').select(['payload']).where('queue', 'in', ['mirrors', 'mirrors-code']).execute()

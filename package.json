@@ -84,7 +84,7 @@
     "@stacksjs/router": "0.75.504",
     "@stacksjs/search-engine": "0.75.504",
     "@stacksjs/server": "0.75.504",
-    "@stacksjs/stx": "0.2.820",
+    "@stacksjs/stx": "0.2.826",
     "@stacksjs/ts-cloud": "0.16.109",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.10.5",
@@ -116,14 +116,16 @@
   "overrides": {
     "bun-query-builder": "0.3.38",
     "@stacksjs/bun-router": "^0.1.24",
-    "@stacksjs/stx": "0.2.820",
+    "@stacksjs/stx": "0.2.826",
     "@stacksjs/ts-ssh": "^0.1.1",
-    "stx-router": "0.2.820",
-    "bun-plugin-stx": "0.2.820",
-    "@stacksjs/components": "0.2.820",
+    "stx-router": "0.2.826",
+    "bun-plugin-stx": "0.2.826",
+    "@stacksjs/components": "0.2.826",
     "@stacksjs/ts-cloud": "0.16.109",
     "@stacksjs/buddy": "0.75.504",
     "@ts-cloud/core": "0.16.109",
-    "@ts-cloud/aws-types": "0.16.109"
+    "@ts-cloud/aws-types": "0.16.109",
+    "@stacksjs/desktop": "0.2.826",
+    "@stacksjs/sanitizer": "0.2.826"
   }
 }
