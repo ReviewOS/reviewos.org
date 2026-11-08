@@ -496,10 +496,16 @@ written down here so it does not get relitigated:
       rows, and the claim reads the run's state. There is a test that asks a runner for work and
       watches it decline.
 
-      Released by the settler when the run ahead reaches a terminal state, one run at a time and by
-      id - push order, not poll order, or a deploy queue would land the older commit last. Releasing
-      the whole group at once would turn a serialized queue into a stampede the first time two runs
-      piled up behind a slow one.
+      Released by the settler when the run ahead reaches a terminal state, one run at a time.
+      Releasing the whole group at once would turn a serialized deploy into a stampede.
+- [x] A concurrency group holds at most one running run and one pending run, as Actions does.
+      Every new run used to queue behind the last, so HQ's `ci-refs/heads/main` held five runs
+      `waiting` at once (2026-11-08), to be worked through oldest first for commits the newest
+      already contained. Now a run joining a group cancels the one already waiting in it -
+      `cancelled` outright, "Superseded by run #N in concurrency group ..." - with or without
+      `cancel-in-progress`, which only adds the running run. A run waiting on a fork approval is
+      left alone. Releasing a group lets the newest held run go and supersedes any older one, so a
+      group that filled up before this heals on its next release.
 - [x] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only.
 

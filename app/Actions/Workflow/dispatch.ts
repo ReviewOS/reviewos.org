@@ -817,10 +817,11 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
 /**
  * Stop the runs this one replaces.
  *
- * Only when the workflow asked for it: Actions' default is that a second run
- * queues behind the first rather than replacing it, and cancelling by default
- * would throw away work somebody is watching. Turning it on is what makes a
- * branch's pipeline stop spending runners on commits nobody is waiting for.
+ * A run that has started is stopped only when the workflow asked for it
+ * (`cancel-in-progress`, or `intermediate: cancel`): cancelling by default
+ * would throw away work somebody is watching. A run still *waiting* in the
+ * group is replaced either way, as Actions does - a group holds one running
+ * run and one pending run (`supersedePending`).
  *
  * The same steps as `cancelRun` (cancel.ts), because a superseded run is a
  * cancelled run: `cancelling`, its jobs no runner has taken end `cancelled`
@@ -835,7 +836,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
  * cancellation upstream - a mirror's commit otherwise kept "Run N is waiting
  * for a runner" on GitHub after the run was gone.
  *
- * The other half - queueing the newer run *behind* the older one when
+ * The other half - holding the newer run *behind* the running one when
  * `cancel-in-progress` is false - is `holdForGroup` below, released by the
  * settler when the run ahead finishes.
  */
@@ -846,6 +847,7 @@ async function supersede(
   group: string | null,
   cancelInProgress: boolean,
   intermediate: string = 'run',
+  runNumber: number | null = null,
 ): Promise<SupersededRun[]> {
   const moved: SupersededRun[] = []
   if (!group)
@@ -911,7 +913,7 @@ async function supersede(
   }
 
   if (!cancelInProgress && intermediate !== 'cancel')
-    return moved
+    return await supersedePending(client, { repositoryId, newerThan: runId, group, by: runNumber })
 
   const live = await client
     .selectFrom('workflow_runs')
@@ -928,7 +930,7 @@ async function supersede(
   for (const run of live) {
     const changed = await client
       .updateTable('workflow_runs')
-      .set({ state: 'cancelling', conclusion_reason: `Cancelled: run in concurrency group \`${group}\` replaced by a newer one.` })
+      .set({ state: 'cancelling', conclusion_reason: supersededReason(group, runNumber) })
       .where('id', '=', Number(run.id))
       .where('state', '=', String(run.state))
       .returning(['id'])
@@ -961,6 +963,89 @@ async function supersede(
 interface SupersededRun {
   id: number
   from: string
+}
+
+/** What a run replaced in its concurrency group says, naming the run that replaced it. */
+function supersededReason(group: string, by: number | null): string {
+  return by
+    ? `Superseded by run #${by} in concurrency group \`${group}\`.`
+    : `Superseded by a newer run in concurrency group \`${group}\`.`
+}
+
+/**
+ * The approval states a run held by its concurrency group can be in.
+ *
+ * A fork's run waiting for a person to approve it is `waiting` too, but on a
+ * person rather than on the group: replacing it would discard a decision
+ * somebody has not made yet, so only a run nobody has to approve is pending
+ * in the group's sense.
+ */
+const GROUP_PENDING_APPROVALS = ['not-required', 'approved']
+
+/**
+ * Cancel the run waiting in a group, because a newer one has joined it.
+ *
+ * Actions' rule for `concurrency:`, and the one this instance did not follow:
+ * a group holds **at most one running run and one pending run**. When another
+ * run joins, the pending one is cancelled - with `cancel-in-progress: false`
+ * as much as with it; `cancel-in-progress` only adds the running run to what
+ * is cancelled. Here every new run used to queue behind the last, so HQ's
+ * `ci-refs/heads/main` held five runs `waiting` at once (2026-11-08), each to
+ * be worked through in order, an hour and a half apiece, for commits the
+ * newest one already contained.
+ *
+ * Only runs the group holds (`waiting`, nobody's approval outstanding) and
+ * only older ones: a callback finishing out of order must never cancel a
+ * newer run. A waiting run has handed nothing to a runner, so it ends
+ * `cancelled` at once and its jobs with it. The run ahead keeps going.
+ *
+ * Inside the admission transaction when a run joins, outside it when a group
+ * is released (`releaseGroup`); either way the caller settles and announces
+ * what moved (`finishSuperseded`).
+ */
+async function supersedePending(client: Executor, input: {
+  repositoryId: number
+  newerThan: number
+  group: string
+  by: number | null
+}): Promise<SupersededRun[]> {
+  const moved: SupersededRun[] = []
+  const pending = await client
+    .selectFrom('workflow_runs')
+    .select(['id', 'state'])
+    .where('repository_id', '=', input.repositoryId)
+    .where('concurrency_group', '=', input.group)
+    .where('id', '<', input.newerThan)
+    .where('state', '=', 'waiting')
+    .where('approval_state', 'in', GROUP_PENDING_APPROVALS)
+    .execute()
+
+  const now = new Date().toISOString()
+  for (const run of pending) {
+    const cancelled = await client
+      .updateTable('workflow_runs')
+      .set({ state: 'cancelled', finished_at: now, conclusion_reason: supersededReason(input.group, input.by) })
+      .where('id', '=', Number(run.id))
+      // Guarded on the state it was read at: a release that let it go between
+      // the read and the write leaves it to run.
+      .where('state', '=', 'waiting')
+      .returning(['id'])
+      .executeTakeFirst()
+
+    if (!cancelled)
+      continue
+
+    await client
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: now })
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('state', 'in', ['blocked', 'queued'])
+      .execute()
+
+    moved.push({ id: Number(run.id), from: 'waiting' })
+  }
+
+  return moved
 }
 
 /** A stored timestamp as epoch milliseconds: a Date, an ISO string, or a zone-less UTC `YYYY-MM-DD HH:MM:SS`. */
@@ -1044,7 +1129,8 @@ async function finishSuperseded(repositoryId: number, moved: SupersededRun[]): P
  *
  * The `cancel-in-progress: false` half of `concurrency:`, and the half every
  * forge that ships the key seems to skip. Actions documents it - a second run
- * waits for the first - and a workflow that says `group: production` without
+ * waits for the first, and a third replaces the second as the one waiting
+ * (`supersedePending`) - and a workflow that says `group: production` without
  * `cancel-in-progress` is a workflow asking for exactly one deploy at a time.
  * Running both anyway is not a smaller version of the feature; it is the
  * failure the key was written to prevent.
@@ -1122,9 +1208,9 @@ export async function isConcurrencyHeld(runId: number): Promise<boolean> {
  * and it lives here beside the hold: two halves of one rule in two files is how
  * one of them gets changed alone.
  *
- * One run per finish, the lowest id first. Releasing the whole group at once
- * would turn a serialized deploy queue into a stampede the first time two runs
- * piled up behind a slow one.
+ * One run per finish: the pending one, which is the newest the group holds.
+ * Releasing the whole group at once would turn a serialized deploy into a
+ * stampede.
  */
 export async function releaseGroup(repositoryId: number, group: string | null): Promise<number | null> {
   if (!group)
@@ -1144,7 +1230,39 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
   if (busy)
     return null
 
-  const next = await db
+  /*
+   * The newest run the group holds goes next, and any older one it holds is
+   * superseded by it.
+   *
+   * Admission keeps a group to one pending run (`supersedePending`), so there
+   * is normally nothing older to cancel. This is the same rule applied at the
+   * other end, for a group that holds more than one: groups that filled up
+   * before admission enforced it (HQ's main CI, five deep), or any path that
+   * ever lets a second one through. Releasing the oldest of those would run
+   * a commit the newest one already contains.
+   */
+  const held = await db
+    .selectFrom('workflow_runs')
+    .select(['id', 'number'])
+    .where('repository_id', '=', repositoryId)
+    .where('concurrency_group', '=', group)
+    .where('state', '=', 'waiting')
+    .where('approval_state', 'in', GROUP_PENDING_APPROVALS)
+    .orderBy('id', 'desc')
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (held) {
+    const moved = await supersedePending(db, {
+      repositoryId,
+      newerThan: Number(held.id),
+      group,
+      by: Number(held.number),
+    }).catch(() => [] as SupersededRun[])
+    await finishSuperseded(repositoryId, moved)
+  }
+
+  const next = held ?? await db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
@@ -1255,9 +1373,10 @@ async function createRunWithGraph(input: {
     await tx.updateTable('repositories').set({ id: repositoryId })
       .where('id', '=', repositoryId).execute()
 
+    const runNumber = await nextNumber(tx, repositoryId)
     const run: any = await tx
       .insertInto('workflow_runs')
-      .values({ ...input.values, number: await nextNumber(tx, repositoryId) } as any)
+      .values({ ...input.values, number: runNumber } as any)
       .returning(['id'])
       .executeTakeFirst()
 
@@ -1276,7 +1395,7 @@ async function createRunWithGraph(input: {
       }
       const cancelInProgress = cancelsInProgress(version.cancel_in_progress, String(version.cancel_in_progress_expression ?? ''), context)
       const intermediate = String(version.intermediate ?? 'run')
-      superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate)
+      superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate, Number(runNumber))
       await holdForGroup(tx, { repositoryId, runId, group, cancelInProgress, intermediate })
     }
 

@@ -49,7 +49,7 @@ function machine(): any {
 async function runsInGroup(): Promise<any[]> {
   return db
     .selectFrom('workflow_runs')
-    .select(['id', 'state', 'conclusion_reason'])
+    .select(['id', 'number', 'state', 'conclusion_reason'])
     .where('repository_id', '=', created.repositoryId)
     .orderBy('id')
     .execute()
@@ -239,5 +239,64 @@ describe('two runs in one group', () => {
     // through the moment two arrived together.
     expect(String(runs[2].state)).toBe('waiting')
     expect(runs.filter((row: any) => ['queued', 'running'].includes(String(row.state))).length).toBe(1)
+  }, 120_000)
+
+  /*
+   * Actions' rule: a group holds one running run and one pending run, and a
+   * run joining it cancels the pending one - with `cancel-in-progress: false`
+   * too. HQ's main CI had five runs waiting at once (2026-11-08), each to be
+   * worked through in turn for commits the newest already contained.
+   */
+  test('a fourth run replaces the third as the one waiting, saying by which run', async () => {
+    if (!available)
+      return
+
+    await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: 'e'.repeat(40),
+    })
+
+    const runs = await runsInGroup()
+
+    expect(runs.map((row: any) => String(row.state))).toEqual(['succeeded', 'running', 'cancelled', 'waiting'])
+    expect(String(runs[2].conclusion_reason)).toBe(`Superseded by run #${Number(runs[3].number)} in concurrency group \`production\`.`)
+
+    // Its jobs went with it, and the run that was going is untouched.
+    const replaced: any[] = await db.selectFrom('workflow_jobs').select(['state']).where('workflow_run_id', '=', Number(runs[2].id)).execute()
+    expect(replaced.every((row: any) => String(row.state) === 'cancelled')).toBe(true)
+    const going: any[] = await db.selectFrom('workflow_jobs').select(['state']).where('workflow_run_id', '=', Number(runs[1].id)).execute()
+    expect(going.some((row: any) => String(row.state) === 'cancelled')).toBe(false)
+
+    // Never more than one waiting.
+    expect(runs.filter((row: any) => String(row.state) === 'waiting').length).toBe(1)
+  }, 120_000)
+
+  /*
+   * A group that filled up before admission enforced the rule heals when it
+   * is next released: the newest held run goes, the older ones are superseded
+   * by it, rather than the oldest commit running next.
+   */
+  test('a release lets the newest held run go and supersedes older ones', async () => {
+    if (!available)
+      return
+
+    // A legacy pile: the run cancelled above, held again beside the newest.
+    const before = await runsInGroup()
+    await db.updateTable('workflow_runs').set({ state: 'waiting', finished_at: null, conclusion_reason: 'Waiting for run #1 in concurrency group `production`.' }).where('id', '=', Number(before[2].id)).execute()
+    await db.updateTable('workflow_jobs').set({ state: 'queued', finished_at: null }).where('workflow_run_id', '=', Number(before[2].id)).execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', Number(before[1].id))
+      .execute()
+
+    await settleRun(Number(before[1].id))
+
+    const after = await runsInGroup()
+
+    expect(after.map((row: any) => String(row.state))).toEqual(['succeeded', 'succeeded', 'cancelled', 'queued'])
+    expect(String(after[2].conclusion_reason)).toContain(`Superseded by run #${Number(after[3].number)}`)
   }, 120_000)
 })

@@ -771,11 +771,14 @@ concurrency:
   group: ci-${{ github.ref }}
 ```
 
-Three commits land in a minute. `run` (the default, and Actions' behaviour) runs
-all three. `cancel` is `concurrency.cancel-in-progress` said in one word: stop
-whatever is running. `skip` is the third thing, and usually the one people mean:
-**let the build that has already started finish, and drop the ones that have
-not.**
+Three commits land in a minute. `run` (the default, and Actions' behaviour)
+keeps one running run and one pending run in the group: the first commit's run
+goes, the second waits, and the third replaces the second as the one waiting
+("Superseded by run #N"). `cancel` is `concurrency.cancel-in-progress` said in
+one word: stop whatever is running. `skip` is the third thing, and usually the
+one people mean: **let the build that has already started finish, and drop the
+ones that have not** - including a run admitted to the group that no runner has
+picked up yet, which `run` keeps.
 
 The difference matters because the run in progress will produce a result
 somebody reads, while the queued ones would produce two that nobody does. A
