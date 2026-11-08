@@ -30,6 +30,7 @@ import {
   submitReview,
   whoami,
 } from '../app/Cli/commands'
+import { listRuns, runWorkflow, watchRun } from '../app/Cli/runs'
 
 const USAGE = `reviewos - the review surface, from a terminal
 
@@ -44,6 +45,13 @@ const USAGE = `reviewos - the review surface, from a terminal
   reviewos stack [--number <number>]
   reviewos review <number> [--approve | --request-changes] [--file <path>]
 
+  reviewos run <workflow> [--ref <ref>] [--input key=value]... [--watch]
+  reviewos watch <run-number>
+  reviewos runs [--state <state>] [--branch <branch>] [--limit <n>]
+
+  --repo <owner/name> names the repository on the instance, for a mirror's
+  checkout whose remote is its upstream. REVIEWOS_REPOSITORY does the same.
+
 The instance and the repository are read from the git remote of the checkout
 you are standing in. REVIEWOS_URL overrides the instance; REVIEWOS_TOKEN
 overrides the stored token, which is what CI uses.
@@ -52,9 +60,11 @@ A token is kept in the operating system's keychain, never in a dotfile.
 `
 
 /** Flags and positionals, from argv. */
-function parse(argv: string[]): { positional: string[], flags: Record<string, string | boolean> } {
+function parse(argv: string[]): { positional: string[], flags: Record<string, string | boolean>, inputs: string[] } {
   const positional: string[] = []
   const flags: Record<string, string | boolean> = {}
+  // `--input` repeats - one per workflow input - so it is collected, not kept last.
+  const inputs: string[] = []
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = String(argv[index])
@@ -66,6 +76,12 @@ function parse(argv: string[]): { positional: string[], flags: Record<string, st
 
     const name = argument.slice(2)
     const next = argv[index + 1]
+
+    if (name === 'input' && next !== undefined) {
+      inputs.push(String(next))
+      index += 1
+      continue
+    }
 
     // `--flag value` and `--flag` both. A flag whose next argument is another
     // flag is a boolean, which is what makes `--draft --title x` work in either
@@ -79,10 +95,10 @@ function parse(argv: string[]): { positional: string[], flags: Record<string, st
     }
   }
 
-  return { positional, flags }
+  return { positional, flags, inputs }
 }
 
-const { positional, flags } = parse(process.argv.slice(2))
+const { positional, flags, inputs } = parse(process.argv.slice(2))
 const [command, second, third] = positional
 
 if (!command || flags.help || command === 'help') {
@@ -148,6 +164,41 @@ async function main(): Promise<number> {
         file: typeof flags.file === 'string' ? flags.file : undefined,
       })
     }
+
+    case 'run': {
+      if (!second) {
+        console.error('Which workflow? `reviewos run platform-kit.yml --ref main`')
+
+        return 1
+      }
+
+      return await runWorkflow(String(second), {
+        ref: typeof flags.ref === 'string' ? flags.ref : undefined,
+        inputs,
+        watch: Boolean(flags.watch),
+        repo: typeof flags.repo === 'string' ? flags.repo : undefined,
+        instance,
+      })
+    }
+
+    case 'watch': {
+      if (!second) {
+        console.error('Which run? `reviewos watch 3631`')
+
+        return 1
+      }
+
+      return await watchRun(String(second), { repo: typeof flags.repo === 'string' ? flags.repo : undefined, instance })
+    }
+
+    case 'runs':
+      return await listRuns({
+        state: typeof flags.state === 'string' ? flags.state : undefined,
+        branch: typeof flags.branch === 'string' ? flags.branch : undefined,
+        limit: typeof flags.limit === 'string' ? Number(flags.limit) : undefined,
+        repo: typeof flags.repo === 'string' ? flags.repo : undefined,
+        instance,
+      })
 
     default:
       console.error(`Unknown command: ${command}`)

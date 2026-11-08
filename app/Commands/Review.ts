@@ -10,6 +10,7 @@ import {
   submitReview,
   whoami,
 } from '../Cli/commands'
+import { listRuns, runWorkflow, watchRun } from '../Cli/runs'
 
 /**
  * The contributor CLI, registered on `buddy` for working inside this repository.
@@ -73,4 +74,30 @@ export default function (cli: CLI) {
     .option('--file <path>', 'Read the body from this file. `-` reads standard input.')
     .action((number: string, options: { approve?: boolean, requestChanges?: boolean, file?: string }) =>
       run(submitReview(number, options)))
+
+  cli
+    .command('workflow:run <workflow>', 'Start a workflow that accepts workflow_dispatch')
+    .option('--ref <ref>', 'Branch, tag or commit to run it on. Defaults to the repository default.')
+    .option('--input <pair>', 'An input as key=value. Repeat for more.', { type: [String] })
+    .option('--watch', 'Follow the run until it finishes', { default: false })
+    .option('--repo <owner/name>', 'The repository on the instance, for a mirror\'s checkout')
+    .option('--instance <url>', 'Override the instance')
+    .action((workflow: string, options: { ref?: string, input?: string | string[], watch?: boolean, repo?: string, instance?: string }) =>
+      run(runWorkflow(workflow, { ...options, inputs: [options.input ?? []].flat() })))
+
+  cli
+    .command('workflow:watch <number>', 'Follow a run until it finishes, and exit with its result')
+    .option('--repo <owner/name>', 'The repository on the instance')
+    .option('--instance <url>', 'Override the instance')
+    .action((number: string, options: { repo?: string, instance?: string }) => run(watchRun(number, options)))
+
+  cli
+    .command('workflow:runs', 'The repository\'s recent runs, newest first')
+    .option('--state <state>', 'Only runs in this state')
+    .option('--branch <branch>', 'Only runs for this branch')
+    .option('--limit <n>', 'How many', { default: 20 })
+    .option('--repo <owner/name>', 'The repository on the instance')
+    .option('--instance <url>', 'Override the instance')
+    .action((options: { state?: string, branch?: string, limit?: number, repo?: string, instance?: string }) =>
+      run(listRuns({ ...options, limit: Number(options.limit) || 20 })))
 }
