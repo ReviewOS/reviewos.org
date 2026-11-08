@@ -13,7 +13,7 @@
   as counts change is unreadable, which is why the order is fixed upstream in
   `app/Actions/Markdown/emoji` rather than sorted here by popularity.
 --}}
-<div class="reactions">
+<div class="reactions" id="{{ anchor }}">
   @foreach (summaries as reaction)
     @if (reaction.count > 0 || open)
       <form class="reaction-form" method="post" action="{{ action }}">

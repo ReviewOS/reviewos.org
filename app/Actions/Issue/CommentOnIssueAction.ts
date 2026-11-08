@@ -166,7 +166,7 @@ export default new Action({
       const kind = issue.is_pull_request ? 'pull' : 'issue'
       const path = `/${ownerHandle}/${repositoryName}/${kind}/${number}`
 
-      return new Response(null, { status: 303, headers: { Location: `${path}#comment-${Number(created?.id)}` } })
+      return new Response(null, { status: 303, headers: { Location: `${path}?conversation_comment=${Number(created?.id)}#comment-${Number(created?.id)}` } })
     }
 
     return response.json({

@@ -318,3 +318,5 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       exemption is recorded with its reason rather than the call being added for show - every row
       this writes carries `is_pull_request: true`, and the count is of rows where that is false, so
       a recount could not change the answer.
+
+- [x] Bound discussion rendering to fifty chronologically ordered comments and timeline entries per page; preserve reaction pickers and new-comment return links, and skip discussion work on other pull request tabs.

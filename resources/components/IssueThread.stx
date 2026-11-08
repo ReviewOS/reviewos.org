@@ -17,7 +17,7 @@
   conversation is an issue conversation, and the second screen that needs this
   should get the same one rather than a copy that drifts.
 --}}
-<div class="thread-body">
+<div class="thread-body" id="conversation">
   <article class="issue-post panel">
     <header class="post-head">
       <span class="post-author">{{ opening.author }}</span>
@@ -32,6 +32,7 @@
 
     <footer class="post-foot">
       <ReactionBar
+        anchor="reactions-body"
         :summaries="opening.reactions"
         :fields="opening.reactionFields"
         :open="opening.picking"
@@ -59,6 +60,7 @@
 
         <footer class="post-foot">
           <ReactionBar
+            anchor="reactions-{{ item.comment.id }}"
             :summaries="item.comment.reactions"
             :fields="item.comment.reactionFields"
             :open="item.comment.picking"
@@ -69,9 +71,21 @@
       </article>
     @endif
   @endforeach
+  @if (pagination && (pagination.current_page > 1 || pagination.has_more_pages))
+    <nav class="conversation-pages" aria-label="Discussion pages">
+      @if (pagination.current_page > 1)
+        <a rel="prev" href="?conversation_page={{ pagination.current_page - 1 }}#conversation">Previous entries</a>
+      @endif
+      <span class="muted">Page {{ pagination.current_page }}</span>
+      @if (pagination.has_more_pages)
+        <a rel="next" href="?conversation_page={{ pagination.current_page + 1 }}#conversation">Next entries</a>
+      @endif
+    </nav>
+  @endif
 </div>
 
 <style>
+  .conversation-pages { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; }
   .issue-post { margin-bottom: 14px; overflow: hidden; }
 
   .post-head {

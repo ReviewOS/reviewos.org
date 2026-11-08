@@ -113,7 +113,8 @@ export default new Action({
       const kind = issue.is_pull_request ? 'pull' : 'issue'
       const anchor = commentId === null ? 'reactions-body' : `reactions-${commentId}`
 
-      return new Response(null, { status: 303, headers: { Location: `/${ownerHandle}/${repositoryName}/${kind}/${number}#${anchor}` } })
+      const focus = commentId === null ? '' : `?conversation_comment=${commentId}`
+      return new Response(null, { status: 303, headers: { Location: `/${ownerHandle}/${repositoryName}/${kind}/${number}${focus}#${anchor}` } })
     }
 
     return response.json({ number, comment_id: commentId, content, reacted: result.reacted })

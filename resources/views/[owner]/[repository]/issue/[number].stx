@@ -175,7 +175,7 @@ const reactionAction = '/api/repos/issues/reactions'
  * because for a change they are not: its comments hang off the `issues` row
  * behind it and its history hangs off the change itself.
  */
-const { opening, items: conversation } = issue
+const { opening, items: conversation, pagination: conversationPagination, commentCount } = issue
   ? await loadConversation(
       {
         comments: { type: 'issue', id: Number(issue.id) },
@@ -195,11 +195,13 @@ const { opening, items: conversation } = issue
         number: Number(issue.number ?? 0),
         viewerId,
         picking,
+        page: search.conversation_page,
+        comment: search.conversation_comment,
         reactionAction,
         taskAction,
       },
     )
-  : { opening: {}, items: [] }
+  : { opening: {}, items: [], pagination: null, commentCount: 0 }
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
 const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason) : 'draft'
@@ -249,7 +251,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
             @endif
             opened this {{ relativeTime(String(issue.created_at ?? '')) }}
             &middot;
-            {{ comments.length }} {{ comments.length === 1 ? 'comment' : 'comments' }}
+            {{ commentCount }} {{ commentCount === 1 ? 'comment' : 'comments' }}
           </span>
         </div>
       </header>
@@ -259,6 +261,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
           <IssueThread
             :opening="opening"
             :items="conversation"
+            :pagination="conversationPagination"
             reactionAction="{{ reactionAction }}"
           />
 

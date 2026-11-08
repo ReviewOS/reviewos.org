@@ -753,7 +753,7 @@ const reactionAction = '/api/repos/issues/reactions'
  * change's own body and never depended on that row. An earlier version of
  * this dropped both together, which `tests/e2e/pull-tabs.test.ts` caught.
  */
-const { opening: conversationOpening, items: conversation } = pullRequest
+const { opening: conversationOpening, items: conversation, pagination: conversationPagination } = pullRequest && tab === 'conversation'
   ? await loadConversation(
       {
         comments: shadowIssue ? { type: 'issue', id: Number(shadowIssue.id) } : null,
@@ -773,11 +773,13 @@ const { opening: conversationOpening, items: conversation } = pullRequest
         number,
         viewerId: access?.viewer ? Number(access.viewer.id) : null,
         picking,
+        page: search.conversation_page,
+        comment: search.conversation_comment,
         reactionAction,
         taskAction,
       },
     )
-  : { opening: {}, items: [] }
+  : { opening: {}, items: [], pagination: null, commentCount: 0 }
 
 /** A signed-in reader who may comment, which is anybody signed in who can see it. */
 const viewerMayComment = Boolean(pullRequest && access?.viewer && !pullRequest.locked)
@@ -904,6 +906,7 @@ const renderedDiffs = files.map(file => diffHtmlByPath[file.path] ?? '')
             <IssueThread
               :opening="conversationOpening"
               :items="conversation"
+              :pagination="conversationPagination"
               reactionAction="{{ reactionAction }}"
             />
 

@@ -1,3 +1,5 @@
+import { raw } from 'bun-query-builder'
+import { toSimplePaginator } from '@stacksjs/pagination'
 import { authorLabel, relativeTime } from './browse'
 import type { TimelineKind } from '../../app/Actions/Issue/timeline'
 import { entryIcon, entrySentence } from './issues'
@@ -62,6 +64,8 @@ export interface ConversationContext {
   /** The number both forms post back, so a reaction knows what it is on. */
   number: number
   viewerId: number | null
+  page?: unknown
+  comment?: unknown
   /** `?react=body` or `?react=<comment id>`, straight from the query string. */
   picking: string
   reactionAction: string
@@ -71,6 +75,55 @@ export interface ConversationContext {
 export interface ConversationResult {
   opening: Record<string, unknown>
   items: Record<string, unknown>[]
+  pagination: ReturnType<typeof toSimplePaginator>
+  commentCount: number
+}
+
+/** Fifty timeline entries per page; bodies are read only after admission. */
+export const CONVERSATION_PAGE_SIZE = 50
+
+export function conversationPageNumber(value: unknown): number {
+  const text = String(value ?? '1')
+  return /^[1-9]\d{0,6}$/.test(text) ? Number(text) : 1
+}
+
+/** Keep picker links and page links in this conversation, including pull tabs. */
+export function conversationPageHref(page: number, picking = ''): string {
+  const query = new URLSearchParams({ conversation_page: String(page) })
+  if (picking) query.set('react', picking)
+  return '?' + query.toString() + '#conversation'
+}
+
+async function conversationWindow(subject: ConversationSubject, context: ConversationContext) {
+  const comments = () => db.selectFrom('issue_comments').select(['id', 'created_at'])
+    .selectRaw(raw("'comment' AS kind"))
+    .where('commentable_type', '=', subject.comments?.type ?? '')
+    .where('commentable_id', '=', subject.comments?.id ?? 0)
+  const events = () => db.selectFrom('timeline_entries').select(['id', 'created_at'])
+    .selectRaw(raw("'event' AS kind"))
+    .where('subject_type', '=', subject.timeline?.type ?? '')
+    .where('subject_id', '=', subject.timeline?.id ?? 0)
+  const sequence = () => comments().unionAll(events())
+  let page = conversationPageNumber(context.page)
+  // Reaction pickers and links to a particular comment must open its page.
+  const focus = String(context.comment ?? (/^[1-9]\d*$/.test(context.picking) ? context.picking : ''))
+  if (/^[1-9]\d{0,14}$/.test(focus) && subject.comments) {
+    const target = await db.selectFrom('issue_comments').select(['id', 'created_at'])
+      .where('commentable_type', '=', subject.comments.type).where('commentable_id', '=', subject.comments.id)
+      .where('id', '=', Number(focus)).executeTakeFirst()
+    if (target) {
+      const precedingComments = await comments().whereGroup((q: any) => q.where('created_at', '<', target.created_at)
+        .orWhereGroup((tie: any) => tie.where('created_at', '=', target.created_at).where('id', '<=', Number(target.id)))).count()
+      const precedingEvents = await events().where('created_at', '<', target.created_at).count()
+      const preceding = Number(precedingComments) + Number(precedingEvents)
+      page = Math.max(1, Math.ceil(Number(preceding) / CONVERSATION_PAGE_SIZE))
+    }
+  }
+  const result = await sequence().orderBy('created_at', 'asc').orderBy('kind', 'asc').orderBy('id', 'asc')
+    .simplePaginate(CONVERSATION_PAGE_SIZE, page)
+  return toSimplePaginator({ data: result.data, meta: {
+    perPage: Number(result.meta.perPage), page: Number(result.meta.page), hasMore: result.meta.hasMore === true,
+  } })
 }
 
 /**
@@ -81,9 +134,14 @@ export interface ConversationResult {
  * version would be felt, and it is the one somebody most wants to read.
  */
 export async function loadConversation(subject: ConversationSubject, context: ConversationContext): Promise<ConversationResult> {
-  const pickerHref = (target: string): string => `?react=${encodeURIComponent(target)}#reactions-${target}`
+  const pagination = await conversationWindow(subject, context)
+  const commentIds = pagination.data.filter((row: any) => row.kind === 'comment').map((row: any) => Number(row.id))
+  const eventIds = pagination.data.filter((row: any) => row.kind === 'event').map((row: any) => Number(row.id))
+  const pickerHref = (target: string): string => conversationPageHref(pagination.current_page, target).replace('#conversation', `#reactions-${target}`)
+  const commentCount = subject.comments ? Number(await db.selectFrom('issue_comments')
+    .where('commentable_type', '=', subject.comments.type).where('commentable_id', '=', subject.comments.id).count()) : 0
 
-  const commentRows: any[] = !subject.comments
+  const commentRows: any[] = !subject.comments || !commentIds.length
     ? []
     : await db
       .selectFrom('issue_comments')
@@ -100,10 +158,11 @@ export async function loadConversation(subject: ConversationSubject, context: Co
     ])
       .where('issue_comments.commentable_type', '=', subject.comments.type)
       .where('issue_comments.commentable_id', '=', subject.comments.id)
+      .where('issue_comments.id', 'in', commentIds)
       .orderBy('issue_comments.created_at', 'asc')
       .execute()
 
-  const entryRows: any[] = !subject.timeline
+  const entryRows: any[] = !subject.timeline || !eventIds.length
     ? []
     : await db
       .selectFrom('timeline_entries')
@@ -120,6 +179,7 @@ export async function loadConversation(subject: ConversationSubject, context: Co
     ])
       .where('timeline_entries.subject_type', '=', subject.timeline.type)
       .where('timeline_entries.subject_id', '=', subject.timeline.id)
+      .where('timeline_entries.id', 'in', eventIds)
       .orderBy('timeline_entries.created_at', 'asc')
       .execute()
 
@@ -228,7 +288,11 @@ export async function loadConversation(subject: ConversationSubject, context: Co
   const items = [
     ...comments.map(comment => ({ kind: 'comment', at: comment.createdAt, comment, event: null })),
     ...events.map(event => ({ kind: 'event', at: event.createdAt, comment: null, event })),
-  ].sort((a, b) => a.at.localeCompare(b.at))
+  ]
+  // Preserve the database's stable order, including equal timestamps across
+  // comments and events. No locale-dependent sorting of dates in JavaScript.
+  const byKey = new Map(items.map(item => [item.kind + ':' + (item.comment?.id ?? item.event?.id), item]))
+  const ordered = pagination.data.map((row: any) => byKey.get(row.kind + ':' + row.id)!).filter(Boolean)
 
-  return { opening, items }
+  return { opening, items: ordered, pagination, commentCount }
 }
