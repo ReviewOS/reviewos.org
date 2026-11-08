@@ -27,6 +27,7 @@ export default function (cli: CLI) {
   cli
     .command('runner:provision [box]', 'Converge a runner box declared in cloud/boxes.ts')
     .option('--dry-run', 'Show what would change without touching the box', { default: false })
+    .option('--attempt-unavailable', 'Ask for the declared size even when Hetzner reports it out of stock, this once. A failed placement powers the box back on as it was.', { default: false })
     .option('--binary <path>', 'A compiled runner to install when it differs from the box\'s')
     .option('--restart <how>', 'After installing a binary: signal (finish the job, then restart) or none', { default: 'signal' })
     .option('--identity <path>', 'SSH private key for root on the box', { default: resolve(homedir(), '.ssh/id_ed25519') })
@@ -35,7 +36,16 @@ export default function (cli: CLI) {
         const { tsCloud } = await import('../../config/cloud')
         const declared = (tsCloud.infrastructure?.boxes ?? {}) as Record<string, any>
         const key = name ?? (Object.keys(declared).length === 1 ? Object.keys(declared)[0] : undefined)
-        const box = key ? declared[key] : undefined
+        const declaredBox = key ? declared[key] : undefined
+        /*
+         * The stock flag is best effort: a size can read out of stock in every
+         * location and still place. Asking anyway is a one-off decision for
+         * whoever is at the terminal, not a property of the box - written into
+         * the declaration it would power the runner off on every converge.
+         */
+        const box = declaredBox && options.attemptUnavailable
+          ? { ...declaredBox, resize: { ...(declaredBox.resize ?? {}), attemptUnavailable: true } }
+          : declaredBox
 
         if (!box) {
           console.error(`Which box? Declared: ${Object.keys(declared).join(', ') || 'none'}`)
