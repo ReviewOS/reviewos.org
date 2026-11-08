@@ -305,4 +305,39 @@ describe('the pull request page, as tabs', () => {
     expect(html).toContain('description</strong>')
     expect(html.includes('<table class="diff-table"')).toBe(false)
   }, 30_000)
+  test('large discussions remain bounded and later comments open on their own page', async () => {
+    if (!available) return
+    const database = (globalThis as any).db
+    const shadow = await database.insertInto('issues').values({
+      repository_id: created.repositoryId, number: 1, title: 'Change the greeting',
+      author_id: created.ownerId, is_pull_request: true, state: 'open',
+    }).returning(['id']).executeTakeFirst()
+    const issueId = Number(shadow.id)
+    try {
+      await database.insertInto('issue_comments').values(Array.from({ length: 123 }, (_, index) => ({
+        commentable_type: 'issue', commentable_id: issueId, author_id: created.ownerId,
+        body: `Bounded discussion entry ${String(index + 1).padStart(3, '0')}`,
+        created_at: '2026-11-07 00:00:00',
+      }))).execute()
+      const comments = await database.selectFrom('issue_comments').select(['id'])
+        .where('commentable_type', '=', 'issue').where('commentable_id', '=', issueId).orderBy('id', 'asc').execute()
+      const first = await page('')
+      expect(first.match(/id="comment-\d+"/g)).toHaveLength(50)
+      expect(first).toContain('Bounded discussion entry 050')
+      expect(first).not.toContain('Bounded discussion entry 051')
+      expect(first).toContain('href="?conversation_page=2#conversation"')
+      const focused = await page(`?conversation_comment=${comments[122].id}`)
+      expect(focused).toContain('Page 3')
+      expect(focused).toContain('Bounded discussion entry 123')
+      expect(focused.match(/id="comment-\d+"/g)).toHaveLength(23)
+      const picked = await page(`?react=${comments[122].id}`)
+      expect(picked).toContain(`id="reactions-${comments[122].id}"`)
+      expect(picked).toContain('Page 3')
+      expect(await page('?tab=commits')).not.toContain('Bounded discussion entry')
+    } finally {
+      await database.deleteFrom('issue_comments').where('commentable_type', '=', 'issue').where('commentable_id', '=', issueId).execute()
+      await database.deleteFrom('issues').where('id', '=', issueId).execute()
+    }
+  }, 30000)
+
 })
