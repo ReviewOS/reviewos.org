@@ -3483,6 +3483,7 @@ Response headers: `X-Runner-Protocol-Supported`.
 |---|---|
 | `200` | The renewed lease, and how many step results this call recorded. |
 | `401` | No credential, or one this instance does not recognise. |
+| `409` | The job is no longer this runner's: its run was cancelled, it ran past its timeout, or its lease lapsed. The body says which, in words the runner records as the job's error. |
 | `422` | Validation failed |
 | `426` | This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported. |
 | `500` | Server error |

@@ -4860,6 +4860,7 @@ export interface paths {
     responses: {
       "200": { content: { "application/json": { "lease_expires_at"?: string; "steps_recorded"?: number } } }
       "401": { content: never }
+      "409": { content: never }
       "422": { content: never }
       "426": { content: never }
       "500": { content: never }

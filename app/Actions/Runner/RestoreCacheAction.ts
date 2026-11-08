@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { blobStore } from '../Git/blobs'
 import { db } from '@stacksjs/database'
 import { findRestorable, MAX_UPLOAD_SNAPSHOT_BYTES, markRestored, runFactsFor } from '../Workflow/cache'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
 /**
@@ -64,7 +64,7 @@ export default new Action({
 
     const held = await authenticateJob(request)
     if (!held)
-      return runnerJson({ error: 'Unknown job credential' }, 401)
+      return await refuseJobCredential(request)
 
     const context = await runFactsFor(held.jobId)
     if (!context)

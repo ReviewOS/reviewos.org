@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { resolve } from '../Workflow/journal'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
 /**
@@ -57,7 +57,7 @@ export default new Action({
 
     const held = await authenticateJob(request)
     if (!held)
-      return runnerJson({ error: 'Unknown job credential' }, 401)
+      return await refuseJobCredential(request)
 
     const entryId = Number(request.get('entry_id'))
 

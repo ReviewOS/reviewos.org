@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
 /**
@@ -58,7 +58,7 @@ export default new Action({
     const held = await authenticateJob(request)
 
     if (!held)
-      return runnerJson({ error: 'Unknown or expired job token' }, 401)
+      return await refuseJobCredential(request)
 
     /*
      * The job's own row, read from the id the token names rather than from

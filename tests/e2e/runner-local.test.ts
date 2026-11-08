@@ -1367,7 +1367,8 @@ test "$(cat hq.txt)" = hq && test "$(cat legacy.txt)" = legacy`,
     try {
       const outcome = await runOnce({ baseUrl: proxy.url.origin, token: created.token, reposRoot: 'storage/repos' })
       expect(outcome?.state).toBe('cancelled')
-      expect(outcome?.reason).toContain('lease')
+      // The instance's own reason, carried on its 409, not a status code.
+      expect(outcome?.reason).toBe('The instance stopped this job: Fixture cancelled during artifact wait')
       expect(cancelledAt).toBeGreaterThan(0)
       expect(performance.now() - cancelledAt).toBeLessThan(35_000)
       expect(uploads).toBe(1)

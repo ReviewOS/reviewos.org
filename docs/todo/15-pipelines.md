@@ -338,6 +338,16 @@ written down here so it does not get relitigated:
       all - a pull request holding on work that ended an hour ago. The graph settler is shared with
       the reporter now, because two things move a run and two copies of "what does this failure
       unblock" is how they end up disagreeing about the same run.
+- [x] A job the sweep stops at its `timeout-minutes` says so on the runner and on the run. The
+      sweep revoked the lease but kept the job's token (so the runner's `cancelled` acknowledgement
+      is accepted), and every job endpoint answered that token "401 Unknown job credential". The
+      runner recorded "The instance revoked this job's lease: 401 Unknown job credential", and HQ's
+      `api-e2e` (35 to 38 minutes, `timeout-minutes: 40`) ended that way five times in three days,
+      read each time as a credential bug, a deploy restart or a concurrency group cancelling the
+      wrong run. A token that names a job now answers 409 with the instance's reason (its
+      timeout, its run's cancellation, a lapsed lease, a disabled runner), the runner records it
+      as "The instance stopped this job: This job ran past its 40-minute timeout.", and the run's
+      reason names the job and its limit. Only a token that names nothing is still a 401.
 - [x] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
       onto queues and runner tags. Complex `runs-on` expressions are in scope; Gitea's not supporting
       them is a known migration blocker.

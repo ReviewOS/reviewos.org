@@ -18471,6 +18471,17 @@
               }
             }
           },
+          "409": {
+            "description": "The job is no longer this runner's: its run was cancelled, it ran past its timeout, or its lease lapsed. The body says which, in words the runner records as the job's error.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation failed",
             "headers": {

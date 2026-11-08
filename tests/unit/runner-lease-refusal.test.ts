@@ -27,6 +27,58 @@ test('a refused credential stops ownership immediately, while transport failures
   expect(lease.signal.aborted).toBe(true)
 })
 
+test('a 409 carries the instance\'s decision as written; other refusals name the status', () => {
+  const stopped = new RunnerLease()
+  leases.push(stopped)
+  stopped.refuse(409, 'This job ran past its 40-minute timeout.')
+  expect((stopped.signal.reason as Error).message).toBe('The instance stopped this job: This job ran past its 40-minute timeout.')
+
+  const unknown = new RunnerLease()
+  leases.push(unknown)
+  unknown.refuse(401, 'Unknown job credential')
+  expect((unknown.signal.reason as Error).message).toBe('The instance revoked this job\'s lease: 401 Unknown job credential')
+})
+
+/*
+ * HQ's `api-e2e`, 2026-11-08: stopped at its `timeout-minutes`, and the job's
+ * error said "401 Unknown job credential". The reason the instance gives on a
+ * refused heartbeat is what the runner reports as the job's error.
+ */
+test('a job the instance stops reports the instance\'s reason as its error', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-stopped-reason-'))
+  let claimed = false
+  let beats = 0
+  const reports: any[] = []
+  const server = Bun.serve({ port: 0, async fetch(request) {
+    const path = new URL(request.url).pathname
+    const body: any = await request.json().catch(() => ({}))
+    if (path === '/api/runner/claim') {
+      if (claimed) return Response.json({})
+      claimed = true
+      return Response.json({ job: {
+        id: 9156, token: 'timed-out-job-token', key: 'timed-out', checkout: { skip: true },
+        repository_full_name: 'acme/widgets',
+        run: { id: 1, number: 1, event: 'push', ref: 'refs/heads/main', head_sha: 'abc' },
+        steps: [{ name: 'Long suite', run: 'sleep 60' }],
+      } })
+    }
+    if (path === '/api/runner/heartbeat' && ++beats > 1)
+      return Response.json({ error: 'This job ran past its 40-minute timeout.', fix: 'Stop working on it.' }, { status: 409 })
+    if (path === '/api/runner/report') reports.push(body)
+    return Response.json({ ok: true, held: true })
+  } })
+  try {
+    const outcome = await runOnce({ baseUrl: `http://127.0.0.1:${server.port}`, token: 'runner', workspaceRoot: root, tools: false })
+    expect(outcome?.state).toBe('cancelled')
+    expect(reports.at(-1)?.state).toBe('cancelled')
+    expect(reports.at(-1)?.error).toBe('The instance stopped this job: This job ran past its 40-minute timeout.')
+  }
+  finally {
+    server.stop(true)
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 45_000)
+
 test('a late heartbeat cannot reactivate a concluded lease', async () => {
   const lease = new RunnerLease(10)
   lease.dispose()

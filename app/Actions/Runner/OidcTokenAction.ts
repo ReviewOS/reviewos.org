@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { claimsFor, mintOidcToken, TOKEN_TTL_SECONDS } from '../Workflow/oidc'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { isNotFalse } from '../Support/sql'
 
@@ -61,7 +61,7 @@ export default new Action({
     const held = await authenticateJob(request)
 
     if (!held)
-      return runnerJson({ error: 'Unknown or expired job token' }, 401)
+      return await refuseJobCredential(request)
 
     const job = await db
       .selectFrom('workflow_jobs')

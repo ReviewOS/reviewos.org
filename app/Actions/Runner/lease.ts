@@ -68,13 +68,24 @@ export class RunnerLease {
     }, this.durationMs)
   }
 
+  /**
+   * The instance refused a request this job made.
+   *
+   * `reason` is the instance's own words, without the status. A 409 is the
+   * instance deciding about the work - its run was cancelled, it ran past its
+   * `timeout-minutes` - and that decision is what the job's error should say,
+   * rather than a status code somebody has to look up. Any other 4xx is a
+   * credential the instance no longer accepts, and says so.
+   */
   refuse(status: number | undefined, reason: string): void {
     if (this.closed) return
     // Transport failures and throttling can recover within the existing lease.
     // An authoritative refusal means this machine no longer owns the work.
     if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
       this.dispose()
-      this.controller.abort(new Error(`The instance revoked this job's lease: ${reason}`))
+      this.controller.abort(new Error(status === 409
+        ? `The instance stopped this job: ${reason}`
+        : `The instance revoked this job's lease: ${status} ${reason}`))
     }
   }
 

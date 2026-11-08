@@ -734,7 +734,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      */
     if (!answer.held && !heartbeatFailing) {
       heartbeatFailing = true
-      const line = `The instance did not renew this job's lease: ${answer.refusal || 'no answer'}`
+      const line = `The instance did not renew this job's lease: ${[answer.status, answer.refusal || 'no answer'].filter(Boolean).join(' ')}`
       console.error(`job ${job.id}: ${line}`)
       await send(`${line}\n`, 'stderr').catch(() => {})
     }
@@ -4011,7 +4011,10 @@ async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Pro
     held: answer.ok,
     status: answer.status,
     recorded: Number(answer.body?.steps_recorded ?? 0) || 0,
-    refusal: answer.ok ? undefined : `${answer.status} ${refusalText(answer.body?.error)}`.trim(),
+    // The instance's words alone; the status travels beside them, so a 409's
+    // reason ("This job ran past its 40-minute timeout.") reaches the job's
+    // error as written rather than prefixed with a code.
+    refusal: answer.ok ? undefined : refusalText(answer.body?.error) || 'no reason given',
   }
 }
 

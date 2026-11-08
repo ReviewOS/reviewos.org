@@ -12,6 +12,7 @@
 
 import { db } from '@stacksjs/database'
 import type { RunnerFacts } from './protocol'
+import { runnerJson } from './gate'
 import { leaseIsLive, splitLabels } from './protocol'
 
 /** SHA-256, the same way registration wrote it. */
@@ -181,6 +182,103 @@ export async function authenticateJob(
       tags: splitLabels(runner.tags),
     },
   }
+}
+
+/** Why a job credential is no longer accepted, as the runner should hear it. */
+export interface JobCredentialRefusal {
+  /** 409 when the credential names a job this runner held, 401 when it names nothing. */
+  status: 401 | 409
+  error: string
+  fix?: string
+}
+
+/**
+ * Why `authenticateJob` refused a credential, in words the runner can act on.
+ *
+ * Every job endpoint used to answer a refused credential with "401 Unknown job
+ * credential", whatever the reason. That was true only of a token that names
+ * no job. A job the instance stopped on purpose - its run cancelled, or past
+ * its `timeout-minutes` - still has its token on the row (the report endpoint
+ * needs it to accept the acknowledgement), and its runner was told "unknown"
+ * and wrote that down as the job's error. HQ's `api-e2e` ended "The instance
+ * revoked this job's lease: 401 Unknown job credential" five times between
+ * 2026-11-06 and 2026-11-08, and each one was read as a credential bug, a
+ * deploy restart or a concurrency group cancelling the wrong run. Every one was the
+ * job's own `timeout-minutes: 40`, which the row said and the runner never
+ * heard.
+ *
+ * So a token that matches a job answers 409 with the instance's own reason,
+ * the same status the heartbeat already uses for "this job is no longer
+ * yours". Only the holder of the token learns it: the token is 32 random bytes
+ * and is compared by hash, so telling its holder why the job ended tells
+ * nobody anything about tokens they do not have.
+ */
+export async function jobCredentialRefusal(request: RequestInstance, now: Date = new Date()): Promise<JobCredentialRefusal> {
+  const unknown: JobCredentialRefusal = { status: 401, error: 'Unknown job credential' }
+  const token = bearerFrom(request)
+  if (!token)
+    return unknown
+
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['id', 'workflow_run_id', 'runner_id', 'state', 'lease_expires_at', 'condition_reason'])
+    .where('job_token_hash', '=', hashToken(token))
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!job?.runner_id)
+    return unknown
+
+  const stop = 'Stop working on it; anything reported now is refused.'
+  const state = String(job.state ?? '')
+
+  if (state === 'cancelling' || state === 'cancelled') {
+    const own = String(job.condition_reason ?? '').trim()
+    let reason = own
+
+    if (!reason) {
+      const run: any = await db
+        .selectFrom('workflow_runs')
+        .select(['conclusion_reason'])
+        .where('id', '=', Number(job.workflow_run_id))
+        .executeTakeFirst()
+        .catch(() => null)
+      reason = String(run?.conclusion_reason ?? '').trim() || 'Its run was cancelled.'
+    }
+
+    return { status: 409, error: reason, fix: stop }
+  }
+
+  if (state !== 'running')
+    return { status: 409, error: `This job already finished as ${state || 'unknown'}.`, fix: stop }
+
+  if (!leaseIsLive({ leaseExpiresAt: job.lease_expires_at ? String(job.lease_expires_at) : null }, now)) {
+    return {
+      status: 409,
+      error: 'This job\'s lease lapsed before the instance heard from this runner again.',
+      fix: 'Stop working on it. The instance may give it to another machine.',
+    }
+  }
+
+  const runner: any = await db
+    .selectFrom('runners')
+    .select(['state'])
+    .where('id', '=', Number(job.runner_id))
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (String(runner?.state ?? '') !== 'active')
+    return { status: 409, error: 'This runner was disabled while it held the job.', fix: stop }
+
+  return unknown
+}
+
+/** The answer for a refused job credential: 409 with the reason when there is one, 401 otherwise. */
+export async function refuseJobCredential(request: RequestInstance): Promise<Response> {
+  const refusal = await jobCredentialRefusal(request)
+  const { status, ...body } = refusal
+
+  return runnerJson(body, status)
 }
 
 /**

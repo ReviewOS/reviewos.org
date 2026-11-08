@@ -575,7 +575,10 @@ describe('acknowledging a cancellation over HTTP', () => {
 
     const answers = await Promise.all(requests)
 
-    expect(answers.map(answer => answer.status)).toEqual([401, 401, 401, 401, 401])
+    // Refused on every endpoint. 409 rather than 401: the token names a job
+    // whose run was cancelled, and the runner is told that rather than that
+    // its credential is unknown (`jobCredentialRefusal`).
+    expect(answers.map(answer => answer.status)).toEqual([409, 409, 409, 409, 409])
 
     expect(await db.selectFrom('workflow_job_logs').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
     expect(await db.selectFrom('workflow_artifacts').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
@@ -595,7 +598,9 @@ describe('acknowledging a cancellation over HTTP', () => {
 
     const answer = await call('/runner/logs', { sequence: 1, content: 'from a stale worker' }, job.token)
 
-    expect(answer.status).toBe(401)
+    // Refused, and told why: the lease lapsed, not that the token is unknown.
+    expect(answer.status).toBe(409)
+    expect(String(answer.body.error)).toContain('lease lapsed')
     expect(await db.selectFrom('workflow_job_logs').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
   })
 })

@@ -3,7 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { artifactName, collectedArtifactName } from '../Artifact/storage'
 import { openArtifact } from '../Artifact/read'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
 /**
@@ -59,7 +59,7 @@ export default new Action({
     const held = await authenticateJob(request)
 
     if (!held)
-      return runnerJson({ error: 'Unknown or expired job token' }, 401)
+      return await refuseJobCredential(request)
 
     const job = await db
       .selectFrom('workflow_jobs')

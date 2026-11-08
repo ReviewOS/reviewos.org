@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { heartbeat } from './claim'
 import { readStepReports, recordSteps } from './report'
 
@@ -22,7 +22,9 @@ import { readStepReports, recordSteps } from './report'
  * runner's registration credential, and the token names the job, so no id is
  * taken from the caller. A token matching no job is a 401: the credential is
  * gone, which is a different thing from holding one for work somebody took
- * away.
+ * away - that is a 409 carrying the instance's reason (`jobCredentialRefusal`),
+ * so a job stopped at its `timeout-minutes` says so instead of "Unknown job
+ * credential".
  *
  * ## Why the step results travel here
  *
@@ -67,6 +69,7 @@ export default new Action({
       description: 'This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.',
     },
     401: { description: 'No credential, or one this instance does not recognise.' },
+    409: { description: 'The job is no longer this runner\'s: its run was cancelled, it ran past its timeout, or its lease lapsed. The body says which, in words the runner records as the job\'s error.' },
   },
 
   responseHeaders: {
@@ -92,7 +95,7 @@ export default new Action({
 
     const held = await authenticateJob(request)
     if (!held)
-      return runnerJson({ error: 'Unknown job credential' }, 401)
+      return await refuseJobCredential(request)
 
     const expires = await heartbeat(held.runner, held.jobId)
 

@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { storeArtifact } from '../Artifact/store'
 import { artifactName, MAX_ARTIFACT_BYTES, megabytes } from '../Artifact/storage'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
 /**
@@ -70,7 +70,7 @@ export default new Action({
 
     const held = await authenticateJob(request)
     if (!held)
-      return runnerJson({ error: 'Unknown job credential' }, 401)
+      return await refuseJobCredential(request)
 
     const job = await db
       .selectFrom('workflow_jobs')

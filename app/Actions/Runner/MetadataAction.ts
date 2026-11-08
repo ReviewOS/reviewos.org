@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { listMetadata, readMetadata, writeMetadata } from './metadata'
 
@@ -70,7 +70,7 @@ export default new Action({
     const held = await authenticateJob(request)
 
     if (!held)
-      return runnerJson({ error: 'Unknown or expired job token' }, 401)
+      return await refuseJobCredential(request)
 
     /*
      * The run comes from the token's job, never from the request. A runner that

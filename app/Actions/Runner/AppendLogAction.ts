@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
-import { authenticateJob } from './authenticate'
+import { authenticateJob, refuseJobCredential } from './authenticate'
 import { appendLog } from './logs'
 import { parseEvents } from './logevents'
 
@@ -59,7 +59,7 @@ export default new Action({
 
     const held = await authenticateJob(request)
     if (!held)
-      return runnerJson({ error: 'Unknown job credential' }, 401)
+      return await refuseJobCredential(request)
 
     /*
      * Text or events, and text is not deprecated.

@@ -197,7 +197,7 @@ export const MAX_LOST_ATTEMPTS = 3
 async function stopOverrunJobs(now: Date): Promise<number> {
   const running = await db
     .selectFrom('workflow_jobs')
-    .select(['id', 'workflow_run_id', 'started_at', 'timeout_minutes'])
+    .select(['id', 'workflow_run_id', 'job_id', 'name', 'started_at', 'timeout_minutes'])
     .where('state', '=', 'running')
     .execute()
 
@@ -243,6 +243,22 @@ async function stopOverrunJobs(now: Date): Promise<number> {
     if (changed(result)) {
       count += 1
       runs.add(Number(job.workflow_run_id))
+
+      /*
+       * Said on the run as well, when nothing else has been.
+       *
+       * The run ends `cancelled` because of this, and a cancelled run with no
+       * reason reads as somebody having cancelled it - HQ's `api-e2e` timing
+       * out at 40 minutes was taken for a concurrency group cancelling the
+       * wrong run (2026-11-08). A reason somebody already gave (a person's
+       * cancellation, a supersede) is kept.
+       */
+      await db
+        .updateTable('workflow_runs')
+        .set({ conclusion_reason: `Job \`${String(job.name || job.job_id)}\` ran past its ${Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)}-minute timeout.` })
+        .where('id', '=', Number(job.workflow_run_id))
+        .whereNull('conclusion_reason')
+        .execute()
     }
   }
 
