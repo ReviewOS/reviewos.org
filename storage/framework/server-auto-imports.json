@@ -18,6 +18,7 @@
     "Author": true,
     "Automation": true,
     "AutomationRun": true,
+    "AutoscaleRunnersJob": true,
     "Bid": true,
     "Board": true,
     "BoardColumn": true,

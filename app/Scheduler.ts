@@ -48,6 +48,13 @@ export default function () {
     .job('ReclaimLapsedLeasesJob')
     .everyMinute()
 
+  // Grow autoscaled runner groups (cloud/autoscaling.ts) to meet waiting jobs.
+  // Does nothing on an instance without AWS credentials; instances shrink
+  // their own groups when idle, so this never terminates a busy machine.
+  schedule
+    .job('AutoscaleRunnersJob')
+    .everyMinute()
+
   // Recover a transfer interrupted between a durable checkpoint and dispatch.
   schedule.job('MigrateBlobsJob').onQueue('storage').everyTenMinutes()
   schedule.job('SnapshotRepositoriesJob').onQueue('repository-snapshots').daily().at('04:20')

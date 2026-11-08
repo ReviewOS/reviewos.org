@@ -1133,6 +1133,17 @@ Read by `app/Actions/Workflow/repairModelChild.ts`.
 
 ## ReviewOS
 
+### `REVIEWOS_AUTOSCALE_REGISTRATION_TOKEN`
+
+Default: empty.
+
+A registration token for an autoscaled runner group's pool (cloud/autoscaling.ts),
+minted with the fleet's `create-token` operation. `buddy runner:autoscale:apply`
+writes it into the group's launch template, where each instance uses it once to
+join the pool. It can add a machine to that pool and nothing else.
+
+Read by `app/Commands/RunnerAutoscale.ts`.
+
 ### `REVIEWOS_EXECUTION`
 
 Default: `microvm`, and the line is commented out.

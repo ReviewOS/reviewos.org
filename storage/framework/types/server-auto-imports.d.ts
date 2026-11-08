@@ -271,6 +271,7 @@ declare global {
   const Redirect: typeof import('@stacksjs/defaults/app/Models/Content/Redirect.ts')['default']
   const Websocket: typeof import('@stacksjs/defaults/app/Models/realtime/Websocket.ts')['default']
   const AuditRefDriftJob: typeof import('../../../app/Jobs/AuditRefDriftJob')['default']
+  const AutoscaleRunnersJob: typeof import('../../../app/Jobs/AutoscaleRunnersJob')['default']
   const CheckpointRepositoriesJob: typeof import('../../../app/Jobs/CheckpointRepositoriesJob')['default']
   const CollectCachesJob: typeof import('../../../app/Jobs/CollectCachesJob')['default']
   const DeliverWebhookJob: typeof import('../../../app/Jobs/DeliverWebhookJob')['default']
