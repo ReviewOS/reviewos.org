@@ -95,16 +95,21 @@ export function conversationPageHref(page: number, picking = ''): string {
 }
 
 async function conversationWindow(subject: ConversationSubject, context: ConversationContext) {
+  let page = conversationPageNumber(context.page)
+  if (!subject.comments && !subject.timeline)
+    return toSimplePaginator({ data: [], meta: { perPage: CONVERSATION_PAGE_SIZE, page, hasMore: false } })
   const comments = () => db.selectFrom('issue_comments').select(['id', 'created_at'])
     .selectRaw(raw("'comment' AS kind"))
-    .where('commentable_type', '=', subject.comments?.type ?? 'issue')
-    .where('commentable_id', '=', subject.comments?.id ?? 0)
+    .where('commentable_type', '=', subject.comments!.type)
+    .where('commentable_id', '=', subject.comments!.id)
   const events = () => db.selectFrom('timeline_entries').select(['id', 'created_at'])
     .selectRaw(raw("'event' AS kind"))
-    .where('subject_type', '=', subject.timeline?.type ?? 'issue')
-    .where('subject_id', '=', subject.timeline?.id ?? 0)
-  const sequence = () => comments().unionAll(events())
-  let page = conversationPageNumber(context.page)
+    .where('subject_type', '=', subject.timeline!.type)
+    .where('subject_id', '=', subject.timeline!.id)
+  // An absent subject contributes no SQL arm, including legacy orphan rows.
+  const sequence = () => subject.comments
+    ? subject.timeline ? comments().unionAll(events()) : comments()
+    : events()
   // Reaction pickers and links to a particular comment must open its page.
   const focus = String(context.comment ?? (/^[1-9]\d*$/.test(context.picking) ? context.picking : ''))
   if (/^[1-9]\d{0,14}$/.test(focus) && subject.comments) {
@@ -114,7 +119,7 @@ async function conversationWindow(subject: ConversationSubject, context: Convers
     if (target) {
       const precedingComments = await comments().whereGroup((q: any) => q.where('created_at', '<', target.created_at)
         .orWhereGroup((tie: any) => tie.where('created_at', '=', target.created_at).where('id', '<=', Number(target.id)))).count()
-      const precedingEvents = await events().where('created_at', '<', target.created_at).count()
+      const precedingEvents = subject.timeline ? await events().where('created_at', '<', target.created_at).count() : 0
       const preceding = Number(precedingComments) + Number(precedingEvents)
       page = Math.max(1, Math.ceil(Number(preceding) / CONVERSATION_PAGE_SIZE))
     }

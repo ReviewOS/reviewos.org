@@ -20,6 +20,7 @@ test(`${dialect} discussion pages bound bodies and preserve every entry in stabl
       await builder.insertInto('issue_comments').values(Array.from({ length: 123 }, (_, i) => ({ id: i + 1, commentable_type: 'issue', commentable_id: 7, external_author: 'writer', body: `Comment body ${i + 1}`, created_at: i < 100 ? at : later }))).execute()
       await builder.insertInto('timeline_entries').values(Array.from({ length: 77 }, (_, i) => ({ id: i + 1, subject_type: 'pull_request', subject_id: 9, external_actor: 'writer', kind: 'closed', created_at: i < 27 ? at : later }))).execute()
       await builder.insertInto('issue_comments').values({ id: 999, commentable_type: 'issue', commentable_id: 8, body: 'Foreign private body', created_at: at }).execute()
+      await builder.insertInto('issue_comments').values({ id: 998, commentable_type: 'issue', commentable_id: 0, body: 'Legacy orphan body', created_at: at }).execute()
       const subject = { comments: { type: 'issue', id: 7 }, timeline: { type: 'pull_request', id: 9 }, reactions: { type: 'issue', id: 7 }, opening: { body: 'Opening', createdAt: at, authorHandle: null, externalAuthor: 'writer' }, locked: false }
       const context = { owner: 'owner', repository: 'project', number: 1, viewerId: null, picking: '', reactionAction: '/reactions', taskAction: '/tasks' }
       const keys: string[] = []
@@ -60,6 +61,13 @@ test(`${dialect} discussion pages bound bodies and preserve every entry in stabl
       } finally { pageServer.stop(true) }
       const none = await loadConversation({ ...subject, comments: null, timeline: null, reactions: null }, context)
       expect(none.items).toEqual([])
+      expect(JSON.stringify(none)).not.toContain('Legacy orphan body')
+      const onlyEvents = await loadConversation({ ...subject, comments: null }, context)
+      expect(onlyEvents.items).toHaveLength(50)
+      expect(onlyEvents.items.every((row: any) => row.kind === 'event')).toBe(true)
+      const onlyComments = await loadConversation({ ...subject, timeline: null }, context)
+      expect(onlyComments.items).toHaveLength(50)
+      expect(onlyComments.items.every((row: any) => row.kind === 'comment')).toBe(true)
       expect(none.opening.bodyHtml).toContain('Opening')
       expect(none.commentCount).toBe(0)
       for (const invalid of ['0', '-1', '1e6', '1.5', '2 OR 1=1', 10000000]) expect(conversationPageNumber(invalid)).toBe(1)
