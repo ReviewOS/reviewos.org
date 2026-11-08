@@ -337,8 +337,15 @@ describe('the issues scope', () => {
     // rows flagged `is_pull_request` and nothing sets that column.
     const { body } = await search(created.term, created.outsiderToken, 'pulls')
 
-    expect(body.results.map((r: any) => r.id)).toContain(created.publicPullId)
-    expect(body.results.map((r: any) => r.id)).not.toContain(created.publicIssueId)
+    // Issues and pull requests have independent primary-key sequences, so a
+    // legitimate pull can share an issue's numeric ID. Check its kind and
+    // distinct fixture title as well as its own table's ID.
+    expect(body.results).toHaveLength(1)
+    expect(body.results[0]).toMatchObject({
+      id: created.publicPullId,
+      is_pull_request: true,
+      title: `${created.term} in the pull request`,
+    })
   })
 
   test('a pull request in a private repository does not reach a stranger', async () => {
