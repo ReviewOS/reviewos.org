@@ -51,9 +51,9 @@
           {{-- A mirrored comment names its upstream author, the same way the
               issue does, so it is no longer shown as "someone". --}}
           <span class="post-author">{{ item.comment.author }}</span>
-          <span class="muted post-time">
+          <a class="muted post-time" href="?conversation_comment={{ item.comment.id }}#comment-{{ item.comment.id }}">
             {{ item.comment.when }}@if (item.comment.edited) &middot; edited@endif
-          </span>
+          </a>
         </header>
 
         <div class="markdown post-body">{!! item.comment.bodyHtml !!}</div>

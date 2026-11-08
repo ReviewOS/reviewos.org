@@ -51,6 +51,7 @@ test(`${dialect} discussion pages bound bodies and preserve every entry in stabl
         expect(first).toContain('href="?conversation_page=2#conversation"')
         expect(first).toContain('id="reactions-body"')
         expect(first).toContain('id="reactions-50"')
+        expect(first).toContain('href="?conversation_comment=50#comment-50"')
         expect(first).not.toContain('id="comment-51"')
         const last = await (await fetch(root + '?conversation_comment=123')).text()
         expect(last).toContain('id="comment-123"')
