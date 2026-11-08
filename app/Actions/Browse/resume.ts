@@ -19,7 +19,8 @@
  * away. That is the price of a correct answer and it is linear in the *prelude*
  * rather than in the fragment, so a small window late in a very large file is
  * where it hurts. `MAX_PRELUDE_LINES` is the ceiling: past it the fragment is
- * highlighted cold, which is what happened everywhere before this existed.
+ * highlighted cold. The shared character budget also bounds long or minified
+ * preludes, because a line count alone does not bound tokenizing work.
  *
  * ## Why the stateful tokenizer, when everything else here uses the fast one
  *
@@ -31,7 +32,7 @@
 
 import type { TokenizerState } from 'ts-syntax-highlighter'
 import type { HighlightedToken } from './highlight'
-import { getLanguage, Tokenizer } from 'ts-syntax-highlighter'
+import { getLanguage, overTokenizeCeiling, TOKENIZE_CEILING_CHARS, Tokenizer } from 'ts-syntax-highlighter'
 import { languageFor, languageForShebang } from './highlight'
 
 /**
@@ -43,6 +44,8 @@ import { languageFor, languageForShebang } from './highlight'
  * block comment in it is not worth making the reader wait.
  */
 export const MAX_PRELUDE_LINES = 20_000
+/** The same character budget used by cold and worker highlighting. */
+export const MAX_PRELUDE_CHARS = Number(TOKENIZE_CEILING_CHARS)
 
 /** A fragment's opening state, or the absence of one. */
 export type ResumeState = TokenizerState | null
@@ -90,7 +93,7 @@ export function resumeLanguage(path: string, firstLine = '', declared?: string |
  * every caller already handles, because it is what they all did before.
  */
 export function scopeStateAfter(prelude: readonly string[], language: string | null): ResumeState {
-  if (!language || prelude.length === 0 || prelude.length > MAX_PRELUDE_LINES)
+  if (!language || prelude.length === 0 || prelude.length > MAX_PRELUDE_LINES || overTokenizeCeiling(prelude))
     return null
 
   const tokenizer = tokenizerFor(language)
@@ -119,6 +122,7 @@ export class ScopeWalk {
   private readonly tokenizer: Tokenizer | null
   private state: ResumeState = null
   private seen = 0
+  private characters = 0
   private failed = false
 
   constructor(language: string | null) {
@@ -135,8 +139,9 @@ export class ScopeWalk {
       return
 
     this.seen += 1
+    this.characters += line.length + 1
 
-    if (this.seen > MAX_PRELUDE_LINES) {
+    if (this.seen > MAX_PRELUDE_LINES || this.characters > MAX_PRELUDE_CHARS) {
       this.failed = true
       this.state = null
       return
@@ -167,7 +172,8 @@ export class ScopeWalk {
 /**
  * Highlight a fragment, resuming from a state.
  *
- * Returns null when it cannot - no grammar, or a tokenizer that came back with
+ * Returns null when it cannot - over the shared character budget, no grammar,
+ * or a tokenizer that came back with
  * a different number of lines than it was given, which would shift every line
  * number the page anchors on. Both mean "highlight it the ordinary way".
  */
@@ -177,7 +183,7 @@ export function highlightResumed(
   state: ResumeState,
   normalizeToken: (type: string) => HighlightedToken['type'],
 ): HighlightedToken[][] | null {
-  if (!language || lines.length === 0)
+  if (!language || lines.length === 0 || overTokenizeCeiling(lines))
     return null
 
   const tokenizer = tokenizerFor(language)

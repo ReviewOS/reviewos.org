@@ -122,6 +122,12 @@ use already exists.
       exposed in pool statistics. The regression exercises many valid large-file results below
       the entry ceiling, alongside existing hit, eviction, reset and worker-failure checks.
 
+- [x] Apply the highlighter's shared character ceiling to resumed fragments and streamed
+      preludes, preserving every source line as plain text over the budget. Use the published
+      upstream tokenizer fix so escape and closing patterns match only at the current position
+      instead of repeatedly searching the remaining line. Regression coverage includes saved
+      states, long strings, raw comment endings and cumulative prelude budgets.
+
 ## M3 - A ceiling on concurrent git processes
 
 There is no limit on how many git processes this app will spawn - the only backpressure is a

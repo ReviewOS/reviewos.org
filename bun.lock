@@ -31,7 +31,7 @@
         "ts-git-lfs": "0.1.4",
         "ts-images": "^0.2.25",
         "ts-pantry": "^0.11.69",
-        "ts-syntax-highlighter": "^0.2.17",
+        "ts-syntax-highlighter": "0.2.18",
       },
       "devDependencies": {
         "@stacksjs/image": "0.75.504",
@@ -728,7 +728,7 @@
 
     "ts-spreadsheets": ["ts-spreadsheets@0.2.5", "", { "bin": { "spreadsheets": "./dist/bin/cli.js" } }, "sha512-/kJAo6KtTojLWMuTGLh8WMCws9Dh2LOuKfR0IHUFThvI3WlZNiLW0Exii/saJ3F1SjKb0ncQzcQ8JjTKv30Ruw=="],
 
-    "ts-syntax-highlighter": ["ts-syntax-highlighter@0.2.17", "", { "bin": { "ts-syntax-highlighter": "./dist/bin/cli.js" } }, "sha512-cHxkTRvqYabO9axIrw6KUkMweIHzXmVmcVmO+Yi2NEa9nxQa15zoISvvlKYPzK4OLsUS5I4uVaLz0Oivc3oOSw=="],
+    "ts-syntax-highlighter": ["ts-syntax-highlighter@0.2.18", "", { "bin": { "ts-syntax-highlighter": "./dist/bin/cli.js" } }, "sha512-16NDZec+74x1i5Yn2dfs228kya/nz0aSkbCkO3jOhoRAa2pEQviUYQ++LFZq4Fpp9GnZSW4xE4RGFD5OHoXqIQ=="],
 
     "ts-video-player": ["ts-video-player@0.1.11", "", { "peerDependencies": { "stx": ">=0.65.0" }, "optionalPeers": ["stx"] }, "sha512-xkQHjqqGTn2OHMRtWfJk+Hkhm64qg7p3bbUnllmM3As57h5Au+2vWZgQyZtlEyZ/+FRtwrsgIDU4v0Jgcck2Gg=="],
 

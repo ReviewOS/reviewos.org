@@ -15,7 +15,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { tokenClass } from '../../app/Actions/Browse/highlight'
-import { highlightResumed, MAX_PRELUDE_LINES, ScopeWalk, scopeStateAfter } from '../../app/Actions/Browse/resume'
+import { highlightResumed, MAX_PRELUDE_CHARS, MAX_PRELUDE_LINES, ScopeWalk, scopeStateAfter } from '../../app/Actions/Browse/resume'
 
 /** The classes a run of lines came back with, flattened. */
 function classes(lines: string[], language: string | null, prelude: string[] = []): string[] {
@@ -154,6 +154,40 @@ describe('the walking form, for a reader that is streaming the prelude past anyw
 
     walk.push('/*')
 
+    expect(walk.active).toBe(false)
+    expect(walk.finish()).toBeNull()
+  })
+})
+
+
+describe('the shared character budget on resumed highlighting', () => {
+  test('oversized fragments fall through to the ordinary plain rendering intact', async () => {
+    const { highlightLines } = await import('../../app/Actions/Browse/highlight')
+    const lines = ['a'.repeat(MAX_PRELUDE_CHARS + 1), 'const after = 1']
+    const state = scopeStateAfter(['const template = `'], 'typescript')
+    expect(highlightResumed(lines, 'typescript', state, tokenClass)).toBeNull()
+    const plain = await highlightLines(lines, 'file.ts')
+    expect(plain.map(line => line.map(token => token.content).join(''))).toEqual(lines)
+    expect(plain.every(line => line.every(token => token.type === 'text'))).toBe(true)
+  })
+
+  test('one oversized prelude line cannot establish a partial resume state', () => {
+    const prelude = ['/*', 'a'.repeat(MAX_PRELUDE_CHARS), '*/']
+    expect(scopeStateAfter(prelude, 'typescript')).toBeNull()
+    const walk = new ScopeWalk('typescript')
+    for (const line of prelude) walk.push(line)
+    expect(walk.active).toBe(false)
+    expect(walk.finish()).toBeNull()
+  })
+
+  test('many ordinary prelude lines share one total character budget', () => {
+    const walk = new ScopeWalk('typescript')
+    const line = ' ordinary comment text '.repeat(100)
+    const prelude = ['/*']
+    while (prelude.reduce((sum, value) => sum + value.length + 1, 0) <= MAX_PRELUDE_CHARS) prelude.push(line)
+    expect(prelude.length).toBeLessThan(MAX_PRELUDE_LINES)
+    expect(scopeStateAfter(prelude, 'typescript')).toBeNull()
+    for (const value of prelude) walk.push(value)
     expect(walk.active).toBe(false)
     expect(walk.finish()).toBeNull()
   })
