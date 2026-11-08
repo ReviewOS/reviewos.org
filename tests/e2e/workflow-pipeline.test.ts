@@ -127,7 +127,7 @@ beforeAll(async () => {
       sha: 'a'.repeat(40),
     })
 
-    runner = await fakeRunner({ db, labels: ['ubuntu-latest'] })
+    runner = await fakeRunner({ db, labels: ['ubuntu-latest'], repositoryId: created.repositoryId })
 
     available = true
   }

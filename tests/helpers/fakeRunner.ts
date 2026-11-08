@@ -58,25 +58,29 @@ export interface FakeRunner {
 /**
  * Register a machine that takes work and answers instantly.
  *
- * Instance-scoped with the labels the test names, because a harness that could
- * only take work from one repository would be a harness that cannot test the
- * scope rules it is standing in for.
+ * Instance-scoped by default for scope-rule tests. Single-repository pipeline
+ * fixtures can select their repository so they cannot consume another test's
+ * queued jobs that happen to use the same platform label.
  */
 export async function fakeRunner(options: {
   db: any
   labels?: readonly string[]
   name?: string
+  repositoryId?: number
 }): Promise<FakeRunner> {
   const db = options.db
   const labels = [...(options.labels ?? ['ubuntu-latest'])]
+  const scopeId = options.repositoryId ?? null
+  if (scopeId !== null && (!Number.isSafeInteger(scopeId) || scopeId <= 0)) throw new Error('A fixture repository must have a positive ID')
+  const scopeType = scopeId === null ? 'instance' : 'repository'
   const token = `fake-${Buffer.from(crypto.getRandomValues(new Uint8Array(8))).toString('hex')}`
 
   const row: any = await db
     .insertInto('runners')
     .values({
       name: options.name ?? `fake-${Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')}`,
-      scope_type: 'instance',
-      scope_id: null,
+      scope_type: scopeType,
+      scope_id: scopeId,
       token_hash: hashToken(token),
       labels: labels.join('\n'),
       state: 'active',
@@ -89,8 +93,8 @@ export async function fakeRunner(options: {
   const facts: RunnerFacts = {
     id: runnerId,
     state: 'active',
-    scopeType: 'instance',
-    scopeId: null,
+    scopeType,
+    scopeId,
     labels,
   }
 
