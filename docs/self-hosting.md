@@ -200,9 +200,12 @@ The repository tree, blob objects and database carry durable state.
 | `BLOB_LOCAL_ROOT` (default `storage`) | `artifacts`, `attachments`, `lfs`, `release-assets`, `wal` | CI evidence, attachments, large files, releases and recovery bundles. |
 | The database | Everything else: accounts, pull requests, reviews, threads, tokens | The conversation around the code. |
 
-Everything under `storage/framework/` is a build artifact and a cache. It is
-safe to delete and is rebuilt on the next boot, so do not back it up and do not
-put it on the expensive volume.
+Generated views, types and build caches under `storage/framework/` can be
+regenerated through the build tooling. The tree also contains durable runtime
+state: `storage/framework/runtime/` holds runner credentials and workspace
+journals. Preserve that state during disk recovery. Inspect ownership before
+retiring individual generated artifacts; keep application storage, backup
+repositories and verified recovery manifests protected.
 
 For atomic deployments, set `BLOB_LOCAL_ROOT` in the deployed environment to
 one absolute directory outside every release. All API, page and worker processes
@@ -572,11 +575,12 @@ quiet, live updates wait for a reload - which also means a misconfigured
 store *looks* like a working instance with those two features missing. The
 health endpoint is the fastest way to tell the difference.
 
-The repositories on disk are the one thing this section cannot move: every
-app process and every worker needs the same `storage/repos` filesystem.
-Processes on one host share it by being on one host; a second box means NFS
-or the phase 18 storage work, and NFS for git is a decision to make
-deliberately, not a default to drift into.
+Git commands use a shared bare-repository working volume at `storage/repos`.
+Durable bundles, ref manifests and acknowledged push recovery can live in the
+object store; see [Large repository and blob storage](#large-repository-and-blob-storage).
+Keep the working volume persistent across releases, and give page, API and
+worker processes the same storage configuration. A second host needs explicit
+coordination of that working filesystem as well as the object-store settings.
 
 ## Running CI
 
@@ -1473,6 +1477,16 @@ Snapshot, restore and full-checkpoint scratch directories use the configured dat
 Restore using `buddy storage:restore-repository <id> --manifest <key> --into <new-absolute-path>`. The command checks the downloaded bundle, restores the refs and default branch, and refuses an existing destination. Operator restores use the same bounded 90-minute Git window as snapshot verification, so a large repository is not rejected by a shorter restore-only timeout. Keep the database and host backup schedule alongside these application snapshots. `GIT_WAL=required` makes newly acknowledged pushes depend on durable blob storage once that path has been verified.
 
 The public health probe has its own bounded request quota so an exhausted API read budget does not hide readiness failures. It still checks the real subsystems and returns 503 when one fails.
+
+Probe a rendered page as well as `/api/health`: the page process and API process
+can fail independently. For a page process consuming a full CPU core while
+requests time out, capture its process identity and a bounded profile before
+attributing the failure to storage or the database. STX 0.2.833 repairs an
+infinite scan of malformed `@component()` examples in repository content;
+the parser preserves those examples and advances past them. Keep the
+renderer package cohort aligned when upgrading. Liveness restarts can restore
+responses temporarily, so verify repeated page reads and stable process
+identities after deploying the repair.
 
 To repair a reported legacy database-clock default, first take a verified backup and run `./buddy instance:repair-clock` to review the generated statements. `./buddy instance:repair-clock --apply` pins only existing session-clock defaults through the published framework helper. It does not rewrite historical timestamps or add defaults to nullable columns that have none. Both supported deployment workflows preserve the application key, database credentials, search key and account-sync binding.
 
