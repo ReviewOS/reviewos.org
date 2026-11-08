@@ -42,6 +42,12 @@ export default {
   'github:sync': 'GitHubSync',
   'user:email:add': 'UserEmail',
 
+  // Issue and revoke access tokens from the instance's shell, through the same
+  // rules and audit line as the settings page. The bootstrap automation needs:
+  // minting a token over the API takes a signed-in account it does not have.
+  'token:create': 'Tokens',
+  'token:revoke': 'Tokens',
+
   // One-time, for instances whose pull requests predate the issues row behind
   // them. See `app/Actions/Pull/issueRow.ts` for what the row is for.
   'pull:issue-rows': 'PullIssueRows',

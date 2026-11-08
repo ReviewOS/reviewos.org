@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
-import { recordTokenAudit } from './audit'
+import { revokeAccessToken } from './issue'
 import { organizationsReachedBy } from './organization'
 
 /**
@@ -85,18 +85,11 @@ export default new Action({
     if (token.revoked_at)
       return response.json({ id, revoked_at: token.revoked_at, already_revoked: true })
 
-    const revokedAt = new Date().toISOString()
     const reason = String(request.get('reason') ?? '').trim() || null
 
-    await db
-      .updateTable('access_tokens')
-      .set({ revoked_at: revokedAt, revoked_by_id: user.id })
-      .where('id', '=', id)
-      .execute()
-
-    await recordTokenAudit({
-      event: 'token:revoked',
-      tokenId: id,
+    // Shared with `buddy token:revoke`, so both record the same audit line.
+    const revoked = await revokeAccessToken({
+      id,
       ownerId,
       prefix: token.prefix ? String(token.prefix) : null,
       actorId: user.id,
@@ -111,8 +104,8 @@ export default new Action({
 
     return response.json({
       id,
-      revoked_at: revokedAt,
-      already_revoked: false,
+      revoked_at: revoked.revokedAt,
+      already_revoked: revoked.alreadyRevoked,
       ...(mine ? {} : { revoked_as_administrator: true }),
     })
   },

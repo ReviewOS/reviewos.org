@@ -62,6 +62,11 @@ export interface TokenAudit {
   /** Public, and the only way a reader tells one of somebody's tokens from another. */
   prefix?: string | null
   actorId?: number | null
+  /**
+   * Who acted, when it was not an account: an operator at the instance's
+   * shell (`cli:root@host`) issuing or revoking with `buddy token:*`.
+   */
+  externalActor?: string | null
   /** The credential the request carried, when the actor used one. */
   actingTokenId?: number | null
   /**
@@ -95,6 +100,7 @@ export async function recordTokenAudit(entry: TokenAudit): Promise<void> {
     // the token acting - and passing null there is deliberate rather than an
     // omission.
     actorId: entry.actorId === undefined ? entry.ownerId : entry.actorId,
+    externalActor: entry.externalActor ?? null,
     organizationId: entry.organizationId ?? null,
     reason: entry.reason ?? null,
     detail: {
