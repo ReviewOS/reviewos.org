@@ -55,10 +55,9 @@ export async function runSearch(input: {
 
   const parsed = parseQuery(raw)
 
-  // Issues and pull requests are the same corpus - a pull request *is* an
-  // issue row with `is_pull_request` set - so they share an index and differ
-  // by one filter. Two indexes for one table would mean two projections and
-  // two chances for them to disagree.
+  // Issues and pull requests use separate tables and indexes, including
+  // independent primary keys. They share a response shape, but pull documents
+  // do not carry the legacy issue-row is_pull_request flag.
   const onPulls = scope === 'pulls'
   const onIssues = scope === 'issues' || onPulls
   const index = onPulls ? PULL_INDEX : (scope === 'issues' ? ISSUE_INDEX : REPOSITORY_INDEX)
@@ -128,7 +127,7 @@ export async function runSearch(input: {
           author: String(doc.author ?? ''),
           labels: Array.isArray(doc.labels) ? doc.labels : [],
           state: String(doc.state ?? ''),
-          is_pull_request: Boolean(doc.is_pull_request),
+          is_pull_request: onPulls || Boolean(doc.is_pull_request),
           comments_count: Number(doc.comments_count ?? 0),
           updated_at: Number(doc.updated_at ?? 0),
         }
