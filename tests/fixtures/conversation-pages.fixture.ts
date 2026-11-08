@@ -12,9 +12,9 @@ test(`${dialect} discussion pages bound bodies and preserve every entry in stabl
     try {
       const run = async (text: string) => { await builder.unsafe(text).execute() }
       await run('CREATE TABLE users (id INTEGER PRIMARY KEY, handle TEXT)')
-      await run('CREATE TABLE issue_comments (id INTEGER PRIMARY KEY, commentable_type TEXT, commentable_id INTEGER, author_id INTEGER, external_author TEXT, body TEXT, created_at TIMESTAMP, edited_at TIMESTAMP)')
-      await run('CREATE TABLE timeline_entries (id INTEGER PRIMARY KEY, subject_type TEXT, subject_id INTEGER, actor_id INTEGER, external_actor TEXT, kind TEXT, subject_text TEXT, previous_text TEXT, reference_number INTEGER, created_at TIMESTAMP)')
-      await run('CREATE TABLE reactions (subject_type TEXT, subject_id INTEGER, content TEXT, user_id INTEGER)')
+      await run("CREATE TABLE issue_comments (id INTEGER PRIMARY KEY, commentable_type TEXT CHECK (commentable_type IN ('issue')), commentable_id INTEGER, author_id INTEGER, external_author TEXT, body TEXT, created_at TIMESTAMP, edited_at TIMESTAMP)")
+      await run("CREATE TABLE timeline_entries (id INTEGER PRIMARY KEY, subject_type TEXT CHECK (subject_type IN ('issue', 'pull_request')), subject_id INTEGER, actor_id INTEGER, external_actor TEXT, kind TEXT, subject_text TEXT, previous_text TEXT, reference_number INTEGER, created_at TIMESTAMP)")
+      await run("CREATE TABLE reactions (subject_type TEXT CHECK (subject_type IN ('issue', 'issue_comment')), subject_id INTEGER, content TEXT, user_id INTEGER)")
       const at = '2026-11-07 00:00:00'
       const later = '2026-11-08 00:00:00'
       await builder.insertInto('issue_comments').values(Array.from({ length: 123 }, (_, i) => ({ id: i + 1, commentable_type: 'issue', commentable_id: 7, external_author: 'writer', body: `Comment body ${i + 1}`, created_at: i < 100 ? at : later }))).execute()

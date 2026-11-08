@@ -97,11 +97,11 @@ export function conversationPageHref(page: number, picking = ''): string {
 async function conversationWindow(subject: ConversationSubject, context: ConversationContext) {
   const comments = () => db.selectFrom('issue_comments').select(['id', 'created_at'])
     .selectRaw(raw("'comment' AS kind"))
-    .where('commentable_type', '=', subject.comments?.type ?? '')
+    .where('commentable_type', '=', subject.comments?.type ?? 'issue')
     .where('commentable_id', '=', subject.comments?.id ?? 0)
   const events = () => db.selectFrom('timeline_entries').select(['id', 'created_at'])
     .selectRaw(raw("'event' AS kind"))
-    .where('subject_type', '=', subject.timeline?.type ?? '')
+    .where('subject_type', '=', subject.timeline?.type ?? 'issue')
     .where('subject_id', '=', subject.timeline?.id ?? 0)
   const sequence = () => comments().unionAll(events())
   let page = conversationPageNumber(context.page)
