@@ -35,7 +35,7 @@ export async function waitingFor(group: RunnerGroup): Promise<number> {
 
   const jobs = await db
     .selectFrom('workflow_jobs')
-    .innerJoin('workflow_runs', 'workflow_runs.id', 'workflow_jobs.workflow_run_id')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.runs_on as runs_on'])
     .where('workflow_jobs.state', '=', 'queued')
     .where('workflow_runs.repository_id', 'in', ids)
