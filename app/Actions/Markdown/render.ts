@@ -21,6 +21,7 @@
  * The allowlist and the reasoning behind it live in that file.
  */
 
+import { neutralizeTemplateSyntax } from '@stacksjs/stx/template-syntax-escape'
 import { highlightLines } from '../Browse/highlight'
 import { scanEmoji } from './emoji'
 import { createHtmlWriter } from './html'
@@ -108,10 +109,10 @@ const PARSER_OPTIONS = {
 
 /** Text placed between tags. */
 export function escapeText(value: string): string {
-  return value
+  return neutralizeTemplateSyntax(value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
+    .replaceAll('>', '&gt;'))
 }
 
 /**

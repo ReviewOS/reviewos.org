@@ -13,13 +13,15 @@
  * a file has exactly one implementation whichever machine renders it.
  */
 
-/** Escape for text content and for a double-quoted attribute value. */
+import { neutralizeTemplateSyntax } from '@stacksjs/stx/template-syntax-escape'
+
+/** Escape text and attributes, including later template passes over the page. */
 export function escapeHtml(value: string): string {
-  return value
+  return neutralizeTemplateSyntax(value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/"/g, '&quot;'))
 }
 
 /**
