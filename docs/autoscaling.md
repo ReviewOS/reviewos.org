@@ -175,6 +175,25 @@ buddy fleet:apply fleet.yml --plan   # what would change, touching nothing
 buddy fleet:apply fleet.yml
 ```
 
+A pool can also declare the registration token its autoscaled machines join
+with. The token is a deployment secret like any other - kept encrypted in the
+instance's env, written into the machines' boot script by whatever creates them -
+and `fleet:apply` records its hash for the pool. Change the value and the next
+apply revokes the old one:
+
+```yaml
+pools:
+  - name: HQ AWS
+    queues:
+      - name: linux-x64-aws
+    repositories:
+      - stacks/hq.training
+    registration_token_env: REVIEWOS_AUTOSCALE_REGISTRATION_TOKEN
+```
+
+That is how `cloud/autoscaling.ts` groups get their machines in: the token
+exists before any machine does, so nobody mints one by hand.
+
 Applying twice does nothing the second time, so the file is safe to run from a
 pipeline. **Nothing is ever removed**: anything on the instance that the file
 does not mention is reported as drift and left alone, because the failure mode

@@ -18,6 +18,7 @@
  * and absent from the file is reported as drift for a person to decide about.
  */
 
+import process from 'node:process'
 import { db } from '@stacksjs/database'
 
 export interface DeclaredQueue {
@@ -36,6 +37,19 @@ export interface DeclaredPool {
   queues?: DeclaredQueue[]
   /** Repositories this pool serves, as `owner/name`. Empty means every one. */
   repositories?: string[]
+  /**
+   * The environment variable holding this pool's registration token.
+   *
+   * For machines nobody registers by hand - an autoscaler's instances - the
+   * token has to be known before any of them exists, so it is a deployment
+   * secret like any other: kept encrypted in the instance's env, written into
+   * the machines' boot script by whoever converges them, and recorded here
+   * (as a hash) by `fleet:apply`. Changing the value rotates it: the old token
+   * is revoked on the next apply.
+   */
+  registrationTokenEnv?: string
+  /** The queue machines registering with that token join. Defaults to the pool's first. */
+  registrationQueue?: string
 }
 
 export interface DeclaredFleet {
@@ -67,7 +81,7 @@ export interface Plan {
  * the morning of a change, and a plan that could alter anything is one nobody
  * trusts enough to run.
  */
-export async function planFleet(declared: DeclaredFleet): Promise<Plan> {
+export async function planFleet(declared: DeclaredFleet, env: Record<string, string | undefined> = process.env): Promise<Plan> {
   const changes: Change[] = []
   const drift: Change[] = []
 
@@ -158,7 +172,79 @@ export async function planFleet(declared: DeclaredFleet): Promise<Plan> {
       drift.push({ kind: 'drift', what: 'pool', subject: String(pool.name), detail: 'exists here and is not in the file' })
   }
 
+  for (const wanted of declared.pools ?? []) {
+    const change = await declaredTokenChange(wanted, env)
+    if (change)
+      (change.kind === 'drift' ? drift : changes).push(change)
+  }
+
   return { changes, drift }
+}
+
+/** The name a declared token's row carries, so a rotation can find its predecessor. */
+export function declaredTokenName(variable: string): string {
+  return `declared:${variable}`
+}
+
+/**
+ * What the file says about a pool's registration token, against what is
+ * recorded: nothing to do, one to record, or a variable that is not set.
+ */
+async function declaredTokenChange(wanted: DeclaredPool, env: Record<string, string | undefined>): Promise<Change | null> {
+  const variable = wanted.registrationTokenEnv
+  if (!variable)
+    return null
+  const value = String(env[variable] ?? '').trim()
+  if (!value)
+    return { kind: 'drift', what: 'token', subject: wanted.name, detail: `${variable} is not set here, so no registration token is recorded for it` }
+
+  const { hashToken } = await import('../Tokens/secret')
+  const pool = await db.selectFrom('runner_pools').select(['id']).where('slug', '=', slugOf(wanted)).executeTakeFirst().catch(() => null)
+  const current = pool
+    ? await db.selectFrom('runner_registration_tokens').select(['id'])
+      .where('runner_pool_id', '=', Number(pool.id))
+      .where('token_hash', '=', hashToken(value))
+      .where('revoked_at', 'is', null)
+      .executeTakeFirst().catch(() => null)
+    : null
+  if (current)
+    return null
+  return { kind: 'create', what: 'token', subject: wanted.name, detail: `record the registration token in ${variable} for ${wanted.name}` }
+}
+
+/** Record a pool's declared registration token, revoking the one it replaces. */
+async function applyDeclaredToken(wanted: DeclaredPool, poolId: number, env: Record<string, string | undefined>): Promise<void> {
+  const variable = wanted.registrationTokenEnv
+  const value = variable ? String(env[variable] ?? '').trim() : ''
+  if (!variable || !value)
+    return
+
+  const { hashToken } = await import('../Tokens/secret')
+  const hash = hashToken(value)
+  const name = declaredTokenName(variable)
+  const rows = await db.selectFrom('runner_registration_tokens').select(['id', 'token_hash'])
+    .where('runner_pool_id', '=', poolId)
+    .where('name', '=', name)
+    .where('revoked_at', 'is', null)
+    .execute()
+  if (rows.some((row: any) => String(row.token_hash) === hash))
+    return
+
+  for (const row of rows) {
+    await db.updateTable('runner_registration_tokens')
+      .set({ revoked_at: new Date().toISOString() })
+      .where('id', '=', Number(row.id))
+      .execute()
+  }
+
+  const queueName = wanted.registrationQueue ?? wanted.queues?.[0]?.name
+  const queue = queueName
+    ? await db.selectFrom('runner_queues').select(['id']).where('runner_pool_id', '=', poolId).where('name', '=', queueName).executeTakeFirst().catch(() => null)
+    : null
+
+  await db.insertInto('runner_registration_tokens')
+    .values({ runner_pool_id: poolId, runner_queue_id: queue ? Number(queue.id) : null, name, token_hash: hash, expires_at: null, created_by_id: null })
+    .execute()
 }
 
 /**
@@ -168,8 +254,8 @@ export async function planFleet(declared: DeclaredFleet): Promise<Plan> {
  * looks like this", so applying twice is applying once. That is what makes the
  * file safe to run from a pipeline, which is the point of declaring it at all.
  */
-export async function applyFleet(declared: DeclaredFleet): Promise<Plan> {
-  const plan = await planFleet(declared)
+export async function applyFleet(declared: DeclaredFleet, env: Record<string, string | undefined> = process.env): Promise<Plan> {
+  const plan = await planFleet(declared, env)
 
   for (const wanted of declared.pools ?? []) {
     const slug = slugOf(wanted)
@@ -258,6 +344,8 @@ export async function applyFleet(declared: DeclaredFleet): Promise<Plan> {
           .execute()
       }
     }
+
+    await applyDeclaredToken(wanted, Number(pool.id), env)
   }
 
   return plan
@@ -337,6 +425,8 @@ export function readDeclaration(source: string): { fleet: DeclaredFleet, error: 
                   : { name: String(queue?.name ?? ''), state: queue?.state === 'paused' ? 'paused' as const : 'active' as const, reason: queue?.reason ? String(queue.reason) : undefined }))
               : [],
             repositories: Array.isArray(pool.repositories) ? pool.repositories.map(String) : [],
+            registrationTokenEnv: typeof pool.registration_token_env === 'string' && /^[A-Z_][A-Z0-9_]*$/.test(pool.registration_token_env) ? pool.registration_token_env : undefined,
+            registrationQueue: pool.registration_queue ? String(pool.registration_queue) : undefined,
           }
         }).filter(pool => pool.name),
       },

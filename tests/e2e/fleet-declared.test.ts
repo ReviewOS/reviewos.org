@@ -187,4 +187,42 @@ describe('a declared fleet', () => {
 
     expect(queues).toHaveLength(2)
   }, 120_000)
+
+  test('records a declared registration token once, and rotates it when the value changes', async () => {
+    if (!available)
+      return
+
+    const { hashToken, generateToken } = await import('../../app/Actions/Tokens/secret')
+    const pool: any = await db.selectFrom('runner_pools').select(['id', 'name']).where('id', '=', created.poolIds[0]).executeTakeFirst()
+    const file = (variable: string) => readDeclaration([
+      'pools:',
+      `  - name: ${String(pool.name)}`,
+      '    queues:',
+      '      - name: linux-x64',
+      `    registration_token_env: ${variable}`,
+    ].join('\n')).fleet
+    const first = generateToken().token
+    const second = generateToken().token
+
+    // Not set here: reported, nothing recorded.
+    const unset = await applyFleet(file('FLEET_DECLARED_TOKEN'), {})
+    expect(unset.drift.some(one => one.what === 'token')).toBe(true)
+
+    const applied = await applyFleet(file('FLEET_DECLARED_TOKEN'), { FLEET_DECLARED_TOKEN: first })
+    expect(applied.changes.some(one => one.what === 'token')).toBe(true)
+    const queue: any = await db.selectFrom('runner_queues').select(['id']).where('runner_pool_id', '=', Number(pool.id)).where('name', '=', 'linux-x64').executeTakeFirst()
+    const recorded: any = await db.selectFrom('runner_registration_tokens').select(['runner_queue_id', 'revoked_at']).where('token_hash', '=', hashToken(first)).executeTakeFirst()
+    expect(Number(recorded.runner_queue_id)).toBe(Number(queue.id))
+    expect(recorded.revoked_at).toBeNull()
+
+    // The same value again is nothing to do.
+    expect((await applyFleet(file('FLEET_DECLARED_TOKEN'), { FLEET_DECLARED_TOKEN: first })).changes.filter(one => one.what === 'token')).toEqual([])
+
+    // A new value replaces it, and the old one stops working.
+    await applyFleet(file('FLEET_DECLARED_TOKEN'), { FLEET_DECLARED_TOKEN: second })
+    const old: any = await db.selectFrom('runner_registration_tokens').select(['revoked_at']).where('token_hash', '=', hashToken(first)).executeTakeFirst()
+    const current: any = await db.selectFrom('runner_registration_tokens').select(['revoked_at']).where('token_hash', '=', hashToken(second)).executeTakeFirst()
+    expect(old.revoked_at).not.toBeNull()
+    expect(current.revoked_at).toBeNull()
+  }, 120_000)
 })

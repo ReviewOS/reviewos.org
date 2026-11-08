@@ -954,6 +954,14 @@ export const tsCloud: TsCloudConfig = {
          */
         'bun node_modules/@stacksjs/buddy/dist/cli.js mirror:apply mirrors.yml',
         /*
+         * The runner fleet, from `fleet.yml`: pools, queues, which repositories
+         * they serve, and the registration tokens autoscaled machines join
+         * with. Additive like the mirrors, and after `migrate` for the same
+         * reason. A declared token whose variable is unset is reported, not
+         * fatal: the pool still exists, it just takes no new machines yet.
+         */
+        'bun node_modules/@stacksjs/buddy/dist/cli.js fleet:apply fleet.yml',
+        /*
          * This instance's own profile page, from `profile/README.md`.
          *
          * `/reviewos` was blank because the repository behind it did not

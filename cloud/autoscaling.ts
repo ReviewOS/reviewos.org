@@ -43,6 +43,10 @@ export const autoscalingGroups: Record<string, RunnerGroup> = {
     // Booted and never registered after this long means cloud-init failed;
     // the instance is terminated rather than billed while it does nothing.
     registrationGraceSeconds: 900,
+    // The Stacks account has no default VPC in us-east-1, and the VPC it does
+    // have holds production. The group gets a network of its own instead.
+    network: 'dedicated',
+    networkCidr: '10.88.0.0/16',
     diskGb: 80,
     pantryVersion: '0.11.184',
     packages: ['bun.sh@1.4.4', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84.1'],

@@ -1,0 +1,22 @@
+# The runner fleet this instance should have.
+#
+# Applied on every deploy by `buddy fleet:apply fleet.yml`, from the pre-start
+# step in `config/cloud.ts`. Additive: a pool, queue or assignment on the
+# instance and not in this file is reported and left alone.
+#
+#   buddy fleet:apply fleet.yml --plan   # what would change, touching nothing
+#   buddy fleet:apply fleet.yml
+pools:
+  # HQ.training's autoscaled runners on AWS (cloud/autoscaling.ts, group
+  # hq-aws): spot instances in us-east-1 that exist only while HQ has work.
+  # They join this pool with the token in REVIEWOS_AUTOSCALE_REGISTRATION_TOKEN,
+  # which `runner:autoscale:apply` also writes into the group's launch
+  # template, and serve stacks/hq.training alone. The long-lived Hetzner box
+  # keeps its repository-scoped registration and is not part of this pool.
+  - name: HQ AWS
+    description: autoscaled spot runners for stacks/hq.training
+    queues:
+      - name: linux-x64-aws
+    repositories:
+      - stacks/hq.training
+    registration_token_env: REVIEWOS_AUTOSCALE_REGISTRATION_TOKEN
