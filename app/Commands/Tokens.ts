@@ -2,6 +2,7 @@ import type { CLI } from '@stacksjs/types'
 import { hostname, userInfo } from 'node:os'
 import process from 'node:process'
 import { db } from '@stacksjs/database'
+import { bootAppListeners } from '@stacksjs/events'
 import type { IssuedAccessToken } from '../Actions/Tokens/issue'
 import { issueAccessToken, readableRepositories, revokeAccessToken } from '../Actions/Tokens/issue'
 import { resolveOwner, resolveRepository } from '../Actions/Identity/lookup'
@@ -247,6 +248,9 @@ export default function (cli: CLI) {
     .option('--expires-in-days <days>', 'Lifetime in days (default 90, at most 365)')
     .option('--json', 'Print the whole token as JSON instead of the secret alone', { default: false })
     .action(async (options: CreateTokenOptions) => {
+      // The token audit trail is written by the application's listeners, which a
+      // shell command has not booted; without them issuance went unrecorded.
+      await bootAppListeners()
       const created = await createTokenFromCli(options)
       if (!created.ok)
         return fail(created.error)
@@ -266,6 +270,7 @@ export default function (cli: CLI) {
     .command('token:revoke <id>', 'Revoke an access token by id; it stops working on the next request')
     .option('--reason <reason>', 'Why, for the audit log')
     .action(async (id: string, options: { reason?: string }) => {
+      await bootAppListeners()
       const revoked = await revokeTokenFromCli(Number(id), options.reason ?? null)
       if (!revoked.ok)
         return fail(revoked.error)
