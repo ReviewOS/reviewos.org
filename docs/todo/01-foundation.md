@@ -826,3 +826,7 @@ The half of this nobody builds, and the half that decides whether an instance is
 - [x] Migrate the linked personal GitHub profile into `chris/.profile/README.md` with the configured operator as both Git author and committer, preserve the upstream Markdown byte for byte, and verify every available organization profile against its GitHub blob. Let `profile:seed` take an explicit author without changing unattended instance seeding or overwriting existing profiles.
 
 - [x] Fine-grained token repository selection includes private organization repositories reachable through existing membership, without requiring an organization-wide grant. Browser rendering and membership removal are tested.
+
+- [x] Show owner marks in shared repository headers, preserve organization logos with a padded
+      square contain treatment, and apply the same treatment to organization profile images.
+      Reserve image dimensions and retain an initial when an owner has no uploaded mark.

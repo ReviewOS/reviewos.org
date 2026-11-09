@@ -15,7 +15,7 @@
  * `resources/functions/meta.ts`.
  */
 import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, pageMeta } from '../../functions/meta'
-import { syntaxThemeCss } from '../../functions/site'
+import { syntaxThemeCss, themeChoices } from '../../functions/site'
 
 // The identifier is bound on the path that serves a request and on no other,
 // and an undeclared identifier is a ReferenceError that would take every other
@@ -38,6 +38,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
  * a page set to Nord is one surface rather than Nord code in our own greys.
  */
 const themeCss = syntaxThemeCss()
+const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxTheme', attribute: 'syntax-theme', allowed: ['default', ...themeChoices().map(one => one.id)], default: 'default' }, colorMode: { key: 'scheme', attribute: 'theme', default: 'system' } }
 </script>
 
 <!DOCTYPE html>
@@ -103,38 +104,8 @@ const themeCss = syntaxThemeCss()
 
     <meta name="color-scheme" content="light dark">
 
-    {{--
-      The reader's colour scheme, applied before anything is painted.
-
-      Inline, in the head, and blocking on purpose. This is the one thing on the
-      page that cannot wait for a module to load: read it a frame late and the
-      reader watches a light page turn dark, which is worse than not offering
-      the choice. `system` is the default and is what the media queries below
-      answer to, so a reader who has never chosen sees exactly what they saw
-      before this existed.
-
-      It reads the same key `resources/functions/diffprefs.ts` writes, and sets
-      the same attribute it sets. If those two ever disagree, the page flashes -
-      which is the whole reason this is three lines rather than an import.
-    --}}
-    <script>
-      try {
-        var stored = JSON.parse(localStorage.getItem('reviewos:diff') || '{}')
-        var scheme = stored && stored.scheme
-        document.documentElement.dataset.theme = scheme === 'light' || scheme === 'dark' ? scheme : 'system'
-
-        // The syntax theme is applied here for the same reason and at the same
-        // cost: it carries the page's background, so reading it a frame late is
-        // the same flash by another route. An unset value leaves the attribute
-        // off, which is the built-in palette below.
-        var syntax = stored && stored.syntaxTheme
-        if (typeof syntax === 'string' && /^[a-z0-9-]+$/.test(syntax) && syntax !== 'default')
-          document.documentElement.dataset.syntaxTheme = syntax
-      }
-      catch (error) {
-        document.documentElement.dataset.theme = 'system'
-      }
-    </script>
+    {{-- Apply stored appearance synchronously through the stx pre-paint guard. --}}
+    @appearanceBootstrap(appearance)
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
     {{-- The tab, the home screen, and the bookmark bar.
@@ -1165,7 +1136,7 @@ const themeCss = syntaxThemeCss()
         border: 1px solid var(--line);
       }
 
-      .profile-avatar.is-organization { border-radius: 14px; }
+      .profile-avatar.is-organization { border-radius: 14px; object-fit: contain; padding: 8px; background: #fff; }
 
       /* No avatar, so the initial - in the neutral palette rather than a
         coloured identicon. The accent is reserved for one thing per screen and
@@ -1432,6 +1403,26 @@ const themeCss = syntaxThemeCss()
       .run-good { background: var(--ok); }
       .run-bad { background: var(--bad); }
       .run-warn { background: var(--warn); }
+      .run-running { background: var(--accent); }
+
+      /* Active work breathes across run lists, checks, jobs and SVG charts.
+         Keep the dot legible throughout, and never animate a terminal state. */
+      .run-dot.run-running, .chart-tone-running .chart-status {
+        transform-origin: center;
+        transform-box: fill-box;
+      }
+      @keyframes run-status-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .55; transform: scale(.82); }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .run-dot.run-running, .chart-tone-running .chart-status {
+          animation: run-status-pulse 1.8s ease-in-out infinite;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .run-dot.run-running, .chart-tone-running .chart-status { animation: none; }
+      }
 
       .checks-rollup { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 14px; font-weight: 600; }
       .checks-badge {

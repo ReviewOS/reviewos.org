@@ -175,14 +175,24 @@ export async function repositoryHeaderActions(
   if (!row)
     return null
 
-  const standing = await standingForImpl(row.id, access?.viewer?.id ?? null)
+  const [standing, identity] = await Promise.all([
+    standingForImpl(row.id, access?.viewer?.id ?? null),
+    db.selectFrom(row.owner_type === 'organization' ? 'organizations' : 'users')
+      .select(['avatar_url'])
+      .where('id', '=', Number(row.owner_id))
+      .executeTakeFirst(),
+  ])
 
-  return repositoryActionsImpl(standing, {
-    owner: String(owner ?? ''),
-    repository: String(repository ?? ''),
-    path,
-    signedIn: Boolean(access?.viewer),
-  })
+  return {
+    ...repositoryActionsImpl(standing, {
+      owner: String(owner ?? ''),
+      repository: String(repository ?? ''),
+      path,
+      signedIn: Boolean(access?.viewer),
+    }),
+    ownerAvatarUrl: String(identity?.avatar_url ?? ''),
+    ownerKind: String(row.owner_type),
+  }
 }
 
 /**

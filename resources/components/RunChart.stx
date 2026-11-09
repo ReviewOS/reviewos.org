@@ -1,0 +1,139 @@
+<section class="panel run-chart" aria-labelledby="run-chart-title">
+  <div class="run-chart-heading">
+    <div>
+      <h2 id="run-chart-title">Execution map</h2>
+      <p class="muted">Follow dependencies or compare where each job spent its time.</p>
+    </div>
+    <span class="mono muted">{{ chart.finished }}/{{ chart.nodes.length }} finished</span>
+  </div>
+
+  <input class="chart-choice" type="radio" name="run-chart-view" id="chart-dependencies" checked>
+  <input class="chart-choice" type="radio" name="run-chart-view" id="chart-timeline">
+  @if (chart.criticalNames.length > 0)
+    <input class="chart-choice" type="checkbox" id="chart-critical">
+  @endif
+  <div class="chart-toolbar">
+    <div class="chart-switch" role="group" aria-label="Chart view">
+      <label for="chart-dependencies">Dependencies</label>
+      <label for="chart-timeline">Timeline</label>
+    </div>
+    @if (chart.criticalNames.length > 0)
+      <label class="chart-critical-control" for="chart-critical">Highlight longest chain</label>
+    @endif
+  </div>
+
+  <div class="chart-canvas chart-dependencies" tabindex="0" role="region" aria-label="Job dependencies, scroll to explore">
+    <svg width="{{ chart.width }}" height="{{ chart.height }}" viewBox="0 0 {{ chart.width }} {{ chart.height }}" aria-label="Workflow dependency graph">
+      @foreach (chart.layers as layer)
+        <text class="chart-stage" x="{{ layer.x }}" y="28">{{ layer.label }} · {{ layer.count }} {{ layer.count === 1 ? 'job' : 'jobs' }}</text>
+      @endforeach
+      @foreach (chart.edges as edge)
+        <path class="chart-edge {{ edge.critical ? 'is-critical' : '' }}" d="{{ edge.path }}" fill="none" />
+      @endforeach
+      @foreach (chart.nodes as node)
+        <a class="chart-job chart-tone-{{ node.tone }} {{ node.critical ? 'is-critical' : '' }}" href="#job-{{ node.id }}" aria-label="{{ node.name }}, {{ node.label }}. {{ node.timing }}. Open job details.">
+          <title>{{ node.name }} · {{ node.label }}
+{{ node.timing }}{{ node.needs.length ? `\nNeeds: ${node.needs.join(', ')}` : '' }}</title>
+          <rect class="chart-node" x="{{ node.x }}" y="{{ node.y }}" width="232" height="66" rx="9" />
+          <circle class="chart-status" cx="{{ node.x + 16 }}" cy="{{ node.y + 21 }}" r="4" />
+          <text class="chart-name" x="{{ node.x + 29 }}" y="{{ node.y + 26 }}">{{ node.shortName }}</text>
+          <text class="chart-detail" x="{{ node.x + 16 }}" y="{{ node.y + 49 }}">{{ node.label }}{{ node.durationLabel ? ` · ${node.durationLabel}` : '' }}</text>
+        </a>
+      @endforeach
+    </svg>
+  </div>
+
+  <div class="chart-canvas chart-timeline" tabindex="0" role="region" aria-label="Job timing, scroll to explore">
+    @if (chart.hasTiming)
+      <svg width="920" height="{{ chart.timelineHeight }}" viewBox="0 0 920 {{ chart.timelineHeight }}" aria-label="Queue and execution time by job">
+        @foreach (chart.ticks as tick)
+          <line class="chart-grid" x1="{{ tick.x }}" x2="{{ tick.x }}" y1="32" y2="{{ chart.timelineHeight - 12 }}" />
+          <text class="chart-tick" x="{{ tick.x }}" y="22">{{ tick.label }}</text>
+        @endforeach
+        @foreach (chart.timeline as node)
+          <a class="chart-job chart-tone-{{ node.tone }} {{ node.critical ? 'is-critical' : '' }}" href="#job-{{ node.id }}" aria-label="{{ node.name }}, {{ node.label }}. {{ node.timing }}. Open job details.">
+            <title>{{ node.name }} · {{ node.label }}
+{{ node.timing }}</title>
+            <rect class="chart-row-hit" x="12" y="{{ node.rowY - 15 }}" width="892" height="40" rx="5" />
+            <circle class="chart-status" cx="24" cy="{{ node.rowY + 5 }}" r="4" />
+            <text class="chart-name" x="36" y="{{ node.rowY + 10 }}">{{ node.shortName }}</text>
+            @if (node.queueWidth > 0)
+              <rect class="chart-queue" x="{{ 260 + node.queueX }}" y="{{ node.rowY - 4 }}" width="{{ node.queueWidth }}" height="18" rx="3" />
+            @endif
+            @if (node.runWidth > 0)
+              <rect class="chart-execution" x="{{ 260 + node.runX }}" y="{{ node.rowY - 4 }}" width="{{ node.runWidth }}" height="18" rx="3" />
+            @endif
+            @if (!node.hasTiming)
+              <text class="chart-detail" x="260" y="{{ node.rowY + 10 }}">{{ node.label }} · timing not reported</text>
+            @endif
+          </a>
+        @endforeach
+      </svg>
+    @else
+      <p class="chart-empty muted">Timing will appear when a runner reports queued or started timestamps. Explore the dependencies in the meantime.</p>
+    @endif
+  </div>
+
+  <div class="chart-footer muted">
+    <p><span class="chart-scroll-hint">Scroll to explore. </span>Choose a job to inspect its steps and output.</p>
+    <div class="chart-legend"><span><i class="legend-queue"></i>Queued</span><span><i class="legend-execution"></i>Execution</span></div>
+  </div>
+  @if (chart.criticalNames.length > 0)
+    <p class="chart-chain muted">Longest chain: <strong>{{ chart.criticalNames.join(' → ') }}</strong> · {{ chart.criticalTotal }}, of which {{ chart.criticalWait }} waiting for a machine</p>
+  @endif
+</section>
+
+<style>
+  .run-chart { margin-top: 20px; overflow: hidden; }
+  .run-chart-heading { display: flex; justify-content: space-between; gap: 20px; padding: 22px 24px 18px; align-items: center; }
+  .run-chart-heading h2 { font-size: 16px; }
+  .run-chart-heading p { margin-top: 5px; font-size: 13px; }
+  .chart-choice { position: absolute; width: 1px; height: 1px; opacity: 0; clip-path: inset(50%); }
+  .chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 24px 16px; }
+  .chart-switch { display: inline-flex; background: var(--surface-tint); padding: 3px; border-radius: 8px; gap: 3px; }
+  .chart-switch label { padding: 5px 12px; border-radius: 5px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--muted); }
+  #chart-dependencies:checked ~ .chart-toolbar label[for='chart-dependencies'], #chart-timeline:checked ~ .chart-toolbar label[for='chart-timeline'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  #chart-dependencies:focus-visible ~ .chart-toolbar label[for='chart-dependencies'], #chart-timeline:focus-visible ~ .chart-toolbar label[for='chart-timeline'], #chart-critical:focus-visible ~ .chart-toolbar label[for='chart-critical'] { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .chart-critical-control { color: var(--muted); font-size: 12px; cursor: pointer; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; }
+  #chart-critical:checked ~ .chart-toolbar .chart-critical-control { color: var(--accent-text); background: var(--accent-quiet); border-color: var(--accent); }
+  .chart-canvas { overflow: auto; max-height: 540px; background: var(--bg); border-block: 1px solid var(--line); }
+  .chart-canvas svg { display: block; min-width: 100%; }
+  .chart-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+  .chart-timeline { display: none; }
+  #chart-timeline:checked ~ .chart-dependencies { display: none; }
+  #chart-timeline:checked ~ .chart-timeline { display: block; }
+  .chart-stage, .chart-tick { font: 11px var(--mono); fill: var(--muted); }
+  .chart-tick { text-anchor: middle; }
+  .chart-grid { stroke: var(--line); stroke-dasharray: 3 5; }
+  .chart-edge { stroke: var(--line-strong); stroke-width: 1.5; }
+  .chart-node { fill: var(--surface); stroke: var(--line-strong); }
+  .chart-name { fill: var(--text); font: 500 12px Geist, sans-serif; }
+  .chart-detail { fill: var(--muted); font: 11px var(--mono); }
+  .chart-job { --job-tone: var(--muted); text-decoration: none; outline: none; }
+  .chart-tone-good { --job-tone: var(--ok); }
+  .chart-tone-bad { --job-tone: var(--bad); }
+  .chart-tone-warn { --job-tone: var(--warn); }
+  .chart-tone-running { --job-tone: var(--accent); }
+  .chart-status, .chart-execution { fill: var(--job-tone); }
+  .chart-queue { fill: var(--surface-tint); stroke: var(--muted); stroke-dasharray: 3 2; }
+  .chart-row-hit { fill: transparent; }
+  .chart-job:hover .chart-node, .chart-job:focus-visible .chart-node { stroke: var(--accent); stroke-width: 2; fill: var(--accent-quiet); }
+  .chart-job:hover .chart-row-hit, .chart-job:focus-visible .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
+  #chart-critical:checked ~ .chart-canvas .chart-edge:not(.is-critical) { opacity: .28; }
+  #chart-critical:checked ~ .chart-canvas .chart-job.is-critical .chart-node { stroke: var(--accent); stroke-width: 2; }
+  #chart-critical:checked ~ .chart-canvas .chart-job:not(.is-critical) .chart-node { fill: var(--surface-tint); }
+  #chart-critical:checked ~ .chart-canvas .chart-job.is-critical .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
+  #chart-critical:checked ~ .chart-canvas .chart-edge.is-critical { stroke: var(--accent); stroke-width: 2.5; }
+  .chart-footer { padding: 12px 24px; display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; font-size: 12px; }
+  .chart-legend, .chart-legend span { display: inline-flex; gap: 7px; align-items: center; }
+  .chart-legend { gap: 16px; }
+  .chart-legend i { width: 15px; height: 8px; border-radius: 2px; display: inline-block; }
+  .legend-queue { border: 1px dashed var(--muted); background: var(--surface-tint); }
+  .legend-execution { background: var(--accent); }
+  .chart-chain { padding: 12px 24px; border-top: 1px solid var(--line); font-size: 12px; }
+  .chart-chain strong { font-weight: 500; color: var(--text); }
+  .chart-scroll-hint { display: none; }
+  @media (max-width: 900px) { .chart-scroll-hint { display: inline; } }
+  .chart-empty { padding: 32px 24px; font-size: 13px; max-width: 600px; }
+  @media (max-width: 640px) { .run-chart-heading { align-items: flex-start; padding: 18px 16px; } .run-chart-heading > span { white-space: nowrap; font-size: 11px; } .chart-toolbar, .chart-footer, .chart-chain { padding-inline: 16px; } }
+</style>

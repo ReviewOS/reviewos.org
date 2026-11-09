@@ -201,6 +201,22 @@ afterAll(async () => {
 })
 
 describe('the run screen', () => {
+  test('delivers the chart and repository styles before body markup', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+    const head = html.slice(0, html.indexOf('</head>'))
+    expect(head).toContain('.run-chart {')
+    expect(head).toContain('.repo-head {')
+    expect(head).toContain('.repo-tabs {')
+    expect(head).toContain('.clone-box {')
+    expect(head).toContain('.run-head {')
+    expect(head).toContain('data-stx-appearance-bootstrap')
+    expect(html).not.toContain('[Error loading component')
+    expect(html).not.toContain('[object Object]')
+  })
+
   test('renders the run, its jobs, its steps and its output', async () => {
     if (!available)
       return
@@ -1000,7 +1016,10 @@ describe('the shape of a run', () => {
 
     const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
 
-    expect(html).toContain('Shape of this run')
+    expect(html).toContain('Execution map')
+    expect(html).toContain('Workflow dependency graph')
+    expect(html).toContain('Queue and execution time by job')
+    expect(html).toContain('chart-critical')
 
     // The chain, named in order, with the split between working and waiting -
     // which is what says whether to add machines or to change the pipeline.
@@ -1022,7 +1041,7 @@ describe('where a run came from', () => {
      */
     const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
 
-    const shown = html.slice(html.indexOf('run-provenance'), html.indexOf('run-provenance') + 400)
+    const shown = html.match(/<p class="muted run-provenance">([\s\S]*?)<\/p>/)?.[1] ?? ''
 
     // The file that ran, the version of it, what set the run off, and on which
     // ref - in one paragraph rather than across four screens.
@@ -1235,4 +1254,60 @@ describe('a run waiting at a gate', () => {
     expect(html).not.toContain('/api/repos/workflow-runs/approve')
     expect(html).toContain('write access')
   }, 60_000)
+})
+
+
+describe('an organization logo on the run page', () => {
+  test('uses the actual owner mark with a square treatment and reserved dimensions', async () => {
+    if (!available)
+      return
+
+    const handle = unique('chartorg')
+    const organization: any = await db.insertInto('organizations').values({
+      handle, name: 'Pipeline maintainers', avatar_url: '/test-organization-logo.svg',
+    }).returning(['id']).executeTakeFirst()
+
+    try {
+      await db.updateTable('repositories').set({ owner_type: 'organization', owner_id: Number(organization.id) })
+        .where('id', '=', created.repositoryId).execute()
+      const html = await page(`/${handle}/${created.name}/run/${created.finished}`)
+      expect(html).toContain('repo-owner-mark is-organization')
+      expect(html).toContain('src="/test-organization-logo.svg"')
+      expect(html).toContain(`alt="${handle}" width="36" height="36"`)
+      expect(html).toContain(`aria-label="${handle} profile"`)
+    }
+    finally {
+      await db.updateTable('repositories').set({ owner_type: 'user', owner_id: created.ownerId })
+        .where('id', '=', created.repositoryId).execute()
+      await db.deleteFrom('organizations').where('id', '=', Number(organization.id)).execute()
+    }
+  })
+})
+
+
+describe("a blocked job's prerequisites", () => {
+  test('names only the jobs it is still waiting for', async () => {
+    if (!available)
+      return
+
+    const version: any = await db.selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId).executeTakeFirst()
+    const number = await makeRun(Number(version.id), 'running', 'succeeded', 'done\n', 'e'.repeat(40))
+    const run: any = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).where('number', '=', number).executeTakeFirst()
+    try {
+      await db.insertInto('workflow_jobs').values([
+        { workflow_run_id: Number(run.id), job_id: 'pending', name: 'Pending prerequisite', position: 1, state: 'queued', runs_on: 'ubuntu-latest' },
+        { workflow_run_id: Number(run.id), job_id: 'deploy', name: 'Deploy', position: 2, state: 'blocked', needs: 'build\npending', runs_on: 'ubuntu-latest' },
+      ]).execute()
+      const html = await page(`/${created.handle}/${created.name}/run/${number}`)
+      expect(html).toContain('Waiting for pending')
+      expect(html).not.toContain('Waiting for build')
+    }
+    finally {
+      await db.deleteFrom('workflow_runs').where('id', '=', Number(run.id)).execute()
+    }
+  })
 })

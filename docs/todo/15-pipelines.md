@@ -2466,6 +2466,14 @@ decisions.
       their code by somebody else's workflow.
 
       Webhooks for run transitions are not wired; the box's third vocabulary has no consumer yet.
+- [x] Replace the run's layer pills with server-rendered ts-charts dependency and timing views,
+      keyboard-accessible job links, longest-chain highlighting, queue/execution breakdowns,
+      summary counts, reduced-motion-aware running pulses and a direct link to the first failed job.
+      Missing timings stay unknown, and blocked jobs name only unfinished prerequisites.
+      Fix the first-paint style ordering upstream in stx 0.2.834, delivering authored component CSS in
+      the document head while preserving script strings, shadow templates and SVG styles.
+      Use the framework appearance bootstrap for persisted colors before paint.
+
 - [x] A dependency graph view: what ran, what is running, what is blocked and on what, and the
       critical path through the run
 
