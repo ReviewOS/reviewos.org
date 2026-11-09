@@ -38,6 +38,18 @@ export async function waitingFor(group: RunnerGroup): Promise<number> {
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.runs_on as runs_on'])
     .where('workflow_jobs.state', '=', 'queued')
+    /*
+     * The jobs a machine could actually claim, by the claim query's own rules
+     * (`claim.ts`): command jobs, from runs that are meant to be going.
+     *
+     * Every queued row counted, and a run held behind another in its
+     * concurrency group is `waiting` with all of its jobs still `queued`. A
+     * push to HQ's main that queued behind the run in progress started a
+     * machine for each of its jobs, and they sat idle until they timed out,
+     * because nothing would hand them a job from a held run.
+     */
+    .where('workflow_jobs.kind', '=', 'command')
+    .where('workflow_runs.state', 'in', ['queued', 'running'])
     .where('workflow_runs.repository_id', 'in', ids)
     .execute()
 

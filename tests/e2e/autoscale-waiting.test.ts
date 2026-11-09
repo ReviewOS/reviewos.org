@@ -15,12 +15,12 @@ function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
 }
 
-async function aQueuedJob(runsOn: string, state = 'queued'): Promise<void> {
+async function aQueuedJob(runsOn: string, state = 'queued', options: { runState?: string, kind?: string } = {}): Promise<void> {
   const run: any = await db.insertInto('workflow_runs').values({
     workflow_version_id: created.versionId,
     repository_id: created.repositoryId,
     number: Math.floor(Math.random() * 1_000_000),
-    state: 'queued',
+    state: options.runState ?? 'queued',
     event: 'push',
     event_ref: 'refs/heads/main',
     head_sha: 'f'.repeat(40),
@@ -36,6 +36,7 @@ async function aQueuedJob(runsOn: string, state = 'queued'): Promise<void> {
     position: 1,
     state,
     runs_on: runsOn,
+    kind: options.kind ?? 'command',
   }).execute()
 }
 
@@ -96,6 +97,11 @@ beforeAll(async () => {
     await aQueuedJob('self-hosted\naws')
     await aQueuedJob('macos-latest')
     await aQueuedJob('ubuntu-latest', 'running')
+    // Queued rows no machine may take: a run held behind another in its
+    // concurrency group, a run being cancelled, and a step a person unblocks.
+    await aQueuedJob('self-hosted\naws', 'queued', { runState: 'waiting' })
+    await aQueuedJob('self-hosted\naws', 'queued', { runState: 'cancelling' })
+    await aQueuedJob('self-hosted\naws', 'queued', { kind: 'block' })
     available = true
   }
   catch (error) {
@@ -141,6 +147,28 @@ describe('work waiting for an autoscaled group', () => {
 
     expect(await waitingFor(group(['ubuntu-latest', 'self-hosted', 'aws']))).toBe(2)
     expect(await waitingFor(group(['ubuntu-latest']))).toBe(1)
+  }, 120_000)
+
+  /*
+   * A push that queued behind the run in progress started a machine for each
+   * of its jobs, and they idled out: a held run's jobs are `queued` rows the
+   * claim query will not hand to anybody, so counting them buys machines that
+   * cannot work. The three extra rows set up above are exactly those.
+   */
+  test('leaves out queued jobs no machine may claim', async () => {
+    if (!available)
+      return
+
+    const rows: any[] = await db.selectFrom('workflow_jobs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('state', '=', 'queued')
+      .where('runs_on', '=', 'self-hosted\naws')
+      .execute()
+    const { waitingFor } = await import('../../app/Actions/Runner/Autoscale/tick')
+
+    expect(rows).toHaveLength(4)
+    expect(await waitingFor(group(['self-hosted', 'aws']))).toBe(1)
   }, 120_000)
 
   test('is nothing for a repository it does not serve', async () => {
