@@ -1,0 +1,23 @@
+<script server>
+const scopeKey = String(scope)
+const jobId = Number(typeof job === 'undefined' ? 0 : job)
+const timingKind = String(typeof kind === 'undefined' ? 'run' : kind)
+const initialValue = String(typeof value === 'undefined' ? '' : value)
+const initialText = initialValue && timingKind === 'queue' ? 'queued ' + initialValue : initialValue
+</script>
+<script client>
+import { millisFor, runDuration } from '../lib/runStatus'
+const runView = useStore('workflow-run')
+const text = derived(() => {
+  if (runView.scope() !== scopeKey) return initialText
+  const reading = runView.snapshot()
+  if (!jobId) return runDuration(reading?.started_at, reading?.finished_at) || initialText
+  const node = reading?.chart?.nodes.find(one => Number(one.id) === jobId)
+  if (!node) return initialText
+  if (timingKind === 'queue') return node.waitKnown ? 'queued ' + millisFor(node.waitMs) : ''
+  return [!node.control && node.runKnown ? millisFor(node.runMs) + ' execution' : node.orchestrator && node.started !== null ? 'Execution not recorded' : '', node.holdMs > 0 ? millisFor(node.holdMs) + ' waiting' : ''].filter(Boolean).join(' · ')
+})
+</script>
+<span class="{{ jobId ? 'job-time muted' : '' }}" :hidden="!text()" x-text="text()">{{ initialText }}</span>
+
+<style>[hidden] { display: none; }</style>

@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
-import { authenticateJob, refuseJobCredential } from './authenticate'
+import { authenticateJob, bearerFrom, hashToken, refuseJobCredential } from './authenticate'
 import { appendLog } from './logs'
 import { parseEvents } from './logevents'
 
@@ -75,6 +75,7 @@ export default new Action({
 
     const outcome = await appendLog({
       jobId: held.jobId,
+      claimHash: hashToken(bearerFrom(request)!),
       sequence: Number(request.get('sequence')),
       content: String(request.get('content') ?? ''),
       stream: request.get('stream') === 'stderr' ? 'stderr' : 'stdout',

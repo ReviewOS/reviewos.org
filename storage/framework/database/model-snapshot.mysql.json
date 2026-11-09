@@ -12736,6 +12736,39 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "execution_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "execution_started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "queue_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "first_queue_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -12950,6 +12983,14 @@
           {
             "name": "updated_at",
             "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "redaction_state",
+            "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -16143,7 +16184,7 @@
       }
     ]
   },
-  "hash": "ce679a23ce643249a7a39bedd5ed7c3aa5240f5730e67e38e16edaef6e933971",
+  "hash": "0f62310a4c7409a198f20f81070c10b7e65d0ca46c70014716e94bf16d340893",
   "dialect": "mysql",
-  "updatedAt": "2026-11-07T07:00:34.507Z"
+  "updatedAt": "2026-11-09T01:42:23.962Z"
 }

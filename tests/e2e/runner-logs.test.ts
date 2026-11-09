@@ -6,7 +6,7 @@
 // carries paths, hostnames and the occasional thing somebody echoed by mistake.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { appendLog, MAX_JOB_LOG_BYTES, readLog } from '../../app/Actions/Runner/logs'
+import { appendLog, MAX_CHUNK_BYTES, MAX_JOB_LOG_BYTES, readLog } from '../../app/Actions/Runner/logs'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
@@ -499,4 +499,85 @@ describe('a job producing faster than the instance wants to store', () => {
       await writeSetting('log_bytes_per_second', '0', null)
     }
   })
+})
+
+test('server redaction checkpoints protect split output, structured events, retries and new attempts in storage', async () => {
+  if (!available) return
+  const { putSecret } = await import('../../app/Actions/Workflow/secrets')
+  const secret = 'credential:split/across-writes'
+  await putSecret({ scope: 'repository', scopeId: created.repositoryId, key: 'SPLIT_LOG_TOKEN', value: secret })
+  const job = await claimOne()
+  const early = await appendLog({ jobId: job.id, sequence: 2, content: secret.slice(5, 12) })
+  expect(early.ok).toBe(false)
+  const writes = ['authorization=' + secret.slice(0, 5), secret.slice(5, 12), secret.slice(12) + '\n']
+  for (const [index, content] of writes.entries()) {
+    expect((await appendLog({ jobId: job.id, sequence: index + 1, content })).ok).toBe(true)
+  }
+  const duplicate = await appendLog({ jobId: job.id, sequence: 2, content: writes[1]! })
+  expect(duplicate.duplicate).toBe(true)
+  const structured = await appendLog({ jobId: job.id, sequence: 4, content: '', events: [{ type: 'line', text: secret, at: '', stream: 'stderr' }] })
+  expect(structured.ok).toBe(true)
+  const rows = await db.selectFrom('workflow_job_logs').selectAll().where('workflow_job_id', '=', job.id).orderBy('sequence').execute()
+  const stored = JSON.stringify(rows)
+  expect(stored).not.toContain(secret)
+  expect(stored).not.toContain(secret.slice(5, 12))
+  expect(stored).not.toContain(secret.slice(12))
+  expect(rows[3]?.events).toBeNull()
+  expect((await readLog(job.id)).chunks.map(chunk => chunk.content).join('')).not.toContain(secret)
+  const legacy = await claimOne()
+  await db.insertInto('workflow_job_logs').values({ workflow_job_id: legacy.id, attempt: 1, sequence: 1, content: secret.slice(0, 5) }).execute()
+  await db.insertInto('workflow_job_logs').values({ workflow_job_id: legacy.id, attempt: 1, sequence: 2, content: secret.slice(5, 12) }).execute()
+  expect((await appendLog({ jobId: legacy.id, sequence: 3, content: secret.slice(12) + '\n' })).ok).toBe(true)
+  expect((await readLog(legacy.id)).chunks.map(chunk => chunk.content).join('')).not.toContain(secret)
+  await db.updateTable('workflow_jobs').set({ attempt: 2 }).where('id', '=', job.id).execute()
+  expect((await appendLog({ jobId: job.id, sequence: 1, content: 'ordinary output\n' })).ok).toBe(true)
+  expect((await readLog(job.id)).chunks.map(chunk => chunk.content)).toEqual(['ordinary output\n'])
+  const response = await fetch(`http://127.0.0.1:${port}/api/repos/workflow-runs/log?owner=${created.handle}&repo=${created.name}&job=${job.id}`)
+  expect(response.headers.get('cache-control')).toBe('private, no-store')
+})
+
+
+test('UTF-8 chunks and structured metadata fit the storage byte limit', async () => {
+  if (!available) return
+  const job = await claimOne()
+  expect((await appendLog({ jobId: job.id, sequence: 1, content: '🧪'.repeat(30_000) })).ok).toBe(true)
+  const first = (await readLog(job.id)).chunks[0]!
+  expect(new TextEncoder().encode(first.content).length).toBeLessThanOrEqual(MAX_CHUNK_BYTES)
+  expect(first.content).not.toContain('�')
+  expect(first.content).toContain('[chunk truncated]')
+  const events = Array.from({ length: 2000 }, () => ({ type: 'line' as const, text: 'ok', at: '2026-11-08T00:00:00.000Z', stream: 'stdout' as const }))
+  expect((await appendLog({ jobId: job.id, sequence: 2, content: '', events })).ok).toBe(true)
+  const second = await db.selectFrom('workflow_job_logs').select(['events', 'content']).where('workflow_job_id', '=', job.id).where('sequence', '=', 2).executeTakeFirst()
+  expect(second.events).toBeNull()
+  expect(second.content).toContain('ok')
+  expect((await appendLog({ jobId: job.id, claimHash: 'expired-claim', sequence: 3, content: 'stale output' })).ok).toBe(false)
+})
+
+
+test('orchestrator suspension checkpoints execution and resumed claims retain the accumulated timing', async () => {
+  if (!available) return
+  const { wakeOne } = await import('../../app/Actions/Workflow/wake')
+  const { jobTiming } = await import('../../resources/functions/jobTiming')
+  const job = await claimOne()
+  const started = new Date(Date.now() - 10_000).toISOString()
+  await db.updateTable('workflow_jobs').set({ orchestrator: true, started_at: started, execution_started_at: started }).where('id', '=', job.id).execute()
+  const result = await call('/runner/orchestrator', { sequence: 1, kind: 'sleep', name: 'durable wait', arguments: { ms: 60_000 } }, job.token)
+  expect(result.status).toBe(200)
+  expect(result.body.decision).toBe('wait')
+  const suspended = await db.selectFrom('workflow_jobs').selectAll().where('id', '=', job.id).executeTakeFirst()
+  expect(suspended.state).toBe('sleeping')
+  expect(Number(suspended.execution_ms)).toBeGreaterThanOrEqual(10_000)
+  expect(Number(suspended.execution_ms)).toBeLessThan(15_000)
+  expect(suspended.execution_started_at).toBeNull()
+  // Move the first allocation back to represent time spent suspended, without
+  // making the suite sleep through a real durable wait.
+  await db.updateTable('workflow_jobs').set({ started_at: new Date(Date.now() - 100_000).toISOString() }).where('id', '=', job.id).execute()
+  expect(await wakeOne(job.id)).toBe(true)
+  const claim = await call('/runner/claim', {}, TOKEN)
+  expect(Number(claim.body.job.id)).toBe(job.id)
+  const resumed = await db.selectFrom('workflow_jobs').selectAll().where('id', '=', job.id).executeTakeFirst()
+  expect(Number(resumed.execution_ms)).toBe(Number(suspended.execution_ms))
+  expect(resumed.execution_started_at).not.toBeNull()
+  expect(Number(resumed.first_queue_ms)).toBe(Number(suspended.first_queue_ms))
+  expect(jobTiming(resumed).holdMs).toBeGreaterThan(80_000)
 })

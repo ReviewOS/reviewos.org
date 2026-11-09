@@ -38,6 +38,28 @@ export default defineModel({
   belongsTo: [{ model: 'WorkflowRun', onDelete: 'cascade' }],
 
   attributes: {
+    // Nullable on historical attempts, whose execution intervals were not recorded.
+    execution_ms: {
+      fillable: true,
+      validation: { rule: schema.number().min(0) },
+      factory: () => null,
+    },
+    execution_started_at: {
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+    first_queue_ms: {
+      fillable: true,
+      validation: { rule: schema.number().min(0) },
+      factory: () => null,
+    },
+    queue_ms: {
+      fillable: true,
+      validation: { rule: schema.number().min(0) },
+      factory: () => null,
+    },
+
     workflow_run_id: {
       order: 1,
       fillable: true,

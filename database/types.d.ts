@@ -2960,6 +2960,7 @@ declare module '@stacksjs/database' {
       repository_id: number
     }
     workflow_job_logs: {
+      redaction_state: string
       // columns
       id: number
       created_at: string
@@ -2973,6 +2974,10 @@ declare module '@stacksjs/database' {
       repository_id: number
     }
     workflow_jobs: {
+      execution_ms: number
+      execution_started_at: string
+      first_queue_ms: number
+      queue_ms: number
       // columns
       id: number
       uuid: string

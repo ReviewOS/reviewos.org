@@ -23,6 +23,7 @@ export interface GraphNode {
   /** Milliseconds this job waited for a machine, when it is known. */
   waitMs: number
   /** Milliseconds it ran for, when it is known. */
+  holdMs?: number
   runMs: number
 }
 
@@ -120,7 +121,7 @@ export function criticalPath(nodes: readonly GraphNode[]): CriticalPath {
    */
   for (const layer of layersOf(nodes)) {
     for (const node of layer.nodes) {
-      const cost = Math.max(0, node.waitMs) + Math.max(0, node.runMs)
+      const cost = Math.max(0, node.waitMs) + Math.max(0, node.runMs) + Math.max(0, node.holdMs ?? 0)
 
       const upstream = node.needs
         .flatMap(need => byKey.get(need) ?? [])

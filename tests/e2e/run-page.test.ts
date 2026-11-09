@@ -529,23 +529,11 @@ describe('following a run that is still going', () => {
     expect(html).toContain('runlive')
     expect(html).toContain('jobtail')
 
-    /*
-     * The setup expression, in the markup.
-     *
-     * A component's props are consumed when it renders, so the invocation's
-     * attributes are gone by the time this sees the page - what has to survive
-     * is the `x-init` the scope hydrates from, which stx preserves as
-     * `data-stx-xinit`. It did not until 0.2.177: the attribute was dropped on
-     * the assumption that the bridge script carried it, which is true for a
-     * page and false for an island. Every live region in this codebase rendered
-     * its empty state and started nothing, which looks exactly like a live
-     * region with nothing to say.
-     */
-    expect(html).toContain('data-stx-xinit')
-    expect(html).toContain('followJob(')
-    // Where this page's copy of the output ends. Without it a follower either
-    // re-sends the whole log or guesses, and a guess shows a line twice.
-    expect(html).toContain('$props.after')
+    // The component carries the initial sequence and mounts its scoped follower.
+    expect(html).toContain('data-stx-scope')
+    expect(html).toContain('watchJobLog')
+    expect(html).toMatch(/(?:var|const) initialCursor = [0-9]+;/)
+
   })
 
   test('and a finished run is left alone', async () => {
@@ -958,6 +946,10 @@ describe('how long a job waited, against how long it ran', () => {
     await db
       .updateTable('workflow_jobs')
       .set({
+        execution_ms: null,
+        execution_started_at: null,
+        queue_ms: null,
+        first_queue_ms: null,
         queued_at: new Date(started.getTime() - 540_000).toISOString(),
         started_at: started.toISOString(),
         finished_at: new Date(started.getTime() + 60_000).toISOString(),
@@ -969,8 +961,9 @@ describe('how long a job waited, against how long it ran', () => {
 
     // Nine minutes waiting, one minute working - and the page says so in those
     // words rather than leaving a reader to subtract two timestamps.
-    expect(html).toContain('waited 9m 0s')
-    expect(html).toContain('ran 1m 0s')
+    const text = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+    expect(text).toContain('queued 9m')
+    expect(text).toContain('1m 0s execution')
   })
 })
 
@@ -1273,7 +1266,8 @@ describe('an organization logo on the run page', () => {
       const html = await page(`/${handle}/${created.name}/run/${created.finished}`)
       expect(html).toContain('repo-owner-mark is-organization')
       expect(html).toContain('src="/test-organization-logo.svg"')
-      expect(html).toContain(`alt="${handle}" width="36" height="36"`)
+      expect(html).toContain('alt="" width="36" height="36"')
+      expect(html).toContain(`role="img" aria-label="${handle}"`)
       expect(html).toContain(`aria-label="${handle} profile"`)
     }
     finally {

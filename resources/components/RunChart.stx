@@ -1,27 +1,90 @@
+<script server>
+const scopeKey = String(scope)
+</script>
+<script client>
+import { graphRelations } from '../functions/runGraph'
+const runView = useStore('workflow-run')
+const initialChart = useReactiveProp('chart', null)
+const ready = state(false)
+const zoom = state(1)
+const statusFilter = state('all')
+const selectedJob = state(0)
+const graphViewport = useRef('graphViewport')
+const timelineViewport = useRef('timelineViewport')
+const drag = { element: null, x: 0, y: 0, left: 0, top: 0 }
+const relations = derived(() => graphRelations(activeChart().edges, selectedJob()))
+const matching = derived(() => activeChart().nodes.filter(node => statusFilter() === 'all' || (statusFilter() === 'waiting' ? ['blocked', 'queued', 'paused', 'sleeping'].includes(node.state) : node.state === statusFilter())))
+const visibleIds = derived(() => new Set(matching().map(node => node.id)))
+const selectionText = derived(() => {
+  const node = activeChart().nodes.find(one => one.id === selectedJob())
+  if (!node) return 'Focus a job to highlight its prerequisites and dependants.'
+  const names = ids => activeChart().nodes.filter(one => ids.has(one.id)).map(one => one.name).join(', ')
+  return node.name + ' · Prerequisites: ' + (names(relations().prerequisites) || 'none') + '. Dependants: ' + (names(relations().dependants) || 'none') + '.'
+})
+function focusClass(id) {
+  return id === selectedJob() ? ' is-selected' : relations().prerequisites.has(id) ? ' is-prerequisite' : relations().dependants.has(id) ? ' is-dependant' : ''
+}
+function fitChart() {
+  const graph = graphViewport.current
+  const timeline = timelineViewport.current
+  const target = graph?.clientWidth ? graph : timeline
+  const width = graph?.clientWidth ? activeChart().width : 920
+  if (!target?.clientWidth) return
+  zoom.set(Math.max(.15, Math.min(1, target.clientWidth / width)))
+  target.scrollLeft = 0
+  target.scrollTop = 0
+}
+function beginPan(event) {
+  // Links retain their ordinary click, selection and keyboard behavior.
+  if (event.button !== 0 || event.target.closest('a')) return
+  const target = event.currentTarget
+  drag.element = target
+  drag.x = event.clientX; drag.y = event.clientY
+  drag.left = target.scrollLeft; drag.top = target.scrollTop
+  target.setPointerCapture(event.pointerId)
+}
+function movePan(event) {
+  if (!drag.element) return
+  drag.element.scrollLeft = drag.left + drag.x - event.clientX
+  drag.element.scrollTop = drag.top + drag.y - event.clientY
+}
+function endPan() { drag.element = null }
+const activeChart = derived(() => runView.scope() === scopeKey ? runView.snapshot()?.chart ?? initialChart() : initialChart())
+const chainText = derived(() => activeChart().criticalNames.length ? 'Longest chain: ' + activeChart().criticalNames.join(' → ') + ' · ' + activeChart().criticalTotal + ', of which ' + activeChart().criticalWait + ' waiting for a machine' : '')
+onMount(() => { if (initialChart()) ready.set(true) })
+</script>
 <section class="panel run-chart" aria-labelledby="run-chart-title">
   <div class="run-chart-heading">
     <div>
       <h2 id="run-chart-title">Execution map</h2>
       <p class="muted">Follow dependencies or compare where each job spent its time.</p>
     </div>
-    <span class="mono muted">{{ chart.finished }}/{{ chart.nodes.length }} finished</span>
+    <span class="mono muted" x-text="activeChart().finished + '/' + activeChart().nodes.length + ' finished'">{{ chart.finished }}/{{ chart.nodes.length }} finished</span>
   </div>
 
   <input class="chart-choice" type="radio" name="run-chart-view" id="chart-dependencies" checked>
   <input class="chart-choice" type="radio" name="run-chart-view" id="chart-timeline">
-  @if (chart.criticalNames.length > 0)
-    <input class="chart-choice" type="checkbox" id="chart-critical">
-  @endif
+  <input class="chart-choice" type="checkbox" id="chart-critical" :disabled="!activeChart().criticalNames.length" @if (!chart.criticalNames.length) disabled @endif>
   <div class="chart-toolbar">
     <div class="chart-switch" role="group" aria-label="Chart view">
       <label for="chart-dependencies">Dependencies</label>
       <label for="chart-timeline">Timeline</label>
     </div>
-    @if (chart.criticalNames.length > 0)
-      <label class="chart-critical-control" for="chart-critical">Highlight longest chain</label>
-    @endif
+    <div class="chart-navigation" x-cloak>
+      <label>Status <select aria-label="Filter jobs by status" @change="statusFilter.set($event.target.value)"><option value="all">All jobs</option><option value="running">Running</option><option value="failed">Failed</option><option value="waiting">Waiting</option><option value="succeeded">Succeeded</option></select></label>
+      <button class="btn btn-small" type="button" aria-label="Zoom out" @click="zoom.set(Math.max(.15, zoom() - .15))" :disabled="zoom() <= .15">−</button>
+      <output class="mono" aria-label="Chart zoom" x-text="Math.round(zoom() * 100) + '%'">100%</output>
+      <button class="btn btn-small" type="button" aria-label="Zoom in" @click="zoom.set(Math.min(3, zoom() + .15))" :disabled="zoom() >= 3">+</button>
+      <button class="btn btn-small" type="button" @click="fitChart()">Fit</button>
+      <button class="btn btn-small" type="button" @click="zoom.set(1)">Reset</button>
+    </div>
+    <label class="chart-critical-control" for="chart-critical">Highlight longest chain</label>
   </div>
 
+  <div class="chart-selection" x-cloak><p class="muted" x-text="selectionText()"></p><button class="btn btn-small" type="button" :if="selectedJob()" @click="selectedJob.set(0)">Clear highlight</button></div>
+  <p class="chart-empty muted" :if="ready() && !matching().length" role="status">No jobs match this status.</p>
+  <div class="chart-views">
+    <div class="chart-static" :hidden="ready()">
   <div class="chart-canvas chart-dependencies" tabindex="0" role="region" aria-label="Job dependencies, scroll to explore">
     <svg width="{{ chart.width }}" height="{{ chart.height }}" viewBox="0 0 {{ chart.width }} {{ chart.height }}" aria-label="Workflow dependency graph">
       @foreach (chart.layers as layer)
@@ -60,6 +123,9 @@
             @if (node.queueWidth > 0)
               <rect class="chart-queue" x="{{ 260 + node.queueX }}" y="{{ node.rowY - 4 }}" width="{{ node.queueWidth }}" height="18" rx="3" />
             @endif
+            @if (node.holdWidth > 0)
+              <rect class="chart-hold" x="{{ 260 + node.runX }}" y="{{ node.rowY - 4 }}" width="{{ node.holdWidth }}" height="18" rx="3" />
+            @endif
             @if (node.runWidth > 0)
               <rect class="chart-execution" x="{{ 260 + node.runX }}" y="{{ node.rowY - 4 }}" width="{{ node.runWidth }}" height="18" rx="3" />
             @endif
@@ -74,13 +140,51 @@
     @endif
   </div>
 
+    </div>
+<div class="chart-dynamic" :hidden="!ready()" hidden>
+  <div ref="graphViewport" @pointerdown="beginPan($event)" @pointermove="movePan($event)" @pointerup="endPan()" @pointercancel="endPan()" @lostpointercapture="endPan()" class="chart-canvas chart-dependencies" tabindex="0" role="region" aria-label="Live job dependencies, scroll to explore">
+    <svg :width="activeChart().width * zoom()" :height="activeChart().height * zoom()" :viewBox="'0 0 ' + activeChart().width + ' ' + activeChart().height" aria-label="Live workflow dependency graph">
+      <g :for="layer in activeChart().layers" :key="layer.x"><text class="chart-stage" :x="layer.x" y="28" x-text="layer.label + ' · ' + layer.count + (layer.count === 1 ? ' job' : ' jobs')"></text></g>
+      <g :for="edge in activeChart().edges" :key="edge.source + '-' + edge.target" :hidden="!visibleIds().has(edge.source) || !visibleIds().has(edge.target)"><path :class="'chart-edge ' + (edge.critical ? 'is-critical' : '') + ((selectedJob() === edge.source || selectedJob() === edge.target || (relations().prerequisites.has(edge.source) && relations().prerequisites.has(edge.target)) || (relations().dependants.has(edge.source) && relations().dependants.has(edge.target))) ? ' is-connected' : '')" :d="edge.path" fill="none" /></g>
+      <g :for="node in activeChart().nodes" :key="node.id" :hidden="!visibleIds().has(node.id)">
+        <a :class="'chart-job chart-tone-' + node.tone + (node.critical ? ' is-critical' : '') + focusClass(node.id)" @focus="selectedJob.set(node.id)" :href="'#job-' + node.id" :aria-label="node.name + ', ' + node.label + '. ' + node.timing + '. Open job details.'">
+          <title x-text="node.name + ' · ' + node.label + '\n' + node.timing"></title>
+          <rect class="chart-node" :x="node.x" :y="node.y" width="232" height="66" rx="9" />
+          <circle class="chart-status" :cx="node.x + 16" :cy="node.y + 21" r="4" />
+          <text class="chart-name" :x="node.x + 29" :y="node.y + 26" x-text="node.shortName"></text>
+          <text class="chart-detail" :x="node.x + 16" :y="node.y + 49" x-text="node.label + (node.durationLabel ? ' · ' + node.durationLabel : '')"></text>
+        </a>
+      </g>
+    </svg>
+  </div>
+  <div ref="timelineViewport" @pointerdown="beginPan($event)" @pointermove="movePan($event)" @pointerup="endPan()" @pointercancel="endPan()" @lostpointercapture="endPan()" class="chart-canvas chart-timeline" tabindex="0" role="region" aria-label="Live job timing, scroll to explore">
+    <svg :if="activeChart().hasTiming" :width="920 * zoom()" :height="activeChart().timelineHeight * zoom()" :viewBox="'0 0 920 ' + activeChart().timelineHeight" aria-label="Live queue and execution time by job">
+      <g :for="tick in activeChart().ticks" :key="tick.x">
+        <line class="chart-grid" :x1="tick.x" :x2="tick.x" y1="32" :y2="activeChart().timelineHeight - 12" />
+        <text class="chart-tick" :x="tick.x" y="22" x-text="tick.label"></text>
+      </g>
+      <g :for="node in activeChart().timeline" :key="node.id" :hidden="!visibleIds().has(node.id)">
+        <a :class="'chart-job chart-tone-' + node.tone + (node.critical ? ' is-critical' : '') + focusClass(node.id)" @focus="selectedJob.set(node.id)" :href="'#job-' + node.id" :aria-label="node.name + ', ' + node.label + '. ' + node.timing">
+          <title x-text="node.name + ' · ' + node.label + '\n' + node.timing"></title>
+          <rect class="chart-row-hit" x="12" :y="node.rowY - 15" width="892" height="40" rx="5" />
+          <circle class="chart-status" cx="24" :cy="node.rowY + 5" r="4" />
+          <text class="chart-name" x="36" :y="node.rowY + 10" x-text="node.shortName"></text>
+          <rect :if="node.queueWidth > 0" class="chart-queue" :x="260 + node.queueX" :y="node.rowY - 4" :width="node.queueWidth" height="18" rx="3" />
+          <rect :if="node.holdWidth > 0" class="chart-hold" :x="260 + node.runX" :y="node.rowY - 4" :width="node.holdWidth" height="18" rx="3" />
+          <rect :if="node.runWidth > 0" class="chart-execution" :x="260 + node.runX" :y="node.rowY - 4" :width="node.runWidth" height="18" rx="3" />
+          <text :if="!node.hasTiming" class="chart-detail" x="260" :y="node.rowY + 10" x-text="node.label + ' · timing not reported'"></text>
+        </a>
+      </g>
+    </svg>
+    <p :if="!activeChart().hasTiming" class="chart-empty muted">Timing will appear when a runner reports queued or started timestamps.</p>
+  </div>
+</div>
+  </div>
   <div class="chart-footer muted">
     <p><span class="chart-scroll-hint">Scroll to explore. </span>Choose a job to inspect its steps and output.</p>
-    <div class="chart-legend"><span><i class="legend-queue"></i>Queued</span><span><i class="legend-execution"></i>Execution</span></div>
+    <div class="chart-legend"><span><i class="legend-queue"></i>Queued</span><span><i class="legend-execution"></i>Execution</span><span><i class="legend-hold"></i>Waiting / orchestrator span</span></div>
   </div>
-  @if (chart.criticalNames.length > 0)
-    <p class="chart-chain muted">Longest chain: <strong>{{ chart.criticalNames.join(' → ') }}</strong> · {{ chart.criticalTotal }}, of which {{ chart.criticalWait }} waiting for a machine</p>
-  @endif
+  <p class="chart-chain muted" :hidden="!chainText()" x-text="chainText()" @if (!chart.criticalNames.length) hidden @endif>Longest chain: {{ chart.criticalNames.join(' → ') }} · {{ chart.criticalTotal }}, of which {{ chart.criticalWait }} waiting for a machine</p>
 </section>
 
 <style>
@@ -96,12 +200,28 @@
   #chart-dependencies:focus-visible ~ .chart-toolbar label[for='chart-dependencies'], #chart-timeline:focus-visible ~ .chart-toolbar label[for='chart-timeline'], #chart-critical:focus-visible ~ .chart-toolbar label[for='chart-critical'] { outline: 2px solid var(--accent); outline-offset: 3px; }
   .chart-critical-control { color: var(--muted); font-size: 12px; cursor: pointer; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; }
   #chart-critical:checked ~ .chart-toolbar .chart-critical-control { color: var(--accent-text); background: var(--accent-quiet); border-color: var(--accent); }
+  .chart-static[hidden], .chart-dynamic[hidden], .chart-chain[hidden] { display: none; }
+  #chart-critical:disabled ~ .chart-toolbar .chart-critical-control { opacity: .6; cursor: not-allowed; }
+  .chart-dynamic [hidden] { display: none; }
+  .chart-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chart-navigation label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .chart-navigation select { background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); border-radius: 6px; padding: 5px; }
+  .chart-navigation output { min-width: 40px; font-size: 11px; text-align: center; }
+  .chart-selection { display: flex; align-items: center; gap: 12px; padding: 10px 24px; border-top: 1px solid var(--line); font-size: 12px; }
+  .chart-selection p { flex: 1; overflow-wrap: anywhere; }
+  .chart-job.is-selected .chart-node { stroke: var(--accent); stroke-width: 3; fill: var(--accent-quiet); }
+  .chart-job.is-prerequisite .chart-node { stroke: var(--warn); stroke-width: 2; }
+  .chart-job.is-dependant .chart-node { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 2; }
+  .chart-edge.is-connected { stroke: var(--accent); stroke-width: 2.5; }
+  .chart-job.is-selected .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
+  .chart-job.is-prerequisite .chart-row-hit { stroke: var(--warn); }
+  .chart-job.is-dependant .chart-row-hit { stroke: var(--accent); stroke-dasharray: 4 2; }
   .chart-canvas { overflow: auto; max-height: 540px; background: var(--bg); border-block: 1px solid var(--line); }
   .chart-canvas svg { display: block; min-width: 100%; }
   .chart-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
   .chart-timeline { display: none; }
-  #chart-timeline:checked ~ .chart-dependencies { display: none; }
-  #chart-timeline:checked ~ .chart-timeline { display: block; }
+  #chart-timeline:checked ~ .chart-views .chart-dependencies { display: none; }
+  #chart-timeline:checked ~ .chart-views .chart-timeline { display: block; }
   .chart-stage, .chart-tick { font: 11px var(--mono); fill: var(--muted); }
   .chart-tick { text-anchor: middle; }
   .chart-grid { stroke: var(--line); stroke-dasharray: 3 5; }
@@ -115,20 +235,22 @@
   .chart-tone-warn { --job-tone: var(--warn); }
   .chart-tone-running { --job-tone: var(--accent); }
   .chart-status, .chart-execution { fill: var(--job-tone); }
+  .chart-hold { fill: var(--surface-tint); stroke: var(--warn); stroke-dasharray: 2 3; }
   .chart-queue { fill: var(--surface-tint); stroke: var(--muted); stroke-dasharray: 3 2; }
   .chart-row-hit { fill: transparent; }
   .chart-job:hover .chart-node, .chart-job:focus-visible .chart-node { stroke: var(--accent); stroke-width: 2; fill: var(--accent-quiet); }
   .chart-job:hover .chart-row-hit, .chart-job:focus-visible .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
-  #chart-critical:checked ~ .chart-canvas .chart-edge:not(.is-critical) { opacity: .28; }
-  #chart-critical:checked ~ .chart-canvas .chart-job.is-critical .chart-node { stroke: var(--accent); stroke-width: 2; }
-  #chart-critical:checked ~ .chart-canvas .chart-job:not(.is-critical) .chart-node { fill: var(--surface-tint); }
-  #chart-critical:checked ~ .chart-canvas .chart-job.is-critical .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
-  #chart-critical:checked ~ .chart-canvas .chart-edge.is-critical { stroke: var(--accent); stroke-width: 2.5; }
+  #chart-critical:checked ~ .chart-views .chart-canvas .chart-edge:not(.is-critical) { opacity: .28; }
+  #chart-critical:checked ~ .chart-views .chart-canvas .chart-job.is-critical .chart-node { stroke: var(--accent); stroke-width: 2; }
+  #chart-critical:checked ~ .chart-views .chart-canvas .chart-job:not(.is-critical) .chart-node { fill: var(--surface-tint); }
+  #chart-critical:checked ~ .chart-views .chart-canvas .chart-job.is-critical .chart-row-hit { fill: var(--accent-quiet); stroke: var(--accent); }
+  #chart-critical:checked ~ .chart-views .chart-canvas .chart-edge.is-critical { stroke: var(--accent); stroke-width: 2.5; }
   .chart-footer { padding: 12px 24px; display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; font-size: 12px; }
   .chart-legend, .chart-legend span { display: inline-flex; gap: 7px; align-items: center; }
   .chart-legend { gap: 16px; }
   .chart-legend i { width: 15px; height: 8px; border-radius: 2px; display: inline-block; }
   .legend-queue { border: 1px dashed var(--muted); background: var(--surface-tint); }
+  .legend-hold { border: 1px dotted var(--warn); background: var(--surface-tint); }
   .legend-execution { background: var(--accent); }
   .chart-chain { padding: 12px 24px; border-top: 1px solid var(--line); font-size: 12px; }
   .chart-chain strong { font-weight: 500; color: var(--text); }

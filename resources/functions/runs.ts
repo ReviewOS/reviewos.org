@@ -13,81 +13,14 @@
  * which is presentation and belongs on this side of the line.
  */
 
-export type RunTone = 'neutral' | 'running' | 'good' | 'bad' | 'warn'
-
-/** Every state a run can be in, in the order a person would list them. */
-export const RUN_STATES = [
-  'queued', 'running', 'waiting', 'paused',
-  'cancelling', 'cancelled', 'failed', 'succeeded',
-] as const
-
-const TONES: Record<string, RunTone> = {
-  queued: 'neutral',
-  running: 'running',
-  waiting: 'warn',
-  paused: 'warn',
-  cancelling: 'warn',
-  cancelled: 'neutral',
-  failed: 'bad',
-  succeeded: 'good',
-
-  // Job states that runs do not have.
-  blocked: 'neutral',
-  skipped: 'neutral',
-  pending: 'neutral',
-}
-
-export function runTone(state: string): RunTone {
-  return TONES[String(state)] ?? 'neutral'
-}
-
-/**
- * The word for a state.
- *
- * The state itself, with a capital. Not a synonym: a screen that says
- * "Stopping" where the API says `cancelling` has created a second vocabulary
- * for somebody to translate between, usually while trying to work out why a
- * build did not stop.
- */
-export function runLabel(state: string): string {
-  const text = String(state ?? '').trim()
-  if (!text)
-    return 'Unknown'
-
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-/**
- * Whether a run is still going.
- *
- * Kept beside the tone because both screens ask it and the answer has to match
- * the state machine's idea of terminal rather than a list written out again.
- */
-export function runIsFinished(state: string): boolean {
-  return ['cancelled', 'failed', 'succeeded'].includes(String(state))
-}
-
-/** How long a run took, or has been going, in words. */
-export function runDuration(startedAt: unknown, finishedAt: unknown): string {
-  const started = startedAt ? Date.parse(String(startedAt)) : Number.NaN
-  if (!Number.isFinite(started))
-    return ''
-
-  const ended = finishedAt ? Date.parse(String(finishedAt)) : Date.now()
-  if (!Number.isFinite(ended))
-    return ''
-
-  const seconds = Math.max(0, Math.round((ended - started) / 1000))
-
-  if (seconds < 60)
-    return `${seconds}s`
-
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60)
-    return `${minutes}m ${seconds % 60}s`
-
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-}
+import { RUN_STATES as states, runTone as tone, runLabel as label, runIsFinished as finished, runDuration as duration, millisFor as millis } from '../lib/runStatus'
+export type { RunTone } from '../lib/runStatus'
+export const RUN_STATES = states
+export const runTone = tone
+export const runLabel = label
+export const runIsFinished = finished
+export const runDuration = duration
+export const millisFor = millis
 
 /**
  * An artifact's size, in the units a person reads.
@@ -181,19 +114,3 @@ export const poolsMaintainedBy = poolsMaintainedByImpl
  * 900ms both reading "0s" is a table that cannot tell them apart, and the whole
  * reason these two numbers are stored separately is to be able to.
  */
-export function millisFor(value: unknown): string {
-  const millis = Number(value)
-
-  if (!Number.isFinite(millis) || millis < 0)
-    return ''
-
-  if (millis < 1000)
-    return `${millis}ms`
-
-  const seconds = millis / 1000
-
-  if (seconds < 10)
-    return `${seconds.toFixed(1)}s`
-
-  return runDuration(new Date(0).toISOString(), new Date(Math.round(seconds) * 1000).toISOString())
-}

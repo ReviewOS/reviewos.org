@@ -1,0 +1,9 @@
+<script server>
+const scopeKey = String(scope)
+const initialCount = Number(count)
+</script>
+<script client>
+const runView = useStore('workflow-run')
+const countText = derived(() => runView.scope() === scopeKey ? runView.snapshot()?.jobs?.length ?? initialCount : initialCount)
+</script>
+<span class="muted" x-text="countText()">{{ initialCount }}</span>

@@ -1,0 +1,18 @@
+<script server>
+import { millisFor, runDuration } from '../lib/runStatus'
+const scopeKey = String(scope)
+const jobId = Number(job)
+const initialStep = value
+const initialTiming = [runDuration(initialStep.started_at, initialStep.finished_at), initialStep.queued_ms === null || initialStep.queued_ms === undefined ? '' : 'queued ' + millisFor(initialStep.queued_ms), initialStep.active_ms === null || initialStep.active_ms === undefined ? '' : 'execution ' + millisFor(initialStep.active_ms)].filter(Boolean).join(' · ')
+</script>
+<script client>
+import { millisFor, runDuration } from '../lib/runStatus'
+const runView = useStore('workflow-run')
+const current = derived(() => runView.step(scopeKey, jobId, Number(initialStep.id)) ?? initialStep)
+const timing = derived(() => {
+  const step = current()
+  return [runDuration(step.started_at, step.finished_at), step.queued_ms === null || step.queued_ms === undefined ? '' : 'queued ' + millisFor(step.queued_ms), step.active_ms === null || step.active_ms === undefined ? '' : 'execution ' + millisFor(step.active_ms)].filter(Boolean).join(' · ')
+})
+</script>
+<span class="muted step-time" x-text="timing()">{{ initialTiming }}</span>
+<span class="step-error" :if="current().error" x-text="current().error">{{ initialStep.error || '' }}</span>

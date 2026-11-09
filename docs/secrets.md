@@ -155,14 +155,20 @@ scope is considered.
   percent-encoded form are each replaced with a visible `[redacted]` - a silent
   gap reads as a bug in the log and sends somebody looking for it.
 
-  Two limits, both deliberate. A value shorter than five characters is left
-  alone: a secret of `dev` would blank a word everywhere it appears and turn
-  every log on the instance into a puzzle. And **a value split across two writes
-  survives this pass** - it sees one chunk at a time, and holding the tail of
-  every chunk to check the join would mean buffering a log that is meant to be
-  streamed. The runner's own masking covers that case, because it sees the
-  stream. A redaction feature people believe is total is worse than one whose
-  edge they know.
+  Split writes are protected too. An incomplete secret prefix at a chunk boundary
+  is masked before publication. The next chunk continues the matcher from a
+  fingerprint and character offset, persisted atomically with the safe output.
+  No raw secret prefix is stored. This works across API instances, retries and
+  any number of chunks. Secret-bearing streams must arrive in sequence; a gap
+  receives retryable backpressure. Structured events use the same safe text and
+  fall back to plain output whenever masking changes their content or metadata.
+
+  Boundary masking is conservative: ordinary text ending in the start of a
+  credential can be hidden too, even if the next write proves it was harmless.
+  Values shorter than five characters are still left alone. These protections
+  cover the raw, base64 and percent-encoded forms, rather than arbitrary encodings
+  chosen by a program. Output is refused temporarily if its secret policy cannot
+  be loaded, rather than persisted unchecked.
 - **A value this instance can no longer decrypt is skipped**, not delivered
   empty. A job handed an empty credential authenticates as nobody and fails
   somewhere far from the cause; a missing one fails at the line that uses it.

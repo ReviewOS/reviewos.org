@@ -1,0 +1,29 @@
+<script server>
+const imageSource = String(typeof src === 'undefined' ? '' : src)
+const ownerName = String(name)
+const ownerKind = String(typeof kind === 'undefined' ? 'user' : kind)
+const dimension = Number(typeof size === 'undefined' ? 36 : size)
+const letter = ownerName.trim().charAt(0).toUpperCase()
+</script>
+<script client>
+const failed = state(false)
+const image = useRef('ownerImage')
+onMount(() => {
+  // A cached failure can happen before hydration attaches the error binding.
+  if (image.current?.complete && !image.current.naturalWidth) failed.set(true)
+})
+</script>
+<span class="owner-avatar {{ ownerKind === 'organization' ? 'owner-avatar-organization' : '' }}" style="width: {{ dimension }}px; height: {{ dimension }}px" role="img" aria-label="{{ ownerName }}">
+  <span class="owner-avatar-initial" aria-hidden="true">{{ letter }}</span>
+  @if (imageSource)
+    <img ref="ownerImage" src="{{ imageSource }}" alt="" width="{{ dimension }}" height="{{ dimension }}" decoding="async" :hidden="failed()" @error="failed.set(true)" @load="failed.set(false)">
+  @endif
+</span>
+<style>
+.owner-avatar { display: inline-flex; position: relative; flex: none; align-items: center; justify-content: center; vertical-align: middle; overflow: hidden; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-tint); color: var(--muted); font-weight: 600; font-size: clamp(14px, 1.4em, 34px); }
+.owner-avatar-organization { border-radius: 22%; background: #fff; color: #526268; }
+.owner-avatar-initial { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.owner-avatar img { position: relative; display: block; width: 100%; height: 100%; object-fit: cover; background: var(--surface); }
+.owner-avatar-organization img { object-fit: contain; padding: 10%; background: #fff; }
+.owner-avatar img[hidden] { display: none; }
+</style>

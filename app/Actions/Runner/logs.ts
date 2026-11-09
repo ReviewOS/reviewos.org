@@ -15,14 +15,13 @@
  * the error are, so it is the part a full log must not lose. Appends are never
  * refused for size - refusing would make a correct runner retry a chunk.
  */
-
-import { maxJobLogBytes } from '../../../config/ci-logs'
-import { db } from '@stacksjs/database'
-import { countRedactions, MARKER, redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
-import { eventsAsText } from './logevents'
+import { db } from '@stacksjs/database'
+import { maxJobLogBytes } from '../../../config/ci-logs'
 import { isNotFalse } from '../Support/sql'
 import { droppedMarker, markerOf, planCeiling, withoutMarker } from './logCeiling'
+import { eventsAsText } from './logevents'
+import { countRedactions, MARKER, redactStream } from './redact'
 
 /**
  * How much output one job may keep.
@@ -40,10 +39,12 @@ import { droppedMarker, markerOf, planCeiling, withoutMarker } from './logCeilin
 export const MAX_JOB_LOG_BYTES = maxJobLogBytes()
 
 /** And no single append may be more than a slice of it. */
-export const MAX_CHUNK_BYTES = 64 * 1024
+export const MAX_CHUNK_BYTES = 64 * 1024 - 1
 
 export interface AppendInput {
   jobId: number
+  /** Rechecked under the job lock, so an old claim cannot append to a new attempt. */
+  claimHash?: string
   /** The runner's own counter, from 1. */
   sequence: number
   content: string
@@ -76,18 +77,18 @@ function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
 
-async function storedChunks(jobId: number, attempt: number): Promise<Array<{ sequence: number, content: string }>> {
-  const rows = await db
+async function storedChunks(jobId: number, attempt: number, client: any = db): Promise<Array<{ sequence: number, content: string, checkpoint: any[], checkpointKnown: boolean }>> {
+  const rows = await client
     .selectFrom('workflow_job_logs')
-    .select(['sequence', 'content'])
+    .select(['sequence', 'content', 'redaction_state'])
     .where('workflow_job_id', '=', jobId)
-    // This attempt's budget, not the sum of every attempt's: a re-run of a job
-    // that filled the ceiling would otherwise be silent from its first line.
+  // This attempt's budget, not the sum of every attempt's: a re-run of a job
+  // that filled the ceiling would otherwise be silent from its first line.
     .where('attempt', '=', attempt)
     .orderBy('sequence', 'asc')
     .execute()
 
-  return rows.map(row => ({ sequence: Number(row.sequence), content: String(row.content ?? '') }))
+  return rows.map((row: any) => ({ sequence: Number(row.sequence), content: String(row.content ?? ''), checkpoint: readCheckpoint(row.redaction_state), checkpointKnown: row.redaction_state !== null && row.redaction_state !== undefined }))
 }
 
 /**
@@ -107,22 +108,8 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   // should not also have to send the flattened form and keep the two in step.
   const events = input.events && input.events.length > 0 ? input.events : null
 
-  /*
-   * Redacted here, before anything is written down.
-   *
-   * The runner masks what it was given, and that is the first line - the only
-   * place a value can be removed before it crosses the wire. This is the
-   * second, and it exists because the first is somebody else's program: a
-   * runner that is old, patched or hostile is still one this instance accepts
-   * logs from, and "we asked it to mask" is not a property of the stored log.
-   */
-  const text = redactSecrets(events ? eventsAsText(events) : input.content, await secretsOfJob(input.jobId))
-
-  // Trimmed rather than refused: a runner that sends a large chunk has already
-  // produced the output, and refusing it loses more than clipping it does.
-  const content = byteLength(text) > MAX_CHUNK_BYTES
-    ? `${text.slice(0, MAX_CHUNK_BYTES)}\n[chunk truncated]\n`
-    : text
+  const values = await secretsOfJob(input.jobId)
+  const rawText = events ? eventsAsText(events) : input.content
 
   /*
    * Backpressure, before anything is written.
@@ -135,41 +122,77 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
    * again, which slows the job and keeps its output whole - the chunk is
    * idempotent on `(job, attempt, sequence)`, so a retry costs nothing.
    */
-  const wait = await throttleFor(byteLength(text))
+  const wait = await throttleFor(byteLength(rawText))
 
   if (wait > 0)
     return { ok: false, duplicate: false, truncated: false, reason: 'too fast', retryAfterMs: wait }
 
-  const job = await attemptOf(input.jobId)
-  const stored = await storedChunks(input.jobId, job.attempt)
+  return db.transaction(async (handle) => {
+    const tx: any = handle
+    // A no-op update locks the parent row in either engine. Sequence checkpoints
+    // must commit with their output, including when different API instances write.
+    await tx.updateTable('workflow_jobs').set({ id: input.jobId }).where('id', '=', input.jobId).execute()
+    if (input.claimHash) {
+      const held = await tx.selectFrom('workflow_jobs').select(['state', 'job_token_hash', 'lease_expires_at']).where('id', '=', input.jobId).executeTakeFirst()
+      const leaseEnd = Date.parse(String(held?.lease_expires_at ?? ''))
+      if (!held || held.state !== 'running' || held.job_token_hash !== input.claimHash || !Number.isFinite(leaseEnd) || leaseEnd <= Date.now())
+        return { ok: false, duplicate: false, truncated: false, reason: 'this job claim is no longer active' }
+    }
+    const job = await attemptOf(input.jobId, tx)
+    const stored = await storedChunks(input.jobId, job.attempt, tx)
 
-  const plan = planCeiling(stored.map((chunk) => {
-    const marker = markerOf(chunk.content)
+    if (stored.some(chunk => chunk.sequence === input.sequence))
+      return { ok: true, duplicate: true, truncated: false, reason: 'already stored' }
+    const latest = stored[stored.length - 1]
+    // A secret-bearing stream cannot skip its matcher checkpoint. Correct
+    // runners already deliver serially; an out-of-order writer retries the gap.
+    if (values.length && latest && input.sequence < latest.sequence)
+      return { ok: true, duplicate: true, truncated: true, reason: 'already stored or discarded at the log ceiling' }
+    if (values.length && input.sequence !== (latest?.sequence ?? 0) + 1)
+      return { ok: false, duplicate: false, truncated: false, reason: 'the preceding log chunk is required', retryAfterMs: 500 }
+    let checkpoint = latest?.checkpoint ?? []
+    if (values.length && stored.some(chunk => !chunk.checkpointKnown)) {
+      // An active stream may straddle a deployment. Recover matcher offsets
+      // from its retained legacy text without publishing any new continuation
+      // bytes, or treating a missing checkpoint as the start of a fresh stream.
+      checkpoint = []
+      for (const chunk of stored) checkpoint = chunk.checkpointKnown ? chunk.checkpoint : redactStream(chunk.content, values, checkpoint).checkpoint
+    }
+    const redacted = redactStream(rawText, values, checkpoint)
+    const text = redacted.text
+    const textBytes = new TextEncoder().encode(text)
+    const clippedMarker = '\n[chunk truncated]\n'
+    const content = textBytes.length > MAX_CHUNK_BYTES
+      // stream:true drops an incomplete trailing UTF-8 character rather than
+      // growing a replacement character past the database column's byte limit.
+      ? new TextDecoder().decode(textBytes.subarray(0, MAX_CHUNK_BYTES - byteLength(clippedMarker)), { stream: true }) + clippedMarker
+      : text
 
-    return { sequence: chunk.sequence, bytes: byteLength(chunk.content), dropped: marker.dropped, markerBytes: marker.length }
-  }), { sequence: input.sequence, bytes: byteLength(content) }, MAX_JOB_LOG_BYTES)
 
-  if (plan.action === 'drop') {
-    // A resend of a chunk already dropped from the middle. Accepted, because
-    // refusing would make a correct runner retry it forever.
-    return { ok: true, duplicate: false, truncated: true, reason: 'this chunk was dropped at the log ceiling' }
-  }
+    const plan = planCeiling(stored.map((chunk) => {
+      const marker = markerOf(chunk.content)
 
-  let clipped = content
+      return { sequence: chunk.sequence, bytes: byteLength(chunk.content), dropped: marker.dropped, markerBytes: marker.length }
+    }), { sequence: input.sequence, bytes: byteLength(content) }, MAX_JOB_LOG_BYTES)
 
-  if (plan.action === 'rotate') {
-    const marker = droppedMarker(plan.dropped, MAX_JOB_LOG_BYTES)
+    if (plan.action === 'drop') {
+      // A resend of a chunk already dropped from the middle. Accepted, because
+      // refusing would make a correct runner retry it forever.
+      return { ok: true, duplicate: false, truncated: true, reason: 'this chunk was dropped at the log ceiling' }
+    }
 
-    /*
-     * Make room by deleting the oldest chunks after the head, then put the one
-     * marker on the first chunk that survives after them. In one transaction,
-     * so a reader never sees the gap without the line explaining it.
-     */
-    await db.transaction(async (handle) => {
-      const client: any = handle
+    let clipped = content
 
+    if (plan.action === 'rotate') {
+      const marker = droppedMarker(plan.dropped, MAX_JOB_LOG_BYTES)
+
+      /*
+       * Make room by deleting the oldest chunks after the head, then put the one
+       * marker on the first chunk that survives after them. In one transaction,
+       * so a reader never sees the gap without the line explaining it.
+       */
       if (plan.remove.length > 0) {
-        await client.deleteFrom('workflow_job_logs')
+        await tx.deleteFrom('workflow_job_logs')
           .where('workflow_job_id', '=', input.jobId)
           .where('attempt', '=', job.attempt)
           .where('sequence', 'in', plan.remove)
@@ -179,65 +202,74 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
       const survivor = stored.find(chunk => chunk.sequence === plan.markerOn)
 
       if (survivor) {
-        await client.updateTable('workflow_job_logs')
-          // The structured form would no longer match the text, so it goes and
-          // a screen falls back to the text, marker and all.
+        await tx.updateTable('workflow_job_logs')
+        // The structured form would no longer match the text, so it goes and
+        // a screen falls back to the text, marker and all.
           .set({ content: `${marker}${withoutMarker(survivor.content)}`, events: null })
           .where('workflow_job_id', '=', input.jobId)
           .where('attempt', '=', job.attempt)
           .where('sequence', '=', survivor.sequence)
           .execute()
       }
-    })
 
-    if (plan.markerOn === input.sequence) {
-      const bytes = new TextEncoder().encode(content)
-      clipped = `${marker}${new TextDecoder().decode(bytes.subarray(plan.clipIncoming))}`
+      if (plan.markerOn === input.sequence) {
+        const bytes = new TextEncoder().encode(content)
+        let offset = plan.clipIncoming
+        while (offset < bytes.length && (bytes[offset]! & 0xC0) === 0x80) offset++
+        clipped = `${marker}${new TextDecoder().decode(bytes.subarray(offset))}`
+      }
     }
-  }
 
-  try {
-    await db
-      .insertInto('workflow_job_logs')
-      .values({
-        workflow_job_id: input.jobId,
-        repository_id: job.repositoryId,
-        /*
-         * Which attempt wrote this.
-         *
-         * Read from the job rather than sent by the runner: the runner knows
-         * what it was handed, and a re-run bumps the row - so trusting the
-         * message would let a stale worker file its output under the new
-         * attempt. The read is one indexed lookup on a row this write already
-         * depends on.
-         */
-        attempt: job.attempt,
-        sequence: input.sequence,
-        content: clipped,
-        stream,
-        /*
-         * The structured form is stored only when the text survived whole.
-         * Past the ceiling the two would disagree - the text clipped, the
-         * events complete - and a screen reading events would show lines the
-         * plain answer says were dropped.
-         */
-        events: events && clipped === text ? JSON.stringify(events) : null,
-      })
-      .execute()
-  }
-  catch (error) {
-    if (isDuplicate(error))
-      return { ok: true, duplicate: true, truncated: false, reason: 'already stored' }
+    let serializedEvents: string | null = null
+    if (events && clipped === rawText && events.every(event => Object.values(event).every(value => typeof value !== 'string' || redactStream(value, values).text === value))) {
+      const encoded = JSON.stringify(events)
+      if (byteLength(encoded) <= MAX_CHUNK_BYTES) serializedEvents = encoded
+    }
 
-    throw error
-  }
+    try {
+      await tx
+        .insertInto('workflow_job_logs')
+        .values({
+          workflow_job_id: input.jobId,
+          repository_id: job.repositoryId,
+          /*
+           * Which attempt wrote this.
+           *
+           * Read from the job rather than sent by the runner: the runner knows
+           * what it was handed, and a re-run bumps the row - so trusting the
+           * message would let a stale worker file its output under the new
+           * attempt. The read is one indexed lookup on a row this write already
+           * depends on.
+           */
+          attempt: job.attempt,
+          sequence: input.sequence,
+          content: clipped,
+          stream,
+          /*
+           * The structured form is stored only when the text survived whole.
+           * Past the ceiling the two would disagree - the text clipped, the
+           * events complete - and a screen reading events would show lines the
+           * plain answer says were dropped.
+           */
+          events: serializedEvents,
+          redaction_state: JSON.stringify(redacted.checkpoint),
+        })
+        .execute()
+    }
+    catch (error) {
+      if (isDuplicate(error))
+        return { ok: true, duplicate: true, truncated: false, reason: 'already stored' }
 
-  return {
-    ok: true,
-    duplicate: false,
-    truncated: plan.action === 'rotate',
-    reason: 'stored',
-  }
+      throw error
+    }
+
+    return {
+      ok: true,
+      duplicate: false,
+      truncated: plan.action === 'rotate',
+      reason: 'stored',
+    }
+  })
 }
 
 /** A unique violation, in either engine's spelling. */
@@ -332,14 +364,8 @@ export async function secretsOfJob(jobId: number): Promise<string[]> {
 
     return values
   }
-  catch {
-    /*
-     * Nothing redacted rather than nothing stored. A log this cannot check is
-     * still the record of what a job did, and losing it would be a bigger hole
-     * than the one this closes - the runner has already masked what it was
-     * given.
-     */
-    return []
+  catch (error) {
+    throw new Error('Cannot accept log output while its secret policy is unavailable', { cause: error })
   }
 }
 
@@ -421,13 +447,13 @@ async function throttleFor(bytes: number): Promise<number> {
 }
 
 /** Which attempt the job is on, for attributing a chunk to it. */
-async function attemptOf(jobId: number): Promise<{ attempt: number, repositoryId: number | null }> {
+async function attemptOf(jobId: number, client: any = db): Promise<{ attempt: number, repositoryId: number | null }> {
   try {
-    const row = await db
+    const row = await client
       .selectFrom('workflow_jobs')
-      // The shard key comes along with the attempt because both are read from
-      // the same row: a log chunk belongs to the job's repository, and the
-      // runner API has no repository in hand to tell it so.
+    // The shard key comes along with the attempt because both are read from
+    // the same row: a log chunk belongs to the job's repository, and the
+    // runner API has no repository in hand to tell it so.
       .select(['attempt', 'repository_id'])
       .where('id', '=', jobId)
       .executeTakeFirst()
@@ -510,4 +536,11 @@ function safeEvents(stored: unknown): LogEvent[] {
   catch {
     return []
   }
+}
+
+function readCheckpoint(value: unknown): any[] {
+  if (!value) return []
+  const parsed = JSON.parse(String(value))
+  if (!Array.isArray(parsed)) throw new Error('Invalid log redaction checkpoint')
+  return parsed
 }

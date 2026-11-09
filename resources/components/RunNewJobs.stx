@@ -1,0 +1,52 @@
+<script server>
+const scopeKey = String(scope)
+const initialIds = ids
+const ownerHandle = String(owner)
+const repositoryName = String(repository)
+const runNumber = Number(number)
+</script>
+<script client>
+import { watchJobLog } from '../functions/runlive'
+import { runLabel, runTone } from '../lib/runStatus'
+const tails = state({})
+const followers = new Map()
+const runView = useStore('workflow-run')
+const addedJobs = derived(() => runView.scope() === scopeKey ? (runView.snapshot()?.jobs ?? []).filter(one => !initialIds.includes(Number(one.id))) : [])
+function appendJobOutput(id, text) {
+  const combined = (tails()[id] || '') + text
+  tails.set({ ...tails(), [id]: combined.length > 2_097_152 ? '[Earlier live output omitted. Reload to read the retained log.]\n' + combined.slice(-2_097_000) : combined })
+}
+const detailHref = id => '/' + ownerHandle + '/' + repositoryName + '/run/' + runNumber + '#job-' + id
+onMount(() => {
+  const stopWatching = watch(() => addedJobs().map(job => job.id + ':' + job.attempt).join(','), () => {
+    for (const job of addedJobs()) {
+      const key = job.id + ':' + job.attempt
+      if (followers.has(key)) continue
+      for (const [heldKey, handle] of followers) {
+        if (heldKey.startsWith(job.id + ':')) {
+          handle.stop(); followers.delete(heldKey)
+          appendJobOutput(job.id, '\nAttempt ' + job.attempt + '\n')
+        }
+      }
+      followers.set(key, watchJobLog({ owner: ownerHandle, repository: repositoryName, job: job.id, attempt: Number(job.attempt), after: 0,
+        onOutput: text => appendJobOutput(job.id, text),
+      }))
+    }
+  }, { immediate: true })
+  onDestroy(() => { stopWatching(); for (const handle of followers.values()) handle.stop() })
+})
+</script>
+<div class="jobs" :if="addedJobs().length">
+  <article class="job panel" :for="job in addedJobs()" :key="job.id" :id="'job-' + job.id">
+    <header class="job-head">
+      <h3 class="job-name" x-text="job.name || job.job_id"></h3>
+      <span :class="'run-dot run-' + runTone(job.state)" aria-hidden="true"></span>
+      <span class="muted" x-text="runLabel(job.state)"></span>
+      <a class="btn btn-small" :href="detailHref(job.id)">Open full job details</a>
+    </header>
+    <details class="log" open><summary>Output</summary><pre class="log-body" x-text="tails()[job.id] || 'Waiting for output…'"></pre></details>
+    <ol class="steps">
+      <li class="step" :for="step in job.steps || []" :key="step.id"><span class="step-name" x-text="step.name"></span><span :class="'run-dot run-' + runTone(step.state)"></span><span x-text="runLabel(step.state)"></span></li>
+    </ol>
+  </article>
+</div>

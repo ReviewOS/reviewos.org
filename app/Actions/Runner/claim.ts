@@ -95,6 +95,13 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
       'workflow_jobs.max_parallel as max_parallel',
       'workflow_jobs.settings as settings',
       'workflow_jobs.started_at as started_at',
+      'workflow_jobs.queued_at as queued_at',
+      'workflow_jobs.created_at as created_at',
+      'workflow_jobs.attempt as attempt',
+      'workflow_jobs.execution_ms as execution_ms',
+      'workflow_jobs.execution_started_at as execution_started_at',
+      'workflow_jobs.queue_ms as queue_ms',
+      'workflow_jobs.first_queue_ms as first_queue_ms',
       'workflow_runs.id as run_id',
       'workflow_runs.number as run_number',
       'workflow_runs.repository_id as repository_id',
@@ -219,6 +226,14 @@ export function defaultBranchFirst(mysql = speaksMysql(), now: Date = new Date()
   return `CASE WHEN (${waited}) THEN 0 WHEN workflow_runs.event_ref = ${ref} THEN 1 ELSE 2 END ASC`
 }
 
+/** The first queue may predate queued_at tracking; created_at is its ready time. */
+function queueElapsed(row: any, now: Date): number | null {
+  const value = row.queued_at ?? (row.started_at ? null : row.created_at)
+  const text = String(value ?? '').trim()
+  const start = value instanceof Date ? value.getTime() : !text ? Number.NaN : Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text.replace(' ', 'T')}Z`)
+  return Number.isFinite(start) ? Math.max(0, now.getTime() - start) : null
+}
+
 function factsOf(row: any): JobFacts {
   return {
     id: Number(row.id),
@@ -323,6 +338,7 @@ export async function claimNextJob(
      * and the loop moves on to the next candidate.
      */
     const held = facts.runnerId !== null
+    const queueDuration = queueElapsed(row, now)
 
     const lostClaim = new Error('The job candidate changed before claim')
     const claimed = await db.transaction(async (handle) => {
@@ -352,11 +368,18 @@ export async function claimNextJob(
           runner_id: String(runner.id),
           lease_expires_at: expires,
           started_at: row.started_at ?? now.toISOString(),
+          // A resumed orchestrator starts another execution interval. A lease
+          // recovery keeps the existing interval, since its machine was held.
+          execution_ms: row.execution_ms ?? (row.started_at ? null : 0),
+          execution_started_at: held ? row.execution_started_at : now.toISOString(),
+          first_queue_ms: row.started_at ? row.first_queue_ms : queueDuration,
+          queue_ms: held ? row.queue_ms : queueDuration === null || (row.queue_ms === null && row.started_at) ? null : Number(row.queue_ms ?? 0) + queueDuration,
           // Minted per claim, so recovering a lapsed lease invalidates the dead
           // runner's token in the same write that hands the work on.
           job_token_hash: hashToken(token),
         })
         .where('id', '=', facts.id)
+        .where('attempt', '=', Number(row.attempt ?? 1))
 
       update = held
         // Recovering an expired lease: only if it is still the same stale holder.
@@ -366,6 +389,7 @@ export async function claimNextJob(
         // a bound parameter and Postgres rejects as a syntax error.
         : update.where('state', '=', 'queued').whereNull('runner_id')
 
+      if (!held) update = row.queued_at ? update.where('queued_at', '=', row.queued_at) : update.whereNull('queued_at')
       const result: any = await update.execute()
       if (!changedSomething(result))
         throw lostClaim // Roll back the parent transition together with this claim.

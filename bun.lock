@@ -21,7 +21,7 @@
         "@stacksjs/router": "0.75.504",
         "@stacksjs/search-engine": "0.75.504",
         "@stacksjs/server": "0.75.504",
-        "@stacksjs/stx": "0.2.834",
+        "@stacksjs/stx": "0.2.835",
         "@stacksjs/ts-cloud": "0.16.122",
         "@stacksjs/ts-ssh": "^0.1.1",
         "@ts-charts/scale": "0.2.7",
@@ -58,7 +58,7 @@
     "@stacksjs/components": "0.2.833",
     "@stacksjs/desktop": "0.2.833",
     "@stacksjs/sanitizer": "0.2.833",
-    "@stacksjs/stx": "0.2.834",
+    "@stacksjs/stx": "0.2.835",
     "@stacksjs/ts-cloud": "0.16.122",
     "@stacksjs/ts-ssh": "^0.1.1",
     "@ts-cloud/aws-types": "0.16.109",
@@ -292,7 +292,7 @@
 
     "@stacksjs/strings": ["@stacksjs/strings@0.75.504", "", {}, "sha512-DI8s/6QPzCXoB66NOUfKp7ovTj8n4I26sVsdcoH5B0EiCpWG+mdLdYZneCmTuu0CqB9UydBsZQs8Y76DrMGBtg=="],
 
-    "@stacksjs/stx": ["@stacksjs/stx@0.2.834", "", { "dependencies": { "@stacksjs/clapp": "^0.2.16", "@stacksjs/desktop": "0.2.833", "@stacksjs/sanitizer": "0.2.833", "@stacksjs/ts-css": "^0.3.21", "@stacksjs/ts-i18n": "^0.1.11", "bun-plugin-stx": "0.2.833", "bunfig": "^0.15.21", "stx-router": "0.2.833", "ts-broadcasting": "^0.0.11", "ts-images": "^0.2.22", "ts-syntax-highlighter": "^0.2.1" }, "bin": { "stx": "./dist/cli.js" } }, "sha512-b9NThJ48iCIA0j4A59eJ74MbBPqG3BS/PBsAUZ/K6BnZf4zCdGLBQAY1RBURH2/AhkQSJrbOnI2Knngqj46Llw=="],
+    "@stacksjs/stx": ["@stacksjs/stx@0.2.835", "", { "dependencies": { "@stacksjs/clapp": "^0.2.16", "@stacksjs/desktop": "0.2.833", "@stacksjs/sanitizer": "0.2.833", "@stacksjs/ts-css": "^0.3.21", "@stacksjs/ts-i18n": "^0.1.11", "bun-plugin-stx": "0.2.833", "bunfig": "^0.15.21", "stx-router": "0.2.833", "ts-broadcasting": "^0.0.11", "ts-images": "^0.2.22", "ts-syntax-highlighter": "^0.2.1" }, "bin": { "stx": "./dist/cli.js" } }, "sha512-KgtLUtc2IQDwWrgDYO/zGi2Ur8JYpogF0bj1lPXBThYbr5hLgd5kANO+lfXuMkpxy43M/agkgWLA7wFHPn9uqQ=="],
 
     "@stacksjs/testing": ["@stacksjs/testing@0.75.504", "", { "dependencies": { "@stacksjs/auth": "0.75.504", "@stacksjs/cache": "0.75.504", "@stacksjs/cli": "0.75.504", "@stacksjs/config": "0.75.504", "@stacksjs/database": "0.75.504", "@stacksjs/email": "0.75.504", "@stacksjs/events": "0.75.504", "@stacksjs/path": "0.75.504", "@stacksjs/router": "0.75.504", "@stacksjs/server": "0.75.504", "@stacksjs/storage": "0.75.504", "@stacksjs/strings": "0.75.504", "@stacksjs/ts-cloud": "^0.16.102", "very-happy-dom": "^0.4.1" } }, "sha512-/DBBPcdTutArSpnlbRvwEN3nWImrQc+S+UbCWD8+un0KpAbZYhv5qt8DcZcDDGQxmWwcKHEOUQbDjZTNqK2f0Q=="],
 

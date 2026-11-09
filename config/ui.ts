@@ -12,6 +12,7 @@ export default {
   // than a `.stx` in the project root - see `stxPath()` in @stacksjs/path,
   // which also exports this as STX_DIR for processes that never read a config.
   stateDir: 'storage/framework/stx',
+  storesDir: 'resources/stores',
 
   // Components directory - for user-defined components
   componentsDir: 'resources/components',

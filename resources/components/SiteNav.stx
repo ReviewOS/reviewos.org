@@ -269,6 +269,8 @@ const signedIn = Boolean(viewer)
     transform: translateY(-1px) rotate(45deg);
   }
 
+  .mega:not([open]) > .mega-panel { display: none; }
+
   .mega-panel {
     position: absolute;
     top: calc(100% + 14px);
@@ -300,8 +302,11 @@ const signedIn = Boolean(viewer)
     scroll, so the only way out was the back button. */
   @media (max-width: 600px) {
     .mega-panel {
-      left: -46px;
-      width: calc(100vw - 24px);
+      position: fixed;
+      top: 64px;
+      left: 12px;
+      right: 12px;
+      width: auto;
       max-height: calc(100vh - 76px);
       overflow-y: auto;
       overscroll-behavior: contain;

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { response } from '@stacksjs/router'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { readLog } from '../Runner/logs'
@@ -95,6 +96,8 @@ export default new Action({
      * second request per poll against an endpoint that has already read the
      * row.
      */
-    return response.json({ ...page, state: String(job.state), attempt: attempt ?? Number((job as any).attempt ?? 1) })
+    const answer = response.json({ ...page, state: String(job.state), attempt: attempt ?? Number((job as any).attempt ?? 1) })
+    answer.headers.set('Cache-Control', 'private, no-store')
+    return answer
   },
 })

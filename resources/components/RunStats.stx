@@ -1,0 +1,17 @@
+<script server>
+const scopeKey = String(scope)
+const initialStats = initial
+const initialElapsed = String(elapsed)
+</script>
+<script client>
+import { runDuration } from '../lib/runStatus'
+const runView = useStore('workflow-run')
+const stats = derived(() => runView.scope() === scopeKey ? runView.snapshot()?.chart ?? initialStats : initialStats)
+const elapsedText = derived(() => runView.scope() === scopeKey ? runDuration(runView.snapshot()?.started_at, runView.snapshot()?.finished_at) || initialElapsed : initialElapsed)
+</script>
+<dl class="run-stats">
+  <div><dt>Jobs finished</dt><dd><span x-text="stats().finished">{{ initialStats.finished }}</span><span class="muted" x-text="' / ' + stats().nodes.length"> / {{ initialStats.nodes.length }}</span></dd></div>
+  <div><dt>Running</dt><dd x-text="stats().running">{{ initialStats.running }}</dd></div>
+  <div :class="stats().failed ? 'stat-failed' : ''"><dt>Failed</dt><dd x-text="stats().failed">{{ initialStats.failed }}</dd></div>
+  <div><dt>Elapsed</dt><dd x-text="elapsedText()">{{ initialElapsed }}</dd></div>
+</dl>

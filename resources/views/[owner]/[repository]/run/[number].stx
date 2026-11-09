@@ -17,6 +17,8 @@ import { relativeTime, shortSha } from '../../../../functions/browse'
 import { artifactSize, millisFor, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 import { eventsFromText, renderLog } from '../../../../functions/runs'
 import { explainWaiting, waitingFleet } from '../../../../functions/runs'
+import appConfig from '../../../../../config/app'
+import { failureSummaries, previousSuccessfulRun } from '../../../../functions/runDiagnostics'
 import { buildRunChart } from '../../../../functions/runChart'
 import { searchLog, waitingOn } from '../../../../functions/runs'
 import { MAX_INLINE_IMAGE_BYTES } from '../../../../../app/Actions/Workflow/LogImageAction'
@@ -145,7 +147,7 @@ for (const step of stepRows) {
 const logRows: any[] = jobRows.length > 0
   ? await db
       .selectFrom('workflow_job_logs')
-      .select(['workflow_job_id', 'sequence', 'stream', 'content', 'events'])
+      .select(['workflow_job_id', 'attempt', 'sequence', 'stream', 'content', 'events'])
       .where('workflow_job_id', 'in', jobRows.map(job => Number(job.id)))
       .orderBy('sequence')
       .execute()
@@ -172,22 +174,19 @@ const eventsByJob = new Map<number, any[]>()
  */
 const cursorByJob = new Map<number, number>()
 
-for (const chunk of logRows) {
+for (const chunk of logRows.filter(chunk => Number(chunk.attempt ?? 1) === Number(jobRows.find(job => Number(job.id) === Number(chunk.workflow_job_id))?.attempt ?? 1))) {
   const jobId = Number(chunk.workflow_job_id)
   logByJob.set(jobId, (logByJob.get(jobId) ?? '') + String(chunk.content ?? ''))
 
+  let chunkEvents = eventsFromText(String(chunk.content ?? ''), String(chunk.stream ?? 'stdout'))
   if (chunk.events) {
     try {
       const parsed = JSON.parse(String(chunk.events))
-
-      if (Array.isArray(parsed))
-        eventsByJob.set(jobId, [...(eventsByJob.get(jobId) ?? []), ...parsed])
+      if (Array.isArray(parsed)) chunkEvents = parsed
     }
-    catch {
-      // A row whose JSON will not parse still has its text above, which is
-      // correct - so the structure is dropped rather than the output.
-    }
+    catch { /* The safe text remains the fallback for this chunk. */ }
   }
+  eventsByJob.set(jobId, [...(eventsByJob.get(jobId) ?? []), ...chunkEvents])
   cursorByJob.set(jobId, Math.max(cursorByJob.get(jobId) ?? 0, Number(chunk.sequence) || 0))
 }
 
@@ -461,6 +460,11 @@ const runnersById = new Map<string, any>(runnerRows.map((row: any) => [String(ro
 const runChart = buildRunChart(jobRows)
 const chartNodesById = new Map(runChart.nodes.map(node => [node.id, node]))
 
+const failures = failureSummaries(jobRows, stepRows, logRows)
+const comparison = await previousSuccessfulRun(run, jobRows, runChart)
+const appUrl = String(appConfig.url)
+const publicOrigin = (appUrl.startsWith('http') ? appUrl : 'https://' + appUrl).replace(/\/$/, '')
+
 const jobs = jobRows.map((job) => {
   const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
 
@@ -597,7 +601,7 @@ const jobs = jobRows.map((job) => {
     // The pool a job's machine belongs to, which is what an operator asks when
     // one queue is slow and another is not.
     pool: job.runner_id ? String(runnersById.get(String(job.runner_id))?.pool ?? '') : '',
-    duration: runDuration(job.started_at, job.finished_at),
+    duration: !chartNodesById.get(Number(job.id))?.control && chartNodesById.get(Number(job.id))?.runKnown ? millisFor(chartNodesById.get(Number(job.id))?.runMs) + ' execution' : chartNodesById.get(Number(job.id))?.holdMs ? millisFor(chartNodesById.get(Number(job.id))?.holdMs) + ' waiting' : chartNodesById.get(Number(job.id))?.orchestrator && job.started_at ? 'Execution not recorded' : '',
     /*
      * How long it waited for a machine, kept separate from how long it ran.
      *
@@ -607,9 +611,7 @@ const jobs = jobRows.map((job) => {
      * against now on purpose: on a live run the wait is the thing growing, and
      * that is exactly what somebody staring at this page wants to see.
      */
-    queueTime: job.queued_at
-      ? runDuration(job.queued_at, job.started_at ?? null)
-      : '',
+    queueTime: chartNodesById.get(Number(job.id))?.waitKnown ? millisFor(chartNodesById.get(Number(job.id))?.waitMs) : '',
     // Trimmed of trailing blank lines only: everything else is what the job
     // printed, and a log this screen edited is a log nobody can trust.
     log: (logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, ''),
@@ -630,6 +632,8 @@ const jobs = jobRows.map((job) => {
     // A job that has finished has nothing more to say, so nothing follows it.
     live: !['succeeded', 'failed', 'cancelled', 'skipped'].includes(String(job.state)),
     steps: (stepsByJob.get(Number(job.id)) ?? []).map(step => ({
+      timing: step,
+      id: Number(step.id),
       name: step.name ? String(step.name) : `Step ${Number(step.position) + 1}`,
       state: String(step.state),
       label: runLabel(String(step.state)),
@@ -742,6 +746,10 @@ const provenance = run
 
 
 const base = `/${ownerHandle}/${repositoryName}`
+const runScope = `${base}/run/${runNumber}`
+const initialJobIds = jobRows.map(job => Number(job.id))
+const initialLiveRun = { number: runNumber, state: String(run?.state ?? ''), started_at: run?.started_at, finished_at: run?.finished_at, chart: runChart, failures, comparison, jobs: jobRows.map((job: any) => ({ id: Number(job.id), job_id: job.job_id, name: job.name, state: job.state, steps: (stepsByJob.get(Number(job.id)) ?? []) })) }
+
 </script>
 
 @layout('app')
@@ -782,8 +790,7 @@ const base = `/${ownerHandle}/${repositoryName}`
           </h2>
 
           <p class="muted run-head-meta">
-            <span class="run-dot run-{{ runTone(String(run.state)) }}" aria-hidden="true"></span>
-            {{ runLabel(String(run.state)) }}
+            <RunState scope="{{ runScope }}" value="{{ run.state }}" />
             · {{ run.event }}
             @if (branch)
               · {{ branch }}
@@ -792,7 +799,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               · <a class="mono" href="{{ base }}/commit/{{ headSha }}">{{ shortSha(headSha) }}</a>
             @endif
             @if (runDuration(run.started_at, run.finished_at))
-              · {{ runDuration(run.started_at, run.finished_at) }}
+              · <RunTime scope="{{ runScope }}" value="{{ runDuration(run.started_at, run.finished_at) }}" />
             @endif
             {{--
               Said only once there is more than one, because "attempt 1" on
@@ -812,12 +819,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <a class="btn btn-danger run-failure-link" href="#job-{{ firstFailedJob.id }}">Inspect failed job <span aria-hidden="true">↓</span></a>
           @endif
         </div>
-        <dl class="run-stats">
-          <div><dt>Jobs finished</dt><dd>{{ runChart.finished }}<span class="muted"> / {{ jobs.length }}</span></dd></div>
-          <div><dt>Running</dt><dd>{{ runChart.running }}</dd></div>
-          <div class="{{ runChart.failed ? 'stat-failed' : '' }}"><dt>Failed</dt><dd>{{ runChart.failed }}</dd></div>
-          <div><dt>Elapsed</dt><dd>{{ runDuration(run.started_at, run.finished_at) || runChart.elapsed || 'Pending' }}</dd></div>
-        </dl>
+        <RunStats scope="{{ runScope }}" :initial="runChart" elapsed="{{ runDuration(run.started_at, run.finished_at) || runChart.elapsed || 'Pending' }}" />
       </div>
 
       {{--
@@ -896,7 +898,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
       {{-- Reports, never rewrites: see the note in the component. --}}
       @if (!runIsFinished(String(run.state)))
-        <RunLive owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+        <RunLive scope="{{ runScope }}" :initial="initialLiveRun" owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
       @endif
 
       {{--
@@ -943,13 +945,14 @@ const base = `/${ownerHandle}/${repositoryName}`
       @endif
 
       @if (runChart.nodes.length > 0)
-        <RunChart :chart="runChart" />
+        <RunDiagnostics scope="{{ runScope }}" base="{{ base }}" origin="{{ publicOrigin }}" :failures="failures" :comparison="comparison" />
+      <RunChart :chart="runChart" scope="{{ runScope }}" />
       @else
         <div class="notice panel">No jobs have been created for this run yet.</div>
       @endif
 
       <div class="job-section-heading">
-        <h2>Jobs <span class="muted">{{ jobs.length }}</span></h2>
+        <h2>Jobs <RunJobCount scope="{{ runScope }}" :count="jobs.length" /></h2>
         <a class="muted" href="{{ base }}/runs">All runs <span aria-hidden="true">↗</span></a>
       </div>
 
@@ -968,20 +971,16 @@ const base = `/${ownerHandle}/${repositoryName}`
 
           <article class="job panel" id="job-{{ job.id }}">
             <header class="job-head">
-              <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
-              <span class="job-state muted">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif@if (job.cache) · {{ job.cache }}@endif</span>
+              <RunState scope="{{ runScope }}" :job="job.id" :attempt="job.attempt" value="{{ job.state }}" />
+              <span class="job-state muted">@if (job.cache) · {{ job.cache }}@endif</span>
               {{--
                 Waited, then ran. Two numbers rather than one, because a run
                 that is slow because nothing could take its jobs is a different
                 afternoon's work from one that is slow because the jobs are.
               --}}
-              @if (job.queueTime)
-                <span class="job-time muted">waited {{ job.queueTime }}</span>
-              @endif
-              @if (job.duration)
-                <span class="job-time muted">{{ job.queueTime ? 'ran' : '' }} {{ job.duration }}</span>
-              @endif
+              <RunTime class="job-time muted" scope="{{ runScope }}" :job="job.id" kind="queue" value="{{ job.queueTime }}" />
+              <RunTime class="job-time muted" scope="{{ runScope }}" :job="job.id" value="{{ job.duration }}" />
             </header>
 
             {{--
@@ -1147,7 +1146,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             @endif
 
             @if (job.log || job.live)
-              <details class="log"@if (job.live) open @endif>
+              <details class="log"@if (job.live || job.state === 'failed') open @endif>
                 <summary>Output</summary>
                 {{-- `pre` and nothing else. This text came off a machine
                      running somebody's build, so it is escaped and shown, never
@@ -1168,11 +1167,12 @@ const base = `/${ownerHandle}/${repositoryName}`
                      than replacing what is above: the reader may be mid-line in
                      it. --}}
                 @if (job.live)
-                  <JobTail
+                  <JobTail scope="{{ runScope }}"
                     owner="{{ ownerHandle }}"
                     repository="{{ repositoryName }}"
                     job="{{ job.id }}"
                     after="{{ job.cursor }}"
+                    attempt="{{ job.attempt }}"
                   />
                 @endif
               </details>
@@ -1181,8 +1181,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             @if (job.steps.length > 0)
               <ol class="steps">
                 @foreach (job.steps as step)
-                  <li class="step">
-                    <span class="run-dot run-{{ step.tone }}" aria-hidden="true"></span>
+                  <li class="step" id="step-{{ step.id }}">
                     <span class="step-name">{{ step.name }}</span>
                     {{--
                       A kept result says so, and says where it came from.
@@ -1196,11 +1195,11 @@ const base = `/${ownerHandle}/${repositoryName}`
                     @if (step.reusedFrom > 0)
                       <a
                         class="step-reused"
-                        href="/api/repos/workflow-runs/job-log?owner={{ ownerHandle }}&repo={{ repositoryName }}&job={{ job.id }}&attempt={{ step.reusedFrom }}"
+                        href="/api/repos/workflow-runs/log?owner={{ ownerHandle }}&repo={{ repositoryName }}&job={{ job.id }}&attempt={{ step.reusedFrom }}"
                       >kept from attempt {{ step.reusedFrom }}</a>
                     @endif
                     <span class="muted step-state">
-                      {{ step.label }}@if (step.attempts > 1) · attempt {{ step.attempts }}@endif
+                      <RunState scope="{{ runScope }}" :job="job.id" :step="step.id" :attempt="step.attempts" value="{{ step.state }}" />
                     </span>
                     {{--
                       Where the time went, when the step recorded it.
@@ -1211,19 +1210,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                       for nine is a step problem, and the single number cannot
                       say which.
                     --}}
-                    @if (step.wall || step.active)
-                      <span class="muted step-time">
-                        @if (step.wall){{ step.wall }}@endif@if (step.queued) · queued {{ step.queued }}@endif@if (step.active) · ran {{ step.active }}@endif
-                      </span>
-                    @endif
-                    {{--
-                      And why, when there is a why. A step that says "failed"
-                      and nothing else is a screen that sends everybody into
-                      the log for one line.
-                    --}}
-                    @if (step.error)
-                      <span class="step-error">{{ step.error }}</span>
-                    @endif
+                    <RunStepDetails scope="{{ runScope }}" :job="job.id" :value="step.timing" />
                     {{--
                       And the control that puts a restart where the person is
                       already looking: a form per step, because the question
@@ -1276,7 +1263,9 @@ const base = `/${ownerHandle}/${repositoryName}`
       @endif
 
       @if (!runIsFinished(String(run.state)))
-        <div class="run-foot">
+        <RunNewJobs scope="{{ runScope }}" :ids="initialJobIds" owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+
+      <div class="run-foot">
           <p class="muted run-note">
             Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
             them.
@@ -1453,7 +1442,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .run-warn { background: var(--warn); }
   .run-running { background: var(--accent); }
 
-  .jobs { display: grid; gap: 10px; margin-top: 14px; }
+  .jobs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 14px; }
 
   .run-foot {
     display: flex;
@@ -1603,7 +1592,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .job { padding: 14px 18px; }
+  .job { min-width: 0; padding: 14px 18px; }
 
   .job-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
   .job-name { font-size: 15px; font-weight: 550; margin: 0; }

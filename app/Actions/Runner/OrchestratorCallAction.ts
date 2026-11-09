@@ -250,11 +250,18 @@ export default new Action({
  * workflow that asked to wait three days, immediately.
  */
 async function sleepJob(jobId: number): Promise<void> {
-  await db
-    .updateTable('workflow_jobs')
-    .set({ state: 'sleeping', runner_id: null, lease_expires_at: null })
-    .where('id', '=', jobId)
-    .where('state', '=', 'running')
-    .execute()
-    .catch(() => null)
+  await db.transaction(async (handle) => {
+    const tx: any = handle
+    // An update locks the job before the checkpoint read. Logs, claims and
+    // suspension all serialize on this same parent row across API instances.
+    await tx.updateTable('workflow_jobs').set({ state: 'running' }).where('id', '=', jobId).where('state', '=', 'running').execute()
+    const row = await tx.selectFrom('workflow_jobs').select(['state', 'execution_ms', 'execution_started_at']).where('id', '=', jobId).executeTakeFirst()
+    if (row?.state !== 'running') return
+    const elapsed = row.execution_started_at ? Math.max(0, Date.now() - Date.parse(String(row.execution_started_at))) : 0
+    await tx.updateTable('workflow_jobs').set({
+      state: 'sleeping', runner_id: null, lease_expires_at: null,
+      execution_ms: row.execution_ms === null ? null : Number(row.execution_ms) + elapsed,
+      execution_started_at: null,
+    }).where('id', '=', jobId).where('state', '=', 'running').execute()
+  })
 }

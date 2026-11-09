@@ -12576,6 +12576,39 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "execution_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "execution_started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "queue_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "first_queue_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -12709,6 +12742,14 @@
           {
             "name": "updated_at",
             "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "redaction_state",
+            "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -16143,7 +16184,7 @@
       }
     ]
   },
-  "hash": "f04340621c44d5694b1b3c39ca0f66c83e85f1ea81d71e69848587dfa694b621",
+  "hash": "e9d755b8d4bdcc10af4c1e91d096dc8fe3509ce9e6b24204dbe2d4e79dafdf8f",
   "dialect": "postgres",
-  "updatedAt": "2026-11-07T06:59:28.743Z"
+  "updatedAt": "2026-11-09T01:42:24.209Z"
 }

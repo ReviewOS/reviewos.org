@@ -32,6 +32,7 @@ export interface RunJobState {
   name: string | null
   state: string
   runner: string | null
+  queued_at?: string | null
   started_at: string | null
   finished_at: string | null
 }
@@ -40,6 +41,8 @@ export interface RunSnapshot {
   number: number
   state: string
   jobs: RunJobState[]
+  chart?: any
+  attempt?: number
 }
 
 export interface WatchRunOptions {
@@ -48,6 +51,7 @@ export interface WatchRunOptions {
   number: number
   /** Every reading, changed or not. */
   onRun: (snapshot: RunSnapshot) => void
+  onConnection?: (state: 'connecting' | 'live' | 'retrying' | 'complete') => void
   /** Once, when the run reaches a state it cannot leave. */
   onFinished?: (state: string) => void
 }
@@ -87,6 +91,7 @@ export function intervalFor(state: string, hidden: boolean): number {
 export function watchRun(options: WatchRunOptions): RunLiveHandle {
   let stopped = false
   let timer: any = null
+  let controller: AbortController | null = null
 
   const query = () => new URLSearchParams({
     owner: options.owner,
@@ -98,20 +103,31 @@ export function watchRun(options: WatchRunOptions): RunLiveHandle {
     if (stopped)
       return
 
+    controller = new AbortController()
+    const timeout = setTimeout(() => controller?.abort(), 15_000)
     try {
       const answer = await fetch(`/api/repos/workflow-runs/show?${query()}`, {
         headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: controller.signal,
       })
+      if (stopped) return
 
-      if (!answer.ok)
+      if (!answer.ok) {
+        options.onConnection?.('retrying')
         return schedule(30_000)
+      }
 
       const body = await answer.json() as { workflow_run?: RunSnapshot }
       const run = body.workflow_run
 
-      if (!run)
+      if (stopped) return
+      if (!run || Number(run.number) !== Number(options.number)) {
+        options.onConnection?.('retrying')
         return schedule(30_000)
+      }
 
+      options.onConnection?.(TERMINAL.includes(String(run.state)) ? 'complete' : 'live')
       options.onRun(run)
 
       if (TERMINAL.includes(String(run.state))) {
@@ -126,7 +142,13 @@ export function watchRun(options: WatchRunOptions): RunLiveHandle {
       // A failed read is not a reason to give up: the reader may have walked
       // away from a laptop that lost its network, and stopping would leave the
       // page silently stale from then on.
-      schedule(30_000)
+      if (!stopped) {
+        options.onConnection?.('retrying')
+        schedule(30_000)
+      }
+    }
+    finally {
+      clearTimeout(timeout)
     }
   }
 
@@ -141,8 +163,10 @@ export function watchRun(options: WatchRunOptions): RunLiveHandle {
   function stop(): void {
     stopped = true
     clearTimeout(timer)
+    controller?.abort()
   }
 
+  options.onConnection?.('connecting')
   read()
 
   return { stop }
@@ -155,6 +179,7 @@ export interface WatchLogOptions {
   job: number
   /** The last sequence the server already rendered. Nothing before it is asked for. */
   after: number
+  attempt?: number
   /** Called with each new piece of output, in order. */
   onOutput: (text: string) => void
   /** Called with the job's state on every reading, changed or not. */
@@ -189,22 +214,29 @@ export function watchJobLog(options: WatchLogOptions): RunLiveHandle {
         repo: options.repository,
         job: String(options.job),
         after: String(cursor),
+        ...(options.attempt ? { attempt: String(options.attempt) } : {}),
       })
 
       const answer = await fetch(`/api/repos/workflow-runs/log?${parameters}`, {
         headers: { Accept: 'application/json' },
+        cache: 'no-store',
       })
 
+      if (stopped) return
       if (!answer.ok)
         return schedule(30_000)
 
-      const page = await answer.json() as { chunks?: Array<{ content?: string }>, cursor?: number, state?: string }
+      const page = await answer.json() as { chunks?: Array<{ content?: string, sequence?: number }>, cursor?: number, state?: string }
+      if (stopped) return
 
       for (const chunk of page.chunks ?? []) {
+        const sequence = Number(chunk.sequence)
+        if (!Number.isInteger(sequence) || sequence <= cursor) continue
         const text = String(chunk?.content ?? '')
 
         if (text)
           options.onOutput(text)
+        cursor = sequence
       }
 
       // Only forward. A cursor that went backwards - a bad answer, a proxy

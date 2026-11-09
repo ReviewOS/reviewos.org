@@ -10,11 +10,7 @@
 <header class="repo-head">
   <div class="repo-title-row">
     <a class="repo-owner-mark {{ actions && actions.ownerKind === 'organization' ? 'is-organization' : '' }}" href="/{{ owner }}" aria-label="{{ owner }} profile">
-      @if (actions && actions.ownerAvatarUrl)
-        <img src="{{ actions.ownerAvatarUrl }}" alt="{{ owner }}" width="36" height="36" decoding="async">
-      @else
-        <span aria-hidden="true">{{ String(owner).slice(0, 1).toUpperCase() }}</span>
-      @endif
+      <OwnerAvatar src="{{ actions ? actions.ownerAvatarUrl : '' }}" name="{{ owner }}" kind="{{ actions ? actions.ownerKind : 'user' }}" :size="36" />
     </a>
     <h1 class="repo-title">
       <a href="/{{ owner }}">{{ owner }}</a><span class="muted">/</span><a href="/{{ owner }}/{{ repository }}">{{ repository }}</a>
@@ -82,7 +78,7 @@
     title, the visibility pill and the clone box stay grouped, and the controls
     go to the far end without the gap between the first three growing. */
   .repo-head-actions { margin-left: auto; }
-  .repo-owner-mark { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; overflow: hidden; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-tint); color: var(--muted); font-weight: 600; text-decoration: none; }
+  .repo-owner-mark { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; overflow: hidden; border-radius: 50%; color: var(--muted); text-decoration: none; }
   .repo-owner-mark.is-organization { border-radius: 9px; background: #fff; }
   .repo-owner-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
   .repo-owner-mark.is-organization img { object-fit: contain; padding: 4px; }

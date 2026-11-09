@@ -2342,11 +2342,12 @@ decisions.
       not change while it runs, and putting the instance's key work on the hot path of a streaming
       log would be a cost paid on every line.
 
-      **A value split across two writes survives this pass**, and that is stated in the docs rather
-      than hidden: it sees one chunk at a time, and holding the tail of every chunk to check the
-      join would mean buffering a log meant to be streamed. The runner's masking covers it, because
-      the runner sees the stream. A value shorter than five characters is also left alone - a secret
-      of `dev` would blank a word everywhere it appears.
+      The streaming matcher now protects split writes too. It masks incomplete prefixes before
+      publication and checkpoints only fingerprints and offsets in the same transaction as the
+      safe output. A parent-row lock serializes API instances, attempts keep separate checkpoints,
+      and missing sequences receive retryable backpressure. Structured events cannot retain the
+      original secret after their text is masked. Boundary masking is deliberately conservative;
+      values shorter than five characters remain outside the masking policy.
 - [x] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
       rather than dropping the middle of the log
 
@@ -2466,6 +2467,34 @@ decisions.
       their code by somebody else's workflow.
 
       Webhooks for run transitions are not wired; the box's third vocabulary has no consumer yet.
+- [x] Update run charts, counters, jobs, steps and timings in place from one shared stx store,
+      preserving open logs, chart controls and scroll position. Polling bypasses caches, shows
+      connection health, aborts stale requests, follows new jobs and attempt changes, and stops
+      on completion. Run and log responses are private and no-store.
+- [x] Separate execution allocation, machine queue time and suspended or approval waiting.
+      Claims and orchestrator suspensions record execution intervals and accumulated queue time;
+      retries reset them. Historical orchestrators explicitly say execution was not recorded.
+      Timeline spans distinguish control waits from command execution.
+- [x] Close cross-chunk server redaction and structured-event persistence gaps. Checkpoints
+      contain only secret fingerprints and offsets. Sequential ingestion, parent-row locking,
+      claim revalidation, fail-closed secret lookup and attempt isolation protect publication.
+      Mixed structured/plain chunks remain visible together in the log viewer. UTF-8 byte limits
+      include truncation markers and oversized event metadata falls back to safe text.
+- [x] Put failure triage before the execution map: failed step, exit code, explicit error,
+      bounded output context and a copyable link directly to the step. Failed output opens by
+      default; a live failure appears without replacing the reader's log.
+- [x] Add graph zoom, fit/reset, native scrolling and pointer panning, status filters and
+      transitive prerequisite/dependant highlights. Controls keep their state during updates;
+      keyboard navigation, clear highlights and no-match states remain available. Fixed reactive
+      SVG class serialization upstream in stx 0.2.835 rather than masking it in the chart.
+- [x] Compare with the previous successful run of the same repository, workflow and ref.
+      Match matrix identities and durable journal calls across runs, compare execution and machine
+      queue time separately, distinguish
+      new or absent jobs, and show unknown/in-progress timing without fabricated deltas.
+- [x] Share owner avatar rendering across repository headers, profiles and membership lists.
+      Mobile navigation stays inside the viewport, including its closed disclosure.
+      Organization marks use contain sizing and reserved dimensions; failed or cached-broken
+      images fall back to accessible initials without shifting layout.
 - [x] Replace the run's layer pills with server-rendered ts-charts dependency and timing views,
       keyboard-accessible job links, longest-chain highlighting, queue/execution breakdowns,
       summary counts, reduced-motion-aware running pulses and a direct link to the first failed job.
@@ -2581,15 +2610,9 @@ decisions.
       in a log line split across two writes, an annotation replaced by context key, metadata written
       by two parallel jobs, and artifact download authorization from a different repository
 
-      All five. The split-across-two-writes case is two tests rather than one, because the answer
-      has two halves and either alone reads as a hole: **the runner catches it**, since a process
-      writes bytes and the runner buffers to a newline before masking the joined line, and **the
-      server does not**, because it sees one stored chunk at a time and holding the tail of each to
-      check the join would mean buffering a log meant to be streamed.
-
-      That is the documented limitation, and it has a test asserting the gap rather than a paragraph
-      claiming there is none - a redaction feature people believe is total is worse than one whose
-      edge they know.
+      Both the runner and server protect split writes. Tests cover multi-chunk and single-character
+      delivery, raw/base64/percent-encoded values, storage checkpoints, structured output, retries,
+      new attempts, and the unchanged log ceiling and cursor behavior.
 
 ---
 

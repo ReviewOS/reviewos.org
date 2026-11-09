@@ -482,6 +482,10 @@ async function recordJobReport(
           // report over the one that replaced it.
           job_token_hash: null,
           started_at: null,
+          execution_ms: null,
+          execution_started_at: null,
+          queue_ms: null,
+          first_queue_ms: null,
           // A retry waits for a machine again, so its wait starts again. The
           // alternative reports the first attempt's wait twice.
           queued_at: new Date().toISOString(),

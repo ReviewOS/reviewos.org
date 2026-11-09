@@ -1,5 +1,8 @@
 import { Action } from '@stacksjs/actions'
+import { response } from '@stacksjs/router'
 import { explainEnv } from './env'
+import { failureSummaries, previousSuccessfulRun } from '../../../resources/functions/runDiagnostics'
+import { buildRunChart } from '../../../resources/functions/runChart'
 import { waitingFleet } from './waitingFleet'
 import { defaultsOf, resolveDefaults } from './defaults'
 import { explainWaiting } from './waiting'
@@ -130,7 +133,7 @@ export default new Action({
       .selectFrom('workflow_jobs')
       .select([
         'id', 'job_id', 'name', 'position', 'state', 'needs', 'error',
-        'runs_on', 'runner_id', 'queued_at', 'started_at', 'finished_at',
+        'runs_on', 'runner_id', 'queued_at', 'started_at', 'finished_at', 'kind', 'attempt', 'updated_at', 'orchestrator', 'execution_ms', 'execution_started_at', 'queue_ms', 'first_queue_ms', 'matrix_values',
         // Where this attempt was told to begin, so a client can say why the
         // first steps of a job show a result nothing on this attempt produced.
         'resume_from_step',
@@ -148,7 +151,7 @@ export default new Action({
     const steps = jobs.length > 0
       ? await db
         .selectFrom('workflow_steps')
-        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at', 'reused_from_attempt', 'error'])
+        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at', 'reused_from_attempt', 'error', 'queued_ms', 'active_ms'])
         .where('workflow_job_id', 'in', jobs.map(job => Number(job.id)))
         .orderBy('position')
         .execute()
@@ -205,8 +208,19 @@ export default new Action({
         .executeTakeFirst()
       : null
 
-    return response.json({
+    const chart = buildRunChart(jobs as any[], now.getTime())
+    const failed = jobs.filter(job => job.state === 'failed')
+    // Bound context to 128 recent chunks across failed jobs. The full output
+    // stays available in the log viewer, with its independent per-job ceiling.
+    const failureLogs = failed.length ? await db.selectFrom('workflow_job_logs').select(['workflow_job_id', 'attempt', 'sequence', 'content']).where('workflow_job_id', 'in', failed.map(job => Number(job.id))).orderBy('sequence', 'desc').limit(128).execute() : []
+    failureLogs.reverse()
+    const failures = failureSummaries(jobs, steps, failureLogs)
+    const comparison = await previousSuccessfulRun(run, jobs, chart)
+
+    const answer = response.json({
       workflow_run: {
+        chart, failures, comparison,
+        attempt: Number(run.attempt ?? 1),
         id: Number(run.id),
         number: Number(run.number),
         state: String(run.state),
@@ -264,6 +278,8 @@ export default new Action({
 
         jobs: jobs.map(job => ({
           id: Number(job.id),
+          attempt: Number(job.attempt ?? 1),
+          kind: String(job.kind ?? 'command'),
           job_id: String(job.job_id),
           /*
            * The environment this job's steps see, and where each value came
@@ -365,6 +381,8 @@ export default new Action({
             name: step.name ?? null,
             state: String(step.state),
             attempts: Number(step.attempts ?? 0),
+            queued_ms: step.queued_ms ?? null,
+            active_ms: step.active_ms ?? null,
             exit_code: step.exit_code ?? null,
             started_at: step.started_at ?? null,
             finished_at: step.finished_at ?? null,
@@ -389,5 +407,7 @@ export default new Action({
         })),
       },
     })
+    answer.headers.set('Cache-Control', 'private, no-store')
+    return answer
   },
 })

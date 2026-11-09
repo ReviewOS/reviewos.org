@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 /**
  * Taking secrets out of a log before it is written down.
  *
@@ -67,12 +69,8 @@ export function formsOf(value: string): string[] {
  * Longest first, so a secret that contains another secret does not leave the
  * inner one's marker embedded in the outer one's remains.
  *
- * **A value split across two writes survives**, and that is a limitation rather
- * than an oversight: this sees one chunk at a time, and holding the tail of
- * every chunk to check the join would mean buffering a log this instance is
- * meant to be streaming. The runner's own masking is what covers that case,
- * because it sees the stream. Stated here, and in the docs, because a redaction
- * feature people believe is total is worse than one whose edge they know.
+ * Streaming ingestion also uses redactStream, which masks incomplete matches
+ * before publication and carries only fingerprints and offsets across chunks.
  */
 export function redactSecrets(text: string, values: readonly string[]): string {
   return redactWithCount(text, values).text
@@ -127,4 +125,63 @@ export function countRedactions(text: string): number {
     return 0
 
   return text.split(MARKER).length - 1
+}
+
+export interface RedactionCheckpoint { key: string, offset: number }
+
+/**
+ * Publish safely without retaining raw lookbehind. A trailing possible secret
+ * prefix is masked immediately, even if a later chunk proves it ordinary text.
+ * The next chunk resumes that matcher from a fingerprint and character offset.
+ * This conservative boundary masking trades a little output for zero secret
+ * bytes in storage, no delayed tail, and correct multi-chunk matching.
+ */
+export function redactStream(text: string, values: readonly string[], previous: readonly RedactionCheckpoint[] = []) {
+  const forms = [...new Set(values.flatMap(formsOf))]
+  const ranges: Array<[number, number]> = []
+  const checkpoint: RedactionCheckpoint[] = []
+  for (const form of forms) {
+    const key = createHash('sha256').update(form).digest('hex')
+    // KMP failure links keep both work and checkpoint size linear, including
+    // credentials with a long repeated prefix. One offset represents every
+    // shorter possible match through its failure chain.
+    const failure = new Uint32Array(form.length)
+    for (let index = 1, prefix = 0; index < form.length; index++) {
+      while (prefix && form[index] !== form[prefix]) prefix = failure[prefix - 1]!
+      if (form[index] === form[prefix]) prefix++
+      failure[index] = prefix
+    }
+    let matched = Math.max(0, ...previous.filter(one => one.key === key && one.offset > 0 && one.offset < form.length).map(one => one.offset))
+    let carriedEnd = 0
+    for (let index = 0; index < text.length; index++) {
+      while (matched && text[index] !== form[matched]) matched = failure[matched - 1]!
+      if (text[index] === form[matched]) matched++
+      // Characters extending a match begun in the previous chunk must never
+      // become visible, even if the candidate fails later in this write.
+      if (matched && index - matched + 1 < 0) carriedEnd = index + 1
+      if (matched === form.length) {
+        ranges.push([Math.max(0, index - form.length + 1), index + 1])
+        matched = failure[matched - 1]!
+      }
+    }
+    if (carriedEnd) ranges.push([0, carriedEnd])
+    if (matched) {
+      ranges.push([Math.max(0, text.length - matched), text.length])
+      checkpoint.push({ key, offset: matched })
+    }
+  }
+  ranges.sort((left, right) => left[0] - right[0])
+  const merged: Array<[number, number]> = []
+  for (const range of ranges) {
+    const last = merged[merged.length - 1]
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1])
+    else merged.push([...range])
+  }
+  let output = ''
+  let cursor = 0
+  for (const [start, end] of merged) {
+    output += text.slice(cursor, start) + MARKER
+    cursor = end
+  }
+  return { text: output + text.slice(cursor), checkpoint }
 }

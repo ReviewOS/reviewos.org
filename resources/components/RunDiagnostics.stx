@@ -1,0 +1,94 @@
+<script server>
+const scopeKey = String(scope)
+const initialFailures = failures
+const initialComparison = comparison
+const runBase = String(base)
+const publicOrigin = String(origin)
+</script>
+<script client>
+const runView = useStore('workflow-run')
+const regressionsOnly = state(false)
+const hydrated = state(false)
+onMount(() => hydrated.set(true))
+const copied = state('')
+const clipboard = useClipboard()
+const activeFailures = derived(() => runView.scope() === scopeKey ? runView.snapshot()?.failures ?? initialFailures : initialFailures)
+const activeComparison = derived(() => runView.scope() === scopeKey ? runView.snapshot()?.comparison ?? initialComparison : initialComparison)
+const comparisonHref = derived(() => runBase + '/run/' + activeComparison()?.number)
+const comparisons = derived(() => (activeComparison()?.jobs ?? []).filter(one => !regressionsOnly() || one.regression))
+const failureHref = anchor => publicOrigin + scopeKey + '#' + anchor
+async function copyFailure(anchor) {
+  try { copied.set(await clipboard.copy(failureHref(anchor)) ? anchor : 'failed') }
+  catch { copied.set('failed') }
+}
+</script>
+<div class="diagnostics-static" :hidden="hydrated()">
+  @if (initialFailures.length)
+    <section class="failure-triage panel" aria-label="Failure summary">
+      <h2>What failed</h2>
+      @foreach (initialFailures as failure)
+        <article class="failure-summary"><div class="failure-summary-head"><h3><a href="#{{ failure.anchor }}">{{ failure.name }}{{ failure.step ? ' / ' + failure.step : '' }}</a></h3>@if (failure.exit !== null)<span class="mono">Exit {{ failure.exit }}</span>@endif</div><p>{{ failure.error }}</p>@if (failure.excerpt)<pre>{{ failure.excerpt }}</pre>@endif</article>
+      @endforeach
+    </section>
+  @endif
+  <details class="panel run-comparison" aria-label="Previous successful run">
+    <summary><h2>Compared with the last successful run</h2></summary>
+    @if (initialComparison)
+      <p class="muted"><a href="{{ runBase }}/run/{{ initialComparison.number }}">Run #{{ initialComparison.number }}</a> on the same workflow and branch.</p>
+      <div class="comparison-scroll"><table><thead><tr><th>Job</th><th>Change</th><th>Execution</th><th>Machine queue</th></tr></thead><tbody>
+      @foreach (initialComparison.jobs as job)
+        <tr><th>{{ job.name }}</th><td>{{ job.status }}</td><td>{{ job.execution }}</td><td>{{ job.queue }}</td></tr>
+      @endforeach
+      </tbody></table></div>
+    @else
+      <p class="muted">There is no earlier successful run of this workflow on this branch yet.</p>
+    @endif
+  </details>
+</div>
+<div :hidden="!hydrated()" hidden class="diagnostics-live">
+<section class="failure-triage panel" :if="activeFailures().length" aria-label="Failure summary">
+  <h2>What failed</h2>
+  <article :for="failure in activeFailures()" :key="failure.id" class="failure-summary">
+    <div class="failure-summary-head"><h3><a :href="'#' + failure.anchor" x-text="failure.name + (failure.step ? ' / ' + failure.step : '')"></a></h3><span class="mono" :if="failure.exit !== null" x-text="'Exit ' + failure.exit"></span><button class="btn btn-small" type="button" @click="copyFailure(failure.anchor)" x-text="copied() === failure.anchor ? 'Copied' : 'Copy error link'">Copy error link</button></div>
+    <input class="failure-link" :if="copied() === 'failed'" :value="failureHref(failure.anchor)" aria-label="Error link" readonly @focus="$event.target.select()">
+    <p x-text="failure.error"></p>
+    <pre :if="failure.excerpt" x-text="failure.excerpt"></pre>
+  </article>
+  <p class="muted" :if="copied() === 'failed'" role="status">Copy failed. Use the failure heading link to share this error.</p>
+</section>
+<details class="panel run-comparison" aria-label="Previous successful run">
+  <summary><h2>Compared with the last successful run</h2></summary>
+  <div :if="activeComparison()">
+    <p class="muted"><a :href="comparisonHref()" x-text="'Run #' + activeComparison().number"></a> on the same workflow and branch. Execution and machine queue time are compared separately.</p>
+    <label class="comparison-filter"><input type="checkbox" @change="regressionsOnly.set($event.target.checked)"> Show regressions only</label>
+    <div class="comparison-scroll"><table><thead><tr><th>Job</th><th>Change</th><th>Execution</th><th>Machine queue</th></tr></thead><tbody><tr :for="job in comparisons()" :key="job.name + job.id" :class="job.regression ? 'is-regression' : ''"><th><a :if="job.id" :href="'#job-' + job.id" x-text="job.name"></a><span :if="!job.id" x-text="job.name"></span></th><td x-text="job.status"></td><td :class="job.runDelta > 999 ? 'regression-delta' : ''" x-text="job.execution"></td><td :class="job.queueDelta > 999 ? 'regression-delta' : ''" x-text="job.queue"></td></tr></tbody></table></div>
+    <p class="muted" :if="!comparisons().length">No regressions in the reported timings.</p>
+  </div>
+  <p class="muted" :if="!activeComparison()">There is no earlier successful run of this workflow on this branch yet.</p>
+</details>
+</div>
+<style>
+.diagnostics-live[hidden],.diagnostics-static[hidden] { display: none; }
+.failure-triage,.run-comparison { padding: 20px 24px; margin-block: 20px; }
+.failure-triage { border-left: 3px solid var(--bad); }
+.failure-triage h2,.run-comparison h2 { font-size: 16px; margin-bottom: 8px; }
+.failure-summary + .failure-summary { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+.failure-summary-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.failure-summary-head h3 { font-size: 14px; flex: 1; }
+.failure-summary-head .mono { color: var(--bad); font-size: 12px; }
+.failure-link { width: 100%; padding: 8px; margin-block: 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: 12px var(--mono); }
+.failure-summary p { font-size: 13px; overflow-wrap: anywhere; }
+.failure-summary pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 var(--mono); background: var(--bg); padding: 14px; margin-top: 12px; max-height: 240px; overflow: auto; }
+.run-comparison summary { cursor: pointer; }
+.run-comparison summary h2 { display: inline; font-size: 14px; }
+.run-comparison[open] summary { margin-bottom: 14px; }
+.run-comparison p,.comparison-filter { font-size: 13px; }
+.comparison-filter { display: flex; gap: 8px; align-items: center; margin-block: 16px 8px; }
+.comparison-scroll { overflow: auto; }
+.run-comparison table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.run-comparison th,.run-comparison td { padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.run-comparison thead th { color: var(--muted); font-size: 11px; font-weight: 500; }
+.run-comparison tbody th { font-weight: 500; }
+.run-comparison .regression-delta { color: var(--warn); }
+@media(max-width:640px) { .failure-triage,.run-comparison { padding: 18px 16px; } }
+</style>

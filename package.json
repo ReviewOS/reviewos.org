@@ -84,7 +84,7 @@
     "@stacksjs/router": "0.75.504",
     "@stacksjs/search-engine": "0.75.504",
     "@stacksjs/server": "0.75.504",
-    "@stacksjs/stx": "0.2.834",
+    "@stacksjs/stx": "0.2.835",
     "@stacksjs/ts-cloud": "0.16.122",
     "@stacksjs/ts-ssh": "^0.1.1",
     "@ts-charts/scale": "0.2.7",
@@ -118,7 +118,7 @@
   "overrides": {
     "bun-query-builder": "0.3.43",
     "@stacksjs/bun-router": "^0.1.24",
-    "@stacksjs/stx": "0.2.834",
+    "@stacksjs/stx": "0.2.835",
     "@stacksjs/ts-ssh": "^0.1.1",
     "stx-router": "0.2.833",
     "bun-plugin-stx": "0.2.833",

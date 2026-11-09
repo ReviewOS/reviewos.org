@@ -1,0 +1,25 @@
+<script server>
+import { runLabel, runTone } from '../lib/runStatus'
+const initialState = String(typeof value === 'undefined' ? 'queued' : value)
+const scopeKey = String(scope)
+const jobId = Number(typeof job === 'undefined' ? 0 : job)
+const stepId = Number(typeof step === 'undefined' ? 0 : step)
+const initialAttempt = Number(typeof attempt === 'undefined' ? 0 : attempt)
+const initialTone = runTone(initialState)
+const initialLabel = runLabel(initialState)
+</script>
+<script client>
+import { runLabel, runTone } from '../lib/runStatus'
+const runView = useStore('workflow-run')
+const currentState = derived(() => {
+  if (runView.scope() !== scopeKey) return initialState
+  if (stepId) return runView.step(scopeKey, jobId, stepId)?.state ?? initialState
+  if (jobId) return runView.job(scopeKey, jobId)?.state ?? initialState
+  return runView.snapshot()?.state ?? initialState
+})
+const currentAttempt = derived(() => stepId ? Number(runView.step(scopeKey, jobId, stepId)?.attempts ?? initialAttempt) : jobId ? Number(runView.job(scopeKey, jobId)?.attempt ?? initialAttempt) : initialAttempt)
+const currentTone = derived(() => runTone(currentState()))
+const currentLabel = derived(() => runLabel(currentState()))
+</script>
+<span class="run-state-pair"><span class="run-dot run-{{ initialTone }}" :class="{ 'run-neutral': currentTone() === 'neutral', 'run-running': currentTone() === 'running', 'run-good': currentTone() === 'good', 'run-bad': currentTone() === 'bad', 'run-warn': currentTone() === 'warn' }" aria-hidden="true"></span><span x-text="currentLabel()">{{ initialLabel }}</span><span :if="currentAttempt() > 1" x-text="'· attempt ' + currentAttempt()">@if (initialAttempt > 1) · attempt {{ initialAttempt }}@endif</span></span>
+<style>.run-state-pair { display: inline-flex; align-items: center; gap: 7px; }</style>

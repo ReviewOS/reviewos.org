@@ -1,21 +1,7 @@
-// A secret split across two writes.
-//
-// The roadmap asks for this case by name, and the answer is in two halves that
-// are worth stating together, because either one alone reads as a hole:
-//
-//   - The **runner** catches it. A process writes bytes, not lines, so the
-//     runner buffers until a newline and masks the joined line - which is why
-//     masking on the machine is the first line and not a nicety.
-//   - The **server** does not, and cannot without buffering a log it is meant to
-//     be streaming. It sees one stored chunk at a time.
-//
-// A redaction feature people believe is total is worse than one whose edge they
-// know, so both halves have a test rather than a paragraph.
-
 import { describe, expect, test } from 'bun:test'
 import { CommandReader } from '../../app/Actions/Runner/commands'
 import { maskDeliveredSecrets } from '../../app/Actions/Runner/localExecutor'
-import { MARKER, redactSecrets } from '../../app/Actions/Runner/redact'
+import { MARKER, redactSecrets, redactStream } from '../../app/Actions/Runner/redact'
 
 const SECRET = 'ghp_supersecretvalue'
 
@@ -73,18 +59,31 @@ describe('the runner', () => {
 })
 
 describe('the server', () => {
-  test('does not catch a value split across two stored chunks, and says so', () => {
-    /*
-     * The documented limitation. It sees one chunk at a time, and holding the
-     * tail of every chunk to check the join would mean buffering a log that is
-     * meant to be streamed - so the guarantee is the runner's, and this is the
-     * second line that catches everything arriving whole.
-     */
-    const first = redactSecrets('authorization: Bearer ghp_super', [SECRET])
-    const second = redactSecrets('secretvalue\n', [SECRET])
+  test('masks a secret across two, many, and single-character chunks before publication', () => {
+    for (const writes of [['authorization: Bearer ghp_super', 'secretvalue\n'], [...SECRET], ['gh', 'p_su', 'perse', 'cret', 'value']]) {
+      let checkpoint = []
+      let output = ''
+      for (const write of writes) {
+        const result = redactStream(write, [SECRET], checkpoint)
+        checkpoint = result.checkpoint
+        output += result.text
+        expect(result.text).not.toContain(write === SECRET ? SECRET : 'ghp_super')
+        expect(JSON.stringify(checkpoint)).not.toContain('ghp_')
+      }
+      expect(output).not.toContain(SECRET)
+      expect(output).toContain(MARKER)
+    }
+  })
 
-    expect(first + second).toContain(SECRET)
-    expect(first + second).not.toContain(MARKER)
+  test('protects encoded forms and a partial tail that never gets another write', () => {
+    for (const form of [Buffer.from(SECRET).toString('base64'), encodeURIComponent('password:with/spaces')]) {
+      const secret = form.includes('%') ? 'password:with/spaces' : SECRET
+      const first = redactStream('token=' + form.slice(0, 3), [secret])
+      const second = redactStream(form.slice(3), [secret], first.checkpoint)
+      expect(first.text + second.text).not.toContain(form)
+      expect(first.text).not.toContain(form.slice(0, 3))
+      expect(second.text).toContain(MARKER)
+    }
   })
 
   test('but does catch it when one chunk holds the whole value', () => {

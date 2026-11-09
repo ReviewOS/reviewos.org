@@ -236,7 +236,6 @@ const found = Boolean(account || organization)
 // coloured identicon: the accent is reserved for one thing per screen, and a
 // wall of tinted squares would take it for decoration.
 const avatarUrl = String(account?.avatar_url ?? organization?.avatar_url ?? '')
-const initial = (displayName.trim() || handle).charAt(0).toUpperCase()
 
 // Somebody who could write the profile page and has not. Shown to them only:
 // a reader who cannot edit it does not need to know the file is missing.
@@ -289,11 +288,7 @@ const pageDescription = found
       <div class="profile">
         <aside class="profile-side">
           <div class="profile-identity">
-            @if (avatarUrl)
-              <img class="profile-avatar {{ isOrganization ? 'is-organization' : '' }}" src="{{ avatarUrl }}" alt="" width="96" height="96">
-            @else
-              <span class="profile-avatar profile-avatar-letter {{ isOrganization ? 'is-organization' : '' }}" aria-hidden="true">{{ initial }}</span>
-            @endif
+            <OwnerAvatar src="{{ avatarUrl }}" name="{{ displayName || handle }}" kind="{{ isOrganization ? 'organization' : 'user' }}" :size="96" />
 
             <div>
               <h1 class="profile-name">{{ displayName }}</h1>
@@ -366,11 +361,7 @@ const pageDescription = found
                 @foreach (shownPeople as person)
                   <li>
                     <a href="/{{ person.handle }}" title="{{ person.name }}">
-                      @if (person.avatarUrl)
-                        <img src="{{ person.avatarUrl }}" alt="{{ person.handle }}" width="32" height="32">
-                      @else
-                        <span class="profile-face-letter" aria-hidden="true">{{ person.handle.charAt(0).toUpperCase() }}</span>
-                      @endif
+                      <OwnerAvatar src="{{ person.avatarUrl }}" name="{{ person.handle }}" :size="32" />
                     </a>
                   </li>
                 @endforeach
@@ -392,11 +383,7 @@ const pageDescription = found
                 @foreach (memberships as membership)
                   <li>
                     <a href="/{{ membership.handle }}" title="{{ membership.name }}" aria-label="{{ membership.name }}">
-                      @if (membership.avatarUrl)
-                        <img class="rounded" src="{{ membership.avatarUrl }}" alt="{{ membership.handle }}" width="32" height="32" loading="lazy">
-                      @else
-                        <span class="profile-face-letter" aria-hidden="true">{{ membership.initial }}</span>
-                      @endif
+                      <OwnerAvatar src="{{ membership.avatarUrl }}" name="{{ membership.handle }}" kind="organization" :size="32" />
                     </a>
                   </li>
                 @endforeach

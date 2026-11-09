@@ -48,6 +48,13 @@ export default defineModel({
   belongsTo: [{ model: 'WorkflowJob', onDelete: 'cascade' }],
 
   attributes: {
+    // A streaming matcher checkpoint, containing form fingerprints and offsets only.
+    // No secret bytes or unredacted output are persisted here.
+    redaction_state: {
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
     workflow_job_id: {
       order: 1,
       fillable: true,
