@@ -1262,14 +1262,25 @@ const initialLiveRun = { number: runNumber, state: String(run?.state ?? ''), sta
         </section>
       @endif
 
-      @if (!runIsFinished(String(run.state)))
-        <RunNewJobs scope="{{ runScope }}" :ids="initialJobIds" owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+      {{--
+        Shown for a finished run too, which is the only kind that can be run
+        again. This block used to open on "not finished" alone, so the re-run
+        controls inside it - which ask for a finished run - could never render
+        anywhere: every failed run had no way to try again from this page.
+        The pause and cancel controls carry their own "still running" check.
+      --}}
+      @if (!runIsFinished(String(run.state)) || canRerun)
+        @if (!runIsFinished(String(run.state)))
+          <RunNewJobs scope="{{ runScope }}" :ids="initialJobIds" owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+        @endif
 
-      <div class="run-foot">
-          <p class="muted run-note">
-            Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
-            them.
-          </p>
+        <div class="run-foot">
+          @if (!runIsFinished(String(run.state)))
+            <p class="muted run-note">
+              Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
+              them.
+            </p>
+          @endif
 
           {{--
             Posted to the same public action the API and the CLI call, rather
