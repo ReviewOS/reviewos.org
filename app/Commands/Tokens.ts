@@ -3,6 +3,12 @@ import { hostname, userInfo } from 'node:os'
 import process from 'node:process'
 import { db } from '@stacksjs/database'
 import { bootAppListeners } from '@stacksjs/events'
+
+/**
+ * The application's listeners write the token audit trail. Their boot line goes
+ * to stderr: stdout is the token, and `--json` output must parse as JSON.
+ */
+const bootListeners = () => bootAppListeners({ log: { info: message => console.error(message) } })
 import type { IssuedAccessToken } from '../Actions/Tokens/issue'
 import { issueAccessToken, readableRepositories, revokeAccessToken } from '../Actions/Tokens/issue'
 import { resolveOwner, resolveRepository } from '../Actions/Identity/lookup'
@@ -250,7 +256,7 @@ export default function (cli: CLI) {
     .action(async (options: CreateTokenOptions) => {
       // The token audit trail is written by the application's listeners, which a
       // shell command has not booted; without them issuance went unrecorded.
-      await bootAppListeners()
+      await bootListeners()
       const created = await createTokenFromCli(options)
       if (!created.ok)
         return fail(created.error)
@@ -270,7 +276,7 @@ export default function (cli: CLI) {
     .command('token:revoke <id>', 'Revoke an access token by id; it stops working on the next request')
     .option('--reason <reason>', 'Why, for the audit log')
     .action(async (id: string, options: { reason?: string }) => {
-      await bootAppListeners()
+      await bootListeners()
       const revoked = await revokeTokenFromCli(Number(id), options.reason ?? null)
       if (!revoked.ok)
         return fail(revoked.error)
