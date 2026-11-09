@@ -59,7 +59,9 @@ export async function workersFor(instanceIds: string[], now: Date = new Date()):
     .selectFrom('workflow_jobs')
     .select(['runner_id', 'lease_expires_at'])
     .where('state', '=', 'running')
-    .where('runner_id', 'in', runners.map((runner: any) => Number(runner.id)))
+    // Text, as every other query on this column has it: `runner_id` is a
+    // varchar, and Postgres will not compare one with an integer.
+    .where('runner_id', 'in', runners.map((runner: any) => String(runner.id)))
     .execute()
 
   return runners.map((runner: any) => {
@@ -83,16 +85,29 @@ export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, opti
   if (!state)
     return [`${group.name}: no such Auto Scaling group in ${api.region}; run runner:autoscale:apply`]
 
+  const workers = await workersFor(state.instances.map(instance => instance.id), now)
+  const waiting = await waitingFor(group)
   const plan = planWorkerGroup({
     config: group,
     currentDesired: state.desired,
     instances: state.instances,
-    workers: await workersFor(state.instances.map(instance => instance.id), now),
-    waiting: await waitingFor(group),
+    workers,
+    waiting,
     now,
   })
 
   const lines = plan.reasons.map(reason => `${group.name}: ${reason}`)
+  /*
+   * What it saw, when there was anything to see and it chose to do nothing.
+   *
+   * A plan with no reasons printed nothing at all, which made "nothing is
+   * waiting" indistinguishable from "eight jobs are waiting and it believes
+   * enough machines are on the way" - the second is a group stuck at a
+   * desired capacity whose launches are failing, and the log was silent
+   * through exactly that.
+   */
+  if (lines.length === 0 && (waiting > 0 || state.desired > 0 || state.instances.length > 0))
+    lines.push(`${group.name}: ${waiting} waiting, desired ${state.desired}, ${state.instances.length} instance(s), ${workers.length} registered, ${workers.filter(worker => worker.idle).length} idle: nothing to change`)
   if (options.dryRun)
     return [...lines, `${group.name}: dry run, desired would be ${plan.desired} (now ${state.desired})`]
 

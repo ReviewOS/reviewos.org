@@ -104,10 +104,29 @@ beforeAll(async () => {
   }
 }, 120_000)
 
+const runnerIds: number[] = []
+
+async function aRunner(name: string): Promise<number> {
+  const runner: any = await db.insertInto('runners').values({
+    name,
+    scope_type: 'instance',
+    scope_id: null,
+    token_hash: unique('hash').padEnd(64, '0').slice(0, 64),
+    labels: 'ubuntu-latest\nself-hosted\naws',
+    state: 'active',
+    version: '1',
+    last_seen_at: new Date().toISOString(),
+  }).returning(['id']).executeTakeFirst()
+  runnerIds.push(Number(runner.id))
+  return Number(runner.id)
+}
+
 afterAll(async () => {
   if (!available || !db)
     return
 
+  if (runnerIds.length > 0)
+    await db.deleteFrom('runners').where('id', 'in', runnerIds).execute().catch(() => null)
   await db.deleteFrom('workflows').where('id', '=', created.workflowId).execute().catch(() => null)
   await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => null)
   await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => null)
@@ -131,5 +150,64 @@ describe('work waiting for an autoscaled group', () => {
     const { waitingFor } = await import('../../app/Actions/Runner/Autoscale/tick')
 
     expect(await waitingFor(group(['ubuntu-latest'], ['nobody/nothing']))).toBe(0)
+  }, 120_000)
+})
+
+describe('the machines an autoscaled group already has', () => {
+  /*
+   * `workflow_jobs.runner_id` is text and `runners.id` is a number. Asking for
+   * the jobs those runners hold by number failed in Postgres with "operator
+   * does not exist: character varying = integer" - on every tick that had a
+   * machine to count, which is every tick that mattered: the group could not
+   * see which of its machines were busy, so it could neither grow past them
+   * nor let an idle one go.
+   */
+  test('tells a busy machine from an idle one', async () => {
+    if (!available)
+      return
+
+    const busyName = unique('i-0')
+    const idleName = unique('i-0')
+    const busy = await aRunner(busyName)
+    await aRunner(idleName)
+    await aQueuedJob('ubuntu-latest', 'running')
+    await db.updateTable('workflow_jobs')
+      .set({ runner_id: String(busy), lease_expires_at: new Date(Date.now() + 600_000).toISOString() })
+      .where('repository_id', '=', created.repositoryId)
+      .where('state', '=', 'running')
+      .execute()
+
+    const { workersFor } = await import('../../app/Actions/Runner/Autoscale/tick')
+    const workers = await workersFor([busyName, idleName, 'i-0nobody'])
+
+    expect(workers.find(worker => worker.name === busyName)?.idle).toBe(false)
+    expect(workers.find(worker => worker.name === idleName)?.idle).toBe(true)
+    expect(workers).toHaveLength(2)
+  }, 120_000)
+})
+
+describe('a tick that changes nothing', () => {
+  /*
+   * A group stuck at a desired capacity whose launches never arrive believes
+   * enough machines are on the way, so it asks for nothing more. It used to
+   * say nothing too, which on production read exactly like an idle queue.
+   */
+  test('still says what it saw when work is waiting', async () => {
+    if (!available)
+      return
+
+    const { tickGroup } = await import('../../app/Actions/Runner/Autoscale/tick')
+    const api: any = {
+      region: 'us-east-1',
+      describeGroup: async () => ({ desired: 3, instances: [] }),
+      setDesired: async () => { throw new Error('nothing to change, so nothing should be set') },
+      terminate: async () => { throw new Error('nothing to reap') },
+    }
+
+    const lines = await tickGroup(api, { ...group(['ubuntu-latest', 'self-hosted', 'aws']), min: 0, max: 6, registrationGraceSeconds: 900 } as any)
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('waiting, desired 3, 0 instance(s)')
+    expect(lines[0]).toContain('nothing to change')
   }, 120_000)
 })

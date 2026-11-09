@@ -16,6 +16,8 @@ import { tickGroup } from '../Actions/Runner/Autoscale/tick'
  * One group's failure does not stop the next: a throttled API in one region is
  * no reason for another region's jobs to wait.
  */
+const warnedNoCredentials = new Set<string>()
+
 export default new Job({
   name: 'AutoscaleRunnersJob',
   description: 'Grow autoscaled runner groups to meet waiting jobs',
@@ -24,8 +26,16 @@ export default new Job({
   async handle() {
     for (const group of Object.values(autoscalingGroups)) {
       const api = awsWorkerGroupApi(group.region)
-      if (!api)
+      if (!api) {
+        // Once per process: quiet on a laptop with no keys, but a production
+        // scheduler that cannot see its credentials should say so rather than
+        // leave a queue waiting behind a job that silently does nothing.
+        if (!warnedNoCredentials.has(group.name)) {
+          warnedNoCredentials.add(group.name)
+          console.warn(`[autoscale] ${group.name}: no AWS credentials in this process, so this group is not being scaled`)
+        }
         continue
+      }
       try {
         for (const line of await tickGroup(api, group))
           console.log(`[autoscale] ${line}`)
