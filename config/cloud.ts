@@ -1289,6 +1289,21 @@ export const tsCloud: TsCloudConfig = {
         // See the note there; the same reasoning, and the same directory, so a
         // delete through either process is recoverable from one place.
         'deleted="$(dirname "$(readlink -f storage/repos)")/repos-deleted"; mkdir -p "$deleted"; rm -rf storage/repos-deleted; ln -sfn "$deleted" storage/repos-deleted',
+        /*
+         * The runner `/api/runner/download` serves, built from this release.
+         *
+         * An autoscaled machine's first act is downloading it from here, and
+         * nothing ever built it: the endpoint answered 404 and every instance
+         * the HQ AWS group launched converged, failed the download, and
+         * terminated itself two minutes later without a line reaching this
+         * box. Built per release so a machine always gets the runner that
+         * speaks this release's protocol.
+         *
+         * Not fatal. A runner that fails to compile means no new autoscaled
+         * machines, which is bad; an API that refuses to start over it would
+         * take every long-lived runner and every push down with it.
+         */
+        'bun node_modules/@stacksjs/buddy/dist/cli.js build:runner --target linux-x64 --out dist/runner/linux-x64 || echo "build:runner failed: autoscaled machines cannot download a runner from this release" >&2',
       ],
 
       exclude: ['storage/repos', ...BLOB_STORAGE_PATHS],
