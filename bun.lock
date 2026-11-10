@@ -62,7 +62,7 @@
     "@stacksjs/ts-cloud": "0.16.123",
     "@stacksjs/ts-ssh": "^0.1.1",
     "@ts-cloud/aws-types": "0.16.109",
-    "@ts-cloud/core": "0.16.122",
+    "@ts-cloud/core": "0.16.123",
     "bun-plugin-stx": "0.2.833",
     "bun-query-builder": "0.3.43",
     "stx-router": "0.2.833",
@@ -382,7 +382,7 @@
 
     "@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.16.109", "", {}, "sha512-UmMN63m0a1Hipefcs2sjdK5uPHWlWJdkapnD1t4AObRMV9bpG3ZEEMHi0sohGr86l+GCKtfejZFy71puRJm2CQ=="],
 
-    "@ts-cloud/core": ["@ts-cloud/core@0.16.122", "", { "dependencies": { "@ts-cloud/aws-types": "0.16.122" } }, "sha512-ENe1jVMxSPi6Si7SJIFTP6TLJaO2ioZXn3heaTrlFLGoM1lWf8ZZxz4iMnCb1hLPe8+dBkGVmF+ICw1JKQQd6A=="],
+    "@ts-cloud/core": ["@ts-cloud/core@0.16.123", "", { "dependencies": { "@ts-cloud/aws-types": "0.16.123" } }, "sha512-7HCxQnuuc9R4xzsG1XMCh9egPlWpJ+iWZj7tc7pBCUxzjs/lNcRdhj0uljP6FCQl4MJmDMRgtJACuIYOYIj08g=="],
 
     "@ts-videos/mp4": ["@ts-videos/mp4@0.1.2", "", { "peerDependencies": { "ts-videos": "0.1.2" } }, "sha512-pZoSg84mEKPS2006/5vb45z6xQDAsLo2fnTEDwNdBwwzfsmj+y4M7+8mY057KFpxk6WlqIekgcEKslWeb/W/xQ=="],
 
