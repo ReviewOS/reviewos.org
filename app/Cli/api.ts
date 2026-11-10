@@ -12,6 +12,7 @@
  */
 
 import process from 'node:process'
+import { HOSTED_INSTANCE, otherForge } from './context'
 
 /** What every call answers with. Nothing here throws for a 4xx. */
 export type Answer<T = any> =
@@ -136,6 +137,18 @@ export async function call<T = any>(
   }
 
   if (!answer.ok) {
+    // Another forge's 404 or 422 says nothing about what went wrong here: the
+    // request went to the wrong product. Said once, with the way out.
+    const forge = otherForge(connection.instance)
+    if (forge) {
+      return {
+        ok: false,
+        status: answer.status,
+        message: `This checkout's remote is ${forge}, which is not a ReviewOS instance.`,
+        fix: `Set REVIEWOS_URL=${HOSTED_INSTANCE} (or your own instance), and pass --repo owner/name if the repository is named differently there.`,
+      }
+    }
+
     const described = describe(answer.status, body)
 
     // The server's own words win when it explained itself. A bare

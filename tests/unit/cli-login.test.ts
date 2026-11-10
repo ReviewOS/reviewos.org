@@ -201,3 +201,42 @@ describe('a refused sign-in says what happened and what to do', () => {
     finally { void server.stop(true) }
   })
 })
+
+describe('which instance a command talks to', () => {
+  it('never takes another forge for an instance', async () => {
+    const { otherForge } = await import('../../app/Cli/context')
+
+    expect(otherForge('https://github.com')).toBe('github.com')
+    expect(otherForge('https://www.github.com')).toBe('github.com')
+    expect(otherForge('https://gitlab.com')).toBe('gitlab.com')
+    expect(otherForge('https://reviewos.org')).toBeNull()
+    expect(otherForge('https://git.example.com')).toBeNull()
+    // A host that merely contains the name is somebody's own.
+    expect(otherForge('https://github.com.example.org')).toBeNull()
+    expect(otherForge('not a url')).toBeNull()
+  })
+
+  it('says so, instead of repeating the other forge\'s 404', async () => {
+    const { call } = await import('../../app/Cli/api')
+    const answer = await call({ instance: 'https://github.com', token: null }, 'GET', '/api/definitely-not-there')
+
+    // Unreachable network is reported as that; reached, it names the forge.
+    if (answer.ok === false && answer.status !== 0) {
+      expect(answer.message).toContain('github.com, which is not a ReviewOS instance')
+      expect(answer.fix).toContain('REVIEWOS_URL=https://reviewos.org')
+    }
+  })
+
+  it('signs in on the hosted instance from a mirror or from nowhere, and probes before opening a browser', () => {
+    const commands = readFileSync(new URL('../../app/Cli/commands.ts', import.meta.url), 'utf8')
+    const resolver = commands.slice(commands.indexOf('async function instanceFor('), commands.indexOf('async function isInstance('))
+
+    expect(resolver).toContain('otherForge(here.instance)')
+    expect(resolver).toContain('return HOSTED_INSTANCE')
+    expect(resolver).not.toContain('return null')
+
+    const browser = commands.slice(commands.indexOf('async function browserToken('))
+    expect(browser.indexOf('isInstance(where)')).toBeGreaterThan(-1)
+    expect(browser.indexOf('isInstance(where)')).toBeLessThan(browser.indexOf('newAttempt()'))
+  })
+})

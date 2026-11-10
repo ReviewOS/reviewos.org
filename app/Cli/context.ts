@@ -91,6 +91,31 @@ export function parseRemote(url: string): { instance: string, owner: string, rep
   }
 }
 
+/** The instance the project itself runs, and where a sign-in goes when a checkout names none. */
+export const HOSTED_INSTANCE = 'https://reviewos.org'
+
+/**
+ * Forges that are certainly not a ReviewOS instance.
+ *
+ * A checkout's remote is the instance only when the checkout was cloned from
+ * one. A mirror's remote is its upstream, and reading that as the instance
+ * sent `reviewos login` to open github.com's sign-in page for a ReviewOS
+ * account, and every other command to answer with GitHub's 404.
+ */
+const OTHER_FORGES = ['github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org', 'sr.ht', 'git.sr.ht', 'dev.azure.com', 'gitea.com']
+
+/** The other forge an origin belongs to, or null when it could be an instance. */
+export function otherForge(instance: string): string | null {
+  try {
+    const host = new URL(instance).hostname.toLowerCase().replace(/^www\./, '')
+
+    return OTHER_FORGES.find(forge => host === forge || host.endsWith(`.${forge}`)) ?? null
+  }
+  catch {
+    return null
+  }
+}
+
 /**
  * Where this checkout points.
  *

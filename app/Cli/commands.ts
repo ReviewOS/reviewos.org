@@ -19,7 +19,7 @@
 import process from 'node:process'
 import { call, report } from './api'
 import { approvalUrl, listen, newAttempt, openBrowser } from './browserLogin'
-import { git, standing } from './context'
+import { git, HOSTED_INSTANCE, otherForge, standing } from './context'
 import { keychainFor, tokenFor } from './keychain'
 
 export interface LoginOptions { token?: string, instance?: string, browser?: boolean }
@@ -79,6 +79,12 @@ export async function login(options: LoginOptions = {}): Promise<number> {
  * nothing to anybody who only saw the code.
  */
 async function browserToken(where: string, useBrowser: boolean): Promise<string> {
+  if (!await isInstance(where)) {
+    console.error(`${where} does not answer as a ReviewOS instance, so no sign-in was started.`)
+    console.error(`Name the instance: reviewos login --instance ${HOSTED_INSTANCE}`)
+    return ''
+  }
+
   const attempt = newAttempt()
   let code = ''
 
@@ -343,19 +349,47 @@ export async function submitReview(number: string, options: ReviewOptions = {}):
   return 0
 }
 
-/** The instance for this command: named, or read from the checkout. */
+/**
+ * The instance for an account command (login, logout, whoami): named, or read
+ * from the checkout, or the hosted one.
+ *
+ * An account is not about a repository, so these never refuse for want of a
+ * checkout. Outside one, or inside a mirror whose remote is another forge, they
+ * use the hosted instance and say so - as `npm login` uses the public registry
+ * unless told otherwise. A self-hosted instance is named with `--instance` or
+ * `REVIEWOS_URL`, or read from a checkout cloned from it.
+ */
 async function instanceFor(named?: string): Promise<string | null> {
   const explicit = String(named ?? '').trim()
   if (explicit)
     return explicit
 
   const here = await standing()
-  if (here)
-    return here.instance
+  if (!here) {
+    console.log(`Not in a checkout of a ReviewOS repository, so using ${HOSTED_INSTANCE}. For another instance, pass --instance <url>.`)
+    return HOSTED_INSTANCE
+  }
 
-  console.error('Not in a checkout of a ReviewOS repository, and no --instance given.')
+  const forge = otherForge(here.instance)
+  if (forge) {
+    console.log(`This checkout's remote is ${forge}, which is not a ReviewOS instance, so using ${HOSTED_INSTANCE}. For another instance, pass --instance <url> or set REVIEWOS_URL.`)
+    return HOSTED_INSTANCE
+  }
 
-  return null
+  return here.instance
+}
+
+/**
+ * Whether the origin answers as a ReviewOS instance.
+ *
+ * Asked before a browser is opened on it. A sign-in page opened on a host that
+ * is something else is, at best, a 404 somebody stares at while the terminal
+ * waits five minutes; at worst it is another product's sign-in form.
+ */
+async function isInstance(where: string): Promise<boolean> {
+  const health = await call({ instance: where, token: null }, 'GET', '/api/health')
+
+  return health.ok && Array.isArray(health.data?.checks)
 }
 
 function notInACheckout(): number {
