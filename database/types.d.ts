@@ -3002,6 +3002,7 @@ declare module '@stacksjs/database' {
       approved_by_id: number
       approved_at: string
       attempt: number
+      lost_runners: number
       cache_lookups: number
       cache_hits: number
       resume_from_step: number

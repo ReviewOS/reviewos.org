@@ -46,7 +46,7 @@ async function freshRun(headSha: string): Promise<number> {
 async function buildJob(runId: number): Promise<any> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'state', 'runner_id', 'lease_expires_at', 'attempt', 'condition_reason'])
+    .select(['id', 'state', 'runner_id', 'lease_expires_at', 'attempt', 'lost_runners', 'condition_reason'])
     .where('workflow_run_id', '=', runId)
     .where('job_id', '=', 'build')
     .executeTakeFirst()
@@ -467,6 +467,91 @@ describe('a job that keeps losing its runner', () => {
 
     expect(after.state).toBe('queued')
     expect(Number(after.attempt)).toBe(3)
+  }, 60_000)
+})
+
+describe('a machine the cloud took back', () => {
+  test('is not counted against the job, however many there are', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f3'.repeat(20))
+
+    // Four reclaimed spot instances in a row: more than the limit, and every
+    // one of them AWS's doing rather than the job's.
+    for (let round = 1; round <= 4; round++) {
+      const job = await buildJob(runId)
+      const runner = `920${round}`
+
+      await hold(Number(job.id), runner, leaseUntil(new Date(Date.now() - 600_000), 0))
+      await sweep.handle({ reclaimed: async (ids: string[]) => new Set(ids.filter(id => id === runner)) })
+    }
+
+    const after = await buildJob(runId)
+
+    expect(after.state).toBe('queued')
+    expect(Number(after.lost_runners)).toBe(0)
+    expect(Number(after.attempt)).toBe(5)
+  }, 60_000)
+
+  test('while a machine that simply went quiet still counts', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f4'.repeat(20))
+
+    for (let round = 1; round <= 3; round++) {
+      const job = await buildJob(runId)
+      const runner = `930${round}`
+
+      await hold(Number(job.id), runner, leaseUntil(new Date(Date.now() - 600_000), 0))
+      // The second machine was reclaimed; the other two were not.
+      await sweep.handle({ reclaimed: async () => new Set(round === 2 ? [runner] : []) })
+    }
+
+    const after = await buildJob(runId)
+
+    expect(after.state).toBe('queued')
+    expect(Number(after.lost_runners)).toBe(2)
+  }, 60_000)
+
+  test('and asking the cloud failing counts the machine as before', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f5'.repeat(20))
+    const job = await buildJob(runId)
+
+    await hold(Number(job.id), '9401', leaseUntil(new Date(Date.now() - 600_000), 0))
+    await sweep.handle({ reclaimed: async () => { throw new Error('throttled') } })
+
+    expect(Number((await buildJob(runId)).lost_runners)).toBe(1)
+  }, 60_000)
+})
+
+describe('a re-run job that loses its runner', () => {
+  test('counts this attempt\'s machines, not its attempt number', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f6'.repeat(20))
+    const first = await buildJob(runId)
+
+    // What a re-run leaves: attempt 2, nothing lost yet. The sweep used to read
+    // the attempt number, and failed such a job after two lost machines.
+    await db.updateTable('workflow_jobs').set({ attempt: 2, lost_runners: 0 }).where('id', '=', Number(first.id)).execute()
+
+    for (let round = 1; round <= 2; round++) {
+      const job = await buildJob(runId)
+
+      await hold(Number(job.id), `950${round}`, leaseUntil(new Date(Date.now() - 600_000), 0))
+      await sweep.handle({ reclaimed: async () => new Set() })
+    }
+
+    const after = await buildJob(runId)
+
+    expect(after.state).toBe('queued')
+    expect(Number(after.lost_runners)).toBe(2)
   }, 60_000)
 })
 

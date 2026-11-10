@@ -353,6 +353,9 @@ export async function rerunRun(input: {
          * from a run that has been superseded.
          */
         attempt: Number((job as any).attempt ?? 1) + 1,
+        // A person asking again starts the lost-runner count again: the
+        // sweep's limit is about this attempt's machines, not the last one's.
+        lost_runners: 0,
         runner_id: null,
         lease_expires_at: null,
         job_token_hash: null,

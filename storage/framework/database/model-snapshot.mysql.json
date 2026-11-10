@@ -12769,6 +12769,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "lost_runners",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -16184,7 +16193,7 @@
       }
     ]
   },
-  "hash": "a0d862fe89369bc784c9b4b82de95f8efd005fc56ca7606e5b51f074c4b7dd9f",
+  "hash": "f340fa8eaa3c4ac2546e52bd6a8d9400e3fa0b3f9f1b90038f84678ee0353887",
   "dialect": "mysql",
-  "updatedAt": "2026-11-10T00:05:22.800Z"
+  "updatedAt": "2026-11-10T20:20:17.502Z"
 }

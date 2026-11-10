@@ -37,6 +37,11 @@ export const autoscalingGroups: Record<string, RunnerGroup> = {
     // `price-capacity-optimized` has pools to choose from when one runs dry.
     instanceTypes: ['c7a.2xlarge', 'c6a.2xlarge', 'm7a.2xlarge', 'm6a.2xlarge', 'c5a.2xlarge', 'm5a.2xlarge'],
     market: { spot: true, onDemandBaseCapacity: 0, onDemandPercentageAboveBase: 0 },
+    // When Spot refuses a launch or takes a machine back, the next launches are
+    // on-demand until Spot has been quiet this long (AutoscaleRunnersJob).
+    // HQ's deploys wait on these machines, so a dry spell costs more than the
+    // on-demand difference for half an hour.
+    spotFallbackSeconds: 1800,
     min: 0,
     max: 6,
     idleTimeoutSeconds: 300,

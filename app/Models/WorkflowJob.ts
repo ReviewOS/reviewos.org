@@ -324,6 +324,23 @@ export default defineModel({
     },
 
     /**
+     * How many runners stopped responding while holding this attempt.
+     *
+     * Its own counter rather than `attempt`, which a re-run raises too: the
+     * lease sweep failing a job after its third lost runner read `attempt`, so
+     * a re-run of a job (attempt 2) was failed after two lost machines while
+     * saying three. And a machine the cloud took back - a reclaimed spot
+     * instance - is not counted at all, because the job did nothing to it.
+     * Reset whenever a person re-runs the job.
+     */
+    lost_runners: {
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number().min(0) },
+      factory: () => 0,
+    },
+
+    /**
      * How many cache lookups this job made, and how many found something.
      *
      * Two counters rather than a ratio, because the ratio is the derived

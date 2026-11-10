@@ -1,6 +1,6 @@
 import { db } from '@stacksjs/database'
 import type { AwsWorkerGroupApi, Worker } from '@stacksjs/ts-cloud/drivers'
-import { applyWorkerGroupPlan, planWorkerGroup } from '@stacksjs/ts-cloud/drivers'
+import { applyWorkerGroupPlan, DEFAULT_SPOT_FALLBACK_SECONDS, planMarket, planWorkerGroup } from '@stacksjs/ts-cloud/drivers'
 import { resolveRepository } from '../../Identity/lookup'
 import { runnerLifecycle } from '../fleet'
 import type { RunnerGroup } from './types'
@@ -91,6 +91,25 @@ export async function workersFor(instanceIds: string[], now: Date = new Date()):
   })
 }
 
+/**
+ * Which market the group's next launches should use: on-demand while Spot is
+ * refusing launches or taking machines back, its declared share otherwise.
+ *
+ * Decided before capacity is raised, so the machines this tick asks for come
+ * from the market that can actually supply them. On 2026-11-10 us-east-1 had
+ * no spot capacity for any of HQ's six instance types for half an hour: the
+ * group kept asking, the few instances that started were reclaimed minutes into
+ * a job, and every HQ deploy waited behind it.
+ */
+export async function marketFor(api: Pick<AwsWorkerGroupApi, 'spotTrouble'>, group: RunnerGroup, current: number | null, now: Date): Promise<{ percent: number | null, reason: string | null }> {
+  const hold = group.spotFallbackSeconds ?? DEFAULT_SPOT_FALLBACK_SECONDS
+  // A group with no spot market, or no mixed instances policy to move, has nothing to decide.
+  if (!group.market?.spot || current === null || current === undefined || hold <= 0)
+    return { percent: null, reason: null }
+  const trouble = await api.spotTrouble(group.name, new Date(now.getTime() - hold * 1000))
+  return planMarket({ config: group, current, trouble, now })
+}
+
 export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, options: { dryRun?: boolean, now?: Date } = {}): Promise<string[]> {
   const now = options.now ?? new Date()
   const state = await api.describeGroup(group.name)
@@ -109,6 +128,18 @@ export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, opti
   })
 
   const lines = plan.reasons.map(reason => `${group.name}: ${reason}`)
+
+  // A Spot history that cannot be read leaves the market as it is: scaling
+  // still happens, and the next tick asks again.
+  let market: { percent: number | null, reason: string | null } = { percent: null, reason: null }
+  try {
+    market = await marketFor(api, group, state.onDemandPercentage, now)
+  }
+  catch (error) {
+    lines.push(`${group.name}: could not read its spot history, so its market stays as it is: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (market.reason)
+    lines.unshift(`${group.name}: ${market.reason}`)
   /*
    * What it saw, when there was anything to see and it chose to do nothing.
    *
@@ -121,8 +152,10 @@ export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, opti
   if (lines.length === 0 && (waiting > 0 || state.desired > 0 || state.instances.length > 0))
     lines.push(`${group.name}: ${waiting} waiting, desired ${state.desired}, ${state.instances.length} instance(s), ${workers.length} registered, ${workers.filter(worker => worker.idle).length} idle: nothing to change`)
   if (options.dryRun)
-    return [...lines, `${group.name}: dry run, desired would be ${plan.desired} (now ${state.desired})`]
+    return [...lines, `${group.name}: dry run, desired would be ${plan.desired} (now ${state.desired})${market.percent === null ? '' : `, on-demand share would be ${market.percent}%`}`]
 
+  if (market.percent !== null)
+    await api.setOnDemandShare(group.name, market.percent)
   await applyWorkerGroupPlan(api, group.name, state.desired, plan)
   return lines
 }

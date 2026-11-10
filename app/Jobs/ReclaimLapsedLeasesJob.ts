@@ -6,6 +6,7 @@ import { announceRunIfMoved } from '../Actions/Workflow/announce'
 import { claimableSince } from '../Actions/Runner/claim'
 import { leaseIsReclaimable } from '../Actions/Runner/protocol'
 import { queueTimeoutHours } from '../../config/ci-quotas'
+import { reclaimedByCloud } from '../Actions/Runner/Autoscale/reclaimed'
 import { raw } from 'bun-query-builder'
 
 /**
@@ -52,7 +53,11 @@ export default new Job({
   queue: 'default',
   tries: 1,
 
-  async handle() {
+  /**
+   * `reclaimed` answers which runners' machines the cloud took back; tests pass
+   * their own rather than asking AWS.
+   */
+  async handle(payload?: { reclaimed?: (runnerIds: string[]) => Promise<Set<string>> }) {
     const now = new Date()
 
     // Done first, and separately: a job asked to stop is not a job to hand to
@@ -71,7 +76,7 @@ export default new Job({
 
     const lapsed = await db
       .selectFrom('workflow_jobs')
-      .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at', 'attempt'])
+      .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at', 'attempt', 'lost_runners'])
       .where('state', '=', 'running')
       // Anything held with no lease at all is lapsed by definition: a running
       // job without one is a row that lost its holder, and leaving it out would
@@ -87,8 +92,23 @@ export default new Job({
 
     const runs = new Set<number>()
 
+    // Asked once for the whole sweep, and only about machines that went quiet.
+    const holders = expired.map(job => String(job.runner_id ?? '')).filter(Boolean)
+    const reclaimed = holders.length > 0
+      ? await (payload?.reclaimed ?? reclaimedByCloud)(holders).catch(() => new Set<string>())
+      : new Set<string>()
+
     for (const job of expired) {
       const attempt = Number(job.attempt ?? 1)
+      /*
+       * A machine the cloud took back is not one the job lost. A spot instance
+       * reclaimed four minutes into setup said nothing about the job, and on a
+       * day Spot is short it happens to every machine in turn - three of them
+       * failed HQ's api-e2e as "failing its machine" while the jobs themselves
+       * were fine. Those go back to the queue without counting.
+       */
+      const tookBack = reclaimed.has(String(job.runner_id ?? ''))
+      const lost = Number(job.lost_runners ?? 0) + (tookBack ? 0 : 1)
 
       /*
        * A job whose runner keeps dying is failed rather than requeued forever.
@@ -100,7 +120,7 @@ export default new Job({
        * attempt column bounds it, and the failure says what happened rather
        * than reading as an ordinary one.
        */
-      if (attempt >= MAX_LOST_ATTEMPTS) {
+      if (!tookBack && lost >= MAX_LOST_ATTEMPTS) {
         const ended = await db
           .updateTable('workflow_jobs')
           .set({
@@ -109,7 +129,8 @@ export default new Job({
             runner_id: null,
             lease_expires_at: null,
             job_token_hash: null,
-            condition_reason: `Handed to ${attempt} runners and each stopped responding. This job is failing its machine rather than failing on it.`,
+            lost_runners: lost,
+            condition_reason: `Handed to ${lost} runners and each stopped responding. This job is failing its machine rather than failing on it.`,
           })
           .where('id', '=', Number(job.id))
           .where('state', '=', 'running')
@@ -133,6 +154,7 @@ export default new Job({
           lease_expires_at: null,
           job_token_hash: null,
           attempt: attempt + 1,
+          lost_runners: lost,
           // Reclaimed work waits for a machine from now, not from whenever the
           // lost runner first took it.
           queued_at: new Date().toISOString(),
