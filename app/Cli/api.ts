@@ -11,6 +11,8 @@
  * the API is complete and becomes a second implementation of the product.
  */
 
+import process from 'node:process'
+
 /** What every call answers with. Nothing here throws for a 4xx. */
 export type Answer<T = any> =
   | { ok: true, status: number, data: T }
@@ -46,6 +48,33 @@ function describe(status: number, body: any): { message: string, code?: string, 
     return { message: 'Not signed in', fix: 'Run `reviewos login` first.' }
 
   return { message: `The server answered ${status}` }
+}
+
+/**
+ * What a 401 means to the person at the terminal, and what to do about it.
+ *
+ * Two different situations answer 401 and used to print the same word,
+ * "Unauthenticated": never having signed in, and having signed in with a token
+ * that has since expired or been revoked. The second is the confusing one - the
+ * command worked last week - so it is said in full, with the one command that
+ * fixes it. A token from the environment is named, because `reviewos login`
+ * cannot replace that one and somebody would run it and see no change.
+ */
+export function signedOut(connection: Connection, environment: Record<string, string | undefined> = process.env): { message: string, fix: string } {
+  if (!connection.token)
+    return { message: `Not signed in to ${connection.instance}.`, fix: 'Run `reviewos login` to sign in through your browser.' }
+
+  if (String(environment.REVIEWOS_TOKEN ?? '').trim() === connection.token) {
+    return {
+      message: `${connection.instance} refused the token in REVIEWOS_TOKEN: it has expired or been revoked.`,
+      fix: 'Replace it, or unset it and run `reviewos login`.',
+    }
+  }
+
+  return {
+    message: `Your sign-in to ${connection.instance} is no longer valid: the token has expired or been revoked.`,
+    fix: 'Run `reviewos login` to sign in again through your browser.',
+  }
 }
 
 export async function call<T = any>(
@@ -104,8 +133,16 @@ export async function call<T = any>(
     }
   }
 
-  if (!answer.ok)
-    return { ok: false, status: answer.status, ...describe(answer.status, body) }
+  if (!answer.ok) {
+    const described = describe(answer.status, body)
+
+    // The server's own words win when it explained itself. A bare
+    // "Unauthenticated" explains nothing, and is what a lapsed token gets.
+    if (answer.status === 401 && !described.fix)
+      return { ok: false, status: 401, code: described.code, ...signedOut(connection) }
+
+    return { ok: false, status: answer.status, ...described }
+  }
 
   return { ok: true, status: answer.status, data: body as T }
 }

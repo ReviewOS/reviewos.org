@@ -156,3 +156,48 @@ describe('the two ends agree', () => {
     expect(approve.indexOf('__fineGrainedToken')).toBeLessThan(approve.indexOf('sealCliGrant({'))
   })
 })
+
+describe('a refused sign-in says what happened and what to do', () => {
+  const instance = 'https://reviewos.example'
+
+  it('tells never signed in from signed in and lapsed', async () => {
+    const { signedOut } = await import('../../app/Cli/api')
+
+    expect(signedOut({ instance, token: null }, {})).toEqual({ message: 'Not signed in to https://reviewos.example.', fix: 'Run `reviewos login` to sign in through your browser.' })
+
+    const lapsed = signedOut({ instance, token: 'ros_old' }, {})
+    expect(lapsed.message).toContain('no longer valid')
+    expect(lapsed.fix).toContain('reviewos login')
+
+    // `reviewos login` cannot replace a token the environment supplies.
+    const fromEnvironment = signedOut({ instance, token: 'ros_ci' }, { REVIEWOS_TOKEN: 'ros_ci' })
+    expect(fromEnvironment.message).toContain('REVIEWOS_TOKEN')
+    expect(fromEnvironment.fix).toContain('unset')
+  })
+
+  it('replaces a bare 401, and keeps a refusal the server explained', async () => {
+    const { call } = await import('../../app/Cli/api')
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch(request) {
+        return new URL(request.url).pathname === '/explained'
+          ? Response.json({ error: { message: 'Two-factor is required', fix: 'Open Settings, Security.' } }, { status: 401 })
+          : Response.json({ error: 'Unauthenticated' }, { status: 401 })
+      },
+    })
+    try {
+      const origin = `http://127.0.0.1:${server.port}`
+
+      const bare = await call({ instance: origin, token: 'ros_old' }, 'GET', '/api/user')
+      expect(bare.ok === false && bare.status === 401 && bare.message.includes('no longer valid') && bare.fix?.includes('reviewos login')).toBe(true)
+
+      const none = await call({ instance: origin, token: null }, 'GET', '/api/user')
+      expect(none.ok === false && none.message.startsWith('Not signed in to')).toBe(true)
+
+      const explained = await call({ instance: origin, token: 'ros_old' }, 'GET', '/explained')
+      expect(explained.ok === false && explained.message === 'Two-factor is required' && explained.fix === 'Open Settings, Security.').toBe(true)
+    }
+    finally { void server.stop(true) }
+  })
+})
