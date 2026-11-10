@@ -26,7 +26,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (138/139) |
 | [10 - Federation](./10-federation.md) | AT Protocol identity: resolution, linking and OAuth sign-in | Complete (17/17) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (67/67) |
-| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
+| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (31/31) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Complete (63/63) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | Complete (172/172) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (235/237) |
