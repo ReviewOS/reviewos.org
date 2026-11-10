@@ -30,8 +30,13 @@ export default defineModel({
 
   indexes: [
     { name: 'workflow_versions_repository_index', columns: ['repository_id'] },
-    // The reuse check on every push: has this exact content been seen before.
-    { name: 'workflow_versions_digest_index', columns: ['workflow_id', 'content_digest'], unique: true },
+    // The reuse check on every push: is the newest version this exact content.
+    // Not unique: a file put back to what it once was is a new current
+    // version with an older version's digest (see `syncWorkflowFile`). It was
+    // the unique `workflow_versions_digest_index`; a new name lets the
+    // migration create this before dropping that, which MySQL's workflow_id
+    // foreign key requires.
+    { name: 'workflow_versions_digest_lookup_index', columns: ['workflow_id', 'content_digest'] },
   ],
 
   traits: {

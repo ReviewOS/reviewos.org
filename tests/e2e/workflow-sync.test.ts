@@ -1,8 +1,8 @@
 // Storing a workflow file, against the real tables.
 //
 // Written as an end to end test rather than over a stubbed database because
-// every claim worth making here is about what the rows do: the digest is unique
-// per workflow, the graph hangs off a version that is never edited, and
+// every claim worth making here is about what the rows do: unchanged content
+// reuses the newest version, the graph hangs off a version that is never edited, and
 // deleting a repository takes its workflows with it. A stub would agree with
 // whatever this file asserted.
 
@@ -181,6 +181,43 @@ describe('storing a workflow', () => {
     expect(second.createdVersion).toBe(true)
     expect(second.versionId).not.toBe(first.versionId)
     expect(second.workflowId).toBe(first.workflowId)
+  })
+
+  /*
+   * The newest version is the current one to every reader, dispatch included.
+   * Reusing an older version with the same digest left the edit in between
+   * current: HQ moved a CI job off a runner and back, and every later push still
+   * ran it where the middle commit had put it.
+   */
+  test('content put back to an earlier version becomes current again', async () => {
+    if (!available)
+      return
+
+    const path = '.github/workflows/reverted.yml'
+    const changed = CI.replace('bun test', 'bun test --coverage')
+    const first = await sync(CI, path, 'a'.repeat(40))
+    const second = await sync(changed, path, 'b'.repeat(40))
+    const reverted = await sync(CI, path, 'c'.repeat(40))
+
+    expect(second.createdVersion).toBe(true)
+    expect(reverted.createdVersion).toBe(true)
+    expect(reverted.versionId).toBeGreaterThan(second.versionId!)
+
+    const newest: any = await db.selectFrom('workflow_versions')
+      .select(['id', 'content_digest', 'source_sha'])
+      .where('workflow_id', '=', first.workflowId)
+      .orderBy('id', 'desc')
+      .limit(1)
+      .executeTakeFirst()
+
+    expect(Number(newest.id)).toBe(reverted.versionId)
+    expect(newest.content_digest).toBe(digestOf(CI))
+    expect(newest.source_sha).toBe('c'.repeat(40))
+
+    // And pushing it once more is still a reuse, not another version.
+    const again = await sync(CI, path, 'd'.repeat(40))
+    expect(again.createdVersion).toBe(false)
+    expect(again.versionId).toBe(reverted.versionId)
   })
 
   /*

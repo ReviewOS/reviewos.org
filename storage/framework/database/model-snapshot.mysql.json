@@ -14986,19 +14986,19 @@
             "type": "index"
           },
           {
-            "name": "workflow_versions_digest_index",
-            "columns": [
-              "workflow_id",
-              "content_digest"
-            ],
-            "type": "unique"
-          },
-          {
             "name": "workflow_versions_uuid_unique",
             "columns": [
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_versions_digest_lookup_index",
+            "columns": [
+              "workflow_id",
+              "content_digest"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -16184,7 +16184,7 @@
       }
     ]
   },
-  "hash": "0f62310a4c7409a198f20f81070c10b7e65d0ca46c70014716e94bf16d340893",
+  "hash": "a0d862fe89369bc784c9b4b82de95f8efd005fc56ca7606e5b51f074c4b7dd9f",
   "dialect": "mysql",
-  "updatedAt": "2026-11-09T01:42:23.962Z"
+  "updatedAt": "2026-11-10T00:05:22.800Z"
 }

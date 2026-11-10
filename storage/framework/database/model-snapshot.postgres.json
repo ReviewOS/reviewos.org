@@ -14745,19 +14745,19 @@
             "type": "index"
           },
           {
-            "name": "workflow_versions_digest_index",
-            "columns": [
-              "workflow_id",
-              "content_digest"
-            ],
-            "type": "unique"
-          },
-          {
             "name": "workflow_versions_uuid_unique",
             "columns": [
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_versions_digest_lookup_index",
+            "columns": [
+              "workflow_id",
+              "content_digest"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -16184,7 +16184,7 @@
       }
     ]
   },
-  "hash": "e9d755b8d4bdcc10af4c1e91d096dc8fe3509ce9e6b24204dbe2d4e79dafdf8f",
+  "hash": "c7a2ae01269a8f9051ba788b9bf7520d7c7769fcf16198e758a88f5ee052c3f2",
   "dialect": "postgres",
-  "updatedAt": "2026-11-09T01:42:24.209Z"
+  "updatedAt": "2026-11-10T00:05:22.970Z"
 }

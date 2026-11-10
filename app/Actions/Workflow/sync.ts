@@ -92,9 +92,9 @@ function lines(values: readonly string[]): string | null {
 /**
  * Store one workflow file.
  *
- * Idempotent by digest: the same content on a second push finds the existing
+ * Idempotent by digest: the same content on a second push finds the newest
  * version and writes nothing. That is what stops a repository accumulating a
- * version per commit, and it is why the digest column is unique per workflow.
+ * version per commit.
  */
 export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
   /*
@@ -163,12 +163,25 @@ export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
   const workflowId = await upsertWorkflow(input, parsed.workflow)
   const digest = digestOf(input.source)
 
-  const existing = await db
+  /*
+   * Reused only when it is the newest version, because the newest version is
+   * what every reader takes to be current (dispatch, the workflow pages, a
+   * manual run all order by id).
+   *
+   * It reused any version with the same digest. Put a file back to what it was
+   * two edits ago - a revert, or a change undone by hand - and the older row
+   * was found, nothing was written, and the edit in between stayed current: HQ
+   * moved a CI job off a runner and back, and every push after the second
+   * commit still ran the job where the first commit had put it.
+   */
+  const newest: any = await db
     .selectFrom('workflow_versions')
-    .select(['id'])
+    .select(['id', 'content_digest'])
     .where('workflow_id', '=', workflowId)
-    .where('content_digest', '=', digest)
+    .orderBy('id', 'desc')
+    .limit(1)
     .executeTakeFirst()
+  const existing = newest && String(newest.content_digest) === digest ? newest : null
 
   if (existing) {
     return {
