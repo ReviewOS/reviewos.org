@@ -166,7 +166,7 @@ describe('a refused sign-in says what happened and what to do', () => {
     expect(signedOut({ instance, token: null }, {})).toEqual({ message: 'Not signed in to https://reviewos.example.', fix: 'Run `reviewos login` to sign in through your browser.' })
 
     const lapsed = signedOut({ instance, token: 'ros_old' }, {})
-    expect(lapsed.message).toContain('no longer valid')
+    expect(lapsed.message).toContain('refused your sign-in')
     expect(lapsed.fix).toContain('reviewos login')
 
     // `reviewos login` cannot replace a token the environment supplies.
@@ -190,7 +190,7 @@ describe('a refused sign-in says what happened and what to do', () => {
       const origin = `http://127.0.0.1:${server.port}`
 
       const bare = await call({ instance: origin, token: 'ros_old' }, 'GET', '/api/user')
-      expect(bare.ok === false && bare.status === 401 && bare.message.includes('no longer valid') && bare.fix?.includes('reviewos login')).toBe(true)
+      expect(bare.ok === false && bare.status === 401 && bare.message.includes('refused your sign-in') && bare.fix?.includes('reviewos login')).toBe(true)
 
       const none = await call({ instance: origin, token: null }, 'GET', '/api/user')
       expect(none.ok === false && none.message.startsWith('Not signed in to')).toBe(true)

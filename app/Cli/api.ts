@@ -66,14 +66,16 @@ export function signedOut(connection: Connection, environment: Record<string, st
 
   if (String(environment.REVIEWOS_TOKEN ?? '').trim() === connection.token) {
     return {
-      message: `${connection.instance} refused the token in REVIEWOS_TOKEN: it has expired or been revoked.`,
+      message: `${connection.instance} refused the token in REVIEWOS_TOKEN. It may have expired or been revoked.`,
       fix: 'Replace it, or unset it and run `reviewos login`.',
     }
   }
 
   return {
-    message: `Your sign-in to ${connection.instance} is no longer valid: the token has expired or been revoked.`,
-    fix: 'Run `reviewos login` to sign in again through your browser.',
+    message: `${connection.instance} refused your sign-in. The token may have expired or been revoked.`,
+    // "May": an instance mid-deploy has answered 401 to a token that worked
+    // again minutes later, so the retry comes before the new sign-in.
+    fix: 'Try again in a moment. If it keeps happening, run `reviewos login` to sign in again through your browser.',
   }
 }
 
