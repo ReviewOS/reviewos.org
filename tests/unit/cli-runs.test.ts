@@ -7,7 +7,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import process from 'node:process'
-import { describeJobs, listRuns, parseInputs, resolveTarget, runUrl, runWorkflow, watchRun } from '../../app/Cli/runs'
+import { describeJobs, describeRun, listRuns, parseInputs, resolveTarget, runUrl, runWorkflow, watchRun } from '../../app/Cli/runs'
 
 let server: ReturnType<typeof Bun.serve>
 let instance = ''
@@ -106,6 +106,24 @@ describe('watching a run', () => {
   it('stops at the deadline and leaves the run alone', async () => {
     showStates = ['queued', 'queued', 'queued']
     expect(await watchRun('9', { ...target(), intervalMs: 0, timeoutMs: 0, sleep: async () => {} })).toBe(1)
+  })
+
+  it('names the jobs a finished run failed on and what each stopped on', () => {
+    const jobs = [
+      { name: 'unit', state: 'failed', error: 'Run database and unit regression suites exited 1' },
+      { name: 'api-e2e', state: 'cancelled', error: 'Stopped because the run had already failed' },
+      { name: 'lint', state: 'succeeded' },
+      { name: 'deploy', state: 'skipped' },
+    ]
+    expect(describeRun('3815', { state: 'failed', jobs })).toEqual([
+      '#3815 failed',
+      '  unit: failed (Run database and unit regression suites exited 1)',
+      '  api-e2e: cancelled (Stopped because the run had already failed)',
+    ])
+    // A run cancelled as a whole says why, and a run that succeeded lists nothing.
+    expect(describeRun('3820', { state: 'cancelled', reason: 'Skipped: a newer commit arrived before this run started.', jobs: [] })).toEqual(['#3820 cancelled: Skipped: a newer commit arrived before this run started.'])
+    expect(describeRun('7', { state: 'succeeded', jobs })).toEqual(['#7 succeeded'])
+    expect(describeRun('8', { state: 'running', jobs: [{ job_id: 'publish', state: 'queued', waiting: { summary: 'every matching runner is busy' } }] })).toEqual(['#8 running', '  publish: queued (every matching runner is busy)'])
   })
 
   it('says why a queued job is still queued', () => {

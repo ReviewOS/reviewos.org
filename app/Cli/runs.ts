@@ -102,14 +102,31 @@ export function runUrl(target: Target, number: number | string): string {
   return `${target.instance}/${target.owner}/${target.repository}/run/${number}`
 }
 
-/** One line for a run's jobs that are not finished, including why one is waiting. */
+/**
+ * One line for each job that did not succeed: why a queued one is waiting, and
+ * what a failed or cancelled one stopped on (the instance's own `error` for
+ * the job, such as "Run the unit suites exited 1").
+ */
 export function describeJobs(jobs: any[] = []): string[] {
   return jobs
     .filter(job => !['succeeded', 'skipped'].includes(String(job.state)))
     .map((job) => {
-      const why = job.waiting?.summary ?? job.waiting?.kind
+      const why = job.waiting?.summary ?? job.waiting?.kind ?? job.error
       return `  ${String(job.name ?? job.job_id ?? 'job')}: ${String(job.state)}${why ? ` (${String(why)})` : ''}`
     })
+}
+
+/**
+ * What `watch` says about a run in its current state.
+ *
+ * A run that failed or was cancelled names the jobs that did not succeed and
+ * what each stopped on. It used to print the state and a link, so the answer
+ * to "what failed?" was always a browser away, and a script following a
+ * release could not put it in its own output.
+ */
+export function describeRun(number: string, run: any, jobs: any[] = run?.jobs ?? []): string[] {
+  const state = String(run?.state ?? 'unknown')
+  return [`#${number} ${state}${run?.reason && TERMINAL.has(state) && state !== 'succeeded' ? `: ${String(run.reason)}` : ''}`, ...(state === 'succeeded' ? [] : describeJobs(jobs))]
 }
 
 async function connect(options: TargetOptions): Promise<{ target: Target, connection: Connection } | number> {
@@ -185,8 +202,7 @@ export async function watchRun(number: string, options: WatchOptions = {}): Prom
 
     const run = shown.data?.workflow_run ?? {}
     const state = String(run.state ?? 'unknown')
-    const lines = [`#${number} ${state}`, ...(TERMINAL.has(state) ? [] : describeJobs(run.jobs ?? shown.data?.jobs))]
-    const text = lines.join('\n')
+    const text = describeRun(number, run, run.jobs ?? shown.data?.jobs).join('\n')
 
     if (text !== said) {
       console.log(text)
