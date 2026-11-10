@@ -7,8 +7,11 @@
  * useless for the person this is written for: somebody who cloned a repository
  * hosted on a ReviewOS instance and has never seen this codebase.
  *
- * Build it with `bun build --compile cli/reviewos.ts --outfile reviewos`. The
- * result needs no runtime installed.
+ * Build it with `bun run build:cli`, which writes `dist/reviewos`. The result
+ * needs no runtime installed. It is compiled to ignore the bunfig.toml and
+ * .env of whatever directory it is run in: a binary that autoloads them runs a
+ * project's `preload` and dies in any Stacks checkout ("Cannot find module
+ * '@stacksjs/env'"), which is exactly where a mirror's CI is asked about.
  *
  * Argument parsing and nothing else - every command's behaviour is in
  * `app/Cli/commands.ts`, which the `buddy` registration calls the same way. Two

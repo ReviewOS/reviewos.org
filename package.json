@@ -29,6 +29,7 @@
     "dev": "./buddy dev",
     "development": "./buddy dev",
     "build": "./buddy build",
+    "build:cli": "bun build --compile --no-compile-autoload-bunfig --no-compile-autoload-dotenv cli/reviewos.ts --outfile dist/reviewos",
     "prod": "./buddy build",
     "deploy": "./buddy deploy",
     "lint": "./buddy lint",

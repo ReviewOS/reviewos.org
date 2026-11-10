@@ -566,7 +566,7 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
 - [x] A CLI for the operations that belong in a terminal: open a pull request from the current
       branch, check out someone else's, see the stack, submit a review from a file
 
-  `cli/reviewos.ts`, built with `bun build --compile`, over the shared implementations in
+  `cli/reviewos.ts`, built with `bun run build:cli`, over the shared implementations in
   `app/Cli/commands.ts`. The same commands are registered on `buddy` for working inside this
   repository - two front ends, one implementation, because `buddy` refuses to run outside a Stacks
   checkout and the person this is for has never seen this codebase.
