@@ -37,7 +37,7 @@ import { listRuns, runWorkflow, watchRun } from '../app/Cli/runs'
 
 const USAGE = `reviewos - the review surface, from a terminal
 
-  reviewos login [--token <token>] [--instance <url>]
+  reviewos login [--no-browser] [--token <token>] [--instance <url>]
   reviewos logout [--instance <url>]
   reviewos whoami [--instance <url>]
 
@@ -58,6 +58,10 @@ const USAGE = `reviewos - the review surface, from a terminal
 The instance and the repository are read from the git remote of the checkout
 you are standing in. REVIEWOS_URL overrides the instance; REVIEWOS_TOKEN
 overrides the stored token, which is what CI uses.
+
+\`reviewos login\` opens the instance in your browser and asks you there; no token
+to find or paste. --no-browser prints the link and reads a pasted code instead,
+for a machine without a browser. --token takes an access token you already have.
 
 A token is kept in the operating system's keychain, never in a dotfile.
 `
@@ -114,7 +118,7 @@ const instance = typeof flags.instance === 'string' ? flags.instance : undefined
 async function main(): Promise<number> {
   switch (command) {
     case 'login':
-      return await login({ token: typeof flags.token === 'string' ? flags.token : undefined, instance })
+      return await login({ token: typeof flags.token === 'string' ? flags.token : undefined, instance, browser: flags['no-browser'] !== true })
 
     case 'logout':
       return await logout({ instance })

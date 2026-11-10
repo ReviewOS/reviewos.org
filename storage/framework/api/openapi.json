@@ -885,6 +885,128 @@
         }
       }
     },
+    "/api/cli/login/approve": {
+      "post": {
+        "summary": "/api/cli/login/approve",
+        "operationId": "post__api_cli_login_approve",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "303": {
+            "description": "Approved or refused. The redirect goes to the terminal that asked, on 127.0.0.1, or back to the page with a code to paste."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "An access token cannot approve a sign-in; only a browser session can."
+          },
+          "422": {
+            "description": "The request did not come from `reviewos login`: its challenge or state is missing or malformed."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "device": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "deny"
+                    ]
+                  }
+                },
+                "required": [
+                  "challenge",
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cli/login/token": {
+      "post": {
+        "summary": "/api/cli/login/token",
+        "operationId": "post__api_cli_login_token",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The token, shown once, with the handle it signs in as."
+          },
+          "403": {
+            "description": "Not approved, expired after two minutes, or not the terminal that asked."
+          },
+          "422": {
+            "description": "The account can no longer hold a token."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "verifier": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "verifier"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/discover": {
       "get": {
         "summary": "/api/discover",

@@ -33,7 +33,7 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 18,
+    count: 19,
     because: 'the Apple social callback, the MCP endpoint, the mirror webhook, the twelve runner routes, and the '
       + 'three GitHub-compatible paths an action posts to. '
       + 'Apple posts cross-site and cannot carry the double-submit token; its '
@@ -67,7 +67,11 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'result the program reports when the step finishes, on the same '
       + 'credential, and the entry it names is checked against that run rather '
       + 'than believed. The workspace-retirement query uses the registered runner token '
-      + 'and checks durable claim ownership and terminal job state; it accepts no session cookie.',
+      + 'and checks durable claim ownership and terminal job state; it accepts no session cookie. '
+      + 'The last is the command line redeeming a sign-in a person approved in '
+      + 'their browser: a terminal that is not signed in yet, holding no cookie, '
+      + 'which proves itself with the code and the verifier that code was '
+      + 'approved for. The approval itself is a browser form and keeps the check.',
   },
   {
     file: 'routes/actions.ts',
@@ -191,11 +195,13 @@ describe('what is not exempt', () => {
     // body is a tar and whose scope the instance decides rather than the
     // sender, and twice more for the two halves of an orchestrator call -
     // asking what to do, and saying what it returned - whose only identifier
-    // is the job token they arrive with.
+    // is the job token they arrive with. And once for `reviewos login`
+    // redeeming an approval: a terminal with no session, proving itself with
+    // the verifier its code was approved for.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(18)
+    expect(await skipCount('routes/api.ts')).toBe(19)
   })
 })

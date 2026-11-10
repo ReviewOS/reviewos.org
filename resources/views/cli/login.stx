@@ -1,0 +1,119 @@
+<script server>
+/**
+ * "Is that you?" for a command line.
+ *
+ * `reviewos login` opens this page. Somebody signed in here reads which
+ * machine is asking and what it will be able to do, and says yes or no; the
+ * terminal that asked is then signed in without a token ever being found,
+ * copied or pasted. How that is safe is set out in
+ * `app/Actions/Tokens/cliLogin.ts`.
+ *
+ * A form, posting to `/api/cli/login/approve`, with no client script. The
+ * endpoint answers with a redirect to the terminal's own listener on
+ * 127.0.0.1, so there is nothing for a script here to do.
+ *
+ * Four things it can be showing, and it says which plainly, because a person
+ * arrives here mid-task from a terminal and has no other context:
+ *
+ * - the question, when the link is a real one and somebody is signed in;
+ * - "sign in first", with the way back to this exact question;
+ * - a code to paste, for a terminal on a machine with no browser;
+ * - that the link is not one `reviewos login` made.
+ */
+import { deviceName, isChallenge, isOpaque, loopbackPort } from '../../../app/Actions/Tokens/cliLogin'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+
+const serveContext = __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+const search: Record<string, string> = useRoute().query ?? {}
+
+const challenge = String(search.challenge ?? '')
+const state = String(search.state ?? '')
+const device = deviceName(search.device)
+// Kept as the text it arrived as: the form posts it back, and the endpoint is
+// what decides whether it is a port.
+const port = loopbackPort(search.port) ? String(search.port) : ''
+
+const refused = search.refused === '1'
+// A code to paste, after approving for a terminal that has no listener.
+const code = String(search.code ?? '')
+const asking = isChallenge(challenge) && isOpaque(state)
+
+// Back to this question after signing in, with everything it was asked with.
+const here = `/cli/login?${new URLSearchParams({ challenge, state, device, ...(port ? { port } : {}) }).toString()}`
+</script>
+
+@layout('app')
+
+@section('title', 'Sign in the command line · ReviewOS')
+@section('description', 'Approve a ReviewOS command line that asked to sign in as you.')
+
+@section('content')
+  <div class="card-page">
+    <div class="auth-card panel">
+      @if (refused)
+        <h1 class="auth-title">Not signed in</h1>
+        <p class="auth-line muted">You refused that sign-in, and nothing was issued. You can close this tab.</p>
+      @elseif (code)
+        <h1 class="auth-title">Paste this in your terminal</h1>
+        <p class="auth-line muted">
+          <code>reviewos login</code> on {{ device }} is waiting for it. It works once, for two minutes, and
+          only in the terminal that asked.
+        </p>
+        <textarea class="cli-code field-input" readonly rows="4" aria-label="Sign-in code">{{ code }}</textarea>
+        <p class="auth-line muted">Never send this code to anybody. Nobody at ReviewOS will ask for it.</p>
+      @elseif (!asking)
+        <h1 class="auth-title">This link is not a sign-in</h1>
+        <p class="auth-line muted">
+          It is missing what <code>reviewos login</code> puts in it, or it was cut short when it was copied.
+          Run <code>reviewos login</code> again and use the link it prints.
+        </p>
+      @elseif (!viewer)
+        <h1 class="auth-title">Sign in to continue</h1>
+        <p class="auth-line muted">
+          A command line on {{ device }} asked to sign in. Sign in here first, and you will be asked
+          whether that was you.
+        </p>
+        <div class="cli-actions">
+          <a class="btn btn-primary" href="/login?next={{ encodeURIComponent(here) }}">Sign in</a>
+        </div>
+      @else
+        <h1 class="auth-title">Sign in the command line?</h1>
+        <p class="auth-line">
+          <code>reviewos login</code> on <strong>{{ device }}</strong> is asking to sign in as
+          <strong>{{ viewer.handle }}</strong>.
+        </p>
+        <p class="auth-line muted">
+          It will be able to read and push code, open and review pull requests, and start workflow runs
+          on every repository you can reach. It cannot transfer or delete a repository, or manage an
+          organization. The access is listed under <a href="/settings/tokens">your tokens</a>, where you
+          can revoke it.
+        </p>
+        <p class="auth-line muted">Only approve this if you ran <code>reviewos login</code> yourself, just now.</p>
+
+        <form method="post" action="/api/cli/login/approve" class="auth-form">
+          <CsrfField />
+          <input type="hidden" name="challenge" value="{{ challenge }}">
+          <input type="hidden" name="state" value="{{ state }}">
+          <input type="hidden" name="device" value="{{ device }}">
+          <input type="hidden" name="port" value="{{ port }}">
+
+          <div class="cli-actions">
+            <button type="submit" name="decision" value="approve" class="btn btn-primary">Sign in as {{ viewer.handle }}</button>
+            <button type="submit" name="decision" value="deny" class="btn btn-quiet">Cancel</button>
+          </div>
+        </form>
+      @endif
+    </div>
+  </div>
+
+  <style>
+    /* A gap, not margins: two full-width buttons stacked in a card otherwise touch. */
+    .cli-actions { display: grid; gap: 10px; margin-top: 18px; }
+    .cli-actions .btn { width: 100%; justify-content: center; }
+    .cli-code { width: 100%; margin: 14px 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; word-break: break-all; resize: none; }
+  </style>
+@endsection

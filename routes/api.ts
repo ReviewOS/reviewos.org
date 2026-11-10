@@ -437,6 +437,18 @@ route.post('/user/tokens/revoke', 'Actions/Tokens/RevokeTokenAction').middleware
 // deploy that picks up the new one does not have to happen the same minute.
 route.post('/user/tokens/rotate', 'Actions/Tokens/RotateTokenAction').middleware('auth')
 
+// Signing the command line in through the browser, as `npm login` does, so
+// nobody has to find, scope and paste a token to use `reviewos`. Approving is
+// a signed-in person in a browser; the exchange is the terminal that asked,
+// which is not signed in yet and proves itself with the verifier instead
+// (app/Actions/Tokens/cliLogin.ts).
+//
+// The exchange skips CSRF for the reason the callback above does: it is called
+// by a terminal, which has no cookie to carry a double-submit token and none
+// for a forged post to ride. Nothing about it reads the browser's session.
+route.post('/cli/login/approve', 'Actions/Tokens/ApproveCliLoginAction').middleware('auth')
+route.post('/cli/login/token', 'Actions/Tokens/ExchangeCliLoginAction').skipCsrf().middleware('throttle:30,5m')
+
 /*
  * The other question about tokens, and the one nobody builds: not "what are my
  * tokens" but "what can currently reach our code, and who is holding it".

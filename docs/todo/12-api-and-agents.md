@@ -601,6 +601,25 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
   is unavailable teaches its users that the keychain is optional, and the machines where it is
   unavailable are the shared ones. `login` checks a token against `/api/user` before storing it,
   because finding out on the next command is a worse first experience than one round trip.
+- [x] `reviewos login` signs in through the browser, the way `npm login` does, instead of asking
+      for a token
+
+  It asked for an access token, and the honest answer for most people was that they had no idea
+  what that was: it meant finding the settings page, choosing scopes for a tool whose needs they
+  did not know, and pasting a secret into a shell. Now it opens `/cli/login` on the instance, the
+  person signed in there reads which machine is asking and says yes, and the terminal is signed in.
+
+  Nothing is stored for a login in flight. Approving answers with a redirect to the terminal's own
+  listener on 127.0.0.1 carrying a code: who approved, for which challenge, until when, signed with
+  the application key and good for two minutes. The terminal redeems it with a verifier that never
+  left it (PKCE), so the code in the browser's history is worth nothing to anybody else, and the
+  redirect can go to loopback and nowhere a request could choose. An access token cannot approve
+  one: only a browser session can, or a narrow token could mint itself a broad one.
+
+  The token it issues is an ordinary fine-grained one, named for the machine, writing on every
+  repository scope and administering none, listed and revocable under Settings, Tokens.
+  `--no-browser` prints the link and reads a pasted code, for a machine with no browser;
+  `--token` still takes a token somebody already has, which is how a narrower one is used.
 - [x] It is a client of the public API only. If the CLI needs an endpoint that does not exist, the
       endpoint gets built, which keeps parity honest.
 

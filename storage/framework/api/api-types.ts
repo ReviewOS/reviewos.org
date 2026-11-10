@@ -431,6 +431,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/cli/login/approve": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "challenge": string; "state": string; "device"?: string; "port"?: string; "decision"?: "approve" | "deny" } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "303": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/cli/login/token": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "code": string; "verifier": string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "403": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/discover": {
     get: {
     parameters: {

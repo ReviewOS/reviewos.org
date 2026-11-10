@@ -18,15 +18,28 @@
 
 import process from 'node:process'
 import { call, report } from './api'
+import { approvalUrl, listen, newAttempt, openBrowser } from './browserLogin'
 import { git, standing } from './context'
 import { keychainFor, tokenFor } from './keychain'
 
-export interface LoginOptions { token?: string, instance?: string }
+export interface LoginOptions { token?: string, instance?: string, browser?: boolean }
 export interface OpenOptions { title?: string, body?: string, base?: string, draft?: boolean }
 export interface ListOptions { state?: string, author?: string }
 export interface StackOptions { number?: string }
 export interface ReviewOptions { approve?: boolean, requestChanges?: boolean, file?: string }
 
+/**
+ * Sign in, the way `npm login` does: in the browser.
+ *
+ * The instance opens on a page that asks the person, already signed in there,
+ * whether this terminal may sign in as them. Nobody has to know what an access
+ * token is, find where one is issued, or paste a secret into a shell.
+ *
+ * `--token` is still here for the cases a browser cannot serve: a token
+ * narrower than the one this issues, or a script. `--no-browser` is for a
+ * machine that has none (an ssh session): the link is opened anywhere, and the
+ * code it shows is pasted back here.
+ */
 export async function login(options: LoginOptions = {}): Promise<number> {
   const where = await instanceFor(options.instance)
   if (!where)
@@ -34,11 +47,10 @@ export async function login(options: LoginOptions = {}): Promise<number> {
 
   const keychain = keychainFor()
 
-  const token = String(options.token ?? '').trim() || await prompt('Access token: ')
-  if (!token) {
-    console.error('No token given.')
+  const given = String(options.token ?? '').trim()
+  const token = given || await browserToken(where, options.browser !== false)
+  if (!token)
     return 1
-  }
 
   // Checked before it is stored. Storing a token that does not work and
   // discovering it on the next command is a worse first experience than one
@@ -56,6 +68,59 @@ export async function login(options: LoginOptions = {}): Promise<number> {
   console.log(`Signed in to ${where} as ${who.data?.handle ?? 'somebody'}, stored in ${keychain.describe()}.`)
 
   return 0
+}
+
+/**
+ * The token a person approved in their browser, or '' when they did not.
+ *
+ * With a browser: listen on 127.0.0.1, open the approval page, and wait for it
+ * to come back. Without one: print the link, and read the code the page shows.
+ * Either way the code is redeemed with the verifier made here, so it is worth
+ * nothing to anybody who only saw the code.
+ */
+async function browserToken(where: string, useBrowser: boolean): Promise<string> {
+  const attempt = newAttempt()
+  let code = ''
+
+  if (useBrowser) {
+    const listener = listen(attempt)
+    const url = approvalUrl(where, attempt, listener.port)
+
+    console.log(`Opening ${where} in your browser to sign in.`)
+    console.log(`If it does not open, visit:\n\n  ${url}\n`)
+    if (!await openBrowser(url))
+      console.log('No browser could be opened here. On a machine without one, run `reviewos login --no-browser`.')
+    console.log('Waiting for you to approve it there...')
+
+    const answer = await listener.answer
+    listener.stop()
+
+    if (!answer) {
+      console.error('Nobody approved the sign-in within five minutes. Run `reviewos login` again.')
+      return ''
+    }
+    if (answer.kind !== 'code') {
+      console.error('The sign-in was refused in the browser. Nothing was stored.')
+      return ''
+    }
+    code = answer.code
+  }
+  else {
+    console.log(`Open this link in any browser where you are signed in to ${where}:\n\n  ${approvalUrl(where, attempt)}\n`)
+    code = await prompt('Paste the code it shows: ')
+    if (!code) {
+      console.error('No code given.')
+      return ''
+    }
+  }
+
+  const issued = await call({ instance: where, token: null }, 'POST', '/api/cli/login/token', { body: { code, verifier: attempt.verifier } })
+  if (!issued.ok) {
+    report(issued)
+    return ''
+  }
+
+  return String(issued.data?.token ?? '')
 }
 
 export async function logout(options: { instance?: string } = {}): Promise<number> {

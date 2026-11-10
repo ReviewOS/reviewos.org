@@ -309,6 +309,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/cli/login/approve
+   */
+  postCliLoginApprove(input: { body: { "challenge": string; "state": string; "device"?: string; "port"?: string; "decision"?: "approve" | "deny" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/cli/login/approve", input ?? {}, [], {"required":true,"content":["application/json"]}, "application/json", [], options)
+  },
+
+  /**
+   * POST /api/cli/login/token
+   */
+  postCliLoginToken(input: { body: { "code": string; "verifier": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown> | null>> {
+    return request(config, "POST", "/api/cli/login/token", input ?? {}, [], {"required":true,"content":["application/json"]}, "application/json", [], options)
+  },
+
+  /**
    * GET /api/discover
    */
   getDiscover(input?: { "before"?: number }, options?: RequestOptions): Promise<ApiResult<{ "entries"?: Array<Record<string, unknown>>; "cursor"?: number }>> {

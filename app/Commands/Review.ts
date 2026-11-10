@@ -29,10 +29,11 @@ export default function (cli: CLI) {
   const run = (work: Promise<number>) => work.then(code => process.exit(code))
 
   cli
-    .command('login', 'Store an access token for this instance in the OS keychain')
-    .option('--token <token>', 'The token, if you would rather not be prompted')
+    .command('login', 'Sign in through the browser, and keep the token in the OS keychain')
+    .option('--token <token>', 'Use this access token instead of signing in through the browser')
+    .option('--no-browser', 'Print the link and read a pasted code, for a machine without a browser')
     .option('--instance <url>', 'Override the instance, normally read from the git remote')
-    .action((options: { token?: string, instance?: string }) => run(login(options)))
+    .action((options: { token?: string, instance?: string, browser?: boolean }) => run(login(options)))
 
   cli
     .command('logout', 'Forget the token for this instance')

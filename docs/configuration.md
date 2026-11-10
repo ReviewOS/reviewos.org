@@ -31,7 +31,7 @@ Read by `app/Ops/config.ts`.
 
 Default: empty. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-Read by `app/Actions/Auth/LoginAction.ts`, `app/Actions/Auth/SsoAction.ts`.
+Read by `app/Actions/Auth/LoginAction.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Tokens/cliLogin.ts`.
 
 ### `APP_URL`
 
