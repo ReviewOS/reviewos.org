@@ -225,6 +225,92 @@ export async function watchRun(number: string, options: WatchOptions = {}): Prom
   }
 }
 
+export interface LogsOptions extends TargetOptions {
+  /** A job by its id in the workflow (`unit`) or its name; the jobs that did not succeed where omitted. */
+  job?: string
+  /** Where the output goes; stdout unless a test asks for it. */
+  write?: (text: string) => void
+}
+
+/** The jobs of a run whose output `logs` prints: the one named, else those that failed or were cancelled, else all. */
+export function jobsToRead(jobs: any[] = [], named?: string): any[] {
+  if (named)
+    return jobs.filter(job => String(job.job_id ?? '') === named || String(job.name ?? '') === named)
+
+  const stopped = jobs.filter(job => ['failed', 'cancelled'].includes(String(job.state)))
+
+  return stopped.length > 0 ? stopped : jobs
+}
+
+/**
+ * What a run's jobs printed.
+ *
+ * `watch` says which job failed and on which step, and stops there: the tests
+ * that failed, the line the build died on, were a browser away, and a signed-in
+ * browser at that. This prints the output itself, for the job named or, with
+ * none named, for the jobs that did not succeed, which is what somebody asking
+ * for a failed run's log wants. Straight to stdout with nothing added, so
+ * `| grep` behaves; the job's name goes to stderr between jobs.
+ */
+export async function runLogs(number: string, options: LogsOptions = {}): Promise<number> {
+  const connected = await connect(options)
+  if (typeof connected === 'number')
+    return connected
+
+  const { target, connection } = connected
+  const write = options.write ?? ((text: string) => { process.stdout.write(text) })
+  const shown = await call(connection, 'GET', '/api/repos/workflow-runs/show', {
+    query: { owner: target.owner, repo: target.repository, number },
+  })
+
+  if (!shown.ok)
+    return report(shown)
+
+  const jobs: any[] = shown.data?.workflow_run?.jobs ?? shown.data?.jobs ?? []
+  const wanted = jobsToRead(jobs, options.job)
+
+  if (wanted.length === 0) {
+    console.error(options.job
+      ? `Run #${number} has no job called ${options.job}. It has: ${jobs.map(job => String(job.job_id ?? job.name)).join(', ')}`
+      : `Run #${number} has no jobs yet.`)
+
+    return 1
+  }
+
+  for (const job of wanted) {
+    if (wanted.length > 1)
+      console.error(`\n── ${String(job.job_id ?? job.name)} (${String(job.state)}) ──`)
+
+    let after = 0
+
+    // The log comes a page of chunks at a time; the cursor is the last chunk's
+    // sequence, and a page with nothing newer is the end of what there is.
+    while (true) {
+      const page = await call(connection, 'GET', '/api/repos/workflow-runs/log', {
+        query: { owner: target.owner, repo: target.repository, job: Number(job.id), after },
+      })
+
+      if (!page.ok)
+        return report(page)
+
+      const chunks: any[] = page.data?.chunks ?? []
+      let newest = after
+
+      for (const chunk of chunks) {
+        write(String(chunk.content ?? ''))
+        newest = Math.max(newest, Number(chunk.sequence ?? 0))
+      }
+
+      if (chunks.length === 0 || newest === after)
+        break
+
+      after = newest
+    }
+  }
+
+  return 0
+}
+
 /** The repository's recent runs, newest first. */
 export async function listRuns(options: ListRunsOptions = {}): Promise<number> {
   const connected = await connect(options)

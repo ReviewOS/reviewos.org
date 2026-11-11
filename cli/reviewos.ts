@@ -33,7 +33,7 @@ import {
   submitReview,
   whoami,
 } from '../app/Cli/commands'
-import { listRuns, runWorkflow, watchRun } from '../app/Cli/runs'
+import { listRuns, runLogs, runWorkflow, watchRun } from '../app/Cli/runs'
 
 const USAGE = `reviewos - the review surface, from a terminal
 
@@ -50,6 +50,7 @@ const USAGE = `reviewos - the review surface, from a terminal
 
   reviewos run <workflow> [--ref <ref>] [--input key=value]... [--watch]
   reviewos watch <run-number>
+  reviewos logs <run-number> [--job <name>]
   reviewos runs [--state <state>] [--branch <branch>] [--limit <n>]
 
   --repo <owner/name> names the repository on the instance, for a mirror's
@@ -196,6 +197,16 @@ async function main(): Promise<number> {
       }
 
       return await watchRun(String(second), { repo: typeof flags.repo === 'string' ? flags.repo : undefined, instance })
+    }
+
+    case 'logs': {
+      if (!second) {
+        console.error('Which run? `reviewos logs 3631` prints what its failed jobs said; --job names one.')
+
+        return 1
+      }
+
+      return await runLogs(String(second), { job: typeof flags.job === 'string' ? flags.job : undefined, repo: typeof flags.repo === 'string' ? flags.repo : undefined, instance })
     }
 
     case 'runs':
