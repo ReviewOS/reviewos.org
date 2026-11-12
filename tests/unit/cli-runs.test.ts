@@ -7,7 +7,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import process from 'node:process'
-import { describeJobs, describeRun, listRuns, parseInputs, resolveTarget, runUrl, runWorkflow, watchRun } from '../../app/Cli/runs'
+import { describeJobs, describeRun, jobsToRead, lastLines, listRuns, parseInputs, resolveTarget, runLogs, runUrl, runWorkflow, watchRun } from '../../app/Cli/runs'
 
 let server: ReturnType<typeof Bun.serve>
 let instance = ''
@@ -26,6 +26,27 @@ beforeAll(() => {
         if (body.workflow === 'push-only.yml')
           return Response.json({ error: 'This workflow does not accept workflow_dispatch' }, { status: 409 })
         return Response.json({ workflow_run: { number: 42, state: 'queued', event: 'workflow_dispatch', inputs: body.inputs ?? {} } }, { status: 201 })
+      }
+
+      // A red run with two jobs, and the failed one's output in three pages.
+      if (url.pathname === '/api/repos/workflow-runs/show' && url.searchParams.get('number') === '4242') {
+        return Response.json({ workflow_run: { number: 4242, state: 'failed', jobs: [
+          { id: 11, name: 'lint', job_id: 'lint', state: 'succeeded' },
+          { id: 12, name: 'Unit', job_id: 'unit', state: 'failed', error: 'Run the unit suites exited 1' },
+        ] } })
+      }
+
+      if (url.pathname === '/api/repos/workflow-runs/log') {
+        const after = Number(url.searchParams.get('after') ?? 0)
+        if (url.searchParams.get('job') === '99')
+          return Response.json({ error: 'No such job' }, { status: 404 })
+        const pages: Record<string, Array<{ sequence: number, content: string }>> = {
+          11: [{ sequence: 1, content: 'Linted\n' }],
+          12: [{ sequence: 1, content: 'bun test\n' }, { sequence: 2, content: '(fail) answers a check-in\n' }, { sequence: 3, content: ' 1 fail\n' }],
+        }
+        // Two chunks a page, so the command has to follow the cursor.
+        const chunks = (pages[String(url.searchParams.get('job'))] ?? []).filter(chunk => chunk.sequence > after).slice(0, 2)
+        return Response.json({ chunks, cursor: chunks.at(-1)?.sequence ?? after, state: 'failed', attempt: Number(url.searchParams.get('attempt') ?? 1) })
       }
 
       if (url.pathname === '/api/repos/workflow-runs/show') {
@@ -136,5 +157,66 @@ describe('listing runs', () => {
     seen.length = 0
     expect(await listRuns({ ...target(), state: 'running', limit: 5 })).toBe(0)
     expect(seen[0]).toMatchObject({ method: 'GET', path: '/api/repos/workflow-runs', query: { owner: 'stacks', repo: 'hq.training', state: 'running', per_page: '5' } })
+  })
+})
+
+describe('reading a run\'s output', () => {
+  const said = async (work: () => Promise<number>): Promise<{ code: number, out: string[], err: string[] }> => {
+    const out: string[] = []
+    const err: string[] = []
+    const log = console.log
+    const error = console.error
+    console.log = (...parts: unknown[]) => { out.push(parts.join(' ')) }
+    console.error = (...parts: unknown[]) => { err.push(parts.join(' ')) }
+    try { return { code: await work(), out, err } }
+    finally { console.log = log; console.error = error }
+  }
+
+  it('prints what the failed job printed, following the cursor to the end', async () => {
+    seen.length = 0
+    const result = await said(() => runLogs('4242', target()))
+    expect(result.code).toBe(0)
+    expect(result.out).toEqual([
+      '━━━ Unit: failed (Run the unit suites exited 1) ━━━',
+      'bun test\n(fail) answers a check-in\n 1 fail',
+      `${instance}/stacks/hq.training/run/4242`,
+    ])
+    // Only the failed job was read, a page at a time until nothing came back.
+    const reads = seen.filter(row => row.path === '/api/repos/workflow-runs/log')
+    expect(reads.map(row => [row.query.job, row.query.after])).toEqual([['12', '0'], ['12', '2'], ['12', '3']])
+    expect(reads.every(row => row.auth === 'Bearer test-token' && row.query.owner === 'stacks' && row.query.repo === 'hq.training')).toBe(true)
+  })
+
+  it('reads the job that is named, every job when asked, and only the end when asked', async () => {
+    expect((await said(() => runLogs('4242', { ...target(), job: 'LINT' }))).out.slice(0, 2)).toEqual(['━━━ lint: succeeded ━━━', 'Linted'])
+    const all = await said(() => runLogs('4242', { ...target(), all: true, tail: 1 }))
+    expect(all.out).toEqual(['━━━ lint: succeeded ━━━', 'Linted', '━━━ Unit: failed (Run the unit suites exited 1) ━━━', ' 1 fail', `${instance}/stacks/hq.training/run/4242`])
+    seen.length = 0
+    await said(() => runLogs('4242', { ...target(), attempt: 2 }))
+    expect(seen.filter(row => row.path === '/api/repos/workflow-runs/log')[0]!.query.attempt).toBe('2')
+  })
+
+  it('says which jobs there are when the one named is not among them', async () => {
+    const result = await said(() => runLogs('4242', { ...target(), job: 'deploy' }))
+    expect(result.code).toBe(1)
+    expect(result.err).toEqual(['No job "deploy" in this run. It has: lint, Unit'])
+    expect(result.out).toEqual([])
+  })
+
+  it('chooses the failed jobs, or all of them when none failed', () => {
+    const jobs = [{ id: 1, name: 'lint', state: 'succeeded' }, { id: 2, name: 'unit', state: 'failed' }, { id: 3, job_id: 'e2e', state: 'failed' }]
+    expect(jobsToRead(jobs)).toEqual([jobs[1], jobs[2]])
+    expect(jobsToRead(jobs, { all: true })).toEqual(jobs)
+    expect(jobsToRead([jobs[0]!, { id: 4, name: 'deploy', state: 'running' }])).toHaveLength(2)
+    expect(jobsToRead(jobs, { job: 'e2e' })).toEqual([jobs[2]])
+    expect(jobsToRead([], {})).toEqual([])
+    expect(jobsToRead([], { job: 'unit' })).toEqual({ error: 'No job "unit" in this run. It has: none' })
+  })
+
+  it('keeps the last lines of an output', () => {
+    expect(lastLines('a\nb\nc\n', 2)).toBe('b\nc')
+    expect(lastLines('a\nb\nc\n')).toBe('a\nb\nc')
+    expect(lastLines('a\nb', 5)).toBe('a\nb')
+    expect(lastLines('', 3)).toBe('')
   })
 })

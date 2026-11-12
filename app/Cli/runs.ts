@@ -40,6 +40,17 @@ export interface RunOptions extends WatchOptions {
 }
 
 
+export interface LogsOptions extends TargetOptions {
+  /** Only this job, by its name or its id in the workflow file. */
+  job?: string
+  /** Every job, where the default is the ones that did not succeed. */
+  all?: boolean
+  /** Only the last this-many lines of each job. */
+  tail?: number
+  /** An earlier attempt's output, where a re-run kept it. */
+  attempt?: number
+}
+
 export interface ListRunsOptions extends TargetOptions {
   state?: string
   branch?: string
@@ -223,6 +234,110 @@ export async function watchRun(number: string, options: WatchOptions = {}): Prom
 
     await sleep(interval)
   }
+}
+
+/**
+ * Which of a run's jobs `logs` prints.
+ *
+ * A named job is that job, by its name or its id in the workflow file,
+ * whatever case it was typed in. Otherwise the jobs that failed, because "what
+ * failed?" is why somebody asks for the log of a red run; a run with no failed
+ * job (still running, cancelled before it started, or green) prints them all,
+ * as `all` does.
+ */
+export function jobsToRead(jobs: any[] = [], options: Pick<LogsOptions, 'job' | 'all'> = {}): any[] | { error: string } {
+  const wanted = String(options.job ?? '').trim().toLowerCase()
+  if (wanted) {
+    const named = jobs.filter(job => [job.name, job.job_id].some(value => String(value ?? '').toLowerCase() === wanted))
+    if (named.length > 0)
+      return named
+
+    return { error: `No job "${options.job}" in this run. It has: ${jobs.map(job => String(job.name ?? job.job_id)).join(', ') || 'none'}` }
+  }
+
+  const failed = jobs.filter(job => String(job.state) === 'failed')
+
+  return options.all || failed.length === 0 ? jobs : failed
+}
+
+/** The last `tail` lines of a job's output, or all of it. A trailing newline is not a line. */
+export function lastLines(text: string, tail?: number): string {
+  const body = text.replace(/\n$/, '')
+  if (!tail || tail < 1)
+    return body
+
+  return body.split('\n').slice(-tail).join('\n')
+}
+
+/**
+ * A run's job output, in a terminal.
+ *
+ * `watch` says which job failed and on which step; what the step printed was
+ * a browser away, on a page that needs a sign-in there, so a script, an agent
+ * or somebody on a machine without that sign-in could see that a suite failed
+ * and never which test. This reads the same log endpoint the run page does,
+ * a page at a time until the cursor stops moving, and prints the text as it
+ * was written. Exits 0 when it printed something or the jobs had no output.
+ */
+export async function runLogs(number: string, options: LogsOptions = {}): Promise<number> {
+  const connected = await connect(options)
+  if (typeof connected === 'number')
+    return connected
+
+  const { target, connection } = connected
+  const shown = await call(connection, 'GET', '/api/repos/workflow-runs/show', {
+    query: { owner: target.owner, repo: target.repository, number },
+  })
+
+  if (!shown.ok)
+    return report(shown)
+
+  const run = shown.data?.workflow_run ?? {}
+  const chosen = jobsToRead(run.jobs ?? shown.data?.jobs ?? [], options)
+  if ('error' in chosen) {
+    console.error(chosen.error)
+
+    return 1
+  }
+
+  if (chosen.length === 0) {
+    console.log(`#${number} has no jobs yet (${String(run.state ?? 'unknown')}).`)
+
+    return 0
+  }
+
+  for (const job of chosen) {
+    console.log(`━━━ ${String(job.name ?? job.job_id ?? 'job')}: ${String(job.state)}${job.error ? ` (${String(job.error)})` : ''} ━━━`)
+
+    let text = ''
+    let cursor = 0
+    // Bounded: a log is thousands of chunks at most, and a cursor that never
+    // settles would otherwise keep a terminal reading for ever.
+    for (let page = 0; page < 5_000; page++) {
+      const read = await call(connection, 'GET', '/api/repos/workflow-runs/log', {
+        query: { owner: target.owner, repo: target.repository, job: job.id, after: cursor, attempt: options.attempt },
+      })
+
+      if (!read.ok)
+        return report(read)
+
+      const chunks: any[] = read.data?.chunks ?? []
+      for (const chunk of chunks)
+        text += String(chunk.content ?? '')
+
+      const next = Number(read.data?.cursor ?? cursor)
+      if (chunks.length === 0 || next <= cursor)
+        break
+
+      cursor = next
+    }
+
+    console.log(text ? lastLines(text, options.tail) : '(no output)')
+  }
+
+  console.log(runUrl(target, number))
+
+  return 0
 }
 
 /** The repository's recent runs, newest first. */
