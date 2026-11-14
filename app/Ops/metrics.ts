@@ -167,6 +167,14 @@ const HELP: Record<string, string> = {
   reviewos_ci_jobs_running: 'CI jobs a runner is currently holding, by queue.',
   reviewos_ci_jobs_oldest_waiting_seconds: 'How long the oldest unclaimed CI job has waited, by queue. Climbing while runners is zero means nothing is coming.',
   reviewos_ci_runners: 'Runners by queue and lifecycle: idle, running, stopping, lost, disabled, never-seen.',
+
+  /*
+   * The autoscaled groups in `cloud/autoscaling.ts`, from the row the scaler
+   * keeps per group. Zero for a group that is launching runners normally, so
+   * an alert on either can tell "fine" from "not reported".
+   */
+  reviewos_autoscale_backing_off: 'Whether an autoscaled runner group is holding its launches back because they keep ending without a runner (1) or not (0), by group.',
+  reviewos_autoscale_launches_unregistered: 'Launches in a row that ended without registering as a runner, by autoscaled group. Zero once one registers.',
 }
 
 /**
@@ -201,6 +209,7 @@ export async function collectFromDatabase(): Promise<void> {
     gauge('reviewos_users_total', Number(users?.count ?? 0))
 
     await collectFleet()
+    await collectAutoscale()
   }
   catch {
     /*
@@ -366,6 +375,33 @@ async function collectFleet(): Promise<void> {
 }
 
 /** Whether any runner anywhere answers to this label. */
+/**
+ * Each declared runner group's launch backoff, from the row the scaler writes.
+ *
+ * From the database rather than from the scaler's memory because the two are
+ * different processes: the scheduler runs the tick and a web process answers
+ * the scrape.
+ */
+async function collectAutoscale(): Promise<void> {
+  const { autoscalingGroups } = await import('../../cloud/autoscaling')
+  const names = Object.values(autoscalingGroups).map(group => group.name)
+  if (names.length === 0)
+    return
+
+  const rows = await db
+    .selectFrom('runner_group_backoffs')
+    .select(['group_name', 'died', 'recovered_at'])
+    .where('group_name', 'in', names)
+    .execute()
+
+  for (const name of names) {
+    const row: any = rows.find((entry: any) => String(entry.group_name) === name)
+    const open = Boolean(row) && !row.recovered_at
+    gauge('reviewos_autoscale_backing_off', open ? 1 : 0, { group: name })
+    gauge('reviewos_autoscale_launches_unregistered', open ? Number(row.died ?? 0) : 0, { group: name })
+  }
+}
+
 function anyQueueHas(runners: readonly any[], label: string): boolean {
   return runners.some(runner => String(runner.labels ?? '')
     .split('\n')

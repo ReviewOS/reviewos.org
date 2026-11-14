@@ -46,6 +46,9 @@ const REASON_LABELS: Record<string, string> = {
   participating: 'you commented on it',
   team_mention: 'a team you are in was mentioned',
   watching: 'you watch this repository',
+  // Not a subscription, so not in `REASONS`: `app/Ops/alerts.ts` addresses the
+  // people who run the instance, whatever they follow.
+  administrator: 'you administer this instance',
 }
 
 export function reasonLabel(reason: string): string {

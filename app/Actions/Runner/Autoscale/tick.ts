@@ -1,15 +1,17 @@
 import { db } from '@stacksjs/database'
-import type { AwsWorkerGroupApi, Worker } from '@stacksjs/ts-cloud/drivers'
+import type { AwsWorkerGroupApi, LaunchBackoff, Worker, WorkerLaunch } from '@stacksjs/ts-cloud/drivers'
 import { applyWorkerGroupPlan, DEFAULT_SPOT_FALLBACK_SECONDS, planMarket, planWorkerGroup } from '@stacksjs/ts-cloud/drivers'
 import { resolveRepository } from '../../Identity/lookup'
 import { runnerLifecycle } from '../fleet'
+import { backoffFor, noteBackoff } from './backoff'
 import type { RunnerGroup } from './types'
 
 /**
  * One scaling decision for one runner group. ts-cloud decides the capacity
- * and talks to AWS; this file supplies the two facts only ReviewOS has - how
- * many jobs are waiting for the group, and which of its instances became
- * runners and whether they are free.
+ * and talks to AWS; this file supplies the facts only ReviewOS has - how many
+ * jobs are waiting for the group, which of its instances became runners and
+ * whether they are free, and (`backoff.ts`) whether its launches are becoming
+ * runners at all.
  *
  * Waiting work is counted here rather than taken from `/api/metrics`, which
  * attributes a job to a queue by the labels its *current* machines answer to -
@@ -112,22 +114,52 @@ export async function marketFor(api: Pick<AwsWorkerGroupApi, 'spotTrouble'>, gro
 
 export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, options: { dryRun?: boolean, now?: Date } = {}): Promise<string[]> {
   const now = options.now ?? new Date()
+  const trouble: string[] = []
+
+  /*
+   * What the group launched lately, read before its instances are.
+   *
+   * In that order an instance in the launch record is also in the group by
+   * the time the group is described, unless it is already gone - the other
+   * way round, an instance launched between the two calls would look like
+   * one that had died. A record that cannot be read holds nothing back:
+   * scaling still happens, and the next tick asks again.
+   */
+  let launches: WorkerLaunch[] | null = null
+  try {
+    launches = await api.launches(group.name)
+  }
+  catch (error) {
+    trouble.push(`${group.name}: could not read its launch history, so its launches are not held back: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
   const state = await api.describeGroup(group.name)
   if (!state)
     return [`${group.name}: no such Auto Scaling group in ${api.region}; run runner:autoscale:apply`]
 
   const workers = await workersFor(state.instances.map(instance => instance.id), now)
   const waiting = await waitingFor(group)
+  // Whether its launches are becoming runners at all; see `backoff.ts`.
+  let backoff: (LaunchBackoff & { registered: string[] }) | null = null
+  if (launches) {
+    try {
+      backoff = await backoffFor(api, group, launches, state.instances, now)
+    }
+    catch (error) {
+      trouble.push(`${group.name}: could not tell which launches became runners, so its launches are not held back: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   const plan = planWorkerGroup({
     config: group,
     currentDesired: state.desired,
     instances: state.instances,
     workers,
     waiting,
+    backoff: backoff ?? undefined,
     now,
   })
 
-  const lines = plan.reasons.map(reason => `${group.name}: ${reason}`)
+  const lines = [...trouble, ...plan.reasons.map(reason => `${group.name}: ${reason}`)]
 
   // A Spot history that cannot be read leaves the market as it is: scaling
   // still happens, and the next tick asks again.
@@ -157,5 +189,17 @@ export async function tickGroup(api: AwsWorkerGroupApi, group: RunnerGroup, opti
   if (market.percent !== null)
     await api.setOnDemandShare(group.name, market.percent)
   await applyWorkerGroupPlan(api, group.name, state.desired, plan)
+
+  // After the group has been scaled, so that a notification that cannot be
+  // written never costs a waiting job its machine.
+  if (backoff && launches) {
+    try {
+      const registered = launches.find(launch => backoff.registered.includes(launch.id))?.id ?? null
+      lines.push(...await noteBackoff(group, backoff, { now, registered }))
+    }
+    catch (error) {
+      lines.push(`${group.name}: could not record its launch backoff, so nobody was told: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   return lines
 }

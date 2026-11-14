@@ -46,6 +46,10 @@ export const PREFERENCE_CHANNELS: readonly Channel[] = ['in_app', 'email', 'push
 const ADDRESSED_EVENTS = new Set<string>([
   'review:requested',
   'review:submitted',
+  // Sent to the instance's administrators by `app/Ops/alerts.ts`, once when
+  // something they run breaks and once when it recovers. A day in a digest is
+  // a day of somebody's CI not running.
+  'ops:runner-group',
 ])
 
 /**

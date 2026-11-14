@@ -48,6 +48,12 @@ export const autoscalingGroups: Record<string, RunnerGroup> = {
     // Booted and never registered after this long means cloud-init failed;
     // the instance is terminated rather than billed while it does nothing.
     registrationGraceSeconds: 900,
+    // Three launches in a row that never register and the group launches one
+    // probe at a time, with a gap that doubles from two minutes to this
+    // (AutoscaleRunnersJob); the administrators are told once. On 2026-11-13
+    // a curl that could not start on the image killed every boot, and the
+    // group launched an instance a minute for twenty-one hours.
+    launchBackoffSeconds: 1800,
     // The Stacks account has no default VPC in us-east-1, and the VPC it does
     // have holds production. The group gets a network of its own instead.
     network: 'dedicated',

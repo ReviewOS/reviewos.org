@@ -227,6 +227,7 @@ describe('a tick that changes nothing', () => {
     const { tickGroup } = await import('../../app/Actions/Runner/Autoscale/tick')
     const api: any = {
       region: 'us-east-1',
+      launches: async () => [],
       describeGroup: async () => ({ desired: 3, instances: [] }),
       setDesired: async () => { throw new Error('nothing to change, so nothing should be set') },
       terminate: async () => { throw new Error('nothing to reap') },

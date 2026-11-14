@@ -13,6 +13,11 @@ import { tickGroup } from '../Actions/Runner/Autoscale/tick'
  * configured does nothing, quietly - autoscaling is something an operator
  * turns on, not something a fresh install should start failing at.
  *
+ * A group whose launches keep ending without a runner is held to one probe at
+ * a time, with growing gaps, until one registers - and the instance's
+ * administrators are told when that starts and when it ends, rather than the
+ * log being told every minute (`Actions/Runner/Autoscale/backoff.ts`).
+ *
  * One group's failure does not stop the next: a throttled API in one region is
  * no reason for another region's jobs to wait.
  */

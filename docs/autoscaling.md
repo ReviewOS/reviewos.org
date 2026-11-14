@@ -339,3 +339,82 @@ your provider's own reaping), and decide what happens when a machine never
 registers - `reviewos_ci_runners{lifecycle="never-seen"}` climbing means
 credentials are being made for machines that never arrive, which is usually a
 cloud-init that failed.
+
+## When launches never become runners
+
+This is about the built-in scaler: the groups in `cloud/autoscaling.ts`, grown
+once a minute by `AutoscaleRunnersJob`.
+
+A group whose machines cannot boot does not look broken from the cloud's side.
+Every launch succeeds; the instance quits a couple of minutes later - a package
+that will not start on the image, a registration token that was rotated, an
+instance that cannot reach this one - and lowers the group's desired capacity on
+its way out. The jobs are still waiting, so the scaler asks again. On 2026-11-13
+HQ's group did that once a minute for twenty-one hours.
+
+So the scaler judges its launches by what became of them. A runner is named
+after its instance, so a launch that is gone (or past `registrationGraceSeconds`)
+with no runner of that name **ended without registering**. An instance Spot took
+back before it could register does not count, and neither does one still inside
+its grace period.
+
+**Three in a row, and the group backs off.** It stops asking for one machine per
+waiting job and launches a single probe at a time, with a gap after each launch
+that doubles with every further death:
+
+| launches in a row that never registered | wait before the next probe |
+|---|---|
+| 3 | 2 minutes |
+| 4 | 4 minutes |
+| 5 | 8 minutes |
+| 6 | 16 minutes |
+| 7 or more | 30 minutes (`launchBackoffSeconds`, default 1800; 0 turns backoff off) |
+
+While a probe is up, nothing else is launched until it registers or dies. **The
+first launch that registers ends it**: the very next tick scales by the queue
+again. Nothing is kept in the scheduler's memory - the run of dead launches is
+read from the Auto Scaling group's own activity history every tick - so a
+restart or a deploy changes nothing.
+
+Twenty-one hours of that incident would have been about fifty launches rather
+than twelve hundred.
+
+**The administrators are told twice, not every minute**: once when the group
+starts backing off and once when a launch registers again. Each instance
+administrator gets it in their inbox (email and push follow their notification
+preferences; email is immediate by default), the scheduler logs it with the
+full detail, and the first of the two is also sent to `ERROR_REPORTING_URL`
+when that is set. That it was sent is recorded in `runner_group_backoffs`, one
+row per group, which is why a restart does not send it again.
+
+The log says it on every tick that has work waiting behind a held group:
+
+```
+[autoscale] reviewos-runner-hq: 6 launch(es) in a row ended without a worker since 2026-11-13T21:04:00Z: backing off, next probe at 2026-11-13T21:20:00Z
+[autoscale] reviewos-runner-hq: told the operators that 6 launch(es) in a row never became runners
+```
+
+and `/api/metrics` carries it per group, at zero when all is well:
+
+```
+reviewos_autoscale_backing_off{group="reviewos-runner-hq"} 1
+reviewos_autoscale_launches_unregistered{group="reviewos-runner-hq"} 6
+```
+
+**Where to look.** The instance's own boot output, which is all that is left of
+a machine that terminated itself. EC2 keeps it for about an hour after the
+instance ends, and the alert names the newest dead instance for that reason:
+
+```sh
+aws ec2 get-console-output --region us-east-1 --instance-id i-0123456789abcdef0 --latest --output text
+```
+
+The lines prefixed `ts-cloud-worker:` are the boot script saying what it did and
+why it quit. Fix the cause (usually `packages` or `pantryVersion` in
+`cloud/autoscaling.ts`, then `./buddy runner:autoscale:apply`); there is nothing
+to reset afterwards, because the next probe that registers ends the backoff.
+
+One thing the backoff cannot hold: an instance that dies *without* lowering the
+desired capacity is replaced by the Auto Scaling group itself, at AWS's pace.
+The boot script lowers it on every exit it controls, so this is the rare case
+of a machine that loses power or its network first.

@@ -16190,10 +16190,112 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "runner_group_backoffs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "group_name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "died",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "since",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "example",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "next_probe_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "alerted_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "recovered_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "runner_group_backoffs_group_name_unique",
+            "columns": [
+              "group_name"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "f340fa8eaa3c4ac2546e52bd6a8d9400e3fa0b3f9f1b90038f84678ee0353887",
+  "hash": "1d2c8c0eaa3083226316461122f9316c22df2522687c5f03bf9e3553a1d7d777",
   "dialect": "mysql",
-  "updatedAt": "2026-11-10T20:20:17.502Z"
+  "updatedAt": "2026-11-14T17:52:29.312Z"
 }

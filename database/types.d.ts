@@ -446,8 +446,8 @@ declare module '@stacksjs/database' {
     categorizable_models: {
       // columns
       id: number
-      category_id: number
       categorizable_id: number
+      category_id: number
       categorizable_type: string
       created_at: string
       updated_at: string | null
@@ -2275,6 +2275,19 @@ declare module '@stacksjs/database' {
       updated_by_job_id: number
       repository_id: number
     }
+    runner_group_backoffs: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      group_name: string
+      died: number
+      since: string
+      example: string
+      next_probe_at: string
+      alerted_at: string
+      recovered_at: string
+    }
     runner_pool_maintainers: {
       // columns
       id: number
@@ -2960,11 +2973,11 @@ declare module '@stacksjs/database' {
       repository_id: number
     }
     workflow_job_logs: {
-      redaction_state: string
       // columns
       id: number
       created_at: string
       updated_at: string | null
+      redaction_state: string
       workflow_job_id: number
       attempt: number
       sequence: number
@@ -2974,15 +2987,15 @@ declare module '@stacksjs/database' {
       repository_id: number
     }
     workflow_jobs: {
-      execution_ms: number
-      execution_started_at: string
-      first_queue_ms: number
-      queue_ms: number
       // columns
       id: number
       uuid: string
       created_at: string
       updated_at: string | null
+      execution_ms: number
+      execution_started_at: string
+      first_queue_ms: number
+      queue_ms: number
       workflow_run_id: number
       job_id: string
       name: string
