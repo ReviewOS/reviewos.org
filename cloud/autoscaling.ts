@@ -54,6 +54,11 @@ export const autoscalingGroups: Record<string, RunnerGroup> = {
     networkCidr: '10.88.0.0/16',
     diskGb: 80,
     pantryVersion: '0.11.184',
-    packages: ['bun.sh@1.4.4', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84.1'],
+    // curl is named, and first, so that Git's `curl.se@>=5` settles on it
+    // rather than on the newest revision. 8.23.0.1 and 8.23.0.2 were built on
+    // Ubuntu 26.04 and ask for GLIBC_2.43; these machines are Ubuntu 24.04
+    // (2.39), where that curl - the one a job's `curl` step finds - cannot
+    // start. Move the pin only to a revision that runs on the image.
+    packages: ['curl.se@8.23.0', 'bun.sh@1.4.4', 'git-scm.org@2.53.0', 'google.com/chrome@155.0.8059.84.1'],
   },
 }

@@ -44,6 +44,18 @@ describe('how the runner starts', () => {
     expect(script).toContain(`--name "$INSTANCE_ID" --labels 'ubuntu-latest,self-hosted,aws' --idle-timeout 300`)
   })
 
+  it('fetches the runner with the image\'s curl, not whichever one a package put on PATH', () => {
+    // Pantry's bin directory leads the runner's PATH. When a rebuilt curl there
+    // needed a newer glibc than the image, no machine ever registered.
+    expect(script).toContain(`sh -c '/usr/bin/curl -fsSL "$0" -o "$HOME/reviewos-runner"`)
+    expect(script).not.toMatch(/sh -c 'curl /)
+  })
+
+  it('pins the curl that jobs find to one that runs on the image', () => {
+    expect(hq.packages[0]).toBe('curl.se@8.23.0')
+    expect(hq.packages.indexOf('curl.se@8.23.0')).toBeLessThan(hq.packages.findIndex(spec => spec.startsWith('git-scm.org@')))
+  })
+
   it('registers with the pool token, through the environment rather than argv', () => {
     expect(script).toContain("REVIEWOS_REGISTRATION_TOKEN='reg-token-123'")
     expect(script).not.toContain('--registration-token')

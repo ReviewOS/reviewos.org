@@ -53,7 +53,11 @@ export function buildUserData(group: RunnerGroup, options: { instance: string, r
       REVIEWOS_REGISTRATION_TOKEN: options.registrationToken,
     },
     command: [
-      `sh -c 'curl -fsSL "$0" -o "$HOME/reviewos-runner" && chmod 755 "$HOME/reviewos-runner" && exec "$HOME/reviewos-runner" "$@"' ${sh(download)}`,
+      // The machine's own curl, by path. PATH puts Pantry's tools first, and a
+      // curl that came in as somebody's dependency is not this script's to
+      // rely on: one built against a newer glibc than the image has (curl.se
+      // 8.23.0.2, 2026-11-13) stopped every machine before it could register.
+      `sh -c '/usr/bin/curl -fsSL "$0" -o "$HOME/reviewos-runner" && chmod 755 "$HOME/reviewos-runner" && exec "$HOME/reviewos-runner" "$@"' ${sh(download)}`,
       `--name "$INSTANCE_ID" --labels ${sh(group.labels.join(','))} --idle-timeout ${Math.max(60, Math.floor(group.idleTimeoutSeconds))}`,
     ].join(' '),
   })
