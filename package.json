@@ -92,7 +92,7 @@
     "@ts-charts/shape": "0.2.7",
     "buddy-bot": "^0.10.5",
     "bun-query-builder": "0.3.43",
-    "mermaid": "^12.1.0",
+    "mermaid": "^12.3.0",
     "stacks": "0.75.504",
     "ts-git-lfs": "0.1.4",
     "ts-images": "^0.2.25",
