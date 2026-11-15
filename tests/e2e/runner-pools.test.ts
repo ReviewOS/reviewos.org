@@ -235,6 +235,7 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
+    if (process.env.TESTS_REQUIRE_ALL === '1') throw error
     console.warn(`[runner-pools] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
@@ -253,6 +254,9 @@ afterAll(async () => {
     for (const id of [created.repositoryId, created.otherRepositoryId])
       if (id)
         await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+
+    if (created.ownerId)
+      await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute()
 
     if (created.ownerId)
       await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
@@ -547,10 +551,11 @@ describe('registration tokens', () => {
 
     const registered = await register(tokenValue, { name: 'build-07', labels: 'ubuntu-latest,self-hosted', tags: 'gpu=a100,region=ash' })
 
+    if (registered.body?.runner?.id) created.runnerIds.push(Number(registered.body.runner.id))
     expect(registered.status).toBe(201)
+    expect(registered.body.runner.queue).toBe('registered-x64')
     expect(String(registered.body.runner.token)).not.toBe(tokenValue)
 
-    created.runnerIds.push(Number(registered.body.runner.id))
 
     const row: any = await db
       .selectFrom('runners')
@@ -564,6 +569,49 @@ describe('registration tokens', () => {
     // revoked - which is exactly when somebody asks.
     expect(Number(row.runner_registration_token_id)).toBe(tokenId)
   }, 120_000)
+
+  test('an empty pool cannot issue an unscoped runner', async () => {
+    if (!available) return
+    const pool = await fleet({ operation: 'create-pool', name: unique('EmptyPool') })
+    const id = Number(pool.body.pool.id)
+    created.poolIds.push(id)
+    const minted = await fleet({ operation: 'create-token', pool: id, name: 'not configured yet' })
+    expect(minted.status).toBe(200)
+    const name = unique('empty-pool-runner')
+    const registered = await register(String(minted.body.registration_token.token), { name })
+    // Capture unexpected rows so a red qualification still cleans its fixture.
+    if (registered.body?.runner?.id) created.runnerIds.push(Number(registered.body.runner.id))
+    expect(registered.status).toBe(422)
+    expect(await db.selectFrom('runners').select('id').where('name', '=', name).executeTakeFirst()).toBeUndefined()
+    const credential = await db.selectFrom('runner_registration_tokens').select('uses').where('id', '=', Number(minted.body.registration_token.id)).executeTakeFirst()
+    expect(Number(credential.uses)).toBe(0)
+  }, 60000)
+
+  test('a registration credential cannot select another pool through a queue id', async () => {
+    if (!available) return
+    const other = await fleet({ operation: 'create-pool', name: unique('OtherPool') })
+    const id = Number(other.body.pool.id)
+    created.poolIds.push(id)
+    const queue = await fleet({ operation: 'create-queue', pool: id, name: 'other-pool-queue' })
+    const minted = await fleet({ operation: 'create-token', pool: poolId, queue: Number(queue.body.queue.id), name: 'foreign queue refusal' })
+    expect(minted.status).toBe(422)
+    expect(minted.body.registration_token).toBeUndefined()
+  }, 60000)
+
+  test('an already issued token cannot register through a queue outside its pool', async () => {
+    if (!available) return
+    const other = await fleet({ operation: 'create-pool', name: unique('LegacyOtherPool') })
+    const id = Number(other.body.pool.id)
+    created.poolIds.push(id)
+    const queue = await fleet({ operation: 'create-queue', pool: id, name: 'legacy-other-queue' })
+    // Model a token issued before queue ownership was checked at creation.
+    const token = unique('legacy-registration')
+    await db.insertInto('runner_registration_tokens').values({ runner_pool_id: poolId, runner_queue_id: Number(queue.body.queue.id), name: 'legacy mismatched queue', token_hash: hashToken(token), created_by_id: created.ownerId }).execute()
+    const registered = await register(token, { name: unique('legacy-queue-runner') })
+    if (registered.body?.runner?.id) created.runnerIds.push(Number(registered.body.runner.id))
+    expect(registered.status).toBe(422)
+    expect(registered.body.runner).toBeUndefined()
+  }, 60000)
 
   test('the credential it registered with is not the credential it works with', async () => {
     if (!available)
@@ -730,7 +778,8 @@ describe('a pool maintainer', () => {
     // appoint is not a narrower role at all.
     expect((await fleet({ operation: 'add-maintainer', pool: otherPool, user: Number(person.id) }, token.token)).status).toBe(404)
 
-    await db.deleteFrom('users').where('id', '=', Number(person.id)).execute().catch(() => {})
+    await db.deleteFrom('access_tokens').where('user_id', '=', Number(person.id)).execute()
+    await db.deleteFrom('users').where('id', '=', Number(person.id)).execute()
   }, 120_000)
 })
 

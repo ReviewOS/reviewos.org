@@ -58,6 +58,7 @@ export default new Action({
       },
     },
     401: { description: 'No registration token, or one that is unknown, revoked or expired.' },
+    422: { description: 'The registration credential has no configured queue in its own pool.' },
     426: { description: 'This machine speaks a protocol version the server does not.' },
   },
 
@@ -100,6 +101,9 @@ export default new Action({
     if (!usable)
       return runnerJson({ error: 'This registration token is not usable' }, 401)
 
+    const queue = await registrationQueue(Number(token.runner_pool_id), token.runner_queue_id === null ? null : Number(token.runner_queue_id))
+    if (!queue) return runnerJson({ error: 'The registration credential needs a configured queue in its own pool' }, 422)
+
     const secret = generateToken()
 
     const labels = String(request.get('labels') ?? 'ubuntu-latest,self-hosted')
@@ -139,7 +143,7 @@ export default new Action({
         tags: tags.join('\n'),
         state: 'active',
         version: '1',
-        runner_queue_id: token.runner_queue_id ?? await firstQueueOf(Number(token.runner_pool_id)),
+        runner_queue_id: Number(queue.id),
         // Which credential put this machine here, kept for after the token is
         // revoked - which is exactly when somebody asks.
         runner_registration_token_id: Number(token.id),
@@ -173,19 +177,15 @@ export default new Action({
         // Shown once, and it is not the credential it registered with: from
         // here the machine authenticates as itself.
         token: secret.token,
+        queue: String(queue.name),
       },
     }, 201)
   },
 })
 
-/** The pool's first queue, for a token that did not name one. */
-async function firstQueueOf(poolId: number): Promise<number | null> {
-  const queue = await db
-    .selectFrom('runner_queues')
-    .select(['id'])
-    .where('runner_pool_id', '=', poolId)
-    .orderBy('id', 'asc')
-    .executeTakeFirst()
-
-  return queue ? Number(queue.id) : null
+/** Never let a pool credential fall through to an unassigned instance runner. */
+async function registrationQueue(poolId: number, queueId: number | null) {
+  let query = db.selectFrom('runner_queues').select(['id', 'name']).where('runner_pool_id', '=', poolId)
+  if (queueId !== null) query = query.where('id', '=', queueId)
+  return query.orderBy('id', 'asc').executeTakeFirst()
 }

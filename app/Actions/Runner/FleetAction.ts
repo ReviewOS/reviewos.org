@@ -529,6 +529,11 @@ export default new Action({
         return response.json({ error: 'Which pool?' }, 422)
 
       const queueId = Number(request.get('queue'))
+      if (Number.isInteger(queueId) && queueId > 0) {
+        const queue = await db.selectFrom('runner_queues').select('id')
+          .where('id', '=', queueId).where('runner_pool_id', '=', poolId).executeTakeFirst()
+        if (!queue) return response.json({ error: 'The registration queue must belong to this pool' }, 422)
+      }
       const { generateToken } = await import('../Tokens/secret')
       const secret = generateToken()
 

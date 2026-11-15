@@ -2494,3 +2494,8 @@ failed evidence into success.
       JSON bodies from files or stdin, and never print invalid input contents.
       Declare LSU as a private CI-enabled mirror so Stacks app workflows use
       the owned execution plane rather than paid upstream Actions minutes.
+
+- [x] Keep runner registration in its credential's own pool. Refuse pools with
+      no queue and tokens naming another pool's queue before creating a runner;
+      return the actual queue identity. Validate queue ownership when issuing
+      registration tokens too, including already issued legacy credentials.

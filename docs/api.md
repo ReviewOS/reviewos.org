@@ -3624,7 +3624,7 @@ Response headers: `X-Runner-Protocol-Supported`.
 | `200` | Successful response |
 | `201` | The runner, with its own credential. Shown once; the column holds a hash. |
 | `401` | No registration token, or one that is unknown, revoked or expired. |
-| `422` | Validation failed |
+| `422` | The registration credential has no configured queue in its own pool. |
 | `426` | This machine speaks a protocol version the server does not. |
 | `500` | Server error |
 

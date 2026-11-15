@@ -19086,7 +19086,7 @@
             "description": "No registration token, or one that is unknown, revoked or expired."
           },
           "422": {
-            "description": "Validation failed"
+            "description": "The registration credential has no configured queue in its own pool."
           },
           "426": {
             "description": "This machine speaks a protocol version the server does not."
