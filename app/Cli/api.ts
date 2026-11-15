@@ -84,7 +84,7 @@ export async function call<T = any>(
   connection: Connection,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
-  input: { query?: Record<string, unknown>, body?: unknown } = {},
+  input: { query?: Record<string, unknown>, body?: unknown, signal?: AbortSignal } = {},
 ): Promise<Answer<T>> {
   const url = new URL(path, connection.instance.endsWith('/') ? connection.instance : `${connection.instance}/`)
 
@@ -107,6 +107,8 @@ export async function call<T = any>(
     answer = await fetch(url, {
       method,
       headers,
+      redirect: 'error',
+      signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
       body: input.body === undefined ? undefined : JSON.stringify(input.body),
     })
   }

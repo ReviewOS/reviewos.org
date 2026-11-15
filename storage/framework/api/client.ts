@@ -1879,7 +1879,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/sessions
    */
-  postUserSessions(input?: { body?: { "operation"?: "list" | "revoke" | "revoke-others"; "id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postUserSessions(input?: { body?: { "operation"?: "list" | "revoke" | "revoke-others"; "id"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/user/sessions", input ?? {}, [], {"required":false,"content":["application/json"]}, "application/json", [], options)
   },
 

@@ -53,6 +53,16 @@ mirrors:
     ci: true
     interval: 60
 
+  # LSU uses the same Stacks CI/deploy/native-release workflows on our runners.
+  # Keep its code private and consume the account credential without embedding
+  # it in a clone URL. The normal mirror sweep and push webhook own CI triggers.
+  - remote: stacksjs/lastsoulultra
+    owner: stacks
+    credential: github_account
+    private: true
+    ci: true
+    interval: 60
+
   # `ReviewOS/.github` is deliberately absent: there is no such repository
   # upstream, and a declared mirror of a repository that does not exist is a
   # sweep that fails every fifteen minutes until it disables itself. This

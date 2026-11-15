@@ -1346,6 +1346,14 @@ Default: unset.
 
 *No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
 
+### `REVIEWOS_URL`
+
+Default: `https://reviewos.org`, and the line is commented out.
+
+CLI and runner controller origin. Leave unset to use the checkout or hosted default.
+
+Read by `app/Actions/Runner/standalone.ts`, `app/Cli/api-command.ts`, `app/Cli/context.ts`, `app/Cli/runs.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`.
+
 ## Screenshots
 
 ### `SCREENSHOT_URL`
@@ -1787,5 +1795,4 @@ Command-line flags, where provided, take precedence.
 - `REVIEWOS_RUNNER_MIN_FREE_DISK_MB`, read by `app/Actions/Runner/capacity.ts`
 - `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_TOKEN`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
-- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`
 - `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`

@@ -2487,3 +2487,10 @@ failed evidence into success.
       Normal Linux CI also produces the standalone runner with binary, source and installed-version
       provenance for a separately verified rollout. Resident-memory accounting remains a separate
       OS responsibility.
+
+- [x] Expose machine-readable public API calls in the contributor CLI and Buddy,
+      using their existing instance-bound OS-keychain/job identity. Reject
+      foreign and normalized traversal targets before authentication, accept
+      JSON bodies from files or stdin, and never print invalid input contents.
+      Declare LSU as a private CI-enabled mirror so Stacks app workflows use
+      the owned execution plane rather than paid upstream Actions minutes.

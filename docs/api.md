@@ -3968,7 +3968,7 @@ _Inputs are not declared on `Actions/Notification/PushTestAction`, so they are n
 | Name | In | Required | Type |
 |---|---|---|---|
 | `operation` | body | optional | string |
-| `id` | body | optional | number |
+| `id` | body | optional | custom |
 
 | Status | Means |
 |---|---|

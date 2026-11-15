@@ -10,6 +10,7 @@ import {
   submitReview,
   whoami,
 } from '../Cli/commands'
+import { apiCommand, readApiBody } from '../Cli/api-command'
 import { listRuns, runWorkflow, watchRun } from '../Cli/runs'
 
 /**
@@ -27,6 +28,13 @@ import { listRuns, runWorkflow, watchRun } from '../Cli/runs'
  */
 export default function (cli: CLI) {
   const run = (work: Promise<number>) => work.then(code => process.exit(code))
+
+  cli
+    .command('api <path>', 'Call the public API and print its JSON response')
+    .option('--instance <url>', 'Override the ReviewOS instance origin')
+    .option('--method <method>', 'GET, POST, PUT or DELETE', { default: 'GET' })
+    .option('--body <path>', 'JSON input file, or - to read standard input')
+    .action(async (path: string, options: { instance?: string, method?: string, body?: string }) => run(apiCommand(path, { ...options, body: await readApiBody(options.body) })))
 
   cli
     .command('login', 'Sign in through the browser, and keep the token in the OS keychain')

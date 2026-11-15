@@ -33,6 +33,7 @@ import {
   submitReview,
   whoami,
 } from '../app/Cli/commands'
+import { apiCommand, readApiBody } from '../app/Cli/api-command'
 import { listRuns, runLogs, runWorkflow, watchRun } from '../app/Cli/runs'
 
 const USAGE = `reviewos - the review surface, from a terminal
@@ -47,6 +48,8 @@ const USAGE = `reviewos - the review surface, from a terminal
 
   reviewos stack [--number <number>]
   reviewos review <number> [--approve | --request-changes] [--file <path>]
+
+  reviewos api </api/path?query> [--method GET|POST|PUT|DELETE] [--body file|-]
 
   reviewos run <workflow> [--ref <ref>] [--input key=value]... [--watch]
   reviewos watch <run-number>
@@ -118,6 +121,9 @@ const instance = typeof flags.instance === 'string' ? flags.instance : undefined
 
 async function main(): Promise<number> {
   switch (command) {
+    case 'api':
+      return await apiCommand(String(second || ''), { instance, method: typeof flags.method === 'string' ? flags.method : undefined, body: await readApiBody(typeof flags.body === 'string' ? flags.body : undefined) })
+
     case 'login':
       return await login({ token: typeof flags.token === 'string' ? flags.token : undefined, instance, browser: flags['no-browser'] !== true })
 
