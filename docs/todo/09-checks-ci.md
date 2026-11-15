@@ -2499,3 +2499,9 @@ failed evidence into success.
       no queue and tokens naming another pool's queue before creating a runner;
       return the actual queue identity. Validate queue ownership when issuing
       registration tokens too, including already issued legacy credentials.
+
+- [x] Fail required container-action fixture setup closed, report its current
+      setup phase, check bare-repository initialization and require the pushed
+      workflow to dispatch before claiming its runner. Keep the existing setup
+      and dispatch deadlines. Exercise all three HTTP/executor cases against
+      an owned disposable MySQL instance.

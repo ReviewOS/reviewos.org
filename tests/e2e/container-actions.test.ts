@@ -71,8 +71,14 @@ jobs:
 
 beforeAll(async () => {
   created.temp = mkdtempSync(join(tmpdir(), 'reviewos-container-'))
+  let setupPhase = 'load the application'
+  const phase = (name: string) => {
+    setupPhase = name
+    console.info(`[container-actions] setup: ${name}`)
+  }
 
   try {
+    phase('load the application')
     const { injectGlobalAutoImports } = await import('@stacksjs/server')
     await injectGlobalAutoImports()
     db = (globalThis as any).db
@@ -84,6 +90,7 @@ beforeAll(async () => {
 
     created.handle = unique('ctr')
 
+    phase('create the repository owner')
     const owner: any = await db.insertInto('users')
       .values({ name: 'Container', email: `${created.handle}@example.com`, handle: created.handle, password: 'x' })
       .returning(['id']).executeTakeFirst()
@@ -94,6 +101,7 @@ beforeAll(async () => {
     const resolved = repositoryPath(created.handle, created.name)
     created.diskPath = resolved.path!
 
+    phase('create the repository record')
     const repository: any = await db.insertInto('repositories')
       .values({
         owner_type: 'user',
@@ -108,10 +116,13 @@ beforeAll(async () => {
     created.repositoryId = Number(repository?.id)
 
     mkdirSync(resolve(created.diskPath, '..'), { recursive: true })
-    await initBare(created.diskPath, 'main')
+    phase('initialize the bare repository')
+    const initialized = await initBare(created.diskPath, 'main')
+    if (!initialized.ok) throw new Error(`Bare repository initialization failed: ${initialized.stderr}`)
 
     const work = join(created.temp, 'work')
     mkdirSync(join(work, '.reviewos', 'workflows'), { recursive: true })
+    phase('commit and push the workflow fixture')
     await git(work, 'init', '--initial-branch=main')
 
     writeFileSync(join(work, '.reviewos', 'workflows', 'container.yml'), WORKFLOW)
@@ -134,11 +145,13 @@ beforeAll(async () => {
     const { parseRefUpdates } = await import('../../app/Actions/Git/push')
     const { default: ProcessPushJob } = await import('../../app/Jobs/ProcessPushJob')
 
+    phase('process the pushed workflow')
     await ProcessPushJob.handle({
       gitDir: created.diskPath,
       updates: parseRefUpdates(`${'0'.repeat(40)} ${await headOf(work)} refs/heads/main`),
     })
 
+    phase('register the fixture runner')
     const secret = generateToken()
     const runner: any = await db.insertInto('runners')
       .values({
@@ -157,6 +170,7 @@ beforeAll(async () => {
 
     const { route } = await import('@stacksjs/router')
 
+    phase('start the API')
     await route.importRoutes()
     serve = await route.serve({ port: 0, hostname: '127.0.0.1' })
     baseUrl = `http://127.0.0.1:${Number((serve as any)?.port ?? 0)}`
@@ -168,7 +182,9 @@ beforeAll(async () => {
      * would sometimes claim before the run existed. It passed alone and failed
      * beside another suite, which is the worst version of this bug.
      */
+    phase('wait for the dispatched workflow job')
     const deadline = Date.now() + 20_000
+    let queuedJob = false
 
     while (Date.now() < deadline) {
       const queued = await db
@@ -180,15 +196,20 @@ beforeAll(async () => {
         .execute()
         .catch(() => [])
 
-      if (queued.length > 0)
+      if (queued.length > 0) {
+        queuedJob = true
         break
+      }
 
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
+    if (!queuedJob) throw new Error('The pushed workflow did not dispatch its fixture job')
     available = true
   }
   catch (error) {
+    if (process.env.TESTS_REQUIRE_ALL === '1')
+      throw new Error(`Container action setup could not ${setupPhase}`, { cause: error })
     console.warn(`[container-actions] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
