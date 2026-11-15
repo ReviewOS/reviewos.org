@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import process from 'node:process'
+import { isIP } from 'node:net'
 
 /**
  * Converge a runner's machine to its declaration in `cloud/boxes.ts`.
@@ -29,6 +30,7 @@ export default function (cli: CLI) {
     .option('--dry-run', 'Show what would change without touching the box', { default: false })
     .option('--attempt-unavailable', 'Ask for the declared size even when Hetzner reports it out of stock, this once. A failed placement powers the box back on as it was.', { default: false })
     .option('--binary <path>', 'A compiled runner to install when it differs from the box\'s')
+    .option('--existing-host <address>', 'Update only the runner binary on an existing declared box at this IP, without provisioning or resizing it')
     .option('--restart <how>', 'After installing a binary: signal (finish the job, then restart) or none', { default: 'signal' })
     .option('--identity <path>', 'SSH private key for root on the box', { default: resolve(homedir(), '.ssh/id_ed25519') })
     .action(async (name: string | undefined, options: any) => {
@@ -52,12 +54,6 @@ export default function (cli: CLI) {
           process.exit(1)
         }
 
-        const token = process.env.HCLOUD_TOKEN
-        if (!token) {
-          console.error('HCLOUD_TOKEN is not set: the Hetzner project the box lives in.')
-          process.exit(1)
-        }
-
         const identity = String(options.identity)
         if (!existsSync(identity) || !existsSync(`${identity}.pub`)) {
           console.error(`No SSH key pair at ${identity}(.pub)`)
@@ -65,6 +61,24 @@ export default function (cli: CLI) {
         }
 
         const { HetznerClient, provisionBox, sshExecOrThrow, scpUpload } = await import('@stacksjs/ts-cloud/drivers')
+        if (options.existingHost) {
+          const host = String(options.existingHost)
+          if (!isIP(host) || !options.binary || !existsSync(String(options.binary)))
+            throw new Error('--existing-host needs an IP address and an existing --binary file')
+          if (options.attemptUnavailable)
+            throw new Error('--existing-host cannot resize or change cloud placement')
+          if (!['signal', 'none'].includes(String(options.restart)))
+            throw new Error('--restart takes signal or none')
+          if (options.dryRun)
+            console.log(`${box.name} (${host}): update the runner binary only; no provisioning or resize`)
+          else
+            await installBinary(box, host, String(options.binary), String(options.restart), identity, { sshExecOrThrow, scpUpload })
+          return
+        }
+
+        const token = process.env.HCLOUD_TOKEN
+        if (!token)
+          throw new Error('HCLOUD_TOKEN is not set: the Hetzner project the box lives in.')
         const result = await provisionBox({
           box,
           client: new HetznerClient({ apiToken: token }),
@@ -105,7 +119,7 @@ export async function installBinary(
   }
   if (!existsSync(binary)) throw new Error(`No runner binary at ${binary}`)
 
-  const options = { identityFile: identity }
+  const options = { identityFile: identity, knownHostsFile: resolve('storage/cloud/known_hosts') }
   const home = (await ssh.sshExecOrThrow(host, `getent passwd ${user} | cut -d: -f6`, options)).trim()
   const target = `${home}/${String(declared.exec).slice(3)}`
   const local = createHash('sha256').update(readFileSync(binary)).digest('hex')

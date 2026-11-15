@@ -1753,6 +1753,8 @@ The Hetzner Cloud project a runner's machine lives in, for
 Only the operator who provisions runner boxes needs it, on the machine they
 run that command from: the instance itself never reads it. The boxes are
 declared in `cloud/boxes.ts`; this is only the credential to reach them.
+Updating only an existing machine's runner binary with `--existing-host` uses SSH
+and does not require this cloud credential.
 
 Read by `app/Commands/RunnerProvision.ts`.
 

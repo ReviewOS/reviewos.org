@@ -701,6 +701,16 @@ keeps the old one beside it. Then `SIGUSR2` asks the running runner to finish
 its job and leave, and the service manager starts the new binary. A `resize:`
 in the declaration drains with the same signal before the box is powered off.
 
+To update only the binary on a known existing machine, give its IP explicitly:
+
+```sh
+./buddy runner:provision hq-runner --existing-host 192.0.2.10 --binary dist/runner/linux-x64/reviewos-runner
+```
+
+This uses the declared service and SSH identity with `storage/cloud/known_hosts`.
+It needs no cloud token, performs no provisioning or resize, and retains the same
+backup and graceful drain. Add `--dry-run` to preview it without changing the host.
+
 
 When a run sits at "queued", the run page says why rather than spinning - no
 runner registered, none that reaches this repository, or none carrying the labels

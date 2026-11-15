@@ -1079,6 +1079,12 @@ cannot talk back to the runner is a workflow that fails on its second line.
       `git-receive-pack` is not served at all - a mirror that could be pushed to is a supply chain
       with a hole in it, and the whole value of mirroring `actions/checkout` here is that what this
       serves is what upstream had.
+- [x] Evaluate action metadata input defaults against the caller's workflow context. Preserve
+      that context through composite wrappers, and keep supplied values literal after their
+      first evaluation. Real JavaScript action executions cover repository, scoped job token,
+      caller environment and nested defaults without logging the credential.
+      `runner:provision --existing-host` updates an existing declared machine's
+      binary through verified SSH and graceful drain without cloud provisioning.
 - [x] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
       already mirrors repositories), so an air-gapped install is a supported configuration.
 

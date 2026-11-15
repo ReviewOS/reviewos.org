@@ -1386,6 +1386,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
         const result = await runAction({
           signal: lease.signal,
+          context,
           uses: String(step.uses),
           with: interpolateValues(step.with ?? {}, context),
           workspace,
@@ -3117,6 +3118,7 @@ function runnerArch(): string {
  */
 async function runAction(input: {
   signal?: AbortSignal
+  context: ExpressionContext
   uses: string
   with: Record<string, unknown>
   workspace: string
@@ -3255,9 +3257,14 @@ async function runAction(input: {
   for (const missing of missingInputs(definition, supplied))
     await input.onOutput(`::warning::\`${missing}\` is a required input of this action and was not given\n`, 'stdout')
 
+  const actionContext: ExpressionContext = {
+    ...input.context,
+    env: input.environment,
+    github: { ...input.context.github as Record<string, unknown>, action_path: directory },
+  }
   const environment = {
     ...input.environment,
-    ...inputEnvironment(definition, supplied),
+    ...inputEnvironment(definition, supplied, actionContext),
     // Where the action's own files are, which is what an action reads to find
     // anything it ships alongside its entry point.
     GITHUB_ACTION_PATH: directory,
@@ -3266,6 +3273,7 @@ async function runAction(input: {
   if (definition.kind === 'composite') {
     return runComposite(definition, input.workspace, environment, input.onOutput, {
       signal: input.signal,
+      context: actionContext,
       // What a nested `uses:` needs to resolve the way this one did.
       job: input.job,
       policy: input.policy,
@@ -3396,6 +3404,7 @@ async function runComposite(
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
   nesting: {
     signal?: AbortSignal
+    context: ExpressionContext
     job: any
     policy: ReturnType<typeof defaultPolicy>
     cacheRoot: string
@@ -3414,13 +3423,14 @@ async function runComposite(
    * the nested action greeted somebody called `${{ inputs.who }}`.
    */
   const context = {
+    ...nesting.context,
     inputs: Object.fromEntries(
       Object.entries(environment)
         .filter(([key]) => key.startsWith('INPUT_'))
         .map(([key, value]) => [key.slice('INPUT_'.length).toLowerCase().replace(/_/g, '-'), value]),
     ),
     env: environment,
-    github: { action_path: environment.GITHUB_ACTION_PATH ?? '' },
+    github: { ...nesting.context.github as Record<string, unknown>, action_path: environment.GITHUB_ACTION_PATH ?? '' },
     // A composite action's `hashFiles` reads the caller's checkout, the same
     // tree its steps run in.
     [HASH_FILES]: hashFilesIn(workspace),
@@ -3443,6 +3453,7 @@ async function runComposite(
 
       const nested = await runAction({
         signal: nesting.signal,
+        context,
         uses: interpolate(step.uses, context),
         // Evaluated against this action's inputs, so a wrapper can pass its
         // own input down - which is most of what a wrapper is for.

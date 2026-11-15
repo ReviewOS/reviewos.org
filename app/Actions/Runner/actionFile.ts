@@ -12,6 +12,9 @@
  * what a file means.
  */
 
+import type { ExpressionContext } from '../Workflow/expression'
+import { interpolate } from '../Workflow/expression'
+
 export type ActionRunKind = 'composite' | 'javascript' | 'docker' | 'unknown'
 
 export interface ActionInput {
@@ -245,6 +248,7 @@ function stringMap(value: unknown): Record<string, string> {
 export function inputEnvironment(
   definition: ActionDefinition,
   supplied: Record<string, string>,
+  context: ExpressionContext = {},
 ): Record<string, string> {
   const environment: Record<string, string> = {}
 
@@ -252,7 +256,7 @@ export function inputEnvironment(
   // round.
   for (const input of definition.inputs) {
     if (input.default !== null)
-      environment[inputName(input.name)] = input.default
+      environment[inputName(input.name)] = interpolate(input.default, context)
   }
 
   for (const [name, value] of Object.entries(supplied ?? {}))
