@@ -8,7 +8,7 @@
 // mirror that already exists.
 
 import { describe, expect, test } from 'bun:test'
-import { readDeclaration, settingsDrift } from '../../app/Actions/Mirror/declare'
+import { declaredInterval, readDeclaration, settingsDrift } from '../../app/Actions/Mirror/declare'
 import { updatesFromChanges } from '../../app/Actions/Mirror/workflows'
 import { upstreamDescription, upstreamStateFor } from '../../app/Actions/Mirror/upstreamStatus'
 
@@ -101,6 +101,28 @@ mirrors:
     // Publishing a repository is not a decision a file applied on every
     // deploy gets to make.
     expect(settingsDrift('stacks/x', { ...current, visibility: 'private' }, { remote: 'stacksjs/x', owner: 'stacks', private: false })).toEqual([])
+  })
+
+  test('applies a declared interval to a mirror that already exists', () => {
+    // `interval:` was read only when a mirror was created. One added by hand
+    // at the default and later declared with `ci: true` and `interval: 60`
+    // ran its workflows, but only as often as the old interval swept it.
+    expect(settingsDrift('stacks/postline', { ...current, runWorkflows: true, intervalSeconds: 3600 }, { remote: 'stacksjs/postline', owner: 'stacks', ci: true, interval: 60 })).toEqual([
+      'sweep stacks/postline every 60s (it is swept every 3600s)',
+    ])
+  })
+
+  test('leaves the interval alone when the line does not name one, or already matches', () => {
+    expect(settingsDrift('stacks/x', { ...current, intervalSeconds: 3600 }, { remote: 'stacksjs/x', owner: 'stacks' })).toEqual([])
+    expect(settingsDrift('stacks/x', { ...current, intervalSeconds: 60 }, { remote: 'stacksjs/x', owner: 'stacks', interval: 60 })).toEqual([])
+  })
+
+  test('floors a declared interval at a minute, and ignores one that is not a number', () => {
+    expect(declaredInterval({ interval: 5 })).toBe(60)
+    expect(declaredInterval({ interval: 900 })).toBe(900)
+    expect(declaredInterval({ interval: 0 })).toBeNull()
+    expect(declaredInterval({ interval: Number.NaN })).toBeNull()
+    expect(declaredInterval({})).toBeNull()
   })
 
   test('says nothing when it already matches', () => {

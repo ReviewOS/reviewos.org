@@ -224,6 +224,8 @@ export interface ExistingMirror {
   runWorkflows: boolean
   credentialRef: string
   visibility: string
+  /** Seconds between sweeps. */
+  intervalSeconds: number
 }
 
 /**
@@ -235,7 +237,7 @@ export interface ExistingMirror {
  * publish a repository, because that is not a decision a file applied on
  * every deploy should be able to make.
  */
-export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runWorkflows' | 'credentialRef' | 'visibility'>, declared: DeclaredMirror): string[] {
+export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runWorkflows' | 'credentialRef' | 'visibility'> & Partial<Pick<ExistingMirror, 'intervalSeconds'>>, declared: DeclaredMirror): string[] {
   const drift: string[] = []
 
   if (declared.ci !== undefined && declared.ci !== current.runWorkflows)
@@ -248,7 +250,30 @@ export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runW
   if (declared.private === true && current.visibility !== 'private')
     drift.push(`make ${local} private`)
 
+  const interval = declaredInterval(declared)
+  if (interval !== null && current.intervalSeconds !== undefined && interval !== current.intervalSeconds)
+    drift.push(`sweep ${local} every ${interval}s (it is swept every ${current.intervalSeconds}s)`)
+
   return drift
+}
+
+/**
+ * The sweep interval a line asks for, or null when it has no opinion.
+ *
+ * `interval:` used to be read only when a mirror was created. On one that
+ * already existed it was ignored without a word: a repository added by hand
+ * at the default and later declared with `ci: true` and `interval: 60` ran
+ * its workflows, but only as often as the old interval swept it, so a push
+ * waited up to an hour for CI that the file said would start within one
+ * minute. Floored at 60, the same floor the sweep applies.
+ */
+export function declaredInterval(declared: Pick<DeclaredMirror, 'interval'>): number | null {
+  if (declared.interval === undefined || declared.interval === null)
+    return null
+
+  const seconds = Math.floor(Number(declared.interval))
+
+  return Number.isFinite(seconds) && seconds > 0 ? Math.max(60, seconds) : null
 }
 
 /** Apply `settingsDrift`'s answer, and only that, to an existing mirror. */
@@ -261,6 +286,10 @@ async function settleSettings(current: ExistingMirror, declared: DeclaredMirror)
   const credential = String(declared.credential ?? '').trim()
   if (credential && credential !== current.credentialRef)
     mirror.credential_ref = credential
+
+  const interval = declaredInterval(declared)
+  if (interval !== null && interval !== current.intervalSeconds)
+    mirror.interval_seconds = interval
 
   if (Object.keys(mirror).length > 0) {
     await db
@@ -296,6 +325,7 @@ async function readExisting(): Promise<Map<string, ExistingMirror>> {
       'repository_mirrors.remote_name as remote_name',
       'repository_mirrors.run_workflows as run_workflows',
       'repository_mirrors.credential_ref as credential_ref',
+      'repository_mirrors.interval_seconds as interval_seconds',
     ])
     .execute()
     .catch(() => [])
@@ -319,6 +349,7 @@ async function readExisting(): Promise<Map<string, ExistingMirror>> {
       runWorkflows: isTrue(row.run_workflows),
       credentialRef: String(row.credential_ref ?? ''),
       visibility: String(row.visibility ?? ''),
+      intervalSeconds: Number(row.interval_seconds ?? 0),
     })
   }
 
