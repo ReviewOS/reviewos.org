@@ -63,6 +63,27 @@ mirrors:
     ci: true
     interval: 60
 
+  # Postline, the social publishing tool. Its CI and its desktop release run
+  # here instead of on GitHub Actions: `.reviewos/workflows/ci.yml` on the
+  # instance's Linux runners, and `release.yml` on the project's own Mac
+  # runner (`[self-hosted, macos-arm64, postline]`), which a `v*` tag starts.
+  # Public upstream, so it needs no credential to read. `ci: true` is what
+  # runs the workflows and posts "ReviewOS / CI" back to the commit.
+  - remote: stacksjs/postline
+    owner: stacks
+    ci: true
+    interval: 60
+
+  # The Open Times, the publication platform Postline was split out of. It is
+  # private upstream, so GitHub Actions bills it by the minute, and read with
+  # the account credential like the other private mirrors.
+  - remote: stacksjs/theopentimes.org
+    owner: stacks
+    credential: github_account
+    private: true
+    ci: true
+    interval: 60
+
   # `ReviewOS/.github` is deliberately absent: there is no such repository
   # upstream, and a declared mirror of a repository that does not exist is a
   # sweep that fails every fifteen minutes until it disables itself. This
