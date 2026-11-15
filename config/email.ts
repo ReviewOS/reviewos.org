@@ -11,20 +11,24 @@ import { env } from '@stacksjs/env'
 export default {
   from: {
     name: env.MAIL_FROM_NAME || 'ReviewOS',
-    address: env.MAIL_FROM_ADDRESS || `hello@${env.MAIL_DOMAIN || 'reviewos.org'}`,
+    address: env.MAIL_FROM_ADDRESS || `noreply@${env.MAIL_DOMAIN || 'reviewos.org'}`,
   },
 
   domain: env.MAIL_DOMAIN || 'reviewos.org',
 
   /**
-   * No mailboxes and no forwards.
+   * One mailbox, and it only sends.
    *
-   * These listed the stacksjs.com mailboxes and role-address forwards, which
-   * are real and live on the shared box - and are the `stacks` project's to
-   * define. A deploy from here that reconciled mail would have been editing
-   * another project's inboxes.
+   * `noreply@reviewos.org` is what the instance signs in as to send its own
+   * mail: the operator alert when a runner group starts backing off, digests,
+   * the welcome. Its password is `MAIL_PASSWORD_NOREPLY`, encrypted in
+   * `.env.production`, and `buddy mail:provision` creates the mailbox from it.
+   *
+   * No forwards and no role addresses. Earlier this listed the stacksjs.com
+   * mailboxes, which are the `stacks` project's to define; everything named
+   * here is under reviewos.org and nothing else.
    */
-  mailboxes: [],
+  mailboxes: ['noreply'],
   forwards: {},
 
   url: env.APP_URL || 'https://reviewos.org',
@@ -32,18 +36,16 @@ export default {
 
   server: {
     /**
-     * ReviewOS does not run a mail server.
+     * reviewos.org's mail rides the shared mail server; it does not run one.
      *
-     * mail.stacksjs.com lives on the shared box and belongs to the `stacks`
-     * project. With this on, a deploy from here reconciled that server's DNS -
-     * every run printed MX and DMARC records for stacksjs.com, and with DNS
-     * credentials present it would have written them.
-     *
-     * The settings below are inert while this is false; they are the template's
-     * defaults, kept so turning it on for reviewos.org's own mail is a one-line
-     * change rather than a rebuild.
+     * `attachTo: 'stacks'` is what keeps this to reviewos.org: provisioning
+     * adds this domain (its DKIM key, its mailbox, its MX, SPF, DKIM and DMARC
+     * records) to the server the `stacks` project owns, and leaves every other
+     * domain on it alone. Without it a deploy from here reconciled
+     * stacksjs.com's records, which is why this was off.
      */
-    enabled: false,
+    enabled: true,
+    attachTo: 'stacks',
     scan: true, // scans for spam and viruses
     subdomain: 'mail',
 
