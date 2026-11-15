@@ -20,3 +20,17 @@ pools:
     repositories:
       - stacks/hq.training
     registration_token_env: REVIEWOS_AUTOSCALE_REGISTRATION_TOKEN
+
+  # Share the existing Linux deployment box and Mac executor through one pool.
+  # The explicit allowlist preserves private repository isolation. Labels choose
+  # the operating system; one runner process per host keeps native work serial.
+  # No additional machine or paid hosted runner is provisioned by this pool.
+  - name: HQ and LSU owned
+    slug: hq-lsu-owned
+    description: existing owned Linux and macOS executors for HQ and LSU
+    queues:
+      - name: owned-release
+    repositories:
+      - stacks/hq.training
+      - stacks/lastsoulultra
+    registration_token_env: REVIEWOS_OWNED_RELEASE_REGISTRATION_TOKEN

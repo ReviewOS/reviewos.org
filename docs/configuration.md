@@ -1354,6 +1354,14 @@ CLI and runner controller origin. Leave unset to use the checkout or hosted defa
 
 Read by `app/Actions/Runner/standalone.ts`, `app/Cli/api-command.ts`, `app/Cli/context.ts`, `app/Cli/runs.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`, `app/Commands/RunnerWorkspaces.ts`.
 
+### `REVIEWOS_OWNED_RELEASE_REGISTRATION_TOKEN`
+
+Default: unset.
+
+Operator-only registration for the declared HQ/LSU owned pool. Never a job secret.
+
+*No direct reader found in `app/`, `routes/` or `resources/`. Check `config/` and framework readers.*
+
 ## Screenshots
 
 ### `SCREENSHOT_URL`
