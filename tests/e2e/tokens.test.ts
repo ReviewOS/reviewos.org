@@ -634,6 +634,107 @@ describe('the tokens settings page reads', () => {
   })
 })
 
+describe('a token is issued with exactly what the form chose', () => {
+  /*
+   * Asserted against the rows, not the response.
+   *
+   * A token reported as far wider than it was asked for - every repository the
+   * account can see, and every scope at its top level - would be the worst
+   * defect this feature can have, so "it stored what was chosen" is worth a
+   * test that reads `access_token_repositories` and `access_token_permissions`
+   * rather than trusting the JSON the endpoint echoes back. The two are built
+   * from the same variable, so the echo cannot disagree with the rows and
+   * cannot catch this on its own.
+   *
+   * The body is what `resources/views/settings/tokens.stx` really posts: one
+   * field per scope including the `none` ones the reader left alone, and the
+   * repositories comma-joined by the hidden input.
+   */
+  async function issueThroughTheForm(body: Record<string, string>, userId: number): Promise<any> {
+    const action: any = (await import('../../app/Actions/Tokens/CreateTokenAction')).default
+
+    const answer: any = await action.handle({
+      get: (field: string) => body[field],
+      user: async () => ({ id: userId }),
+      headers: { get: () => null },
+      header: () => null,
+      url: 'http://reviewos.test/api/user/tokens',
+    })
+
+    return typeof answer?.json === 'function' ? await answer.json() : (answer?.body ?? answer)
+  }
+
+  test('one repository and three scopes store one repository and three scopes', async () => {
+    if (!available)
+      return
+
+    const body = {
+      name: 'exactly what was chosen',
+      selection: 'selected',
+      // Left alone by the reader, and posted all the same.
+      scope_contents: 'none',
+      scope_issues: 'none',
+      scope_pull_requests: 'none',
+      scope_webhooks: 'none',
+      scope_administration: 'none',
+      // The three that were chosen.
+      scope_actions: 'write',
+      scope_actions_logs: 'read',
+      scope_checks: 'read',
+      repository_ids: String(created.repositoryId),
+      expires_at: '2027-01-01',
+    }
+
+    const issued = await issueThroughTheForm(body, created.collaboratorId)
+    const tokenId = Number(issued?.id)
+    expect(tokenId).toBeGreaterThan(0)
+
+    const repositories = await db
+      .selectFrom('access_token_repositories')
+      .select(['repository_id'])
+      .where('access_token_id', '=', tokenId)
+      .execute()
+
+    // Exactly the one, and nothing the account merely happens to be able to
+    // read. This is the assertion that a widening would break.
+    expect(repositories.map((row: any) => Number(row.repository_id))).toEqual([created.repositoryId])
+
+    const permissions = await db
+      .selectFrom('access_token_permissions')
+      .select(['scope', 'level'])
+      .where('access_token_id', '=', tokenId)
+      .execute()
+
+    expect(permissions.map((row: any) => `${row.scope}:${row.level}`).sort())
+      .toEqual(['actions:write', 'actions_logs:read', 'checks:read'])
+
+    // The scopes left at "no access" are absent rather than stored at some
+    // default, which is the other half of "exactly what was chosen".
+    expect(permissions.some((row: any) => String(row.scope) === 'contents')).toBe(false)
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', '=', tokenId).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', '=', tokenId).execute()
+    await db.deleteFrom('access_tokens').where('id', '=', tokenId).execute()
+  })
+
+  test('an empty picker is refused, never read as every repository', async () => {
+    if (!available)
+      return
+
+    const issued = await issueThroughTheForm({
+      name: 'nothing chosen',
+      selection: 'selected',
+      scope_contents: 'read',
+      repository_ids: '',
+    }, created.collaboratorId)
+
+    // The failure mode worth naming: "selected" with nothing selected must not
+    // become "all". A refusal is the only safe reading of it.
+    expect(String(issued?.error ?? '')).toContain('at least one repository')
+    expect(issued?.id).toBeUndefined()
+  })
+})
+
 describe('rotation', () => {
   /** Call the action the way the route does, and read the JSON back. */
   async function rotate(tokenId: number, userId: number): Promise<{ status: number, body: any }> {
