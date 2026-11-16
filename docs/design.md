@@ -32,7 +32,7 @@ review.
 | `--line` | `#e2e4e3` | 3 |
 | `--line-strong` | `#cdd1d0` | 3 |
 | `--mono` | `'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace` | 2 |
-| `--muted` | `#5d6b6e` | 3 |
+| `--muted` | `#4f5b5e` | 3 |
 | `--ok` | `#14663c` | 2 |
 | `--ok-bg` | `#e4f3ea` | 2 |
 | `--on-accent` | `#ffffff` | 3 |

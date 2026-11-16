@@ -156,7 +156,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         --line: #e2e4e3;
         --line-strong: #cdd1d0;
         --text: #12191b;
-        --muted: #5d6b6e;
+        --muted: #4f5b5e;
         --accent: #0f6d72;
         --accent-quiet: #e2f0f0;
         --accent-text: #0b565a;
