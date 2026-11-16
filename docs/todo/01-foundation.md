@@ -654,6 +654,43 @@ The half of this nobody builds, and the half that decides whether an instance is
       do
 - [x] Tests against the database rather than the rules: a revoked token stops working on the very
       next request, and losing repository access revokes the token's reach into it
+- [x] "Issue a token" can issue one. It could not: the form was refused by its own endpoint on
+      every scoped token it was able to post.
+
+  `CreateTokenAction` declared `repository_ids` as `schema.array()`. An action's `validations` block
+  runs **before** its handler, and a browser cannot post an array - so the comma-joined hidden field
+  the form sends, which `readRepositoryIds` was written to accept and documents as the shape that
+  "survives every parser", was refused with `{"repository_ids":["Must be an array"]}` before any of
+  that code ran. One repository or six, equally: the page could not issue a scoped token at all, and
+  the only body it could get past validation was the empty one `issueAccessToken` then refuses with
+  "Choose at least one repository you can reach".
+
+  The rule is now `list` from `app/Actions/inputs.ts`, the sibling of the `coerced` rule the same
+  mistake produced in the other direction. The router coerces a form's string to a number or a
+  boolean when the rule asks for one; it coerces nothing into an array, so nothing was going to
+  rescue this. The new-issue form's label checkboxes had it too, on exactly one tick - one
+  occurrence of a repeated name arrives as a string and two arrive as an array - and `applyLabels`
+  had been written for both all along.
+
+  **Nothing caught it because nothing exercised a declared rule.** The e2e suite drives
+  `action.handle(...)` directly, which is the right way to test what the rows mean and skips
+  validation entirely, and `tests/unit/action-inputs.test.ts` reads the source and cannot know what
+  a form sends. `tests/unit/action-form-inputs.test.ts` closes that gap the other way: the body each
+  form actually posts, through the real validator, against the rules the action declares. It goes
+  red on all three broken shapes.
+
+  A refusal now comes back to the form with the reason rather than replacing the page with JSON.
+  The form posts straight to the API endpoint, so every refusal - no name, no permissions, an expiry
+  that is not a date - landed the reader on `{"error":"..."}` with the back button as the way out,
+  having just set eight permission dropdowns. Same `wantsHtml` split and same `?error=` convention
+  as `LoginAction` and `UpdateProfileAction`, and the form reopens carrying the message. A success
+  still answers JSON deliberately: the token is shown once and only there, and a redirect would
+  write a live credential into the URL, the history and every access log on the way.
+
+  Driven on a seeded instance to be sure of both halves: one repository and three both issue, with
+  the token scoped to exactly the ids asked for; nothing selected, no permissions and an unparseable
+  expiry each land back on the form with their own sentence; and a client sending `Accept:
+  application/json` still gets the JSON body for the same refusals.
 
 ## Keys
 

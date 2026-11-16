@@ -42,6 +42,38 @@ export const coerced = schema.custom(
 )
 
 /**
+ * A field the handler reads as a list, however the list arrived.
+ *
+ * The sibling mistake to the one {@link coerced} exists for, and it had the
+ * same shape: `schema.array()` declared for a field that a browser cannot send
+ * as an array. An HTML form posts flat pairs, so a list reaches the server as
+ * one repeated name - which the router surfaces as a *string* for one
+ * occurrence and an array for two - or, where the markup joins it first, as
+ * `3,7`. Either way `schema.array()` answers 422 before the handler runs.
+ *
+ * That is what broke "Issue a token" outright. The settings form posts the
+ * chosen repositories as a comma-joined hidden field and `CreateTokenAction`
+ * accepts both shapes on purpose, but the declared rule accepted only one, so
+ * every scoped token - one repository or six - came back
+ * `{"repository_ids":["Must be an array"]}` and left the reader on a page of
+ * JSON. Ticking exactly one label on the new-issue form failed the same way.
+ *
+ * Permissive for the reason `coerced` is: the library has no "array or string
+ * or number", and a union invented here would be a second validator to keep
+ * true. What the values have to *be* is checked where they are used, which is
+ * where the error is worth reading - "Choose at least one repository you can
+ * reach" rather than "Must be an array".
+ *
+ * `tests/unit/action-form-inputs.test.ts` posts the body each form really sends
+ * through the real validator, which is what catches the next one of these.
+ */
+export const list = schema.custom(
+  () => true,
+  // Never reached, as above. Declared because `custom` takes a message.
+  'accepted as sent, and checked where it is used',
+)
+
+/**
  * A form flag, read the way a browser sends one.
  *
  * `undefined` for absent or unrecognised, so a caller that needs to tell "not

@@ -2,6 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { INSTANCE_SCOPES, ORGANIZATION_SCOPES, REPOSITORY_SCOPES } from '../../TokenScopes'
 import { canInOrganization } from '../../Permissions'
+import { wantsHtml } from '../Auth/session'
+import { list } from '../inputs'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { issueAccessToken } from './issue'
 
@@ -31,10 +33,13 @@ export default new Action({
     expires_at: { rule: schema.string() },
     organization_id: { rule: schema.number() },
     machine_account_id: { rule: schema.number() },
-    // Both arrays, and both accepted in the flattened `scope_*` form the
-    // settings form posts. The handler reads either.
+    // An array from a JSON client, and whatever a form could honestly send.
+    // `permissions` has the flattened `scope_*` spelling the settings form
+    // posts instead, so it is only ever an array when it is present at all;
+    // `repository_ids` arrives comma-joined from that same form, which is why
+    // a declared array refused every scoped token this page issued.
     permissions: { rule: schema.array() },
-    repository_ids: { rule: schema.array() },
+    repository_ids: { rule: list },
   },
 
   responses: {
@@ -47,7 +52,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const caller = await currentUser(request)
     if (!caller)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     /*
      * A token can be issued *for* a machine account by somebody who administers
@@ -64,7 +69,7 @@ export default new Action({
      */
     const machine = await machineAccountFor(request, caller.id)
     if (machine.error)
-      return response.json({ error: machine.error }, machine.status)
+      return refuse(request, machine.error, machine.status)
 
     const user = machine.account ?? caller
 
@@ -92,12 +97,48 @@ export default new Action({
     })
 
     if (!issued.ok)
-      return response.json({ error: issued.error }, issued.status)
+      return refuse(request, issued.error, issued.status)
 
     // The only time the secret is ever returned.
     return response.json(issued.token, 201)
   },
 })
+
+/**
+ * A refusal, in the shape the caller can read.
+ *
+ * JSON for a program, and for a browser the form back with the reason in the
+ * query - the same `wantsHtml` split `LoginAction` and `UpdateProfileAction`
+ * use, and there is still no session flash to carry it any other way.
+ *
+ * This page needed it more than most. The form posts straight to the API
+ * endpoint, so every refusal `issueAccessToken` can return landed the reader on
+ * raw JSON with the back button as the way out, and a token is exactly the
+ * thing somebody fills in once, carefully, with eight permission dropdowns set.
+ * Losing all of that to `{"error":"A token needs a name..."}` is the difference
+ * between a validation message and starting again.
+ *
+ * Unauthenticated goes to the login page carrying `next`, because a session
+ * that expired while the form was open is the ordinary way to get here.
+ *
+ * **A success still answers JSON, deliberately.** The token is shown once and
+ * only in that response; putting it through a redirect would write a live
+ * credential into the URL, the browser history and every access log between
+ * here and the reader.
+ */
+function refuse(request: RequestInstance, error: string | undefined, status = 422): Response {
+  const message = error ?? 'That did not work'
+
+  if (wantsHtml(request)) {
+    const to = status === 401
+      ? '/login?next=/settings/tokens'
+      : `/settings/tokens?error=${encodeURIComponent(message)}`
+
+    return new Response(null, { status: 303, headers: { Location: to } })
+  }
+
+  return response.json({ error: message }, status)
+}
 
 /**
  * The grants asked for, however they were asked for.

@@ -17,6 +17,23 @@
 // The rule to write for a coerced field is `coerced` from `app/Actions/inputs.ts`.
 // What the value has to *be* is then checked where it is used, which is where
 // the error is worth reading.
+//
+// `schema.array()` is the same mistake in the other direction, and it shipped a
+// worse bug: a browser cannot post an array. A repeated field name reaches the
+// server as a string for one occurrence and an array for two, and a form that
+// joins the list itself sends `3,7`. "Issue a token" declared an array for
+// `repository_ids`, which the settings form posts comma-joined - so the page
+// could not issue a scoped token at all, one repository or six, and answered
+// `{"repository_ids":["Must be an array"]}` onto a blank page of JSON. Ticking
+// exactly one label on the new-issue form failed the same way.
+//
+// The rule for a field the handler reads as a list is `list`, from the same
+// file. That half is not scanned here: which helper reads which field is not
+// something a regex over the file can tell, and the scan that tried read
+// `readRepositoryIds`'s `split(',')` as evidence about `permissions`.
+// `tests/unit/action-form-inputs.test.ts` checks it the other way instead, by
+// validating the body each form actually posts against the rules the action
+// declares.
 
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'

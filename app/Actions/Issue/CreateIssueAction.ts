@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { appendAttachments } from '../Attachment/upload'
+import { list } from '../inputs'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { recordCrossReferences } from './crossReferences'
@@ -29,8 +30,11 @@ export default new Action({
     repository: { rule: schema.string() },
     title: { rule: schema.string().required() },
     body: { rule: schema.string() },
-    // An array of label names, as `applyLabels` reads it.
-    labels: { rule: schema.array() },
+    // Label names, however many arrived. The new-issue form posts a checkbox
+    // per label, so one tick reaches the server as a bare string and a
+    // declared array refused the whole issue - which `applyLabels` was already
+    // written to accept.
+    labels: { rule: list },
     milestone_id: { rule: schema.number() },
   },
 
