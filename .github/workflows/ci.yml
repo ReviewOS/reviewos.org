@@ -456,7 +456,50 @@ jobs:
           # the environment was wrong. Not a real key; it never leaves the
           # runner.
           APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
-        run: bun run test
+        # Bounded here rather than left to the job's `timeout-minutes`, and
+        # the reason is what happens to the evidence.
+        #
+        # This step normally finishes in 12 to 14 minutes. Twice it has instead
+        # hung and been killed at the job's ceiling: 15 November on mysql,
+        # 16 November on postgres, both at 35m01s with this step still running
+        # and `Database bootstrap tests` never reached. So the hang is real,
+        # intermittent at roughly one job in twelve, and not an engine's fault.
+        #
+        # Both times the output went with it. A job GitHub kills on
+        # `timeout-minutes` concludes `cancelled`, and GitHub discards a
+        # cancelled job's logs - asking for them answers `BlobNotFound`, while
+        # the failed and successful jobs beside them still serve theirs in
+        # full. The only intermittent failure in this suite was therefore the
+        # one failure that deleted its own explanation.
+        #
+        # `timeout` makes the hang this step's failure instead. The step exits
+        # 124, the job concludes `failure`, and the log is kept - with
+        # `bun test`'s per-file progress in it, so the last file printed is
+        # where to look. SIGINT first, because bun answers it by flushing what
+        # it has; SIGKILL thirty seconds later for when it cannot.
+        #
+        # 22 minutes is chosen from both sides: well above the 14-minute worst
+        # case, so a slow run is not failed, and well below the job's 30, so
+        # the kill is ours and the log survives.
+        #
+        # Deliberately not a per-test timeout, which is the obvious guess and
+        # would do nothing here. `bun test` already applies one of 5s, and it
+        # fires: a test body that never returns, and a hook that never returns,
+        # both fail on their own, and a test leaving a timer open does not stop
+        # the process exiting. All three were checked. What is not bounded by
+        # anything is a module whose top-level `await` never settles - that
+        # hangs the run before a single test is registered, prints nothing past
+        # the version banner, and can only be stopped from outside. That is the
+        # shape this failure has.
+        run: |
+          status=0
+          timeout --signal=INT --kill-after=30s 22m bun run test || status=$?
+
+          if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+            echo "::error::The test suite did not finish within 22 minutes and was stopped. This step normally takes 12 to 14 minutes. The job fails rather than being cancelled so that this log is kept: the last test file printed above is where it hung, and a module-level await that never settles is the first thing to look for."
+          fi
+
+          exit "$status"
 
       # `bun run test` shells out to `buddy test`, which only globs
       # <project>/tests/**, so nothing under storage/framework/core/**/tests
