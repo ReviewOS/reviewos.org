@@ -362,48 +362,6 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
     align-items: start;
   }
 
-  .issue-locked { padding: 14px 2px; font-size: 13.5px; }
-
-  .issue-reply { padding: 14px 16px; }
-
-  .reply-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  /* The file input is hidden and the label is the control, because a bare file
-    input cannot be styled and looks like nothing else on the page. It is still
-    focusable through the input it wraps. */
-  .reply-attach {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    font-size: 12.5px;
-    color: var(--muted);
-    border: 1px solid var(--line);
-    border-radius: var(--r-control);
-    cursor: pointer;
-  }
-
-  .reply-attach:hover { border-color: var(--line-strong); color: var(--text); }
-  .reply-attach:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-  .reply-submit {
-    padding: 7px 14px;
-    border: 0;
-    border-radius: var(--r-control);
-    background: var(--accent);
-    color: var(--on-accent);
-    font: inherit;
-    font-size: 13.5px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
   .side-block { padding: 14px 16px; margin-bottom: 12px; }
   .side-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
   .side-empty, .side-note { margin-top: 7px; font-size: 13px; }
