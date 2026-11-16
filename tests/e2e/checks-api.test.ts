@@ -144,6 +144,7 @@ beforeAll(async () => {
     available = true
   }
   catch (error) {
+    if (process.env.TESTS_REQUIRE_ALL === '1') throw error
     console.warn(`[checks] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
@@ -528,14 +529,23 @@ describe('the webhook a report sends', () => {
     if (!available)
       return
 
-    const created_run = await report({ name: 'webhook/order', status: 'completed', conclusion: 'success' })
+    // Subscribe before the forward report and observe its delivery. Adding the
+    // hook afterward races that report's asynchronous recipient lookup and can
+    // mistake its completed event for a forbidden backward-transition event.
     const hook = await subscribe('check:reported')
+    const created_run = await report({ name: 'webhook/order', status: 'completed', conclusion: 'success' })
+    const initial = await settled(hook)
+    expect(initial).toHaveLength(1)
+    expect(JSON.parse(String(initial[0].payload)).check.status).toBe('completed')
 
-    await report({ id: Number(created_run.body?.id), name: 'webhook/order', status: 'queued' })
+    const backward = await report({ id: Number(created_run.body?.id), name: 'webhook/order', status: 'queued' })
+    expect(backward.status).toBe(200)
+    expect(backward.body.ignored).toBe('a later report has already been recorded for this run')
+    expect(backward.body.status).toBe('completed')
 
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    expect(await deliveries(hook)).toEqual([])
+    expect(await deliveries(hook)).toEqual(initial)
   })
 })
 

@@ -3603,3 +3603,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
 - [x] Bind the discussion-page SQLite fixture to its supplied disposable path,
       never an inherited PostgreSQL database name. Repeated real SQLite runs
       remain isolated instead of writing a database in the project checkout.
+
+- [x] Observe the forward check delivery before asserting a backward report is
+      silent. Subscribe before the report, verify the ignored response and
+      unchanged completed check, then require the same delivery set. Required
+      checks API fixtures fail instead of passing when database setup fails.
