@@ -1,4 +1,6 @@
 import type { CLI } from '@stacksjs/types'
+import type { SshTransport, SystemSshTransportDeps } from '@stacksjs/ts-cloud/drivers'
+import { SystemSshTransport } from '@stacksjs/ts-cloud/drivers'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -60,7 +62,8 @@ export default function (cli: CLI) {
           process.exit(1)
         }
 
-        const { HetznerClient, provisionBox, sshExecOrThrow, scpUpload } = await import('@stacksjs/ts-cloud/drivers')
+        const { HetznerClient, provisionBox } = await import('@stacksjs/ts-cloud/drivers')
+        const ssh = runnerUpdateTransport(identity)
         if (options.existingHost) {
           const host = String(options.existingHost)
           if (!isIP(host) || !options.binary || !existsSync(String(options.binary)))
@@ -72,7 +75,7 @@ export default function (cli: CLI) {
           if (options.dryRun)
             console.log(`${box.name} (${host}): update the runner binary only; no provisioning or resize`)
           else
-            await installBinary(box, host, String(options.binary), String(options.restart), identity, { sshExecOrThrow, scpUpload })
+            await installBinary(box, host, String(options.binary), String(options.restart), ssh)
           return
         }
 
@@ -93,7 +96,7 @@ export default function (cli: CLI) {
         for (const line of result.report) console.log(`  ${line}`)
 
         if (options.binary && !options.dryRun)
-          await installBinary(box, result.box.publicIp, String(options.binary), String(options.restart), identity, { sshExecOrThrow, scpUpload })
+          await installBinary(box, result.box.publicIp, String(options.binary), String(options.restart), ssh)
 
         process.exit(0)
       }
@@ -104,13 +107,16 @@ export default function (cli: CLI) {
     })
 }
 
+export function runnerUpdateTransport(identity: string, knownHostsFile = resolve('storage/cloud/known_hosts'), deps?: SystemSshTransportDeps): SshTransport {
+  return new SystemSshTransport({ user: 'root', identityFile: identity, hostKey: { policy: 'pin', knownHostsFile } }, deps)
+}
+
 export async function installBinary(
   box: any,
   host: string,
   binary: string,
   restart: string,
-  identity: string,
-  ssh: { sshExecOrThrow: (host: string, command: string, options?: any) => Promise<string>, scpUpload: (host: string, paths: string[], dir: string, options?: any) => Promise<void> },
+  ssh: Pick<SshTransport, 'exec' | 'scp'>,
 ): Promise<void> {
   const user = String(box.user?.name ?? '')
   const [service, declared] = Object.entries(box.services ?? {})[0] as [string, any] ?? []
@@ -119,28 +125,30 @@ export async function installBinary(
   }
   if (!existsSync(binary)) throw new Error(`No runner binary at ${binary}`)
 
-  const options = { identityFile: identity, knownHostsFile: resolve('storage/cloud/known_hosts') }
-  const home = (await ssh.sshExecOrThrow(host, `getent passwd ${user} | cut -d: -f6`, options)).trim()
+  const home = (await ssh.exec(host, `getent passwd ${user} | cut -d: -f6`)).trim()
   const target = `${home}/${String(declared.exec).slice(3)}`
   const local = createHash('sha256').update(readFileSync(binary)).digest('hex')
-  const remote = (await ssh.sshExecOrThrow(host, `sha256sum ${target} 2>/dev/null | cut -d' ' -f1 || true`, options)).trim()
+  const remote = (await ssh.exec(host, `sha256sum ${target} 2>/dev/null | cut -d' ' -f1 || true`)).trim()
 
   if (local === remote) {
     console.log(`  the runner binary is already ${local.slice(0, 12)}`)
     return
   }
 
-  await ssh.scpUpload(host, [binary], `${target}.next`, options)
-  await ssh.sshExecOrThrow(host, [
+  await ssh.scp(host, binary, `${target}.next`)
+  const uploaded = (await ssh.exec(host, `sha256sum ${target}.next | cut -d' ' -f1`)).trim()
+  if (uploaded !== local)
+    throw new Error('The uploaded runner checksum differs; the installed binary was left in place')
+  await ssh.exec(host, [
     `chown ${user}:${user} ${target}.next && chmod 755 ${target}.next`,
     `[ -f ${target} ] && cp -p ${target} ${target}.before-${remote.slice(0, 12) || 'none'} || true`,
     `mv ${target}.next ${target}`,
-  ].join(' && '), options)
+  ].join(' && '))
   console.log(`  installed runner ${local.slice(0, 12)} (was ${remote.slice(0, 12) || 'none'})`)
 
   if (restart === 'signal') {
     // Only the runner handles draining; its active job children must keep running.
-    await ssh.sshExecOrThrow(host, `sudo -u ${user} XDG_RUNTIME_DIR=/run/user/$(id -u ${user}) systemctl --user kill --kill-who=main -s SIGUSR2 ${service}.service`, options)
+    await ssh.exec(host, `sudo -u ${user} XDG_RUNTIME_DIR=/run/user/$(id -u ${user}) systemctl --user kill --kill-who=main -s SIGUSR2 ${service}.service`)
     console.log(`  asked ${service} to finish its job and restart onto it`)
   }
   else {
