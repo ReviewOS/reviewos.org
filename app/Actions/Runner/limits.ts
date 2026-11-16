@@ -170,5 +170,9 @@ export function limitedArgv(argv: readonly string[], limits: StepLimits): string
   if (!prelude || argv.length === 0)
     return [...argv]
 
-  return ['/bin/sh', '-c', `${prelude}exec "$@"`, 'sh', ...argv]
+  // Linux dash drops inherited names such as INPUT_FETCH-DEPTH. Bash keeps
+  // them, and POSIX mode preserves the existing per-platform ulimit units.
+  // Privileged startup skips BASH_ENV and inherited shell functions before
+  // limits are installed; the target still receives its original environment.
+  return ['/bin/bash', '--posix', '-p', '-c', `${prelude}exec "$@"`, 'bash', ...argv]
 }

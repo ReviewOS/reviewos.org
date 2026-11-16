@@ -2126,6 +2126,10 @@ function expressionContext(
   const run = job?.run ?? {}
   const ref = String(run.ref ?? '')
   const full = String(job?.repository_full_name ?? '')
+  // Mirrors and schedules can have no local actor to mint an API token for.
+  // Their existing lease credential already authorizes only this job's private
+  // Git checkout (jobMayRead), never a repository push or a user's API rights.
+  const actionToken = String((job?.secrets as any)?.GITHUB_TOKEN ?? job?.token ?? '')
 
   const github = {
     workflow: String(run.workflow ?? ''),
@@ -2168,7 +2172,7 @@ function expressionContext(
      * automatic credential by. The same value as `secrets.GITHUB_TOKEN`, so an
      * action written either way works and neither is a second thing to mint.
      */
-    token: String((job?.secrets as any)?.GITHUB_TOKEN ?? ''),
+    token: actionToken,
   }
 
   return {
@@ -2208,7 +2212,7 @@ function expressionContext(
      * about a credential does not have it in its environment where a child
      * process, a crash dump or a `printenv` would find it.
      */
-    secrets: job?.secrets ?? {},
+    secrets: { ...(job?.secrets ?? {}), GITHUB_TOKEN: actionToken },
     runner: {
       os: runnerOs(),
       arch: runnerArch(),

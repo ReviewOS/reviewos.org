@@ -11,7 +11,7 @@
 // the failure this file exists to catch.
 
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { limitPrelude, limitedArgv, limitedCommand, limitsFrom } from '../../app/Actions/Runner/limits'
@@ -112,9 +112,25 @@ describe('the argv path, which has no shell', () => {
      */
     const argv = limitedArgv(['node', '--eval', 'console.log(1)'], limitsFrom({}))
 
-    expect(argv[0]).toBe('/bin/sh')
-    expect(argv[2]).toContain('exec "$@"')
-    expect(argv.slice(4)).toEqual(['node', '--eval', 'console.log(1)'])
+    expect(argv.slice(0, 4)).toEqual(['/bin/bash', '--posix', '-p', '-c'])
+    expect(argv[4]).toContain('exec "$@"')
+    expect(argv.slice(6)).toEqual(['node', '--eval', 'console.log(1)'])
+  })
+
+  test('preserves hyphenated action inputs without running a startup hook before the limits', async () => {
+    const directory = fixture()
+    const startup = join(directory, 'startup.sh')
+    const marker = join(directory, 'startup-ran')
+    writeFileSync(startup, 'touch "$FIXTURE_MARKER"\n')
+    const program = 'console.log(JSON.stringify({ depth: process.env["INPUT_FETCH-DEPTH"], persist: process.env["INPUT_PERSIST-CREDENTIALS"] }))'
+    const child = Bun.spawn(limitedArgv([process.execPath, '--config=/dev/null', '--no-env-file', '--eval', program], limitsFrom({})), {
+      cwd: directory, env: { PATH: process.env.PATH ?? '/usr/bin:/bin', BASH_ENV: startup, FIXTURE_MARKER: marker, 'INPUT_FETCH-DEPTH': '0', 'INPUT_PERSIST-CREDENTIALS': 'false' },
+      stdout: 'pipe', stderr: 'pipe',
+    })
+    const [output, error, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
+    expect(code, error).toBe(0)
+    expect(JSON.parse(output)).toEqual({ depth: '0', persist: 'false' })
+    expect(existsSync(marker)).toBe(false)
   })
 
   test('and an argument that would be a shell metacharacter survives it', async () => {

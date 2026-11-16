@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { runOnce } from '../../app/Actions/Runner/localExecutor'
 
 for (const nested of [false, true]) {
-  test(`action defaults resolve the caller context${nested ? ' through a composite wrapper' : ''} without evaluating supplied input twice`, async () => {
+ for (const actorToken of [false, true]) {
+  test(`action defaults resolve the ${actorToken ? 'actor' : 'actorless'} caller context${nested ? ' through a composite wrapper' : ''} without evaluating supplied input twice`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'reviewos-action-defaults-'))
     const workspace = join(root, 'job-9812')
     const action = join(workspace, '.reviewos/actions/fixture')
@@ -23,7 +24,7 @@ runs:
   using: node20
   main: index.js
 `)
-    writeFileSync(join(action, 'index.js'), `await Bun.write('result.json', JSON.stringify({ repository: process.env.INPUT_REPOSITORY, tokenMatches: process.env.INPUT_TOKEN === 'synthetic-scoped-job-token', caller: process.env.INPUT_CALLER, supplied: process.env.INPUT_SUPPLIED }))`)
+    writeFileSync(join(action, 'index.js'), `await Bun.write('result.json', JSON.stringify({ repository: process.env.INPUT_REPOSITORY, tokenMatches: process.env.INPUT_TOKEN === '${actorToken ? 'synthetic-scoped-job-token' : 'synthetic-protocol-token'}', caller: process.env.INPUT_CALLER, supplied: process.env.INPUT_SUPPLIED }))`)
     if (nested) {
       const wrapper = join(workspace, '.reviewos/actions/wrapper')
       mkdirSync(wrapper, { recursive: true })
@@ -49,7 +50,7 @@ runs:
       return Response.json({ job: {
         id: 9812, token: 'synthetic-protocol-token', key: 'defaults', checkout: { skip: true },
         env: { CALLER_VALUE: 'workflow-value' },
-        secrets: { GITHUB_TOKEN: 'synthetic-scoped-job-token' },
+        secrets: actorToken ? { GITHUB_TOKEN: 'synthetic-scoped-job-token' } : {},
         event: { inputs: { literal: '${{ github.token }}' } },
         steps: [{ uses: nested ? './.reviewos/actions/wrapper' : './.reviewos/actions/fixture', with: { [nested ? 'literal' : 'supplied']: '${{ inputs.literal }}' } }],
         run: { id: 1, number: 1, event: 'push', ref: 'refs/heads/main', head_sha: 'abc' },
@@ -61,7 +62,9 @@ runs:
       expect(outcome?.state, logs).toBe('succeeded')
       expect(JSON.parse(readFileSync(join(workspace, 'result.json'), 'utf8'))).toEqual({ repository: 'acme/widgets', tokenMatches: true, caller: 'workflow-value', supplied: '${{ github.token }}' })
       expect(logs).not.toContain('synthetic-scoped-job-token')
+      expect(logs).not.toContain('synthetic-protocol-token')
     }
     finally { server.stop(true); rmSync(root, { recursive: true, force: true }) }
   }, 30_000)
+}
 }

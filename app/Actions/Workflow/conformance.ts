@@ -79,7 +79,7 @@ export const CONFORMANCE: ConformanceEntry[] = [
     key: 'permissions',
     level: 'workflow',
     status: 'differs',
-    behaviour: 'Mapped onto this instance\'s token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration.',
+    behaviour: 'Mapped onto this instance\'s token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration. Actorless mirror and scheduled jobs retain only their live job credential for checking out their own repository; no user API authority is minted.',
   },
   { key: 'run-name', level: 'workflow', status: 'unimplemented', behaviour: 'Accepted and not yet used; runs are named for their workflow.' },
 

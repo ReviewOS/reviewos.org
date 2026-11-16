@@ -1085,6 +1085,8 @@ cannot talk back to the runner is a workflow that fails on its second line.
       caller environment and nested defaults without logging the credential.
       `runner:provision --existing-host` updates an existing declared machine's
       binary through verified SSH and graceful drain without cloud provisioning.
+      Actorless mirror and scheduled jobs expose their existing lease-scoped
+      checkout credential to action defaults without minting user API authority.
 - [x] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
       already mirrors repositories), so an air-gapped install is a supported configuration.
 

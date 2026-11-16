@@ -13,15 +13,15 @@ test('installing a new runner signals only its main process, preserving active j
   writeFileSync(binary, 'new runner fixture')
   const commands: string[] = []
   const uploads: string[] = []
-  await installBinary({ user: { name: 'runner' }, services: { 'reviewos-runner': { exec: '%h/reviewos-runner' } } }, 'fixture.invalid', binary, 'signal', '/fixture/key', {
-    async sshExecOrThrow(host, command) {
+  await installBinary({ user: { name: 'runner' }, services: { 'reviewos-runner': { exec: '%h/reviewos-runner' } } }, 'fixture.invalid', binary, 'signal', {
+    async exec(host, command) {
       expect(host).toBe('fixture.invalid')
       commands.push(command)
-      return command.startsWith('getent ') ? '/home/runner' : command.startsWith('sha256sum ') ? createHash('sha256').update('old runner fixture').digest('hex') : ''
+      return command.startsWith('getent ') ? '/home/runner' : command.startsWith('sha256sum ') ? createHash('sha256').update(command.includes('.next') ? 'new runner fixture' : 'old runner fixture').digest('hex') : ''
     },
-    async scpUpload(host, paths, target) {
+    async scp(host, path, target) {
       expect(host).toBe('fixture.invalid')
-      expect(paths).toEqual([binary])
+      expect(path).toBe(binary)
       uploads.push(target)
     },
   })
