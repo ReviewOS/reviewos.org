@@ -3595,6 +3595,11 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       reject unsupported inputs, escaping paths, links and oversized archives.
       Real Git and HTTP-byte round trips remove the local artifact before download.
 
+- [x] Reuse the verified bootstrap commit for the default native checkout instead
+      of fetching the same shallow commit twice. Always restore and clean the
+      workspace; deeper and full-history requests still require their fetch.
+      Real executor tests cover an unavailable origin and dirty source files.
+
 - [x] Journal action-step conclusions, timings and outputs before the next step,
       including native adapters. Preserve always/failure cleanup after action
       failures and journal anonymous skipped steps. Derive action server/API URLs from the controller
