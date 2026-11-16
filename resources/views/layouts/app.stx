@@ -1397,7 +1397,7 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
        * request, decided by which tab you were on.
        */
       .pr-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-      .pr-title { font-size: 25px; }
+      .pr-title { font-size: 28px; text-wrap: balance; }
       .pr-number { font-size: 20px; font-weight: 400; }
       .pr-meta { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 14px; }
 
@@ -1424,7 +1424,7 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
       .pr-where { margin-bottom: 6px; font-size: 13px; }
       .pr-where a { text-decoration: none; }
       .pr-where a:hover { text-decoration: underline; }
-      .pr-counts { margin-top: 7px; font-size: 13px; display: flex; gap: 8px; }
+      .pr-counts { margin-top: 7px; font-size: 13.5px; display: flex; gap: 8px; font-variant-numeric: tabular-nums; }
 
       .side-heading {
         font-size: 12px;
@@ -1434,7 +1434,24 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         font-weight: 600;
       }
 
-      .merge-box, .side-panel { padding: 15px 17px; }
+      .side-panel { padding: 15px 17px; }
+
+      /*
+       * The merge box is the decision on this screen; the panels under it are
+       * context. They were four identical cards - same border, same radius,
+       * same fill - so nothing said that whether this can merge outranks how
+       * many conversations are open.
+       *
+       * Promoted rather than demoting the other three, because the file tree
+       * and the review panel are long lists that need their own edge to read
+       * against. A stronger line and a little more room is the whole change:
+       * on a tool somebody reads for hours, hierarchy wants to be felt rather
+       * than noticed.
+       */
+      .merge-box {
+        padding: 17px 19px;
+        border-color: var(--line-strong);
+      }
       .side-empty, .side-note { margin-top: 8px; font-size: 13.5px; }
 
       .merge-state { margin-top: 9px; font-size: 14.5px; font-weight: 500; }
