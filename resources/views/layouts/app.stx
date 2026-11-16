@@ -170,7 +170,16 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         --line: #e2e4e3;
         --line-strong: #cdd1d0;
         --text: #12191b;
-        --muted: #5d6b6e;
+        /*
+         * Measured, not picked. #5d6b6e read 5.54:1 on the panel white that
+         * every list sits on, which clears AA and misses AAA - and muted is
+         * not a decorative grey here, it is the line that says who opened a
+         * thing and when, at 12.5px, on the pages people scan rather than
+         * read. This is the darkest it can go while still reading as the
+         * quiet half of the pair: 7.02:1 against the same white, against the
+         * 17.8:1 of the title beside it.
+         */
+        --muted: #4f5b5e;
         --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%235d6b6e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='M6 8.5 10 12.5 14 8.5'/%3e%3c/svg%3e");
         --accent: #0f6d72;
         --accent-quiet: #e2f0f0;
@@ -299,6 +308,19 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
 
       body {
         margin: 0;
+        /*
+         * The shell owns the height of the window, which it did not before.
+         *
+         * A short page - a not-found, an empty list - laid out to its own
+         * content and stopped, so `main` ended 250px down a 768px window and
+         * the rest was nothing. Nothing is fine; nothing that looks like the
+         * page failed to finish rendering is not. A column that is at least
+         * the window tall gives `main` somewhere to be, and gives an empty
+         * state room to sit in rather than hang from.
+         */
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
         background: var(--bg);
         color: var(--text);
         font-family: Geist, ui-sans-serif, system-ui, sans-serif;
@@ -2670,6 +2692,26 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
       /* `tabindex="-1"` makes <main> focusable so the jump actually moves the
         caret; without it the link scrolls and the next Tab returns to the nav. */
       main:focus { outline: none; }
+
+      /* Takes the slack in the column above, so a short page's background is
+        the page's and not the body's showing through under it. */
+      main { flex: 1 0 auto; }
+
+      /*
+       * An empty state is a page, not a notice pinned to the top of one.
+       *
+       * The class was already in the markup and styled by nothing, so every
+       * "there is none of that here" card rendered as a normal panel 78px
+       * from the top with half a window of nothing under it. Given a share of
+       * the height it reads as the answer to the question, which is what it
+       * is.
+       */
+      .page-empty {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: min(44vh, 380px);
+      }
 </style>
     {!! head ?? '' !!}
   </head>

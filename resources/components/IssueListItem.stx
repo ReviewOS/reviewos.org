@@ -98,5 +98,14 @@
   }
 
   .list-row-title:hover { color: var(--accent-text); }
-  .list-row-meta { margin-top: 3px; font-size: 12px; }
+  /*
+   * 12.5px, with the muted token darkened to match in the shared layer.
+   *
+   * This is the line that answers "whose, and when" on every list in the
+   * product, and it was the smallest and faintest text on the page: 12px at
+   * 5.54:1. Half a pixel sounds like nothing and is the difference between
+   * this and the 12.5px pills it sits beside, which is the size the rest of
+   * the secondary layer already uses.
+   */
+  .list-row-meta { margin-top: 3px; font-size: 12.5px; }
 </style>

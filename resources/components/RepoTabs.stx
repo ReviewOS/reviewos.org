@@ -70,7 +70,14 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .repo-tab.is-current {
     color: var(--text);
-    font-weight: 500;
+    /*
+     * 600 rather than 500. The accent underline carries this on its own in
+     * dark, where it is a bright teal on near-black; in light the same token
+     * is #0f6d72, which against #fbfbfa reads as a dark rule rather than as a
+     * mark, so the only thing separating the current tab from the other seven
+     * was half a weight step. Weight is the part that survives both themes.
+     */
+    font-weight: 600;
     border-bottom-color: var(--accent);
   }
 </style>

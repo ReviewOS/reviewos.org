@@ -17,7 +17,10 @@
  * or the instance's own index.
  *
  * Laid out in utilities. Padding and centring are not a design decision that
- * wants a name; `panel` and `muted` are, and stay classes.
+ * wants a name; `panel`, `muted` and `page-empty` are, and stay classes - the
+ * last of those is the share of the window this takes, which is a decision
+ * about what an empty state is rather than about this panel, and so lives in
+ * the shared layer with the rest of them.
  *
  * **Not `EmptyState`**, which is the name `@stacksjs/components` already uses.
  * stx resolved the framework's one first, so the pages rendered its icon-in-a-
@@ -30,7 +33,7 @@ const links = typeof linksJson === 'undefined'
 const detailText = typeof detail === 'undefined' ? '' : String(detail ?? '')
 </script>
 
-<div class="p-[32px] text-center panel">
+<div class="p-[32px] text-center page-empty panel">
   <h1 class="text-[20px]">{{ title }}</h1>
 
   @if (detailText)
