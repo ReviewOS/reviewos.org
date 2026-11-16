@@ -563,6 +563,14 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
 
 ## Command line
 
+- [x] Report an interrupted response body as a transport failure, including after successful headers
+
+  `app/Cli/api.ts` keeps the response body inside the request's existing timeout and error boundary.
+  A truncated answer returns `response_interrupted`, never partial JSON or an uncaught stack trace.
+  It does not repeat the request. Reads can be tried again; for writes, the message asks the caller
+  to check the operation's state first, because the server may already have applied it. Real local
+  HTTP regressions terminate GET and POST bodies after their headers and require exactly one request.
+
 - [x] A CLI for the operations that belong in a terminal: open a pull request from the current
       branch, check out someone else's, see the stack, submit a review from a file
 

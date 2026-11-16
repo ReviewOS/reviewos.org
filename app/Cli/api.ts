@@ -102,7 +102,8 @@ export async function call<T = any>(
   if (input.body !== undefined)
     headers['Content-Type'] = 'application/json'
 
-  let answer: Response
+  let answer: Response | undefined
+  let text: string
   try {
     answer = await fetch(url, {
       method,
@@ -111,8 +112,22 @@ export async function call<T = any>(
       signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
       body: input.body === undefined ? undefined : JSON.stringify(input.body),
     })
+    // Fetch resolves at the headers. A reset or the same request deadline can
+    // still interrupt the body; a partial answer is never a successful call.
+    text = await answer.text()
   }
   catch (error) {
+    if (answer) {
+      return {
+        ok: false,
+        status: 0,
+        code: 'response_interrupted',
+        message: `The response from ${connection.instance} was interrupted before it finished.`,
+        fix: method === 'GET'
+          ? 'Try the command again when the connection is available.'
+          : 'The request may already have been applied. Check its state before repeating it.',
+      }
+    }
     /*
      * A connection failure is reported as one rather than as a status. "fetch
      * failed" with no context is the error people paste into an issue; the URL
@@ -126,7 +141,6 @@ export async function call<T = any>(
     }
   }
 
-  const text = await answer.text()
   let body: any = null
 
   if (text.length) {

@@ -2,7 +2,41 @@ import { expect, test } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:http'
 import { apiCommand, readApiBody } from '../../app/Cli/api-command'
+import { call } from '../../app/Cli/api'
+
+for (const method of ['GET', 'POST'] as const) {
+  test(`an interrupted ${method} response reports the incomplete answer without repeating the request`, async () => {
+    let requests = 0
+    const server = createServer((request, response) => {
+      request.resume()
+      requests++
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': '1024' })
+      response.flushHeaders()
+      response.write('{"private":"must-not-appear-in-the-error"')
+      // Send real headers and part of a body, then break the transport.
+      setTimeout(() => response.destroy(), 25)
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const instance = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+    try {
+      const answer = await call({ instance, token: 'synthetic-token' }, method, '/api/probe')
+      expect(answer.ok).toBe(false)
+      if (answer.ok) throw new Error('An incomplete response cannot succeed')
+      expect(answer.status).toBe(0)
+      expect(answer.code).toBe('response_interrupted')
+      expect(answer.message).toContain(instance)
+      expect(JSON.stringify(answer)).not.toContain('must-not-appear-in-the-error')
+      expect(answer.fix).toContain(method === 'GET' ? 'Try the command again' : 'may already have been applied')
+      expect(requests).toBe(1)
+    }
+    finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    }
+  })
+}
 
 test('the machine client preserves API metadata and sends structured input through normal authentication', async () => {
   const seen: Array<{ path: string, method: string, auth: string | null, body: unknown }> = []
