@@ -400,17 +400,63 @@ describe('organization memberships on a profile', () => {
     const token = /name="_token"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? ''
     expect(token).toBeTruthy()
     expect(html).toContain('/api/orgs/members/visibility')
+    // `Referer` because a browser sends one, and a refusal is now answered by
+    // sending the person back to the page they posted from.
+    const page = `http://127.0.0.1:${port}/settings/organizations`
     const submit = (visibility: string, authToken = created.ownToken, organizationId = created.orgId) => fetch(`http://127.0.0.1:${port}/api/orgs/members/visibility`, {
       method: 'POST', redirect: 'manual',
-      headers: { Accept: 'text/html', Cookie: `auth-token=${authToken}; X-CSRF-Token=${csrfCookie}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { 'Accept': 'text/html', 'Referer': page, 'Cookie': `auth-token=${authToken}; X-CSRF-Token=${csrfCookie}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ organization_id: String(organizationId), visibility, _token: token }),
     })
-    expect((await submit('private', created.strangerToken)).status).toBe(404)
-    expect((await submit('public', created.ownToken, created.pendingOrgId)).status).toBe(404)
-    expect((await submit('anything')).status).toBe(422)
+
+    /*
+     * A refused form submit comes back to its page, not to a JSON body.
+     *
+     * These were 404, 404 and 422 until a browser stopped being answered with
+     * JSON. The status moved; the property these two cases are really about
+     * did not, and it is the one worth keeping: a stranger and a member of an
+     * organization they have not joined get the *same* answer as each other,
+     * so neither learns whether the organization exists. That used to be
+     * "both 404 rather than 403" and is now "both sent back carrying the same
+     * sentence", which is checked below rather than assumed.
+     */
+    const stranger = await submit('private', created.strangerToken)
+    const pending = await submit('public', created.ownToken, created.pendingOrgId)
+    expect(stranger.status).toBe(303)
+    expect(pending.status).toBe(303)
+
+    const reasonOf = (answer: Response) =>
+      new URL(String(answer.headers.get('location')), page).searchParams.get('form_error')
+
+    expect(reasonOf(stranger)).toBe('No such membership')
+    expect(reasonOf(pending)).toBe(reasonOf(stranger))
+
+    /*
+     * And the one refusal that still answers a browser with JSON, pinned here
+     * so the day it stops is a day this test changes on purpose.
+     *
+     * `visibility` is declared `schema.enum(['public', 'private'])`, and an
+     * action's `validations` are enforced by the router *before* `handle`
+     * runs. The handler never executes, so nothing in this application can
+     * turn that 422 into a page - which is exactly the gap glenn hit on the
+     * token form, and exactly what stacksjs/stacks#3309 fixes upstream. It is
+     * on `stacks` main and not in a release yet. When it lands this becomes a
+     * 303 like the rest, and the assertion below is what will say so.
+     */
+    const nonsense = await submit('anything')
+    expect(nonsense.status).toBe(422)
+
+    // And a program still gets the status, so the split is real.
+    const asClient = await fetch(`http://127.0.0.1:${port}/api/orgs/members/visibility`, {
+      method: 'POST', redirect: 'manual',
+      headers: { 'Accept': 'application/json', 'Cookie': `auth-token=${created.strangerToken}; X-CSRF-Token=${csrfCookie}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ organization_id: String(created.orgId), visibility: 'private', _token: token }),
+    })
+    expect(asClient.status).toBe(404)
+
     const hidden = await submit('private')
     expect(hidden.status).toBe(303)
-    expect(hidden.headers.get('location')).toBe('/settings/organizations')
+    expect(new URL(String(hidden.headers.get('location')), page).pathname).toBe('/settings/organizations')
     expect((await fetchPage(`/${created.handle}`)).html).not.toContain(`href="/${created.orgName}"`)
     expect((await submit('public')).status).toBe(303)
     expect((await fetchPage(`/${created.handle}`)).html).toContain(`href="/${created.orgName}"`)
