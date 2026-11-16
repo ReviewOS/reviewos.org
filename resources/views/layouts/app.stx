@@ -171,6 +171,7 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         --line-strong: #cdd1d0;
         --text: #12191b;
         --muted: #5d6b6e;
+        --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%235d6b6e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='M6 8.5 10 12.5 14 8.5'/%3e%3c/svg%3e");
         --accent: #0f6d72;
         --accent-quiet: #e2f0f0;
         --accent-text: #0b565a;
@@ -226,6 +227,7 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
           --line-strong: #334247;
           --text: #eef2f2;
           --muted: #9aa9ac;
+          --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239aa9ac' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='M6 8.5 10 12.5 14 8.5'/%3e%3c/svg%3e");
           --accent: #4ec5c9;
           --accent-quiet: #14292b;
           --accent-text: #7fd8db;
@@ -263,6 +265,7 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
           --line-strong: #334247;
           --text: #eef2f2;
           --muted: #9aa9ac;
+          --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239aa9ac' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.6' d='M6 8.5 10 12.5 14 8.5'/%3e%3c/svg%3e");
           --accent: #4ec5c9;
           --accent-quiet: #14292b;
           --accent-text: #7fd8db;
@@ -1032,7 +1035,42 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
       /* A textarea keeps its own height and stays resizable vertically; a
         select needs the arrow the platform draws. */
       textarea.field-input { min-height: 84px; resize: vertical; }
-      select.field-input { appearance: auto; }
+      /*
+       * One select treatment, drawn by us rather than by the platform.
+       *
+       * Every select here is styled as a text field - a border, a radius, the
+       * padding text wants - and the browser then drew its own arrow against
+       * the right border, in its own grey, at its own size. It read as a
+       * rendering fault: eight pixels of air before the label and none after
+       * the chevron. Padding cannot fix it, which is the part worth writing
+       * down - Chrome positions the native arrow against the border box and
+       * ignores `padding-right` entirely, so the obvious one-line fix is a
+       * no-op. Measured, after shipping it and finding nothing moved: a select
+       * given 60px of right padding draws its arrow in exactly the same place
+       * as one given 8px.
+       *
+       * So the arrow has to be ours, which means `appearance: none` and a
+       * background image. The chevron is a token beside `--muted` and is drawn
+       * in that colour, because a data URI cannot read `currentColor` - which
+       * is also why the one `ts-css` ships looks wrong here: its stroke is
+       * baked to `#6b7280` and cannot follow a dark theme.
+       *
+       * `select[class]` as well as `select`, so a page's own
+       * `.tok-select { padding: 6px 8px }` does not win on specificity and put
+       * the text back under the chevron.
+       *
+       * A multiple or sized select is a list box with no arrow to draw, so it
+       * keeps the platform's rendering.
+       */
+      select:not([multiple]):not([size]),
+      select[class]:not([multiple]):not([size]) {
+        appearance: none;
+        padding-right: 30px;
+        background-image: var(--select-arrow);
+        background-position: right 9px center;
+        background-size: 16px 16px;
+        background-repeat: no-repeat;
+      }
 
       /* Pulled up under the input it belongs to. At the field's own spacing it
         sits exactly between two fields and reads as a caption for the next
