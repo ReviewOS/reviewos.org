@@ -43,12 +43,6 @@ const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHea
 const tokens = viewer ? await tokensFor(viewer.id) : []
 const repositories = viewer ? await scopableRepositories(viewer.id) : []
 
-// Why the last attempt was refused, put here by `CreateTokenAction`. The form
-// posts straight to the API endpoint, so without this the reader was left on a
-// page of JSON holding the reason - see the note on `refuse` in that action.
-const search: Record<string, string> = useRoute().query ?? {}
-const error = String(search.error ?? '')
-
 // A settings page for nobody is not a 404. The page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 //
@@ -163,7 +157,7 @@ if (viewer?.is_admin || maintainsPools) {
         </p>
       </header>
 
-      <section class="tok-section" x-data="{ issuing: {{ error ? 'true' : 'false' }} }">
+      <section class="tok-section" x-data="{ issuing: false }">
         <div class="tok-section-head">
           <h2 class="tok-heading">Your tokens</h2>
           <button
@@ -175,10 +169,6 @@ if (viewer?.is_admin || maintainsPools) {
 
         <form class="tok-form" method="post" action="/api/user/tokens" x-show="issuing" x-cloak>
           <CsrfField />
-
-          @if (error)
-            <p class="auth-error" role="alert">{{ error }}</p>
-          @endif
 
           <label class="tok-label" for="token-name">Name</label>
           <input

@@ -2,8 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { INSTANCE_SCOPES, ORGANIZATION_SCOPES, REPOSITORY_SCOPES } from '../../TokenScopes'
 import { canInOrganization } from '../../Permissions'
-import { wantsHtml } from '../Auth/session'
 import { list } from '../inputs'
+import { refuse } from '../Support/forge'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { issueAccessToken } from './issue'
 
@@ -52,7 +52,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const caller = await currentUser(request)
     if (!caller)
-      return refuseTokenForm(request, 'Unauthenticated', 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     /*
      * A token can be issued *for* a machine account by somebody who administers
@@ -69,7 +69,7 @@ export default new Action({
      */
     const machine = await machineAccountFor(request, caller.id)
     if (machine.error)
-      return refuseTokenForm(request, machine.error, machine.status)
+      return refuse(request, machine.error, machine.status)
 
     const user = machine.account ?? caller
 
@@ -97,55 +97,12 @@ export default new Action({
     })
 
     if (!issued.ok)
-      return refuseTokenForm(request, issued.error, issued.status)
+      return refuse(request, issued.error, issued.status)
 
     // The only time the secret is ever returned.
     return response.json(issued.token, 201)
   },
 })
-
-/**
- * A refusal, in the shape the caller can read.
- *
- * This page's own, kept rather than folded into `refuse` in
- * `app/Actions/Support/forge.ts` - which every other form now uses - because
- * the tokens page renders the message *inside* the form from `error`, which is
- * the better place when a page has one form and eight fields to re-fill. The
- * shared helper puts it in a bar at the top of the content from `form_error`,
- * since the shell cannot know where a given page's form is.
- *
- * JSON for a program, and for a browser the form back with the reason in the
- * query - the same `wantsHtml` split `LoginAction` and `UpdateProfileAction`
- * use, and there is still no session flash to carry it any other way.
- *
- * This page needed it more than most. The form posts straight to the API
- * endpoint, so every refusal `issueAccessToken` can return landed the reader on
- * raw JSON with the back button as the way out, and a token is exactly the
- * thing somebody fills in once, carefully, with eight permission dropdowns set.
- * Losing all of that to `{"error":"A token needs a name..."}` is the difference
- * between a validation message and starting again.
- *
- * Unauthenticated goes to the login page carrying `next`, because a session
- * that expired while the form was open is the ordinary way to get here.
- *
- * **A success still answers JSON, deliberately.** The token is shown once and
- * only in that response; putting it through a redirect would write a live
- * credential into the URL, the browser history and every access log between
- * here and the reader.
- */
-function refuseTokenForm(request: RequestInstance, error: string | undefined, status = 422): Response {
-  const message = error ?? 'That did not work'
-
-  if (wantsHtml(request)) {
-    const to = status === 401
-      ? '/login?next=/settings/tokens'
-      : `/settings/tokens?error=${encodeURIComponent(message)}`
-
-    return new Response(null, { status: 303, headers: { Location: to } })
-  }
-
-  return response.json({ error: message }, status)
-}
 
 /**
  * The grants asked for, however they were asked for.

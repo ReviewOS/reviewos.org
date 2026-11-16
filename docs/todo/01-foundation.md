@@ -709,10 +709,23 @@ The half of this nobody builds, and the half that decides whether an instance is
 
   **The message is rendered by the layout, not by forty pages.** The shell cannot know where a
   given page's form is, so it draws a bar at the top of the content. `form_error` rather than
-  `error` because login, register, forgotten password, profile and tokens already read `error` and
-  render it inside their own form, which is the better place when a page has one form; sharing the
-  key would have shown those pages the same sentence twice. The tokens page keeps its own
-  `refuseTokenForm` for that reason, named so the two cannot be confused.
+  `error` because login, register and forgotten password already read `error` and render it inside
+  their own form, which is the better place on a page whose only content is that form; sharing the
+  key would have shown them the same sentence twice.
+
+  The tokens page briefly had a variant of its own and no longer does, because the variant shipped
+  a regression. To reopen the form over an error it interpolated into a reactivity directive -
+  `x-data="{ issuing: {{ error ? 'true' : 'false' }} }"` - and stx does not survive that: with the
+  interpolation the issue form rendered permanently expanded, eleven dropdowns deep, instead of
+  behind its "Issue a token" button. Proven by rendering the page through the production renderer
+  with each spelling and reading `display` off the form: `block` with the interpolation, `none`
+  with the literal. It reached production and glenn saw it before any test did, which is the part
+  worth remembering - nothing here renders a signed-in page through the real renderer and asserts
+  on what it looks like.
+
+  So the page is back to the literal `x-data="{ issuing: false }"` every other settings page uses,
+  and its refusals go through the shared `refuse` like everything else. One mechanism, and the
+  construct that broke it is gone rather than fixed in place.
 
   Two things fell out of it. `forgeResponse` - every wiki, project and registry form - translated a
   `ForgeError` straight to JSON and could not do otherwise, because it never received the request;

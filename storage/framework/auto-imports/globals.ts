@@ -66,6 +66,9 @@ declare global {
   const headCommitRow: typeof autoImports.headCommitRow
   const signatureBadge: typeof autoImports.signatureBadge
   const loadConversation: typeof autoImports.loadConversation
+  const conversationPageNumber: typeof autoImports.conversationPageNumber
+  const conversationPageHref: typeof autoImports.conversationPageHref
+  const CONVERSATION_PAGE_SIZE: typeof autoImports.CONVERSATION_PAGE_SIZE
   const csrfToken: typeof autoImports.csrfToken
   const writeHeaders: typeof autoImports.writeHeaders
   const toggleDark: typeof autoImports.toggleDark
@@ -116,6 +119,8 @@ declare global {
   const entrySentence: typeof autoImports.entrySentence
   const entryIcon: typeof autoImports.entryIcon
   const loadTemplates: typeof autoImports.loadTemplates
+  const timestamp: typeof autoImports.timestamp
+  const jobTiming: typeof autoImports.jobTiming
   const watchPullRequest: typeof autoImports.watchPullRequest
   const renderMarkdown: typeof autoImports.renderMarkdown
   const renderMarkdownHighlighted: typeof autoImports.renderMarkdownHighlighted
@@ -235,25 +240,32 @@ declare global {
   const draftFromServer: typeof autoImports.draftFromServer
   const viewedFromServer: typeof autoImports.viewedFromServer
   const createReviewStore: typeof autoImports.createReviewStore
+  const buildRunChart: typeof autoImports.buildRunChart
+  const previousSuccessfulRun: typeof autoImports.previousSuccessfulRun
+  const failureSummaries: typeof autoImports.failureSummaries
+  const compareRunJobs: typeof autoImports.compareRunJobs
+  const graphRelations: typeof autoImports.graphRelations
   const intervalFor: typeof autoImports.intervalFor
   const watchRun: typeof autoImports.watchRun
   const watchJobLog: typeof autoImports.watchJobLog
+  const RUN_STATES: typeof autoImports.RUN_STATES
   const runTone: typeof autoImports.runTone
   const runLabel: typeof autoImports.runLabel
   const runIsFinished: typeof autoImports.runIsFinished
   const runDuration: typeof autoImports.runDuration
   const millisFor: typeof autoImports.millisFor
-  const RUN_STATES: typeof autoImports.RUN_STATES
   const artifactSize: typeof autoImports.artifactSize
   const renderLog: typeof autoImports.renderLog
   const eventsFromText: typeof autoImports.eventsFromText
   const explainWaiting: typeof autoImports.explainWaiting
+  const waitingFleet: typeof autoImports.waitingFleet
   const startersFor: typeof autoImports.startersFor
   const layersOf: typeof autoImports.layersOf
   const criticalPath: typeof autoImports.criticalPath
   const waitingOn: typeof autoImports.waitingOn
   const searchLog: typeof autoImports.searchLog
   const poolsMaintainedBy: typeof autoImports.poolsMaintainedBy
+  const secretNames: typeof autoImports.secretNames
   const syntaxThemeCss: typeof autoImports.syntaxThemeCss
   const themeChoices: typeof autoImports.themeChoices
   const SOURCE_OWNER: typeof autoImports.SOURCE_OWNER
