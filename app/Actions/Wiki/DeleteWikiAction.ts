@@ -1,18 +1,17 @@
 import { Action } from '@stacksjs/actions'
-import { response } from '@stacksjs/router'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, refuse } from '../Support/forge'
 import { saveWikiPage, wikiPage, wikiSlug } from './wiki'
 
 export default new Action({
   name: 'DeleteWiki', method: 'POST', description: 'Remove a wiki page while preserving its revision history',
   validations: { revision: { rule: coerced } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'wiki:write')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const slug = wikiSlug(request.getParam('slug'))
       const previous = await wikiPage(Number(auth.context.repository.id), slug)
       if (!previous)

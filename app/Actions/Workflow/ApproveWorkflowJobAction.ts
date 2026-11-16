@@ -9,6 +9,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { environmentRules, mayApprove } from './environments'
 import { settleRun } from './settle'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Open a gate.
@@ -63,7 +64,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'workflow:approve')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
 
@@ -71,7 +72,7 @@ export default new Action({
     const key = String(request.get('job') ?? '').trim()
 
     if (!Number.isInteger(number) || number <= 0 || !key)
-      return response.json({ error: 'A run number and a job are required' }, 422)
+      return refuse(request, 'A run number and a job are required', 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -81,7 +82,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
+      return refuse(request, 'No such workflow run', 404)
 
     const job = await db
       .selectFrom('workflow_jobs')
@@ -91,7 +92,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!job)
-      return response.json({ error: 'No such job in this run' }, 404)
+      return refuse(request, 'No such job in this run', 404)
 
     /*
      * Answered as a conflict rather than an error, and with the state.
@@ -133,7 +134,7 @@ export default new Action({
       })
 
       if (!answer.ok)
-        return response.json({ error: answer.error, reason: answer.reason }, answer.status)
+        return refuse(request, answer.error, answer.status, { body: { reason: answer.reason } })
 
       const state = await settleRun(Number(run.id))
 
@@ -181,7 +182,7 @@ export default new Action({
     }
 
     if (problems.length > 0)
-      return response.json({ error: 'This gate was not opened', problems }, 422)
+      return refuse(request, 'This gate was not opened', 422, { body: { problems } })
 
     const now = new Date().toISOString()
 

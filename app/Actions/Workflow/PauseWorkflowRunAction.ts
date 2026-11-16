@@ -7,6 +7,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { pauseRun, resumeRun } from './pause'
+import { refuse } from '../Support/forge'
 
 /**
  * Hold a run, or let it go again.
@@ -67,13 +68,13 @@ export default new Action({
     const auth = await authorizeRepository(request, 'workflow:cancel')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const number = Number(request.get('number'))
 
     if (!Number.isInteger(number) || number <= 0)
-      return response.json({ error: 'A run number is required' }, 422)
+      return refuse(request, 'A run number is required', 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -83,7 +84,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
+      return refuse(request, 'No such workflow run', 404)
 
     const resuming = String(request.get('action') ?? 'pause') === 'resume'
 
@@ -92,7 +93,7 @@ export default new Action({
       : await pauseRun({ runId: Number(run.id), actorId: auth.context.user?.id ?? null })
 
     if (!outcome.ok)
-      return response.json({ error: outcome.error, workflow_run: { number, state: outcome.state } }, outcome.status ?? 409)
+      return refuse(request, outcome.error, outcome.status ?? 409, { body: { workflow_run: { number, state: outcome.state } } })
 
     /*
      * Recorded, and only when something moved. Holding a run is how a

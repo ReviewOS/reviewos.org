@@ -5,6 +5,7 @@ import { canInOrganization, wouldOrphanOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Remove somebody from an organization.
@@ -31,7 +32,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     const memberUserId = Number(request.get('user_id'))
@@ -39,19 +40,15 @@ export default new Action({
 
     const actorRole = await organizationRoleOf(organizationId, actor.id)
     if (!leavingSelf && !canInOrganization(actorRole, 'members:manage'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     const memberRole = await organizationRoleOf(organizationId, memberUserId)
     if (!memberRole)
-      return response.json({ error: 'Not a member of this organization' }, 404)
+      return refuse(request, 'Not a member of this organization', 404)
 
     const ownerCount = await organizationOwnerCount(organizationId)
     if (wouldOrphanOrganization({ memberRole, ownerCount, nextRole: null })) {
-      return response.json({
-        error: leavingSelf
-          ? 'Appoint another owner before leaving'
-          : 'An organization must keep at least one owner',
-      }, 422)
+      return refuse(request, leavingSelf ? 'Appoint another owner before leaving' : 'An organization must keep at least one owner', 422)
     }
 
     await db

@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { allowedStrategies, defaultStrategy, isMergeStrategy } from './merge'
 import { attemptAutoMerge } from './autoMerge'
+import { refuse } from '../Support/forge'
 
 /**
  * Arm auto-merge: merge this pull request the moment its requirements are met.
@@ -40,20 +41,20 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const number = Number(request.get('number'))
     const strategy = String(request.get('strategy') ?? defaultStrategy(repository as any))
 
     if (!isMergeStrategy(strategy))
-      return response.json({ error: 'Unknown merge strategy' }, 422)
+      return refuse(request, 'Unknown merge strategy', 422)
 
     if (!allowedStrategies(repository as any).includes(strategy))
-      return response.json({ error: `This repository does not allow ${strategy} merges` }, 422)
+      return refuse(request, `This repository does not allow ${strategy} merges`, 422)
 
     const pullRequest = await db
       .selectFrom('pull_requests')
@@ -63,10 +64,10 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     if (pullRequest.state !== 'open')
-      return response.json({ error: 'Only an open pull request can auto-merge' }, 409)
+      return refuse(request, 'Only an open pull request can auto-merge', 409)
 
     await db
       .updateTable('pull_requests')

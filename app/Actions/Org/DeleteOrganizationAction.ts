@@ -5,6 +5,7 @@ import { canInOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Delete an organization.
@@ -44,13 +45,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     const role = await organizationRoleOf(organizationId, user.id)
 
     if (!canInOrganization(role, 'organization:delete'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     const organization = await db
       .selectFrom('organizations')
@@ -59,13 +60,13 @@ export default new Action({
       .executeTakeFirst()
 
     if (!organization)
-      return response.json({ error: 'No such organization' }, 404)
+      return refuse(request, 'No such organization', 404)
 
     const handle = String(organization.handle)
     const confirmation = String(request.get('confirm') ?? '').trim()
 
     if (confirmation !== handle)
-      return response.json({ error: `Type ${handle} to confirm` }, 422)
+      return refuse(request, `Type ${handle} to confirm`, 422)
 
     const owned = await db
       .selectFrom('repositories')
@@ -75,10 +76,7 @@ export default new Action({
       .execute()
 
     if (owned.length > 0) {
-      return response.json({
-        error: `${handle} still owns ${owned.length} ${owned.length === 1 ? 'repository' : 'repositories'}. Transfer or delete them first.`,
-        repositories: owned.map(row => String(row.name)),
-      }, 409)
+      return refuse(request, `${handle} still owns ${owned.length} ${owned.length === 1 ? 'repository' : 'repositories'}. Transfer or delete them first.`, 409, { body: { repositories: owned.map(row => String(row.name)) } })
     }
 
     /*

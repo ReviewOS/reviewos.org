@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Accept or decline an invitation to an organization.
@@ -37,11 +38,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     if (!Number.isInteger(organizationId) || organizationId <= 0)
-      return response.json({ error: 'An organization is required' }, 422)
+      return refuse(request, 'An organization is required', 422)
 
     const invitation = await db
       .selectFrom('org_members')
@@ -51,7 +52,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!invitation)
-      return response.json({ error: 'No invitation to this organization' }, 404)
+      return refuse(request, 'No invitation to this organization', 404)
 
     // Already a member. Answered as success rather than as a conflict: the
     // desired state holds, and the usual way to reach this is a second click on

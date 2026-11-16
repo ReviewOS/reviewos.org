@@ -35,7 +35,7 @@ export default new Middleware({
       const result = await authenticateToken(bearerToken)
 
       if (!result.ok)
-        throw new HttpError(401, 'Unauthorized. Invalid or expired token.')
+        unauthorized(request, 'Unauthorized. Invalid or expired token.')
 
       const owner = await db
         .selectFrom('users')
@@ -44,7 +44,7 @@ export default new Middleware({
         .executeTakeFirst()
 
       if (!owner)
-        throw new HttpError(401, 'Unauthorized. Invalid or expired token.')
+        unauthorized(request, 'Unauthorized. Invalid or expired token.')
 
       Auth.setUser(owner as any)
       request._authenticatedUser = owner
@@ -64,7 +64,7 @@ export default new Middleware({
       log.debug(`[middleware:auth] Validating bearer token`)
       const user = await Auth.getUserFromToken(bearerToken)
       if (!user)
-        throw new HttpError(401, 'Unauthorized. Invalid token.')
+        unauthorized(request, 'Unauthorized. Invalid token.')
 
       Auth.setUser(user)
       request._authenticatedUser = user
@@ -89,7 +89,7 @@ export default new Middleware({
       log.debug(`[middleware:auth] Validating login cookie`)
       const user = await Auth.getUserFromToken(cookieToken)
       if (!user)
-        throw new HttpError(401, 'Unauthorized. Invalid or expired session.')
+        unauthorized(request, 'Unauthorized. Invalid or expired session.')
 
       Auth.setUser(user)
       request._authenticatedUser = user
@@ -107,7 +107,7 @@ export default new Middleware({
       const { sessionUser } = await import('@stacksjs/auth')
       const user = await sessionUser(sessionId)
       if (!user)
-        throw new HttpError(401, 'Unauthorized. Session expired.')
+        unauthorized(request, 'Unauthorized. Session expired.')
 
       Auth.setUser(user)
       request._authenticatedUser = user
@@ -115,6 +115,46 @@ export default new Middleware({
       return
     }
 
-    throw new HttpError(401, 'Unauthorized. No token or session provided.')
+    unauthorized(request, 'Unauthorized. No token or session provided.')
   },
 })
+
+/**
+ * A browser posting a form must not be answered with a page of JSON.
+ *
+ * This middleware runs before the action, so the `refuse` helper the actions
+ * use never gets the chance: a session that lapsed while a form was open was
+ * answered `{"message":"Unauthorized. Session expired."}` and the person lost
+ * what they had typed with no way back. Signing in again is the only useful
+ * answer, so a request that asked for a page gets the login form carrying
+ * where to return to, and everything else keeps the 401 it has always had.
+ *
+ * Thrown rather than returned because that is how this framework's middleware
+ * short-circuits - `Throttle` refuses the same way.
+ */
+function unauthorized(request: any, message: string): never {
+  const accept = String(request?.header?.('accept') ?? request?.headers?.get?.('accept') ?? '')
+
+  if (accept.includes('text/html')) {
+    const referer = String(request?.header?.('referer') ?? request?.headers?.get?.('referer') ?? '')
+    let next = '/'
+
+    try {
+      const url = new URL(referer, 'http://referer.invalid')
+      const here = new URL(String(request?.url ?? '')).host
+      // Same rule as `formPage` in `app/Actions/Support/forge.ts`: a path on
+      // this host, or nothing.
+      if ((url.origin === 'http://referer.invalid' || !here || url.host === here)
+        && url.pathname.startsWith('/') && !url.pathname.startsWith('//')) {
+        next = `${url.pathname}${url.search}`
+      }
+    }
+    catch {
+      next = '/'
+    }
+
+    throw new Response(null, { status: 303, headers: { Location: `/login?next=${encodeURIComponent(next)}` } })
+  }
+
+  throw new HttpError(401, message)
+}

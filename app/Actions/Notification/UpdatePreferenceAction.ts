@@ -3,6 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { defaultDelivery, isDelivery, PREFERENCE_CHANNELS, PREFERENCE_EVENTS } from './preferences'
+import { refuse } from '../Support/forge'
 
 /**
  * Set how one kind of event reaches somebody on one channel.
@@ -41,22 +42,22 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const event = String(request.get('event') ?? '')
     if (!(PREFERENCE_EVENTS as readonly string[]).includes(event))
-      return response.json({ error: 'That is not an event this product sends' }, 422)
+      return refuse(request, 'That is not an event this product sends', 422)
 
     const channel = String(request.get('channel') ?? '') as Channel
     if (!PREFERENCE_CHANNELS.includes(channel))
-      return response.json({ error: 'A channel is email or push' }, 422)
+      return refuse(request, 'A channel is email or push', 422)
 
     if (channel === 'in_app')
-      return response.json({ error: 'The inbox is the record and cannot be turned off' }, 422)
+      return refuse(request, 'The inbox is the record and cannot be turned off', 422)
 
     const delivery = String(request.get('delivery') ?? '')
     if (!isDelivery(delivery))
-      return response.json({ error: 'A delivery is off, immediate, or digest' }, 422)
+      return refuse(request, 'A delivery is off, immediate, or digest', 422)
 
     const existing = await db
       .selectFrom('notification_event_preferences')

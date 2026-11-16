@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { accepted, startOperation } from '../Api/start'
 import { authorizeRepository } from '../Repo/authorize'
+import { refuse } from '../Support/forge'
 
 /**
  * Sync a mirror now, rather than at its next interval.
@@ -42,7 +43,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
 
@@ -53,22 +54,19 @@ export default new Action({
       .executeTakeFirst()
 
     if (!mirror)
-      return response.json({ error: 'This repository is not a mirror' }, 404)
+      return refuse(request, 'This repository is not a mirror', 404)
 
     // A disabled mirror is refused rather than quietly enabled. Somebody turned
     // it off, and one sync would make the repository current and then let it
     // drift again - which is more confusing than it staying visibly stale.
     if (!mirror.enabled)
-      return response.json({ error: 'Syncing is switched off for this mirror. Enable it first.' }, 409)
+      return refuse(request, 'Syncing is switched off for this mirror. Enable it first.', 409)
 
     const last = mirror.last_synced_at ? Date.parse(String(mirror.last_synced_at)) : 0
     const waited = Date.now() - last
 
     if (last && waited < MANUAL_SYNC_COOLDOWN_MS) {
-      return response.json({
-        error: 'This mirror synced moments ago. Wait a minute before syncing again.',
-        retry_in_seconds: Math.ceil((MANUAL_SYNC_COOLDOWN_MS - waited) / 1000),
-      }, 429)
+      return refuse(request, 'This mirror synced moments ago. Wait a minute before syncing again.', 429, { body: { retry_in_seconds: Math.ceil((MANUAL_SYNC_COOLDOWN_MS - waited) / 1000) } })
     }
 
     /*

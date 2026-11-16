@@ -1,20 +1,19 @@
 import { Action } from '@stacksjs/actions'
-import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import registryConfig from '../../../config/registry'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, refuse } from '../Support/forge'
 import { claimPackage, packageName, packageVersion, pantryJson, registryConfigured } from './pantry'
 
 export default new Action({
   name: 'PublishPackage', method: 'POST', description: 'Publish a package version through the native Pantry registry',
   validations: { metadata: { rule: coerced }, name: { rule: schema.string() }, version: { rule: schema.string() }, description: { rule: schema.string() }, license: { rule: schema.string() } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'package:publish')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       if (!registryConfigured())
         throw new ForgeError('The package registry has not been configured by this instance administrator', 503)
       let metadata: any = request.get('metadata')

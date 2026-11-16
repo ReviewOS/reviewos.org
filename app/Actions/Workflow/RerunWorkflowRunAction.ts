@@ -7,6 +7,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import type { RerunScope } from './rerun'
 import { rerunRun } from './rerun'
+import { refuse } from '../Support/forge'
 
 /**
  * Run it again.
@@ -88,13 +89,13 @@ export default new Action({
     const auth = await authorizeRepository(request, 'workflow:cancel')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const number = Number(request.get('number'))
 
     if (!Number.isInteger(number) || number <= 0)
-      return response.json({ error: 'A run number is required' }, 422)
+      return refuse(request, 'A run number is required', 422)
 
     const asked = String(request.get('scope') ?? 'failed')
     const scope: RerunScope = asked === 'all' || asked === 'job' || asked === 'step' ? asked : 'failed'
@@ -103,7 +104,7 @@ export default new Action({
     // saying which job. Refused here rather than resolved to "the only job",
     // which is a guess that stops being right the moment a workflow grows.
     if (scope === 'step' && !String(request.get('job') ?? '').trim())
-      return response.json({ error: 'Restarting from a step needs a job: pass `job`.' }, 422)
+      return refuse(request, 'Restarting from a step needs a job: pass `job`.', 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -113,7 +114,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
+      return refuse(request, 'No such workflow run', 404)
 
     const outcome = await rerunRun({
       runId: Number(run.id),
@@ -123,7 +124,7 @@ export default new Action({
     })
 
     if (!outcome.ok)
-      return response.json({ error: outcome.error }, outcome.status ?? 422)
+      return refuse(request, outcome.error, outcome.status ?? 422)
 
     /*
      * Recorded: a re-run spends the machines again, and on a protected branch

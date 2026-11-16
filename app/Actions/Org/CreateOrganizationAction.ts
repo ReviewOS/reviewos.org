@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { handleAvailable } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { currentUser } from '../Identity/lookup'
+import { refuse } from '../Support/forge'
 
 /**
  * Create an organization and make the caller its owner.
@@ -32,12 +33,12 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const handle = normalizeHandle(String(request.get('handle') ?? ''))
     const available = await handleAvailable(handle)
     if (!available.ok)
-      return response.json({ error: available.message }, 422)
+      return refuse(request, available.message, 422)
 
     const name = String(request.get('name') ?? '').trim() || handle
 
@@ -54,7 +55,7 @@ export default new Action({
 
     const organizationId = Number(created?.id)
     if (!organizationId)
-      return response.json({ error: 'Could not create the organization' }, 500)
+      return refuse(request, 'Could not create the organization', 500)
 
     try {
       await db

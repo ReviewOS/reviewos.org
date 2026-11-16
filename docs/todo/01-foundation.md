@@ -691,6 +691,45 @@ The half of this nobody builds, and the half that decides whether an instance is
   the token scoped to exactly the ids asked for; nothing selected, no permissions and an unparseable
   expiry each land back on the form with their own sentence; and a client sending `Accept:
   application/json` still gets the JSON body for the same refusals.
+- [x] No form in the product answers a browser with a page of JSON. The token form was one of
+      about seventy.
+
+  Glenn's words on seeing the 422 from "Issue a token": "validation error shouldn't display like
+  this". Fixing that one page left the same hole everywhere else, because every form here posts
+  straight to its API endpoint and these pages run no client-side JavaScript, so nothing catches
+  the response. A refusal replaced whatever the person was working on with `{"error":"..."}`.
+
+  `refuse` in `app/Actions/Support/forge.ts` is the one place that decides it now: a program gets
+  the JSON body it always got, byte for byte, and a browser is sent back to the page it posted from
+  with the reason in `form_error`. 304 refusal sites across 71 actions went through it, found by
+  resolving every `<form method="post">` in `resources/` to its route and then to its action, which
+  is also how two that no audit by eye would have caught turned up - `ManageWebhookAction`, reached
+  through a variable, and `UpdateTopicsAction`, whose only refusal used `auth.status` rather than a
+  literal.
+
+  **The message is rendered by the layout, not by forty pages.** The shell cannot know where a
+  given page's form is, so it draws a bar at the top of the content. `form_error` rather than
+  `error` because login, register, forgotten password, profile and tokens already read `error` and
+  render it inside their own form, which is the better place when a page has one form; sharing the
+  key would have shown those pages the same sentence twice. The tokens page keeps its own
+  `refuseTokenForm` for that reason, named so the two cannot be confused.
+
+  Two things fell out of it. `forgeResponse` - every wiki, project and registry form - translated a
+  `ForgeError` straight to JSON and could not do otherwise, because it never received the request;
+  it takes one now. And the `auth` middleware throws its 401 *before* any action runs, so a session
+  that lapsed while a form was open answered `{"message":"Unauthorized. Session expired."}`; a
+  request that asked for a page now gets the login form carrying where to return to.
+
+  `Referer` decides where a refusal lands, and anybody can set it, so it is read as a path on this
+  host or discarded. `https://evil.example/steal` is not an open redirect once only the path
+  survives, but going to `/steal` because a foreign page said so is still somebody else steering
+  this application. `tests/unit/form-refusals.test.ts` pins that, the two shapes, and the lapsed
+  session.
+
+  The framework half is not ours: an action's `validations` are enforced *before* the handler, so a
+  rule that refuses a form post can never be turned into a page by the app. Filed upstream as
+  stacksjs/stacks#3309, which will redirect with the errors by field and the old input, and look at
+  coercing a flat form value into an array where the rule asks for one.
 
 ## Keys
 

@@ -6,6 +6,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { settleRun } from './settle'
+import { refuse } from '../Support/forge'
 
 /**
  * Stop one job, leaving the rest of the run alone.
@@ -63,17 +64,17 @@ export default new Action({
     const auth = await authorizeRepository(request, 'workflow:cancel')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const number = Number(request.get('number'))
     const key = String(request.get('job') ?? '').trim()
 
     if (!Number.isInteger(number) || number <= 0)
-      return response.json({ error: 'A run number is required' }, 422)
+      return refuse(request, 'A run number is required', 422)
 
     if (!key)
-      return response.json({ error: 'A job name is required' }, 422)
+      return refuse(request, 'A job name is required', 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -83,7 +84,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
+      return refuse(request, 'No such workflow run', 404)
 
     const jobs = await db
       .selectFrom('workflow_jobs')
@@ -93,7 +94,7 @@ export default new Action({
       .execute()
 
     if (jobs.length === 0)
-      return response.json({ error: 'No such job in this run' }, 404)
+      return refuse(request, 'No such job in this run', 404)
 
     const now = new Date().toISOString()
     const reason = String(request.get('reason') ?? '').slice(0, 1000) || 'Cancelled by request'

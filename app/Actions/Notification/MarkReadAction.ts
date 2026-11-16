@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { dbTimestamp } from '../Support/sql'
 import { coerced, readFlag } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Mark notifications read: one, several, or the whole filtered view.
@@ -45,7 +46,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     // `read_at` is a real datetime column; see `dbTimestamp` for why an ISO
     // string is not a datetime literal.
@@ -54,7 +55,7 @@ export default new Action({
     const ids = readIds(request.get('ids') ?? request.get('id'))
 
     if (!all && ids.length === 0)
-      return response.json({ error: 'Nothing to mark' }, 422)
+      return refuse(request, 'Nothing to mark', 422)
 
     let query = db
       .updateTable('notifications')

@@ -1,19 +1,18 @@
 import { Action } from '@stacksjs/actions'
-import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError, positiveId, titleField } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, positiveId, titleField, refuse } from '../Support/forge'
 import { changeProject, projectUrl } from './projects'
 
 export default new Action({
   name: 'UpdateProject', method: 'POST', description: 'Edit, close or reopen a project',
   validations: { title: { rule: schema.string() }, description: { rule: schema.string() }, state: { rule: schema.string() }, revision: { rule: coerced } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:manage')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const id = positiveId(request.getParam('project'))
       await changeProject(Number(auth.context.repository.id), id, async (tx, project) => {
         if (positiveId(request.get('revision')) !== Number(project.revision))

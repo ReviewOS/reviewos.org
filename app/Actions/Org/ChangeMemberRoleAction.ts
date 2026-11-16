@@ -5,6 +5,7 @@ import { canInOrganization, wouldOrphanOrganization, type OrganizationRole } fro
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Change what a member of an organization may do.
@@ -32,31 +33,31 @@ export default new Action({
   async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     const memberUserId = Number(request.get('user_id'))
     const nextRole = String(request.get('role') ?? '') as OrganizationRole
 
     if (!['owner', 'admin', 'member'].includes(nextRole))
-      return response.json({ error: 'Unknown role' }, 422)
+      return refuse(request, 'Unknown role', 422)
 
     const actorRole = await organizationRoleOf(organizationId, actor.id)
     if (!canInOrganization(actorRole, 'members:manage'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     // Only an owner may create another owner. An admin promoting itself would
     // be a privilege escalation with extra steps.
     if (nextRole === 'owner' && actorRole !== 'owner')
-      return response.json({ error: 'Only an owner can appoint another owner' }, 403)
+      return refuse(request, 'Only an owner can appoint another owner', 403)
 
     const memberRole = await organizationRoleOf(organizationId, memberUserId)
     if (!memberRole)
-      return response.json({ error: 'Not a member of this organization' }, 404)
+      return refuse(request, 'Not a member of this organization', 404)
 
     const ownerCount = await organizationOwnerCount(organizationId)
     if (wouldOrphanOrganization({ memberRole, ownerCount, nextRole }))
-      return response.json({ error: 'An organization must keep at least one owner' }, 422)
+      return refuse(request, 'An organization must keep at least one owner', 422)
 
     await db
       .updateTable('org_members')

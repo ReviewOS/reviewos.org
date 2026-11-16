@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { milestoneFields } from './labelSet'
+import { refuse } from '../Support/forge'
 
 /**
  * Create, edit, close, reopen or delete a milestone.
@@ -37,7 +38,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'milestone:manage')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const operation = String(request.get('operation') ?? 'create').toLowerCase()
@@ -55,7 +56,7 @@ export default new Action({
     })
 
     if (!fields.ok)
-      return response.json({ error: fields.error }, 422)
+      return refuse(request, fields.error, 422)
 
     const existing = await db
       .selectFrom('milestones')
@@ -68,10 +69,10 @@ export default new Action({
     if (operation === 'update') {
       const id = Number(request.get('id'))
       if (!existing.some(row => Number(row.id) === id))
-        return response.json({ error: 'No such milestone' }, 404)
+        return refuse(request, 'No such milestone', 404)
 
       if (existing.some(row => Number(row.id) !== id && collides(row)))
-        return response.json({ error: 'A milestone with that title already exists' }, 409)
+        return refuse(request, 'A milestone with that title already exists', 409)
 
       await db.updateTable('milestones').set(fields.value).where('id', '=', id).execute()
 
@@ -79,7 +80,7 @@ export default new Action({
     }
 
     if (existing.some(collides))
-      return response.json({ error: 'A milestone with that title already exists' }, 409)
+      return refuse(request, 'A milestone with that title already exists', 409)
 
     const created = await db
       .insertInto('milestones')
@@ -106,7 +107,7 @@ async function setState(request: any, repository: any, state: 'open' | 'closed')
     .executeTakeFirst()
 
   if (!milestone)
-    return response.json({ error: 'No such milestone' }, 404)
+    return refuse(request, 'No such milestone', 404)
 
   // Already there is success, not an error: two people closing the same
   // milestone should not produce a failure for the slower one.
@@ -129,7 +130,7 @@ async function remove(request: any, repository: any) {
     .executeTakeFirst()
 
   if (!milestone)
-    return response.json({ error: 'No such milestone' }, 404)
+    return refuse(request, 'No such milestone', 404)
 
   // The issues survive; they just stop being in a milestone.
   await db.updateTable('issues').set({ milestone_id: null }).where('milestone_id', '=', id).execute()

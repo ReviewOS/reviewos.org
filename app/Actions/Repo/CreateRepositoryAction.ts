@@ -14,6 +14,7 @@ import { writeInitialCommit } from './initialCommit'
 import { scaffoldFiles } from './scaffold'
 import { recordSize } from './size'
 import { coerced, readFlag } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Create a repository: the row and the bare repository on disk.
@@ -48,24 +49,24 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const name = String(request.get('name') ?? '').trim()
     const ownerHandle = String(request.get('owner') ?? user.handle).trim().toLowerCase()
 
     const owner = await resolveOwner(ownerHandle)
     if (!owner)
-      return response.json({ error: 'No such owner' }, 404)
+      return refuse(request, 'No such owner', 404)
 
     // Creating under an organization needs membership; creating under another
     // person is never allowed.
     if (owner.kind === 'organization') {
       const role = await organizationRoleOf(owner.id, user.id)
       if (!canInOrganization(role, 'repositories:create'))
-        return response.json({ error: 'Forbidden' }, 403)
+        return refuse(request, 'Forbidden', 403)
     }
     else if (owner.id !== user.id) {
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
     }
 
     /*
@@ -91,12 +92,12 @@ export default new Action({
         .executeTakeFirst()
 
       if (Number(owned?.n ?? 0) >= limit)
-        return response.json({ error: `This instance allows ${limit} repositories per account.` }, 422)
+        return refuse(request, `This instance allows ${limit} repositories per account.`, 422)
     }
 
     const resolved = repositoryPath(owner.handle, name)
     if (!resolved.ok)
-      return response.json({ error: 'That repository name cannot be used' }, 422)
+      return refuse(request, 'That repository name cannot be used', 422)
 
     const clash = await db
       .selectFrom('repositories')
@@ -107,7 +108,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (clash)
-      return response.json({ error: 'A repository with that name already exists' }, 409)
+      return refuse(request, 'A repository with that name already exists', 409)
 
     /*
      * The instance's default when the caller does not say, rather than `public`.
@@ -122,7 +123,7 @@ export default new Action({
     const visibility = asked || await setting('default_repository_visibility')
 
     if (!isEnumInput(visibility, ['public', 'private', 'internal']))
-      return response.json({ error: 'Unknown visibility' }, 422)
+      return refuse(request, 'Unknown visibility', 422)
 
     const defaultBranch = String(request.get('default_branch') ?? 'main')
 

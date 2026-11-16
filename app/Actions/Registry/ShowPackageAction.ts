@@ -8,7 +8,7 @@ import { packageName, packagePath, packageVersion, pantryJson, publicMetadata, r
 export default new Action({
   name: 'ShowPackage', method: 'GET', description: 'Read Pantry package metadata or its immutable version list',
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'package:read')
       if (!auth.ok)
         return response.json({ error: auth.error }, auth.status)

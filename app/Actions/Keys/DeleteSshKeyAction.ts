@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
+import { refuse } from '../Support/forge'
 
 /**
  * Remove an SSH key.
@@ -34,11 +35,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const id = Number(request.get('id') ?? 0)
     if (!Number.isInteger(id) || id <= 0)
-      return response.json({ error: 'Which key?' }, 422)
+      return refuse(request, 'Which key?', 422)
 
     /*
      * Read first, for the record rather than for the check.

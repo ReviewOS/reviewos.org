@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
+import { refuse } from '../Support/forge'
 
 /** What a reader may put in each field. Long enough to be useful, short enough to render. */
 const LIMITS = { name: 100, bio: 300, location: 100, website: 200 }
@@ -39,7 +40,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const changes: Record<string, unknown> = {}
 

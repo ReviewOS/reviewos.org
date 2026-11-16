@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
+import { refuse } from '../Support/forge'
 
 /**
  * Disarm auto-merge.
@@ -30,11 +31,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const number = Number(request.get('number'))
     const pullRequest = await db
@@ -45,7 +46,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     await db
       .updateTable('pull_requests')

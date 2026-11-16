@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recordCrossReferences } from './crossReferences'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Edit a comment.
@@ -33,15 +34,15 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user, can } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const body = String(request.get('body') ?? '').trim()
     if (!body)
-      return response.json({ error: 'A comment needs a body' }, 422)
+      return refuse(request, 'A comment needs a body', 422)
 
     const commentId = Number(request.get('comment_id'))
     const comment = await db
@@ -51,7 +52,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!comment)
-      return response.json({ error: 'No such comment' }, 404)
+      return refuse(request, 'No such comment', 404)
 
     // The comment is found by id, so its repository has to be confirmed
     // separately: without this, a comment id from another repository would be
@@ -63,14 +64,14 @@ export default new Action({
       .executeTakeFirst()
 
     if (!issue || Number(issue.repository_id) !== Number(repository.id))
-      return response.json({ error: 'No such comment' }, 404)
+      return refuse(request, 'No such comment', 404)
 
     const isAuthor = Number(comment.author_id) === user.id
     if (!isAuthor && !can('issue:edit-any'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     if (issue.locked && !can('issue:close'))
-      return response.json({ error: 'This conversation is locked' }, 423)
+      return refuse(request, 'This conversation is locked', 423)
 
     await db
       .updateTable('issue_comments')

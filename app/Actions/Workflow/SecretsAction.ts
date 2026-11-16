@@ -9,6 +9,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { environmentIdOf, putSecret, secretNames } from './secrets'
 import { parseReference } from './secretStore'
+import { refuse } from '../Support/forge'
 
 /**
  * Setting and removing secrets. There is deliberately no way to read one.
@@ -82,7 +83,7 @@ export default new Action({
     const auth = await authorizeRepository(request, operation === 'list' ? 'repository:read' : 'repository:settings')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const repository = auth.context.repository
     const repositoryId = Number(repository.id)
@@ -101,10 +102,7 @@ export default new Action({
     const key = String(request.get('key') ?? '').trim()
 
     if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
-      return response.json({
-        error: 'That is not a usable secret name',
-        reason: 'Letters, digits and underscores, not starting with a digit - the shape a shell can export.',
-      }, 422)
+      return refuse(request, 'That is not a usable secret name', 422, { body: { reason: 'Letters, digits and underscores, not starting with a digit - the shape a shell can export.' } })
     }
 
     const asked = String(request.get('scope') ?? 'repository').trim()
@@ -115,7 +113,7 @@ export default new Action({
      * through to be stored against a scope nothing ever reads back.
      */
     if (!isSecretScope(asked))
-      return response.json({ error: 'A secret is scoped to the instance, an owner, a repository or an environment', scope: asked }, 422)
+      return refuse(request, 'A secret is scoped to the instance, an owner, a repository or an environment', 422, { body: { scope: asked } })
 
     const scope: SecretScope = asked
 
@@ -137,11 +135,7 @@ export default new Action({
         && Number(row?.owner_id) === Number(auth.context.user?.id ?? 0)
 
       if (!isOwner) {
-        return response.json({
-          error: scope === 'instance'
-            ? 'Only an instance administrator sets a secret for every repository'
-            : 'Only the owner sets a secret for every one of their repositories',
-        }, 403)
+        return refuse(request, scope === 'instance' ? 'Only an instance administrator sets a secret for every repository' : 'Only the owner sets a secret for every one of their repositories', 403)
       }
     }
 
@@ -165,7 +159,7 @@ export default new Action({
        * and it would sit in a listing looking configured.
        */
       if (!found)
-        return response.json({ error: 'No environment by that name here', reason: 'Create the environment first, so the secret has something to belong to.' }, 404)
+        return refuse(request, 'No environment by that name here', 404, { body: { reason: 'Create the environment first, so the secret has something to belong to.' } })
 
       scopeId = found
     }
@@ -209,13 +203,10 @@ export default new Action({
     const reference = String(request.get('reference') ?? '').trim()
 
     if (!value && !reference)
-      return response.json({ error: 'A secret needs a value or a reference', reason: 'To remove one, use `operation: "unset"`.' }, 422)
+      return refuse(request, 'A secret needs a value or a reference', 422, { body: { reason: 'To remove one, use `operation: "unset"`.' } })
 
     if (reference && !parseReference(reference)) {
-      return response.json({
-        error: 'That is not a reference this instance can read',
-        reason: 'A reference is `store://<store>/<path>#<field>`, naming a store the operator configured. A URL is not accepted: what this instance may reach is not a repository\'s decision.',
-      }, 422)
+      return refuse(request, 'That is not a reference this instance can read', 422, { body: { reason: 'A reference is `store://<store>/<path>#<field>`, naming a store the operator configured. A URL is not accepted: what this instance may reach is not a repository\'s decision.' } })
     }
 
     await putSecret({

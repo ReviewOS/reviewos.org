@@ -4,6 +4,7 @@ import { setSubjectMute } from './muteSubject'
 import { currentUser } from '../Identity/lookup'
 import { MUTE_DURATIONS, muteExpiry } from './settings'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 const SUBJECTS = ['repository', 'organization', 'issue', 'pull_request'] as const
 
@@ -38,15 +39,15 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const subjectType = String(request.get('subject_type') ?? '')
     if (!isEnumInput(subjectType, SUBJECTS))
-      return response.json({ error: 'A subject is a repository, organization, issue, or pull request' }, 422)
+      return refuse(request, 'A subject is a repository, organization, issue, or pull request', 422)
 
     const subjectId = Number(request.get('subject_id'))
     if (!Number.isInteger(subjectId) || subjectId <= 0)
-      return response.json({ error: 'A subject is required' }, 422)
+      return refuse(request, 'A subject is required', 422)
 
     // Unmuting deletes the row rather than expiring it. There is nothing worth
     // keeping about a mute somebody has ended.
@@ -71,7 +72,7 @@ export default new Action({
 
     const duration = String(request.get('duration') ?? 'forever')
     if (!isEnumInput(duration, MUTE_DURATIONS))
-      return response.json({ error: `A duration is one of ${MUTE_DURATIONS.join(', ')}` }, 422)
+      return refuse(request, `A duration is one of ${MUTE_DURATIONS.join(', ')}`, 422)
 
     const schedule = await db
       .selectFrom('notification_schedules')

@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { cancelRun } from './cancel'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { refuse } from '../Support/forge'
 
 /**
  * Stop a run.
@@ -63,13 +64,13 @@ export default new Action({
     // somebody who can stop it.
     const auth = await authorizeRepository(request, 'workflow:cancel')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
 
     const number = Number(request.get('number'))
     if (!Number.isInteger(number) || number <= 0)
-      return response.json({ error: 'A run number is required' }, 422)
+      return refuse(request, 'A run number is required', 422)
 
     const result = await cancelRun({
       repositoryId: Number(repository.id), number,

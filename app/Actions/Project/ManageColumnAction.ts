@@ -1,9 +1,8 @@
 import { Action } from '@stacksjs/actions'
-import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError, positiveId, titleField } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, positiveId, titleField, refuse } from '../Support/forge'
 import { dbTimestamp } from '../Support/sql'
 import { changeProject, projectColumn, projectUrl } from './projects'
 
@@ -11,10 +10,10 @@ export default new Action({
   name: 'ManageProjectColumn', method: 'POST', description: 'Create, rename, reorder or remove an empty project column',
   validations: { title: { rule: schema.string() }, operation: { rule: schema.string() }, column_id: { rule: coerced } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:manage')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const projectId = positiveId(request.getParam('project'))
       const result = await changeProject(Number(auth.context.repository.id), projectId, async (tx) => {
         const operation = String(request.get('operation') ?? 'create')

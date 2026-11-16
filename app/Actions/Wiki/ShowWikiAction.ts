@@ -8,7 +8,7 @@ import { wikiHistory, wikiHtml, wikiPage, wikiSlug } from './wiki'
 export default new Action({
   name: 'ShowWiki', method: 'GET', description: 'Read a wiki page, revision history or its Markdown source',
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'wiki:read')
       if (!auth.ok)
         return response.json({ error: auth.error }, auth.status)

@@ -9,6 +9,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { allowedWhileArchived, decideSettings } from './settings'
 import { coerced, readFlag } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Change a repository's settings.
@@ -54,7 +55,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const owner = String(request.get('owner') ?? '').trim().toLowerCase()
@@ -75,12 +76,12 @@ export default new Action({
     })
 
     if (!decision.ok)
-      return response.json({ error: decision.error }, decision.status)
+      return refuse(request, decision.error, decision.status)
 
     // Frozen is frozen, except for the change that unfreezes it - otherwise
     // archiving would be irreversible, which is not what anybody means by it.
     if (repository.is_archived && !allowedWhileArchived(decision.changes))
-      return response.json({ error: 'This repository is archived. Unarchive it first.' }, 409)
+      return refuse(request, 'This repository is archived. Unarchive it first.', 409)
 
     const changes = { ...decision.changes }
 
@@ -89,7 +90,7 @@ export default new Action({
       const from = repositoryPath(owner, decision.renamedFrom)
 
       if (!to.ok || !from.ok)
-        return response.json({ error: 'That repository name cannot be used' }, 422)
+        return refuse(request, 'That repository name cannot be used', 422)
 
       const clash = await db
         .selectFrom('repositories')
@@ -100,14 +101,14 @@ export default new Action({
         .executeTakeFirst()
 
       if (clash)
-        return response.json({ error: 'A repository with that name already exists' }, 409)
+        return refuse(request, 'A repository with that name already exists', 409)
 
       try {
         await mkdir(dirname(to.path!), { recursive: true })
         await rename(from.path!, to.path!)
       }
       catch (error) {
-        return response.json({ error: `Could not rename the repository: ${error}` }, 500)
+        return refuse(request, `Could not rename the repository: ${error}`, 500)
       }
 
       changes.disk_path = to.relative
@@ -123,7 +124,7 @@ export default new Action({
       if (path.ok) {
         const exists = await runGit(path.path!, ['rev-parse', '--verify', `refs/heads/${branch}`])
         if (!exists.ok)
-          return response.json({ error: `This repository has no branch called ${branch}` }, 422)
+          return refuse(request, `This repository has no branch called ${branch}`, 422)
 
         await runGit(path.path!, ['symbolic-ref', 'HEAD', `refs/heads/${branch}`])
       }

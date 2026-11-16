@@ -37,6 +37,23 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
  * The chrome comes from the theme too, through the library's `themeChrome`, so
  * a page set to Nord is one surface rather than Nord code in our own greys.
  */
+/**
+ * Why the last form submit was refused, if it was.
+ *
+ * Read here rather than per page because every form in the product posts
+ * straight to its API endpoint, and a refusal used to replace the page with
+ * `{"error":"..."}` - the person's input gone and the back button the way out.
+ * `refuse` in `app/Actions/Support/forge.ts` now sends a browser back to the
+ * page it posted from carrying this, so the message appears without any of the
+ * forty-odd pages involved having to know about it.
+ *
+ * `form_error` rather than `error`: login, register, forgotten password,
+ * profile and tokens already read `error` themselves and render it inside their
+ * own form, which is the better place when a page has only one. Sharing the key
+ * would show those pages the same sentence twice.
+ */
+const formError = String((useRoute().query ?? {}).form_error ?? '').slice(0, 300)
+
 const themeCss = syntaxThemeCss()
 const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxTheme', attribute: 'syntax-theme', allowed: ['default', ...themeChoices().map(one => one.id)], default: 'default' }, colorMode: { key: 'scheme', attribute: 'theme', default: 'system' } }
 </script>
@@ -1058,6 +1075,10 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
       .auth-line { margin: 14px 0 0; font-size: 14px; }
       .auth-line + .auth-line { margin-top: 4px; }
       .auth-form { margin: 0; }
+
+      /* The refusal bar sits in the shell, so it carries the page gutter the
+         content below it would have given it. */
+      .form-error-bar { max-width: 1180px; margin: 0 auto; padding: 18px 20px 0; }
 
       /* Loud enough to find without scrolling, quiet enough that a mistyped
         password does not read as a system failure. */
@@ -2530,6 +2551,17 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
     <SiteNav />
 
     <main id="content" tabindex="-1">
+      @if (formError)
+        {{--
+          Above the page's own content rather than inside it: this is the shell,
+          so it cannot know where a given page's form is, and the top of the
+          content area is the one place that is right on all of them.
+        --}}
+        <div class="form-error-bar">
+          <p class="auth-error" role="alert">{{ formError }}</p>
+        </div>
+      @endif
+
       @yield('content')
     </main>
 

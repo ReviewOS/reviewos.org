@@ -3,6 +3,7 @@ import { schema, isEnumInput } from '@stacksjs/validation'
 import { safeRedirect, wantsHtml } from '../Auth/session'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
+import { refuse } from '../Support/forge'
 
 /** What a person can ask to hear about. */
 export const SUBSCRIPTIONS = ['all', 'participating', 'ignore'] as const
@@ -60,11 +61,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const repositoryId = Number(auth.context.repository.id)
     const raw = String(request.get('subscription') ?? '').trim().toLowerCase()
@@ -85,7 +86,7 @@ export default new Action({
     }
 
     if (!isEnumInput(raw, SUBSCRIPTIONS))
-      return response.json({ error: 'No such subscription' }, 422)
+      return refuse(request, 'No such subscription', 422)
 
     const existing = await db
       .selectFrom('watches')

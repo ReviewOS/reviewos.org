@@ -6,6 +6,7 @@ import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Create a machine account: an account that holds tokens and nothing else.
@@ -53,11 +54,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     if (!Number.isInteger(organizationId) || organizationId <= 0)
-      return response.json({ error: 'An organization is required' }, 422)
+      return refuse(request, 'An organization is required', 422)
 
     const role = await organizationRoleOf(organizationId, user.id)
 
@@ -65,7 +66,7 @@ export default new Action({
     // account is a standing credential holder in the organization, which is a
     // heavier thing than adding a member - a member can be seen leaving.
     if (!canInOrganization(role, 'settings:manage'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     const organization = await db
       .selectFrom('organizations')
@@ -74,12 +75,12 @@ export default new Action({
       .executeTakeFirst()
 
     if (!organization)
-      return response.json({ error: 'No such organization' }, 404)
+      return refuse(request, 'No such organization', 404)
 
     const handle = normalizeHandle(String(request.get('handle') ?? ''))
     const available = await handleAvailable(handle)
     if (!available.ok)
-      return response.json({ error: available.message }, 422)
+      return refuse(request, available.message, 422)
 
     const name = String(request.get('name') ?? '').trim() || handle
 
@@ -114,7 +115,7 @@ export default new Action({
 
     const userId = Number(created?.id)
     if (!userId)
-      return response.json({ error: 'Could not create the machine account' }, 500)
+      return refuse(request, 'Could not create the machine account', 500)
 
     /*
      * A member of the organization, at `member`.

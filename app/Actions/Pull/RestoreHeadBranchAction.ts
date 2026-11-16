@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { diskPathFor } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
 import { branchExists, mayRestoreHeadBranch, restoreHeadBranch } from './restore'
+import { refuse } from '../Support/forge'
 
 /**
  * Put a merged pull request's head branch back.
@@ -35,7 +36,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:push')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const owner = String(request.get('owner') ?? '').trim().toLowerCase()
@@ -49,11 +50,11 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     const diskPath = diskPathFor(owner, repository.name)
     if (!diskPath)
-      return response.json({ error: 'Repository not found' }, 404)
+      return refuse(request, 'Repository not found', 404)
 
     const branch = String(pullRequest.head_branch ?? '')
     const sha = String(pullRequest.head_sha ?? '')
@@ -66,11 +67,11 @@ export default new Action({
     })
 
     if (!may.ok)
-      return response.json({ error: may.error }, may.status)
+      return refuse(request, may.error, may.status)
 
     const restored = await restoreHeadBranch(diskPath, branch, sha)
     if (!restored.ok)
-      return response.json({ error: restored.error }, 409)
+      return refuse(request, restored.error, 409)
 
     return response.json({ restored: true, branch, sha })
   },

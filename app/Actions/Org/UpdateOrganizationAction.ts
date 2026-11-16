@@ -4,6 +4,7 @@ import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Change an organization's profile, and its handle.
@@ -40,13 +41,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     const role = await organizationRoleOf(organizationId, user.id)
 
     if (!canInOrganization(role, 'settings:manage'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     const organization = await db
       .selectFrom('organizations')
@@ -55,7 +56,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!organization)
-      return response.json({ error: 'No such organization' }, 404)
+      return refuse(request, 'No such organization', 404)
 
     const changes: Record<string, string> = {}
 
@@ -74,7 +75,7 @@ export default new Action({
      * front of it.
      */
     if (changes.website && !/^https?:\/\//i.test(changes.website))
-      return response.json({ error: 'A website must start with http:// or https://' }, 422)
+      return refuse(request, 'A website must start with http:// or https://', 422)
 
     const requested = request.get('handle')
 
@@ -84,7 +85,7 @@ export default new Action({
       if (handle !== String(organization.handle)) {
         const available = await handleAvailable(handle)
         if (!available.ok)
-          return response.json({ error: available.message }, 422)
+          return refuse(request, available.message, 422)
 
         changes.handle = handle
       }

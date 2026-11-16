@@ -4,6 +4,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { deleteWhereIn, updateWhereIn } from '../Support/rows'
 import { abilityFor, isBulkOperation, selectedNumbers } from './bulk'
+import { refuse } from '../Support/forge'
 
 /**
  * Close, reopen, label, unlabel or set a milestone on several issues at once.
@@ -39,19 +40,19 @@ export default new Action({
   async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? '')
     if (!isBulkOperation(operation))
-      return response.json({ error: 'That is not something this can do' }, 422)
+      return refuse(request, 'That is not something this can do', 422)
 
     const auth = await authorizeRepository(request, abilityFor(operation))
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const selection = selectedNumbers(request.get('numbers'))
     if (!selection.ok)
-      return response.json({ error: selection.error }, 422)
+      return refuse(request, selection.error, 422)
 
     // Resolved to rows first, so an issue number from another repository - or a
     // pull request number, which shares the sequence - cannot be acted on by
@@ -65,7 +66,7 @@ export default new Action({
       .execute()
 
     if (issues.length === 0)
-      return response.json({ error: 'None of those are issues on this repository' }, 404)
+      return refuse(request, 'None of those are issues on this repository', 404)
 
     const ids = issues.map(row => Number(row.id))
 
@@ -124,7 +125,7 @@ async function setMilestone(ids: number[], requested: unknown, repositoryId: num
     // A milestone from another repository would file these issues under
     // something that does not belong to them.
     if (!milestone)
-      return response.json({ error: 'No such milestone' }, 422)
+      return refuse(request, 'No such milestone', 422)
 
     milestoneId = Number(milestone.id)
   }
@@ -144,7 +145,7 @@ async function setMilestone(ids: number[], requested: unknown, repositoryId: num
 async function setLabel(ids: number[], requested: unknown, repositoryId: number, adding: boolean) {
   const name = String(requested ?? '').trim()
   if (!name)
-    return response.json({ error: 'No label was given' }, 422)
+    return refuse(request, 'No label was given', 422)
 
   const labels = await db
     .selectFrom('repository_labels')
@@ -154,7 +155,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
 
   const label = labels.find(row => String(row.name).toLowerCase() === name.toLowerCase())
   if (!label)
-    return response.json({ error: 'No such label' }, 422)
+    return refuse(request, 'No such label', 422)
 
   const labelId = Number(label.id)
 

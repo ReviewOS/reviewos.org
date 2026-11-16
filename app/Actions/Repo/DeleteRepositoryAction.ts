@@ -9,6 +9,7 @@ import { authorizeRepository } from './authorize'
 import { recountForks } from './counters'
 import { sweepPolymorphic } from './polymorphic'
 import { retiredPath } from './settings'
+import { refuse } from '../Support/forge'
 
 /**
  * Delete a repository.
@@ -55,20 +56,20 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:delete')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const owner = String(request.get('owner') ?? '').trim().toLowerCase()
     const confirmation = String(request.get('confirm') ?? '').trim()
 
     if (confirmation !== repository.name && confirmation !== `${owner}/${repository.name}`)
-      return response.json({ error: `Type ${owner}/${repository.name} to confirm` }, 422)
+      return refuse(request, `Type ${owner}/${repository.name} to confirm`, 422)
 
     const from = repositoryPath(owner, repository.name)
     const retired = retiredPath(owner, repository.name, Date.now())
 
     if (!from.ok || !retired)
-      return response.json({ error: 'That repository cannot be deleted by name' }, 422)
+      return refuse(request, 'That repository cannot be deleted by name', 422)
 
     // The rows no foreign key can reach, removed first because finding them
     // needs the issues and pull requests the cascade is about to take. A
@@ -76,7 +77,7 @@ export default new Action({
     // and the row is intact.
     const swept = await sweepPolymorphic(Number(repository.id))
     if (!swept.ok)
-      return response.json({ error: swept.error }, 500)
+      return refuse(request, swept.error, 500)
 
     // Recorded before the row goes, because afterwards there is no id to look
     // up and no name to report. The audit row and the directory on disk are
@@ -110,7 +111,7 @@ export default new Action({
       await db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute()
     }
     catch (error) {
-      return response.json({ error: `That repository could not be deleted: ${error}` }, 500)
+      return refuse(request, `That repository could not be deleted: ${error}`, 500)
     }
 
     // Deleting a fork is one fewer fork. Recomputed rather than decremented,

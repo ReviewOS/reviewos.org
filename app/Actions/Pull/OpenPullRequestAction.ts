@@ -4,6 +4,7 @@ import { refusal, spendFor } from '../../Api/token-limits'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { openPullRequest } from './open'
+import { refuse } from '../Support/forge'
 
 /**
  * Open a pull request.
@@ -53,16 +54,16 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:open')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const owner = String(request.get('owner') ?? '').trim()
     const resolved = repositoryPath(owner, repository.name)
     if (!resolved.ok)
-      return response.json({ error: 'Repository not found' }, 404)
+      return refuse(request, 'Repository not found', 404)
 
     /*
      * The token's hourly budget, spent before anything is created.
@@ -90,7 +91,7 @@ export default new Action({
     })
 
     if (!opened.ok)
-      return response.json({ error: opened.error }, opened.status)
+      return refuse(request, opened.error, opened.status)
 
     return response.json({
       id: opened.id,

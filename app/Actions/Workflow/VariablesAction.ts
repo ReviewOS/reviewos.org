@@ -6,6 +6,7 @@ import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveVariables, settingsFor } from './variables'
+import { refuse } from '../Support/forge'
 
 /**
  * Variables at four levels, and where each effective value came from.
@@ -72,7 +73,7 @@ export default new Action({
     const auth = await authorizeRepository(request, operation === 'list' ? 'repository:read' : 'repository:settings')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const repository = auth.context.repository
     const repositoryId = Number(repository.id)
@@ -96,18 +97,15 @@ export default new Action({
     const key = String(request.get('key') ?? '').trim()
 
     if (!key)
-      return response.json({ error: 'Which variable?' }, 422)
+      return refuse(request, 'Which variable?', 422)
 
     if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
-      return response.json({
-        error: 'That is not a usable variable name',
-        reason: 'Letters, digits and underscores, not starting with a digit - the shape a shell can export.',
-      }, 422)
+      return refuse(request, 'That is not a usable variable name', 422, { body: { reason: 'Letters, digits and underscores, not starting with a digit - the shape a shell can export.' } })
     }
 
     const scope = String(request.get('scope') ?? 'repository').trim()
     if (!isEnumInput(scope, ['instance', 'owner', 'repository']))
-      return response.json({ error: 'Unknown variable scope' }, 422)
+      return refuse(request, 'Unknown variable scope', 422)
 
     /*
      * An instance-wide variable reaches every repository on the server,
@@ -116,7 +114,7 @@ export default new Action({
      * it is a fact about the *scope*, not about the endpoint.
      */
     if (scope === 'instance' && auth.context.user?.is_admin !== true)
-      return response.json({ error: 'Only an instance administrator sets a variable for every repository' }, 403)
+      return refuse(request, 'Only an instance administrator sets a variable for every repository', 403)
 
     if (scope === 'owner' && auth.context.user?.is_admin !== true) {
       /*
@@ -133,7 +131,7 @@ export default new Action({
       const isOwner = String(owner?.owner_type) === 'user' && Number(owner?.owner_id) === Number(auth.context.user?.id ?? 0)
 
       if (!isOwner)
-        return response.json({ error: 'Only the owner sets a variable for every one of their repositories' }, 403)
+        return refuse(request, 'Only the owner sets a variable for every one of their repositories', 403)
     }
 
     const scopeId = scope === 'instance'

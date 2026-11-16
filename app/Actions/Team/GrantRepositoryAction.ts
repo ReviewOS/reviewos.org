@@ -6,6 +6,7 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Give a team access to a repository, change what it has, or take it away.
@@ -41,17 +42,17 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     // A personal repository has no organization, so it has no teams to grant
     // to. Said plainly rather than answered with an empty list, because the
     // fix is to transfer the repository and that is worth knowing.
     if (String(repository.owner_type) !== 'organization')
-      return response.json({ error: 'Only a repository owned by an organization can be granted to a team' }, 422)
+      return refuse(request, 'Only a repository owned by an organization can be granted to a team', 422)
 
     const teamId = Number(request.get('team_id'))
 
@@ -65,7 +66,7 @@ export default new Action({
       : null
 
     if (!team)
-      return response.json({ error: 'No such team in this organization' }, 404)
+      return refuse(request, 'No such team in this organization', 404)
 
     if (String(request.get('operation') ?? '') === 'revoke') {
       await db
@@ -89,7 +90,7 @@ export default new Action({
     const permission = String(request.get('permission') ?? 'read') as RepositoryPermission
 
     if (!(REPOSITORY_LEVELS as readonly string[]).includes(permission))
-      return response.json({ error: `A permission is one of ${REPOSITORY_LEVELS.join(', ')}` }, 422)
+      return refuse(request, `A permission is one of ${REPOSITORY_LEVELS.join(', ')}`, 422)
 
     /*
      * An admin grant needs admin, not settings.
@@ -103,7 +104,7 @@ export default new Action({
       const role = await organizationRoleOf(Number(repository.owner_id), user.id)
 
       if (role !== 'owner' && role !== 'admin')
-        return response.json({ error: 'Only an administrator can grant admin' }, 403)
+        return refuse(request, 'Only an administrator can grant admin', 403)
     }
 
     const existing = await db

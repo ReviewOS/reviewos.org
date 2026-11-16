@@ -4,6 +4,7 @@ import { safeRedirect, wantsHtml } from '../Auth/session'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 import { recountStars } from './counters'
+import { refuse } from '../Support/forge'
 
 /**
  * Star a repository, or unstar it.
@@ -45,11 +46,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const repositoryId = Number(auth.context.repository.id)
 

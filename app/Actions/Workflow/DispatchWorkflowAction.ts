@@ -13,6 +13,7 @@ import { checkInputs } from './inputs'
 import { dispatchKey, withRedeliveryKey } from './redelivery'
 import { requestIdOf } from '../../Api/correlation'
 import { isTrue } from '../Support/sql'
+import { refuse } from '../Support/forge'
 
 /**
  * Start a workflow by hand.
@@ -85,13 +86,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'workflow:dispatch')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
 
     const wanted = String(request.get('workflow') ?? '').trim()
     if (!wanted)
-      return response.json({ error: 'A workflow is required' }, 422)
+      return refuse(request, 'A workflow is required', 422)
 
     /*
      * Named by path or by name, because both are what somebody has to hand:
@@ -118,14 +119,12 @@ export default new Action({
       ?? candidates.find(row => String(row.name) === wanted)
 
     if (!workflow)
-      return response.json({ error: 'No such workflow' }, 404)
+      return refuse(request, 'No such workflow', 404)
 
     if (String(workflow.state) !== 'active') {
       // A disabled workflow refusing to run by hand is the point of disabling
       // it, and a removed one has no file to run.
-      return response.json({
-        error: `This workflow is ${workflow.state} and cannot be dispatched`,
-      }, 409)
+      return refuse(request, `This workflow is ${workflow.state} and cannot be dispatched`, 409)
     }
 
     const version = await db
@@ -137,12 +136,10 @@ export default new Action({
       .executeTakeFirst()
 
     if (!version)
-      return response.json({ error: 'This workflow has no readable version' }, 404)
+      return refuse(request, 'This workflow has no readable version', 404)
 
     if (!isTrue(version.on_dispatch)) {
-      return response.json({
-        error: 'This workflow does not accept workflow_dispatch. Add it to the workflow\'s `on:` to run it by hand.',
-      }, 409)
+      return refuse(request, 'This workflow does not accept workflow_dispatch. Add it to the workflow\'s `on:` to run it by hand.', 409)
     }
 
     const declared = parseDeclared(version.dispatch_inputs)
@@ -152,7 +149,7 @@ export default new Action({
     if (!checked.ok) {
       // Every problem, not the first: a form with three wrong fields should be
       // fixable in one pass rather than three round trips.
-      return response.json({ error: 'These inputs do not match the workflow', problems: checked.errors }, 422)
+      return refuse(request, 'These inputs do not match the workflow', 422, { body: { problems: checked.errors } })
     }
 
     /*
@@ -186,10 +183,10 @@ export default new Action({
     const requestedRef = String(request.get('ref') ?? '').trim() || `refs/heads/${repository.default_branch ?? 'main'}`
     const gitDir = await servablePathFor(String(request.get('owner') ?? '').trim().toLowerCase(), String(repository.name))
     if (!gitDir)
-      return response.json({ error: 'The repository is not available.' }, 404)
+      return refuse(request, 'The repository is not available.', 404)
     const target = await resolveDispatchRef(gitDir, requestedRef)
     if (!target.ok)
-      return response.json({ error: target.error }, target.status)
+      return refuse(request, target.error, target.status)
     const { ref, sha } = target
     // A content-deduplicated definition may predate the code being tested.
     // Keep its provenance; the named ref chooses the current checkout commit.

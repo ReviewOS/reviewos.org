@@ -1,9 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { transaction } from '@stacksjs/orm'
-import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, titleField, ForgeError } from '../Support/forge'
+import { forgeResponse, forgeResult, titleField, ForgeError, refuse } from '../Support/forge'
 import { dbTimestamp } from '../Support/sql'
 import { projectUrl } from './projects'
 
@@ -11,10 +10,10 @@ export default new Action({
   name: 'CreateProject', method: 'POST', description: 'Create a native issue project with a configurable board',
   validations: { title: { rule: schema.string().required().max(160) }, description: { rule: schema.string() } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:manage')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const title = titleField(request.get('title'))
       const description = String(request.get('description') ?? '')
       if (Buffer.byteLength(description) > 60_000)

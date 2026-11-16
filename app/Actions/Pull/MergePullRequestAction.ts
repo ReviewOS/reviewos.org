@@ -17,6 +17,7 @@ import { pushActorFor } from '../Git/access'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { isNotFalse } from '../Support/sql'
+import { refuse } from '../Support/forge'
 
 /**
  * Merge a pull request.
@@ -59,18 +60,18 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     // The repository's own default when the caller does not name one, so a
     // client that has never heard of the setting still lands branches the way
     // the repository asked to have them landed.
     const strategy = String(request.get('strategy') ?? defaultStrategy(repository as any))
     if (!isMergeStrategy(strategy))
-      return response.json({ error: 'Unknown merge strategy' }, 422)
+      return refuse(request, 'Unknown merge strategy', 422)
 
     const number = Number(request.get('number'))
     const pullRequest = await db
@@ -81,7 +82,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     const protection = await db
       .selectFrom('protected_branches')
@@ -221,7 +222,7 @@ export default new Action({
      */
     const resolved = repositoryPath(String(request.get('owner')), repository.name)
     if (!resolved.ok)
-      return response.json({ error: 'Repository not found' }, 404)
+      return refuse(request, 'Repository not found', 404)
 
     /*
      * Whether the base has moved on since the head last took it.
@@ -285,7 +286,7 @@ export default new Action({
       blockers.push('The required checks for this branch could not be read')
 
     if (blockers.length > 0)
-      return response.json({ error: 'This pull request cannot be merged', blockers }, 409)
+      return refuse(request, 'This pull request cannot be merged', 409, { body: { blockers } })
 
     /*
      * A merge that only went through because the rule does not bind admins.
@@ -360,7 +361,7 @@ export default new Action({
     })
 
     if (!merged.ok)
-      return response.json({ error: 'The merge failed', detail: merged.error }, 409)
+      return refuse(request, 'The merge failed', 409, { body: { detail: merged.error } })
 
     await db
       .updateTable('pull_requests')

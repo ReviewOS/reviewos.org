@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Send one recorded delivery again.
@@ -41,13 +42,13 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const deliveryId = Number(request.get('delivery_id'))
 
     if (!Number.isInteger(deliveryId) || deliveryId <= 0)
-      return response.json({ error: 'A delivery is required' }, 422)
+      return refuse(request, 'A delivery is required', 422)
 
     const delivery = await db
       .selectFrom('webhook_deliveries')
@@ -56,7 +57,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!delivery)
-      return response.json({ error: 'No such delivery' }, 404)
+      return refuse(request, 'No such delivery', 404)
 
     // The webhook has to belong to this repository. Without this the endpoint
     // would replay any delivery in the database to its own destination for
@@ -69,13 +70,13 @@ export default new Action({
       .executeTakeFirst()
 
     if (!webhook)
-      return response.json({ error: 'No such delivery' }, 404)
+      return refuse(request, 'No such delivery', 404)
 
     // Refused rather than queued and dropped later. Somebody pressing redeliver
     // on a webhook they switched off is asking a question - "why is this not
     // working" - and the answer is the reason.
     if (!webhook.active)
-      return response.json({ error: 'That webhook is switched off' }, 409)
+      return refuse(request, 'That webhook is switched off', 409)
 
     const { default: DeliverWebhookJob } = await import('../../Jobs/DeliverWebhookJob')
 

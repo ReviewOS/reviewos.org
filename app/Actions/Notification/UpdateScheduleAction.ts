@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { formatDays, localTimeIn, parseDays } from './clock'
 import { decisionText, deliveryDecision } from './delivery'
+import { refuse } from '../Support/forge'
 
 /**
  * Set when somebody is reachable.
@@ -34,7 +35,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const existing = await db
       .selectFrom('notification_schedules')
@@ -50,16 +51,16 @@ export default new Action({
     const endsAt = minute(request.get('ends_at'), Number(existing?.ends_at ?? 1080))
 
     if (startsAt === null || endsAt === null)
-      return response.json({ error: 'A time is a minute from midnight, 0 to 1439' }, 422)
+      return refuse(request, 'A time is a minute from midnight, 0 to 1439', 422)
 
     // Equal start and end would be a window of zero length that reads as "all
     // day" to whoever set it. Refusing is kinder than silencing them.
     if (startsAt === endsAt)
-      return response.json({ error: 'A window needs a start and an end that differ' }, 422)
+      return refuse(request, 'A window needs a start and an end that differ', 422)
 
     const timezone = String(request.get('timezone') ?? existing?.timezone ?? 'UTC')
     if (!isKnownTimezone(timezone))
-      return response.json({ error: 'That is not a timezone name' }, 422)
+      return refuse(request, 'That is not a timezone name', 422)
 
     const breaksThrough = request.get('breaks_through') === undefined
       ? String(existing?.breaks_through ?? '')

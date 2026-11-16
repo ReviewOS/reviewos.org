@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountComments } from '../Repo/counters'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Delete a comment.
@@ -34,11 +35,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user, can } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const commentId = Number(request.get('comment_id'))
     const comment = await db
@@ -48,7 +49,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!comment)
-      return response.json({ error: 'No such comment' }, 404)
+      return refuse(request, 'No such comment', 404)
 
     // Confirmed against this repository, so a comment id from elsewhere is not
     // deletable by someone with rights here.
@@ -59,11 +60,11 @@ export default new Action({
       .executeTakeFirst()
 
     if (!issue || Number(issue.repository_id) !== Number(repository.id))
-      return response.json({ error: 'No such comment' }, 404)
+      return refuse(request, 'No such comment', 404)
 
     const isAuthor = Number(comment.author_id) === user.id
     if (!isAuthor && !can('issue:edit-any'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     await db.deleteFrom('issue_comments').where('id', '=', Number(comment.id)).execute()
 

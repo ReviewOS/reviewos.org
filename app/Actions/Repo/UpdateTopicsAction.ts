@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from './authorize'
 import { decideTopics, topicChanges } from './topics'
+import { refuse } from '../Support/forge'
 
 /**
  * Set the topics on a repository.
@@ -31,7 +32,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const repositoryId = Number(auth.context.repository.id)
     const decision = decideTopics(request.get('topics'))

@@ -6,6 +6,7 @@ import { isSafeRef, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { editPullRequest, mayEdit } from './state'
+import { refuse } from '../Support/forge'
 
 /**
  * Edit a pull request's title, body, or base branch.
@@ -36,11 +37,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user, can } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const number = Number(request.get('number'))
     const pullRequest = await db
@@ -51,11 +52,11 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     const isAuthor = Number(pullRequest.author_id) === user.id
     if (!mayEdit({ isAuthor, canEditAny: can('pull:edit-any') }))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     const result = editPullRequest(
       {
@@ -70,22 +71,22 @@ export default new Action({
     )
 
     if (!result.ok)
-      return response.json({ error: result.error }, result.status)
+      return refuse(request, result.error, result.status)
 
     const changes: Record<string, unknown> = { ...result.changes }
     const base = result.changes.base_branch
 
     if (base !== undefined && base !== String(pullRequest.base_branch)) {
       if (!isSafeRef(base))
-        return response.json({ error: 'That branch name cannot be used' }, 422)
+        return refuse(request, 'That branch name cannot be used', 422)
 
       const resolved = repositoryPath(String(request.get('owner')), repository.name)
       if (!resolved.ok)
-        return response.json({ error: 'Repository not found' }, 404)
+        return refuse(request, 'Repository not found', 404)
 
       const baseSha = await revision(resolved.path!, base)
       if (!baseSha)
-        return response.json({ error: `There is no branch named ${base}` }, 422)
+        return refuse(request, `There is no branch named ${base}`, 422)
 
       changes.base_sha = baseSha
 

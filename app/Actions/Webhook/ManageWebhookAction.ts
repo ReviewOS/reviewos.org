@@ -4,6 +4,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { pingPayload, WEBHOOK_EVENTS } from '../../Webhooks/payloads'
 import { inspectUrl } from './ssrf'
 import { readFlag } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Create, update, or delete a repository's webhook.
@@ -62,7 +63,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const operation = String(request.get('operation') ?? 'create').trim().toLowerCase()
@@ -82,7 +83,7 @@ export default new Action({
       const existing = await owned(id, Number(repository.id))
 
       if (!existing)
-        return response.json({ error: 'No such webhook' }, 404)
+        return refuse(request, 'No such webhook', 404)
 
       const { foldAttempts, health, parseDelivery } = await import('./deliveries')
 
@@ -110,7 +111,7 @@ export default new Action({
       const existing = await owned(id, Number(repository.id))
 
       if (!existing)
-        return response.json({ error: 'No such webhook' }, 404)
+        return refuse(request, 'No such webhook', 404)
 
       // The deliveries go with it. They are a log of calls to an endpoint that
       // no longer exists, and keeping them would leave rows pointing at nothing
@@ -122,7 +123,7 @@ export default new Action({
     }
 
     if (operation !== 'create' && operation !== 'update')
-      return response.json({ error: 'An operation is create, update or delete' }, 422)
+      return refuse(request, 'An operation is create, update or delete', 422)
 
     const url = String(request.get('url') ?? '').trim()
     const verdict = inspectUrl(url)
@@ -131,15 +132,15 @@ export default new Action({
     // the one who typed the URL: "that address is on this machine" tells them
     // what to change and a code does not.
     if (!verdict.allowed)
-      return response.json({ error: verdict.message ?? 'That URL cannot be used' }, 422)
+      return refuse(request, verdict.message ?? 'That URL cannot be used', 422)
 
     const events = readEvents(request.get('events'))
     if (!events)
-      return response.json({ error: 'Events must be * or a list this product sends' }, 422)
+      return refuse(request, 'Events must be * or a list this product sends', 422)
 
     const contentType = String(request.get('content_type') ?? 'application/json')
     if (!isEnumInput(contentType, ['application/json', 'application/x-www-form-urlencoded']))
-      return response.json({ error: 'Unsupported webhook content type' }, 422)
+      return refuse(request, 'Unsupported webhook content type', 422)
     const active = request.get('active') === undefined ? true : (readFlag(request.get('active')) ?? false)
 
     if (operation === 'update') {
@@ -147,7 +148,7 @@ export default new Action({
       const existing = await owned(id, Number(repository.id))
 
       if (!existing)
-        return response.json({ error: 'No such webhook' }, 404)
+        return refuse(request, 'No such webhook', 404)
 
       // The secret is only replaced when a new one is sent. An update that
       // blanked it would silently turn signature checking off at the receiver,

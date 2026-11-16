@@ -7,6 +7,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { sendRunEvent } from './awaits'
+import { refuse } from '../Support/forge'
 
 /**
  * Tell a run something happened.
@@ -77,14 +78,14 @@ export default new Action({
     const auth = await authorizeRepository(request, 'workflow:approve')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository } = auth.context
     const number = Number(request.get('number'))
     const name = String(request.get('event') ?? '').trim()
 
     if (!Number.isInteger(number) || number <= 0 || !name)
-      return response.json({ error: 'A run number and an event are required' }, 422)
+      return refuse(request, 'A run number and an event are required', 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -94,12 +95,12 @@ export default new Action({
       .executeTakeFirst()
 
     if (!run)
-      return response.json({ error: 'No such workflow run' }, 404)
+      return refuse(request, 'No such workflow run', 404)
 
     const payload = readPayload(request.get('payload'))
 
     if (payload === undefined)
-      return response.json({ error: 'A payload is an object of values, or nothing at all.' }, 422)
+      return refuse(request, 'A payload is an object of values, or nothing at all.', 422)
 
     const outcome = await sendRunEvent({
       runId: Number(run.id),
@@ -112,7 +113,7 @@ export default new Action({
     })
 
     if (!outcome.ok)
-      return response.json({ error: outcome.error }, outcome.status ?? 422)
+      return refuse(request, outcome.error, outcome.status ?? 422)
 
     /*
      * Recorded, because ending a wait is how a held deployment proceeds - and

@@ -7,7 +7,7 @@ import { projectBoard } from './projects'
 export default new Action({
   name: 'ShowProject', method: 'GET', description: 'Read a project board and its linked issues and pull requests',
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:read')
       if (!auth.ok)
         return response.json({ error: auth.error }, auth.status)

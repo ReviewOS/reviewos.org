@@ -5,6 +5,7 @@ import { list } from '../inputs'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { recordCrossReferences } from './crossReferences'
+import { refuse } from '../Support/forge'
 
 /**
  * Open an issue.
@@ -50,18 +51,18 @@ export default new Action({
     // makes an issue tracker useful to people who are not contributors.
     const auth = await authorizeRepository(request, 'issue:open')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const title = String(request.get('title') ?? '').trim()
     if (!title)
-      return response.json({ error: 'An issue needs a title' }, 422)
+      return refuse(request, 'An issue needs a title', 422)
 
     if (title.length > 255)
-      return response.json({ error: 'That title is too long' }, 422)
+      return refuse(request, 'That title is too long', 422)
 
     const milestoneId = request.get('milestone_id') ? Number(request.get('milestone_id')) : null
     if (milestoneId !== null) {
@@ -75,7 +76,7 @@ export default new Action({
       // A milestone from another repository would show this issue in a list it
       // does not belong to.
       if (!milestone)
-        return response.json({ error: 'No such milestone' }, 422)
+        return refuse(request, 'No such milestone', 422)
     }
 
     const number = await allocateNumber(repository.id)

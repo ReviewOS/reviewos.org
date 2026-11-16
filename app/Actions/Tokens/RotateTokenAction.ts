@@ -5,6 +5,7 @@ import { currentUser } from '../Identity/lookup'
 import { recordTokenAudit } from './audit'
 import { planRotation, ROTATION_OVERLAP_MS } from './rotate'
 import { generateToken } from './secret'
+import { refuse } from '../Support/forge'
 
 /**
  * Issue a replacement for a token, keeping the old one alive for a day.
@@ -45,11 +46,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const id = Number(request.get('id'))
     if (!Number.isInteger(id) || id <= 0)
-      return response.json({ error: 'A token id is required' }, 422)
+      return refuse(request, 'A token id is required', 422)
 
     const existing = await db
       .selectFrom('access_tokens')
@@ -60,7 +61,7 @@ export default new Action({
     // Somebody else's token is reported as missing rather than forbidden, for
     // the same reason a private repository is: the alternative confirms the id.
     if (!existing || Number(existing.user_id) !== user.id)
-      return response.json({ error: 'No such token' }, 404)
+      return refuse(request, 'No such token', 404)
 
     const nowMs = Date.now()
 
@@ -74,7 +75,7 @@ export default new Action({
     })
 
     if (!plan.ok)
-      return response.json({ error: plan.error }, plan.status)
+      return refuse(request, plan.error, plan.status)
 
     // A fresh full lifetime, or one the caller asked for. The replacement is a
     // new token and gets a new token's expiry rather than inheriting whatever
@@ -85,11 +86,11 @@ export default new Action({
       : null
 
     if (requestedExpiry !== null && Number.isNaN(requestedExpiry))
-      return response.json({ error: 'An expiry has to be a date' }, 422)
+      return refuse(request, 'An expiry has to be a date', 422)
 
     const expiry = resolveExpiry(requestedExpiry, nowMs)
     if (!expiry.ok)
-      return response.json({ error: expiry.error }, 422)
+      return refuse(request, expiry.error, 422)
 
     const grants = await db
       .selectFrom('access_token_permissions')

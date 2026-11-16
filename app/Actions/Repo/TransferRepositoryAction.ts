@@ -5,6 +5,7 @@ import { auditFrom } from '../Git/audit'
 import { organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 import { transferRepository } from './transfer'
+import { refuse } from '../Support/forge'
 
 /**
  * Move a repository to a new owner.
@@ -50,32 +51,32 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:transfer')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const toHandle = String(request.get('to') ?? request.get('new_owner') ?? '').trim().toLowerCase()
 
     if (!toHandle)
-      return response.json({ error: 'No new owner given' }, 422)
+      return refuse(request, 'No new owner given', 422)
 
     const target = await resolveOwner(toHandle)
     if (!target)
-      return response.json({ error: 'No such owner' }, 404)
+      return refuse(request, 'No such owner', 404)
 
     // The receiving side. Into an organization needs membership that may create
     // repositories; onto a person, only that person.
     if (target.kind === 'organization') {
       const role = await organizationRoleOf(target.id, user!.id)
       if (!canInOrganization(role, 'repositories:create'))
-        return response.json({ error: `You cannot move a repository into ${target.handle}` }, 403)
+        return refuse(request, `You cannot move a repository into ${target.handle}`, 403)
     }
     else if (target.id !== user!.id) {
-      return response.json({ error: 'A repository can only be transferred to you or to an organization you are in' }, 403)
+      return refuse(request, 'A repository can only be transferred to you or to an organization you are in', 403)
     }
 
     const result = await transferRepository(Number(repository.id), target, { actorId: user?.id ?? null, ...await auditFrom(request) })
     if (!result.ok)
-      return response.json({ error: result.error }, result.status)
+      return refuse(request, result.error, result.status)
 
     return response.json({ id: result.id, owner: result.owner, name: result.name, moved_from: result.moved_from })
   },

@@ -1,8 +1,7 @@
 import { Action } from '@stacksjs/actions'
-import { response } from '@stacksjs/router'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError, positiveId } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, positiveId, refuse } from '../Support/forge'
 import { dbTimestamp } from '../Support/sql'
 import { changeProject, projectColumn, projectUrl } from './projects'
 
@@ -10,10 +9,10 @@ export default new Action({
   name: 'AddProjectItem', method: 'POST', description: 'Add an issue or pull request to a project board',
   validations: { number: { rule: coerced }, column_id: { rule: coerced } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:move')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const repositoryId = Number(auth.context.repository.id)
       const projectId = positiveId(request.getParam('project'))
       const result = await changeProject(repositoryId, projectId, async (tx) => {

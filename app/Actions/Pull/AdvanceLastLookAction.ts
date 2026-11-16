@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { dbTimestamp } from '../Support/sql'
+import { refuse } from '../Support/forge'
 
 /**
  * "I have read this round" - advancing last-looked without a verdict.
@@ -41,7 +42,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const number = Number(request.get('number'))
@@ -49,7 +50,7 @@ export default new Action({
     // `pull:review` is on the read rung, which a public repository grants to
     // everybody including nobody - and a checkpoint has to belong to somebody.
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const pullRequest = await db
       .selectFrom('pull_requests')
@@ -59,11 +60,11 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     const head = String(pullRequest.head_sha ?? '').trim()
     if (!head)
-      return response.json({ error: 'This pull request has no head to catch up to' }, 409)
+      return refuse(request, 'This pull request has no head to catch up to', 409)
 
     /*
      * Through the builder's own upsert rather than written out.

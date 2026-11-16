@@ -3,6 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { revokeAccessToken } from './issue'
 import { organizationsReachedBy } from './organization'
+import { refuse } from '../Support/forge'
 
 /**
  * Revoke a token.
@@ -49,11 +50,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const id = Number(request.get('id'))
     if (!Number.isInteger(id) || id <= 0)
-      return response.json({ error: 'A token id is required' }, 422)
+      return refuse(request, 'A token id is required', 422)
 
     const token = await db
       .selectFrom('access_tokens')
@@ -62,7 +63,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (!token)
-      return response.json({ error: 'No such token' }, 404)
+      return refuse(request, 'No such token', 404)
 
     const ownerId = Number(token.user_id)
     const mine = ownerId === user.id
@@ -80,7 +81,7 @@ export default new Action({
     // reason a private repository is: the alternative confirms a given id
     // exists, and token ids are small integers.
     if (!mine && asAdministrator.length === 0)
-      return response.json({ error: 'No such token' }, 404)
+      return refuse(request, 'No such token', 404)
 
     if (token.revoked_at)
       return response.json({ id, revoked_at: token.revoked_at, already_revoked: true })

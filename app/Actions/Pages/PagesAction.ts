@@ -8,6 +8,7 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import pages from '../../../config/pages'
 import { ensureSite, siteFor } from './site'
+import { refuse } from '../Support/forge'
 
 /**
  * Reading and changing a repository's published site.
@@ -56,7 +57,7 @@ export default new Action({
     const auth = await authorizeRepository(request, operation === 'show' ? 'repository:read' : 'repository:settings')
 
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const repository = auth.context.repository
     const repositoryId = Number(repository.id)
@@ -76,7 +77,7 @@ export default new Action({
      * for a build, and finds a URL that was never going to answer.
      */
     if (!pages.domain)
-      return response.json({ error: 'This instance serves no Pages host. An operator sets PAGES_DOMAIN.' }, 422)
+      return refuse(request, 'This instance serves no Pages host. An operator sets PAGES_DOMAIN.', 422)
 
     const site = await ensureSite(repositoryId)
     const changes: Record<string, unknown> = {}
@@ -95,10 +96,10 @@ export default new Action({
 
       if (domain) {
         if (!pages.customDomains)
-          return response.json({ error: 'This instance does not serve custom domains for Pages.' }, 422)
+          return refuse(request, 'This instance does not serve custom domains for Pages.', 422)
 
         if (!isDomain(domain))
-          return response.json({ error: 'That is not a domain name.' }, 422)
+          return refuse(request, 'That is not a domain name.', 422)
 
         // Refused rather than overwritten. A domain answered by two
         // repositories is a hijack, and the second one to claim it must not
@@ -111,7 +112,7 @@ export default new Action({
           .catch(() => null)
 
         if (taken && Number(taken.repository_id) !== repositoryId)
-          return response.json({ error: 'Another repository already publishes at that domain.' }, 409)
+          return refuse(request, 'Another repository already publishes at that domain.', 409)
       }
 
       changes.domain = domain || null

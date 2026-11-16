@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { readDeployKey } from './deploy'
+import { refuse } from '../Support/forge'
 
 /**
  * Add or remove a repository's deploy keys.
@@ -39,7 +40,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
 
@@ -55,7 +56,7 @@ export default new Action({
     if (operation === 'delete') {
       const id = Number(request.get('id') ?? 0)
       if (!Number.isInteger(id) || id <= 0)
-        return response.json({ error: 'Which key?' }, 422)
+        return refuse(request, 'Which key?', 422)
 
       // Read for the record. The delete below is still one statement scoped to
       // the repository, so the property this comment used to describe on its
@@ -96,11 +97,11 @@ export default new Action({
     }
 
     if (operation !== 'create')
-      return response.json({ error: `Unknown operation: ${operation}` }, 422)
+      return refuse(request, `Unknown operation: ${operation}`, 422)
 
     const parsed = await readDeployKey(String(request.get('key') ?? ''))
     if (!parsed.ok)
-      return response.json({ error: parsed.message }, parsed.status)
+      return refuse(request, parsed.message, parsed.status)
 
     // Off unless asked for. A key that can rewrite history from a build server
     // nobody is watching should have to be requested, not defaulted into.

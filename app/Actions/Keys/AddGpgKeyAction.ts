@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { readGpgKey } from './gpg'
+import { refuse } from '../Support/forge'
 
 /**
  * Register a GPG public key, so signed commits can be verified as this account's.
@@ -33,11 +34,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const parsed = await readGpgKey(String(request.get('key') ?? ''))
     if (!parsed.ok)
-      return response.json({ error: parsed.message }, 422)
+      return refuse(request, parsed.message, 422)
 
     const clash = await db
       .selectFrom('gpg_keys')
@@ -46,11 +47,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (clash) {
-      return response.json({
-        error: Number(clash.user_id) === user.id
-          ? 'You have already added this key.'
-          : 'That key is already registered to another account.',
-      }, 409)
+      return refuse(request, Number(clash.user_id) === user.id ? 'You have already added this key.' : 'That key is already registered to another account.', 409)
     }
 
     const created = await db

@@ -6,6 +6,7 @@ import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Add somebody to an organization.
@@ -34,30 +35,30 @@ export default new Action({
   async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const organizationId = Number(request.get('organization_id'))
     const role = String(request.get('role') ?? 'member')
 
     if (!isEnumInput(role, ['owner', 'admin', 'member']))
-      return response.json({ error: 'Unknown role' }, 422)
+      return refuse(request, 'Unknown role', 422)
 
     const actorRole = await organizationRoleOf(organizationId, actor.id)
     if (!canInOrganization(actorRole, 'members:manage'))
-      return response.json({ error: 'Forbidden' }, 403)
+      return refuse(request, 'Forbidden', 403)
 
     if (role === 'owner' && actorRole !== 'owner')
-      return response.json({ error: 'Only an owner can appoint another owner' }, 403)
+      return refuse(request, 'Only an owner can appoint another owner', 403)
 
     const handle = normalizeHandle(String(request.get('handle') ?? ''))
     const invitee = await db.selectFrom('users').select(['id']).where('handle', '=', handle).executeTakeFirst()
     if (!invitee)
-      return response.json({ error: 'No such user' }, 404)
+      return refuse(request, 'No such user', 404)
 
     const inviteeId = Number(invitee.id)
     const existing = await organizationRoleOf(organizationId, inviteeId)
     if (existing)
-      return response.json({ error: 'Already a member', role: existing }, 409)
+      return refuse(request, 'Already a member', 409, { body: { role: existing } })
 
     /*
      * The row is written with a null `joined_at`, which is what "invited" is.

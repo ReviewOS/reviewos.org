@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { refusal, spendFor } from '../../Api/token-limits'
 import { schema, isEnumInput } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
+import { refuse } from '../Support/forge'
 
 const STATES = ['approved', 'changes_requested', 'commented'] as const
 
@@ -60,11 +61,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     /*
      * One review, one unit - not one per comment it carries.
@@ -80,7 +81,7 @@ export default new Action({
 
     const state = String(request.get('state') ?? 'commented')
     if (!isEnumInput(state, STATES))
-      return response.json({ error: 'Unknown review state' }, 422)
+      return refuse(request, 'Unknown review state', 422)
 
     const number = Number(request.get('number'))
     const pullRequest = await db
@@ -92,15 +93,15 @@ export default new Action({
       .executeTakeFirst()
 
     if (!pullRequest)
-      return response.json({ error: 'No such pull request' }, 404)
+      return refuse(request, 'No such pull request', 404)
 
     if (pullRequest.state !== 'open')
-      return response.json({ error: 'This pull request is no longer open' }, 409)
+      return refuse(request, 'This pull request is no longer open', 409)
 
     // Approving your own work defeats the point of requiring an approval.
     // Commenting on it does not, so only the two deciding states are refused.
     if (Number(pullRequest.author_id) === user.id && state !== 'commented')
-      return response.json({ error: 'You cannot approve or request changes on your own pull request' }, 422)
+      return refuse(request, 'You cannot approve or request changes on your own pull request', 422)
 
     /*
      * And the same rule for an automated repair, keyed on who proposed it.
@@ -125,7 +126,7 @@ export default new Action({
       })
 
       if (refused)
-        return response.json({ error: refused }, 422)
+        return refuse(request, refused, 422)
     }
 
     const body = String(request.get('body') ?? '').trim()
@@ -139,13 +140,13 @@ export default new Action({
      */
     const inline = readComments(request)
     if (!inline.ok)
-      return response.json({ error: inline.error, comments: inline.problems }, 422)
+      return refuse(request, inline.error, 422, { body: { comments: inline.problems } })
 
     // A comment review with neither a body nor comments says nothing at all.
     // With comments it is a review whose remarks are the body, which is
     // ordinary and should not be refused.
     if (state === 'commented' && !body && inline.comments.length === 0)
-      return response.json({ error: 'A comment review needs a body or at least one comment' }, 422)
+      return refuse(request, 'A comment review needs a body or at least one comment', 422)
 
     const created = await db
       .insertInto('pull_request_reviews')

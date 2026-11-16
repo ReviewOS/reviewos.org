@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { deviceName, isChallenge, isOpaque, loopbackPort, loopbackUrl, sealCliGrant } from './cliLogin'
+import { refuse } from '../Support/forge'
 
 /**
  * Approve, or refuse, a command line that asked to sign in.
@@ -40,16 +41,16 @@ export default new Action({
   async handle(request: RequestInstance) {
     const credential = String(request.bearerToken?.() ?? '')
     if (credential.startsWith('ros_') || (request as any).__fineGrainedToken)
-      return response.json({ error: 'An access token cannot approve a sign-in. Open the link in a browser you are signed in to.' }, 403)
+      return refuse(request, 'An access token cannot approve a sign-in. Open the link in a browser you are signed in to.', 403)
 
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const challenge = request.get('challenge')
     const state = request.get('state')
     if (!isChallenge(challenge) || !isOpaque(state))
-      return response.json({ error: 'That link did not come from `reviewos login`. Run it again.' }, 422)
+      return refuse(request, 'That link did not come from `reviewos login`. Run it again.', 422)
 
     const device = deviceName(request.get('device'))
     const port = loopbackPort(request.get('port'))

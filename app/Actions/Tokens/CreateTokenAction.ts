@@ -52,7 +52,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const caller = await currentUser(request)
     if (!caller)
-      return refuse(request, 'Unauthenticated', 401)
+      return refuseTokenForm(request, 'Unauthenticated', 401)
 
     /*
      * A token can be issued *for* a machine account by somebody who administers
@@ -69,7 +69,7 @@ export default new Action({
      */
     const machine = await machineAccountFor(request, caller.id)
     if (machine.error)
-      return refuse(request, machine.error, machine.status)
+      return refuseTokenForm(request, machine.error, machine.status)
 
     const user = machine.account ?? caller
 
@@ -97,7 +97,7 @@ export default new Action({
     })
 
     if (!issued.ok)
-      return refuse(request, issued.error, issued.status)
+      return refuseTokenForm(request, issued.error, issued.status)
 
     // The only time the secret is ever returned.
     return response.json(issued.token, 201)
@@ -106,6 +106,13 @@ export default new Action({
 
 /**
  * A refusal, in the shape the caller can read.
+ *
+ * This page's own, kept rather than folded into `refuse` in
+ * `app/Actions/Support/forge.ts` - which every other form now uses - because
+ * the tokens page renders the message *inside* the form from `error`, which is
+ * the better place when a page has one form and eight fields to re-fill. The
+ * shared helper puts it in a bar at the top of the content from `form_error`,
+ * since the shell cannot know where a given page's form is.
  *
  * JSON for a program, and for a browser the form back with the reason in the
  * query - the same `wantsHtml` split `LoginAction` and `UpdateProfileAction`
@@ -126,7 +133,7 @@ export default new Action({
  * credential into the URL, the browser history and every access log between
  * here and the reader.
  */
-function refuse(request: RequestInstance, error: string | undefined, status = 422): Response {
+function refuseTokenForm(request: RequestInstance, error: string | undefined, status = 422): Response {
   const message = error ?? 'That did not work'
 
   if (wantsHtml(request)) {

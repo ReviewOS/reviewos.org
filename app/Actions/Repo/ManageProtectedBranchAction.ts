@@ -5,6 +5,7 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from './authorize'
 import { decideRule, settingsOf } from './branchRules'
 import { coerced } from '../inputs'
+import { refuse } from '../Support/forge'
 
 /**
  * Who may push, as this endpoint's two spellings of it.
@@ -106,7 +107,7 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'branch:protect')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user } = auth.context
     const repositoryId = Number(repository.id)
@@ -121,7 +122,7 @@ export default new Action({
       const pattern = String(request.get('pattern') ?? '').trim()
 
       if (!pattern)
-        return response.json({ error: 'Which rule?' }, 422)
+        return refuse(request, 'Which rule?', 422)
 
       // Read for the record. Afterwards there is nothing left to say what the
       // rule required, and "a rule was removed" answers none of the questions
@@ -134,7 +135,7 @@ export default new Action({
         .executeTakeFirst()
 
       if (!existing)
-        return response.json({ error: 'No rule for that pattern' }, 404)
+        return refuse(request, 'No rule for that pattern', 404)
 
       await db
         .deleteFrom('protected_branches')
@@ -163,7 +164,7 @@ export default new Action({
     }
 
     if (operation !== 'save')
-      return response.json({ error: `Unknown operation: ${operation}` }, 422)
+      return refuse(request, `Unknown operation: ${operation}`, 422)
 
     const decision = decideRule({
       pattern: request.get('pattern'),
@@ -190,7 +191,7 @@ export default new Action({
     })
 
     if (!decision.ok)
-      return response.json({ error: decision.error }, decision.status)
+      return refuse(request, decision.error, decision.status)
 
     const rule = decision.rule
 

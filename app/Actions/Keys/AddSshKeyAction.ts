@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { fingerprintOf, parseSshPublicKey } from './ssh'
+import { refuse } from '../Support/forge'
 
 /**
  * Register a public key for pushing.
@@ -30,12 +31,12 @@ export default new Action({
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const raw = String(request.get('key') ?? '')
     const parsed = parseSshPublicKey(raw)
     if (!parsed.ok)
-      return response.json({ error: parsed.message }, 422)
+      return refuse(request, parsed.message, 422)
 
     const fingerprint = await fingerprintOf(parsed.body)
 
@@ -46,11 +47,7 @@ export default new Action({
       .executeTakeFirst()
 
     if (clash) {
-      return response.json({
-        error: Number(clash.user_id) === user.id
-          ? 'You have already added this key.'
-          : 'That key is already registered to another account.',
-      }, 409)
+      return refuse(request, Number(clash.user_id) === user.id ? 'You have already added this key.' : 'That key is already registered to another account.', 409)
     }
 
     const title = String(request.get('title') ?? '').trim() || parsed.comment || 'SSH key'

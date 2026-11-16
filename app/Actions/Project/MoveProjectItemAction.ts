@@ -1,9 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
-import { response } from '@stacksjs/router'
 import { coerced } from '../inputs'
 import { authorizeRepository } from '../Repo/authorize'
-import { forgeResponse, forgeResult, ForgeError, positiveId } from '../Support/forge'
+import { forgeResponse, forgeResult, ForgeError, positiveId, refuse } from '../Support/forge'
 import { dbTimestamp } from '../Support/sql'
 import { changeProject, projectColumn, projectUrl } from './projects'
 
@@ -11,10 +10,10 @@ export default new Action({
   name: 'MoveProjectItem', method: 'POST', description: 'Move or reorder a project card with a revision check',
   validations: { column_id: { rule: coerced }, before_item_id: { rule: coerced }, revision: { rule: coerced } },
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'project:move')
       if (!auth.ok)
-        return response.json({ error: auth.error }, auth.status)
+        return refuse(request, auth.error, auth.status)
       const projectId = positiveId(request.getParam('project'))
       const itemId = positiveId(request.getParam('item'))
       const columnId = positiveId(request.get('column_id'))

@@ -7,7 +7,7 @@ import { packageName, packagePath, packageVersion, pantryRequest, requirePackage
 export default new Action({
   name: 'DownloadPackage', method: 'GET', description: 'Download a Pantry artifact through repository access control',
   async handle(request: RequestInstance) {
-    return forgeResponse(async () => {
+    return forgeResponse(request, async () => {
       const auth = await authorizeRepository(request, 'package:read')
       if (!auth.ok)
         return response.json({ error: auth.error }, auth.status)

@@ -7,6 +7,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { recountComments } from '../Repo/counters'
 import { recordCrossReferences } from './crossReferences'
 import { mayComment } from './state'
+import { refuse } from '../Support/forge'
 
 /**
  * Comment on an issue or a pull request.
@@ -46,11 +47,11 @@ export default new Action({
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'issue:comment')
     if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+      return refuse(request, auth.error, auth.status)
 
     const { repository, user, can } = auth.context
     if (!user)
-      return response.json({ error: 'Unauthenticated' }, 401)
+      return refuse(request, 'Unauthenticated', 401)
 
     const written = String(request.get('body') ?? '').trim()
     const files = request.getFiles?.('attachments') ?? []
@@ -59,7 +60,7 @@ export default new Action({
     // would mean somebody attaching the picture that explains the bug has to
     // type "here" first.
     if (!written && files.length === 0)
-      return response.json({ error: 'A comment needs a body' }, 422)
+      return refuse(request, 'A comment needs a body', 422)
 
     const number = Number(request.get('number'))
     const issue = await db
@@ -70,10 +71,10 @@ export default new Action({
       .executeTakeFirst()
 
     if (!issue)
-      return response.json({ error: 'No such issue' }, 404)
+      return refuse(request, 'No such issue', 404)
 
     if (!mayComment({ locked: Boolean(issue.locked), isMaintainer: can('issue:close') }))
-      return response.json({ error: 'This conversation is locked' }, 423)
+      return refuse(request, 'This conversation is locked', 423)
 
     // Stored now, and their markdown appended to what was written. The page
     // runs no client-side JavaScript, so there is no editor to insert a link
@@ -86,7 +87,7 @@ export default new Action({
 
     const body = uploaded.body
     if (!body)
-      return response.json({ error: uploaded.refused[0] ?? 'A comment needs a body' }, 422)
+      return refuse(request, uploaded.refused[0] ?? 'A comment needs a body', 422)
 
     const created = await db
       .insertInto('issue_comments')
