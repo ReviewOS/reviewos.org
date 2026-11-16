@@ -471,12 +471,45 @@ describe('a job producing faster than the instance wants to store', () => {
        * the first chunk the start of the window rather than the end of
        * somebody else's.
        */
-      await Bun.sleep(1100)
+      /*
+       * And the pair has to land inside one window, which is not free on a
+       * slow disk.
+       *
+       * The window is a second wide and resets after a second of quiet, so if
+       * the *first* append takes longer than that, the second one starts a
+       * fresh window and is accepted - the behaviour this test is asserting
+       * is absent for reasons that have nothing to do with the behaviour.
+       * That is what happened on CI: the insert was logged at 1048ms and
+       * `second.ok` came back true.
+       *
+       * So the pair is attempted until both halves fall in one window, rather
+       * than once and hopefully. Bounded, because if it never happens the
+       * machine is too slow for this test to mean anything and saying so is
+       * better than looping.
+       */
+      let first: Awaited<ReturnType<typeof appendLog>> | undefined
+      let second: Awaited<ReturnType<typeof appendLog>> | undefined
 
-      const first = await appendLog({ jobId: job, sequence: 1, content: chunk, stream: 'stdout' })
-      const second = await appendLog({ jobId: job, sequence: 2, content: chunk, stream: 'stdout' })
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await Bun.sleep(1100)
 
-      expect(first.ok).toBe(true)
+        const startedAt = Date.now()
+        first = await appendLog({ jobId: job, sequence: 1, content: chunk, stream: 'stdout' })
+        const windowLeft = 1000 - (Date.now() - startedAt)
+
+        // The first append ate the window; nothing can be concluded from a
+        // second one, so take the pair again.
+        if (windowLeft <= 0)
+          continue
+
+        second = await appendLog({ jobId: job, sequence: 2, content: chunk, stream: 'stdout' })
+        break
+      }
+
+      expect(first?.ok).toBe(true)
+      expect(second).toBeDefined()
+      if (!second)
+        return
 
       expect(second.ok).toBe(false)
       expect(Number(second.retryAfterMs)).toBeGreaterThan(0)
