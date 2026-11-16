@@ -6,7 +6,7 @@ import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveVariables, settingsFor } from './variables'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Variables at four levels, and where each effective value came from.
@@ -88,10 +88,10 @@ export default new Action({
        */
       const resolved = resolveVariables(await settingsFor(repositoryId))
 
-      return response.json({
+      return succeed(request, {
         variables: resolved,
         note: 'A workflow file\'s `env:` beats all of these, per workflow.',
-      })
+      }, '')
     }
 
     const key = String(request.get('key') ?? '').trim()
@@ -156,7 +156,7 @@ export default new Action({
         detail: { key, scope, scope_id: scopeId },
       }).catch(() => null)
 
-      return response.json({ variables: resolveVariables(await settingsFor(repositoryId)) })
+      return succeed(request, { variables: resolveVariables(await settingsFor(repositoryId)) }, '')
     }
 
     const value = String(request.get('value') ?? '')
@@ -190,7 +190,7 @@ export default new Action({
     const resolved = resolveVariables(await settingsFor(repositoryId))
     const effective = resolved.find(one => one.key === key)
 
-    return response.json({
+    return succeed(request, {
       variables: resolved,
       /*
        * Said back when the value just written is not the one runs will see.
@@ -202,6 +202,6 @@ export default new Action({
       note: effective && effective.scope !== scope
         ? `Runs still see \`${effective.value}\`, set at the ${effective.scope} level.`
         : undefined,
-    })
+    }, '')
   },
 })

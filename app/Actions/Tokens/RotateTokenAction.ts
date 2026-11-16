@@ -5,7 +5,7 @@ import { currentUser } from '../Identity/lookup'
 import { recordTokenAudit } from './audit'
 import { planRotation, ROTATION_OVERLAP_MS } from './rotate'
 import { generateToken } from './secret'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Issue a replacement for a token, keeping the old one alive for a day.
@@ -172,7 +172,7 @@ export default new Action({
       },
     })
 
-    return response.json({
+    return succeed(request, {
       id: replacementId,
       replaces: id,
       name: String(existing.name),
@@ -189,7 +189,7 @@ export default new Action({
       previous_expires_at: oldExpiresAt,
       overlap_ms: Math.max(0, plan.oldExpiresAtMs - nowMs),
       overlap_default_ms: ROTATION_OVERLAP_MS,
-    }, 201)
+    }, '', { status: 201 })
   },
 })
 

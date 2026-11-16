@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from './authorize'
 import { decideTopics, topicChanges } from './topics'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Set the topics on a repository.
@@ -62,13 +62,13 @@ export default new Action({
     for (const topic of add)
       await db.insertInto('repo_topics').values({ repository_id: repositoryId, topic }).execute()
 
-    return response.json({
+    return succeed(request, {
       topics: decision.topics,
       added: add,
       removed: remove,
       // Reported rather than dropped quietly: somebody who typed a topic that
       // could not be used has to be told, or they stop trusting the field.
       rejected: decision.rejected,
-    })
+    }, 'Topics saved')
   },
 })

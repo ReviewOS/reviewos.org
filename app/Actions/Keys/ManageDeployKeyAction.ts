@@ -4,7 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { readDeployKey } from './deploy'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Add or remove a repository's deploy keys.
@@ -93,7 +93,7 @@ export default new Action({
         })
       }
 
-      return response.json({ ok: true })
+      return succeed(request, { ok: true }, 'Deploy key removed')
     }
 
     if (operation !== 'create')
@@ -133,6 +133,6 @@ export default new Action({
       detail: { kind: 'deploy', title, fingerprint: parsed.fingerprint, can_write: canWrite },
     })
 
-    return response.json({ id: Number(created?.id), title, fingerprint: parsed.fingerprint, canWrite }, 201)
+    return succeed(request, { id: Number(created?.id), title, fingerprint: parsed.fingerprint, canWrite }, 'Deploy key added', { status: 201 })
   },
 })

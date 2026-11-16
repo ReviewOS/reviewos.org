@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountComments } from '../Repo/counters'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Delete a comment.
@@ -70,6 +70,6 @@ export default new Action({
 
     await recountComments(Number(issue.id))
 
-    return response.json({ id: Number(comment.id), deleted: true })
+    return succeed(request, { id: Number(comment.id), deleted: true }, 'Comment deleted')
   },
 })

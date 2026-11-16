@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { revokeAccessToken } from './issue'
 import { organizationsReachedBy } from './organization'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Revoke a token.
@@ -84,7 +84,7 @@ export default new Action({
       return refuse(request, 'No such token', 404)
 
     if (token.revoked_at)
-      return response.json({ id, revoked_at: token.revoked_at, already_revoked: true })
+      return succeed(request, { id, revoked_at: token.revoked_at, already_revoked: true }, 'That token was already revoked')
 
     const reason = String(request.get('reason') ?? '').trim() || null
 
@@ -103,11 +103,11 @@ export default new Action({
       },
     })
 
-    return response.json({
+    return succeed(request, {
       id,
       revoked_at: revoked.revokedAt,
       already_revoked: revoked.alreadyRevoked,
       ...(mine ? {} : { revoked_as_administrator: true }),
-    })
+    }, 'Token revoked')
   },
 })

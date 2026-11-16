@@ -3,7 +3,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { defaultDelivery, isDelivery, PREFERENCE_CHANNELS, PREFERENCE_EVENTS } from './preferences'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Set how one kind of event reaches somebody on one channel.
@@ -97,7 +97,7 @@ export default new Action({
     if (wantsHtml(request))
       return response.redirect('/settings/notifications')
 
-    return response.json({ event, channel, delivery })
+    return succeed(request, { event, channel, delivery }, 'Notification preferences saved')
   },
 })
 

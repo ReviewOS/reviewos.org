@@ -4,7 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { fingerprintOf, parseSshPublicKey } from './ssh'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Register a public key for pushing.
@@ -78,6 +78,6 @@ export default new Action({
       detail: { kind: 'ssh', title, fingerprint, key_type: parsed.type },
     })
 
-    return response.json({ id: Number(created?.id), title, fingerprint }, 201)
+    return succeed(request, { id: Number(created?.id), title, fingerprint }, 'SSH key added', { status: 201 })
   },
 })

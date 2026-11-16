@@ -8,7 +8,7 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import pages from '../../../config/pages'
 import { ensureSite, siteFor } from './site'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Reading and changing a repository's published site.
@@ -65,7 +65,7 @@ export default new Action({
     if (operation === 'show') {
       const site = await siteFor(repositoryId)
 
-      return response.json({ pages: describe(site, String(repository.name ?? ''), await ownerHandleOf(repository)) })
+      return succeed(request, { pages: describe(site, String(repository.name ?? ''), await ownerHandleOf(repository)) }, 'Pages settings saved')
     }
 
     /*
@@ -144,7 +144,7 @@ export default new Action({
 
     const updated = await siteFor(repositoryId)
 
-    return response.json({ pages: describe(updated, String(repository.name ?? ''), await ownerHandleOf(repository)) })
+    return succeed(request, { pages: describe(updated, String(repository.name ?? ''), await ownerHandleOf(repository)) }, 'Pages settings saved')
   },
 })
 

@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { milestoneFields } from './labelSet'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Create, edit, close, reopen or delete a milestone.
@@ -76,7 +76,7 @@ export default new Action({
 
       await db.updateTable('milestones').set(fields.value).where('id', '=', id).execute()
 
-      return response.json({ id, ...fields.value })
+      return succeed(request, { id, ...fields.value }, 'Milestone updated')
     }
 
     if (existing.some(collides))
@@ -92,7 +92,7 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
-    return response.json({ id: Number(created?.id), ...fields.value, state: 'open' }, 201)
+    return succeed(request, { id: Number(created?.id), ...fields.value, state: 'open' }, 'Milestone created', { status: 201 })
   },
 })
 
@@ -112,7 +112,7 @@ async function setState(request: any, repository: any, state: 'open' | 'closed')
   // Already there is success, not an error: two people closing the same
   // milestone should not produce a failure for the slower one.
   if (String(milestone.state) === state)
-    return response.json({ id, state })
+    return succeed(request, { id, state }, 'Milestone updated')
 
   await db.updateTable('milestones').set({ state }).where('id', '=', id).execute()
 
@@ -136,5 +136,5 @@ async function remove(request: any, repository: any) {
   await db.updateTable('issues').set({ milestone_id: null }).where('milestone_id', '=', id).execute()
   await db.deleteFrom('milestones').where('id', '=', id).execute()
 
-  return response.json({ deleted: id })
+  return succeed(request, { deleted: id }, 'Milestone deleted')
 }

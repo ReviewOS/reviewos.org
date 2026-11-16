@@ -6,7 +6,7 @@ import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Create a machine account: an account that holds tokens and nothing else.
@@ -139,7 +139,7 @@ export default new Action({
       })
       .execute()
 
-    return response.json({
+    return succeed(request, {
       id: userId,
       handle,
       name,
@@ -147,6 +147,6 @@ export default new Action({
       // Said out loud in the response, because the next thing the caller does
       // is look for a password to put somewhere.
       note: 'This account cannot sign in. Issue it an access token to give it access.',
-    }, 201)
+    }, 'Machine account created', { status: 201 })
   },
 })

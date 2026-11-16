@@ -75,6 +75,51 @@ function formPage(request: RequestInstance, fallback: string): string {
 }
 
 /**
+ * A success, in the shape the caller asked for.
+ *
+ * The other half of {@link refuse}, and the half missed first time round.
+ * Revoking a token from the settings page worked perfectly and left the
+ * browser looking at
+ * `{"id":107,"revoked_at":"2026-11-16T11:33:52.401Z","already_revoked":false}`
+ * - a working feature that reads as a broken one, and worse than a refusal
+ * doing it, because nothing tells the person it went through at all.
+ *
+ * A program gets the body it always got; a browser goes back to the page it
+ * posted from with a sentence saying what happened, which the layout renders.
+ * `location` is for the cases where "back" is the wrong place - a repository
+ * that was just deleted, a page that was just renamed - and defaults to the
+ * referring page.
+ *
+ * The message is written per call site on purpose. "Done" tells somebody
+ * nothing; "Token revoked" tells them which of the three controls on that page
+ * just fired, which is the whole reason for sending them back rather than
+ * leaving them on JSON.
+ */
+export function succeed(
+  request: RequestInstance,
+  body: unknown,
+  message: string,
+  options: { location?: string, status?: 200 | 201 } = {},
+): Response {
+  if (!wantsHtml(request))
+    return response.json(body, options.status ?? 200)
+
+  const target = options.location ?? formPage(request, '/')
+  const [path = '/', query = ''] = target.split('?')
+  const params = new URLSearchParams(query)
+
+  // An empty message means "nothing to announce": a read reached through a
+  // POST - listing a repository's secrets, say - still belongs back on its
+  // page rather than on JSON, but "Secrets listed" is noise.
+  if (message)
+    params.set('form_notice', message)
+
+  const query2 = params.toString()
+
+  return response.redirect(query2 ? `${path}?${query2}` : path, 303)
+}
+
+/**
  * A refusal, in the shape the caller asked for.
  *
  * **A browser form submit must never land on a page of JSON.** These endpoints
@@ -91,11 +136,12 @@ function formPage(request: RequestInstance, fallback: string): string {
  * copy per action, because there are around fifty of these call sites and a
  * split implemented fifty times is a split that is wrong in a few of them.
  *
- * `form_error` rather than `error` because five pages - login, register,
- * forgotten password, profile and tokens - already read `error` from the query
- * and render it themselves, in a deliberate spot inside their form. Sharing the
- * key would show those pages the same message twice. Those stay as they are;
- * everything else is covered by the layout.
+ * `form_error` rather than `error` because login, register, forgotten password
+ * and profile already read `error` from the query and render it themselves, in
+ * a deliberate spot inside their own form, which is the better place on a page
+ * whose only content is that form. Sharing the key would show them the same
+ * message twice. Those stay as they are; everything else is covered by the
+ * layout.
  */
 export function refuse(
   request: RequestInstance,
@@ -122,7 +168,7 @@ export function refuse(
   if (status === 401)
     return response.redirect(`/login?next=${encodeURIComponent(target)}`, 303)
 
-  const [path, query = ''] = target.split('?')
+  const [path = '/', query = ''] = target.split('?')
   const params = new URLSearchParams(query)
   params.set('form_error', reason)
 

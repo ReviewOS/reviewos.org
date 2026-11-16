@@ -9,7 +9,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { environmentIdOf, putSecret, secretNames } from './secrets'
 import { parseReference } from './secretStore'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Setting and removing secrets. There is deliberately no way to read one.
@@ -91,12 +91,12 @@ export default new Action({
     if (operation === 'list') {
       const names = await secretNames(repositoryId)
 
-      return response.json({
+      return succeed(request, {
         secrets: names.map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })),
         // Said in the answer rather than only in the documentation, because
         // this is the endpoint somebody reaches for when they want the value.
         note: 'Values are never returned. A job receives them at a claim.',
-      })
+      }, '')
     }
 
     const key = String(request.get('key') ?? '').trim()
@@ -187,7 +187,7 @@ export default new Action({
       if (String(request.headers?.get?.('accept') ?? '').includes('text/html'))
         return response.redirect(`/${encodeURIComponent(String(request.get('owner')))}/${encodeURIComponent(String(repository.name))}/settings#secrets`, 303)
 
-      return response.json({ secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })) })
+      return succeed(request, { secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })) }, '')
     }
 
     const value = String(request.get('value') ?? '')

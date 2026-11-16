@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { dbTimestamp } from '../Support/sql'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * "I have read this round" - advancing last-looked without a verdict.
@@ -91,6 +91,6 @@ export default new Action({
       ['head_sha', 'updated_at'],
     )
 
-    return response.json({ caughtUpTo: head })
+    return succeed(request, { caughtUpTo: head }, 'Last look advanced')
   },
 })

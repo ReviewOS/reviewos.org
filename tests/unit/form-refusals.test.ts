@@ -14,7 +14,7 @@
 // whole change is supposed to be invisible to everything that is not a browser.
 
 import { describe, expect, test } from 'bun:test'
-import { refuse } from '../../app/Actions/Support/forge'
+import { refuse, succeed } from '../../app/Actions/Support/forge'
 
 /** A request as the router hands one to an action, with the headers that decide this. */
 function asRequest(headers: Record<string, string>, url = 'http://reviewos.test/api/user/keys'): any {
@@ -119,5 +119,46 @@ describe('the message itself', () => {
 
     const location = new URL(String(answer.headers.get('location')), 'http://reviewos.test')
     expect(location.searchParams.get('form_error')).toBe('A & B = C?')
+  })
+})
+
+describe('a success takes the shape the caller asked for too', () => {
+  // The half that was missed first time round. Revoking a token worked and
+  // left the browser on `{"id":107,"revoked_at":"...","already_revoked":false}`
+  // - a working feature that reads as a broken one, and worse than a refusal
+  // doing it, because nothing says it went through.
+  test('a browser goes back to its page with a sentence saying what happened', () => {
+    const answer = succeed(browser('http://reviewos.test/settings/tokens'), { id: 107 }, 'Token revoked')
+
+    expect(answer.status).toBe(303)
+    expect(answer.headers.get('location')).toBe('/settings/tokens?form_notice=Token+revoked')
+  })
+
+  test('a program gets the body, unchanged', async () => {
+    const answer = succeed(client(), { id: 107, revoked_at: 'now', already_revoked: false }, 'Token revoked')
+
+    expect(answer.status).toBe(200)
+    expect(await answer.json()).toEqual({ id: 107, revoked_at: 'now', already_revoked: false })
+  })
+
+  test('a created thing keeps its 201 for a program', async () => {
+    const answer = succeed(client(), { id: 9 }, 'Label created', { status: 201 })
+
+    expect(answer.status).toBe(201)
+  })
+
+  test('an empty message sends the browser back with nothing to announce', () => {
+    // A read reached through a POST - listing a repository's secrets - belongs
+    // back on its page rather than on JSON, but "Secrets listed" is noise.
+    const answer = succeed(browser('http://reviewos.test/acme/api/settings/secrets'), { secrets: [] }, '')
+
+    expect(answer.headers.get('location')).toBe('/acme/api/settings/secrets')
+  })
+
+  test('somewhere else, when back is the wrong place', () => {
+    // A repository that was just deleted has no page to return to.
+    const answer = succeed(browser('http://reviewos.test/acme/api/settings'), { deleted: 'acme/api' }, 'Repository deleted', { location: '/acme' })
+
+    expect(answer.headers.get('location')).toBe('/acme?form_notice=Repository+deleted')
   })
 })

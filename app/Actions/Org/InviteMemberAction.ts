@@ -6,7 +6,7 @@ import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Add somebody to an organization.
@@ -92,7 +92,7 @@ export default new Action({
       detail: { handle, role },
     })
 
-    return response.json({ ok: true, handle, role, pending: true }, 201)
+    return succeed(request, { ok: true, handle, role, pending: true }, 'Invitation sent', { status: 201 })
   },
 })
 

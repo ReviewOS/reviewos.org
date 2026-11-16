@@ -5,7 +5,7 @@ import { canInOrganization, wouldOrphanOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Remove somebody from an organization.
@@ -68,6 +68,6 @@ export default new Action({
       detail: { role: memberRole, left: leavingSelf },
     })
 
-    return response.json({ ok: true })
+    return succeed(request, { ok: true }, 'Member removed')
   },
 })

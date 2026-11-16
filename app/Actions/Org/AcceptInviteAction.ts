@@ -4,7 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Accept or decline an invitation to an organization.
@@ -58,7 +58,7 @@ export default new Action({
     // desired state holds, and the usual way to reach this is a second click on
     // a notification that is still sitting in the inbox.
     if (invitation.joined_at)
-      return response.json({ ok: true, role: String(invitation.role), already: true })
+      return succeed(request, { ok: true, role: String(invitation.role), already: true }, 'You are already a member')
 
     if (String(request.get('operation') ?? '') === 'decline') {
       await db.deleteFrom('org_members').where('id', '=', Number(invitation.id)).execute()
@@ -74,7 +74,7 @@ export default new Action({
         detail: { role: String(invitation.role), declined: true },
       })
 
-      return response.json({ declined: true })
+      return succeed(request, { declined: true }, 'Invitation declined')
     }
 
     await db
@@ -94,6 +94,6 @@ export default new Action({
       detail: { role: String(invitation.role) },
     })
 
-    return response.json({ ok: true, role: String(invitation.role) })
+    return succeed(request, { ok: true, role: String(invitation.role) }, 'Invitation accepted')
   },
 })

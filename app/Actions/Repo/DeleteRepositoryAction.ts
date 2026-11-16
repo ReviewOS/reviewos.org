@@ -9,7 +9,7 @@ import { authorizeRepository } from './authorize'
 import { recountForks } from './counters'
 import { sweepPolymorphic } from './polymorphic'
 import { retiredPath } from './settings'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Delete a repository.
@@ -133,17 +133,17 @@ export default new Action({
       // `storage/repos` - so say where it is rather than reporting a failure
       // for a delete that did happen.
       if (error?.code !== 'ENOENT') {
-        return response.json({
+        return succeed(request, {
           deleted: `${owner}/${repository.name}`,
           recoverable_at: from.relative,
           warning: `The repository was deleted, but its files could not be moved aside: ${error}`,
-        })
+        }, 'Repository deleted')
       }
     }
 
-    return response.json({
+    return succeed(request, {
       deleted: `${owner}/${repository.name}`,
       recoverable_at: retired,
-    })
+    }, 'Repository deleted')
   },
 })

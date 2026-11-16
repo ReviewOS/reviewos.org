@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { handleAvailable } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { currentUser } from '../Identity/lookup'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Create an organization and make the caller its owner.
@@ -76,6 +76,6 @@ export default new Action({
       throw error
     }
 
-    return response.json({ id: organizationId, handle, name }, 201)
+    return succeed(request, { id: organizationId, handle, name }, 'Organization created', { status: 201 })
   },
 })

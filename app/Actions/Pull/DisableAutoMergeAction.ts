@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Disarm auto-merge.
@@ -54,6 +54,6 @@ export default new Action({
       .where('id', '=', Number(pullRequest.id))
       .execute()
 
-    return response.json({ armed: false })
+    return succeed(request, { armed: false }, 'Auto-merge disarmed')
   },
 })

@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { labelFields } from './labelSet'
 import { labelNamesCollide } from './labels'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Create, rename, recolour or delete one of a repository's labels.
@@ -80,7 +80,7 @@ export default new Action({
         .where('id', '=', id)
         .execute()
 
-      return response.json({ id, ...fields.value })
+      return succeed(request, { id, ...fields.value }, 'Label updated')
     }
 
     if (existing.some(row => labelNamesCollide(String(row.name), fields.value.name)))
@@ -98,7 +98,7 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
-    return response.json({ id: Number(created?.id), ...fields.value }, 201)
+    return succeed(request, { id: Number(created?.id), ...fields.value }, 'Label created', { status: 201 })
   },
 })
 
@@ -125,5 +125,5 @@ async function remove(request: any, repository: any) {
   await db.deleteFrom('issue_labels').where('label_id', '=', id).execute()
   await db.deleteFrom('repository_labels').where('id', '=', id).execute()
 
-  return response.json({ deleted: id })
+  return succeed(request, { deleted: id }, 'Label deleted')
 }

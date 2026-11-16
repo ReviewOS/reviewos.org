@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { formatDays, localTimeIn, parseDays } from './clock'
 import { decisionText, deliveryDecision } from './delivery'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Set when somebody is reachable.
@@ -102,14 +102,14 @@ export default new Action({
       doNotDisturbUntilMs: doNotDisturbUntil ? Date.parse(String(doNotDisturbUntil)) : null,
     })
 
-    return response.json({
+    return succeed(request, {
       ...values,
       right_now: {
         decision: outcome.decision,
         deliver_at: outcome.deliverAtMs ? new Date(outcome.deliverAtMs).toISOString() : null,
         explanation: `If your review were requested now, ${decisionText(outcome)}.`,
       },
-    })
+    }, 'Notification schedule saved')
   },
 })
 

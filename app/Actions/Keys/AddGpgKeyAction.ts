@@ -4,7 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { readGpgKey } from './gpg'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Register a GPG public key, so signed commits can be verified as this account's.
@@ -75,11 +75,11 @@ export default new Action({
       detail: { kind: 'gpg', fingerprint: parsed.fingerprint, emails: parsed.emails },
     })
 
-    return response.json({
+    return succeed(request, {
       id: Number(created?.id),
       keyId: parsed.keyId,
       emails: parsed.emails,
       expiresAt: parsed.expiresAt,
-    }, 201)
+    }, 'GPG key added', { status: 201 })
   },
 })

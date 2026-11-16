@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { diskPathFor } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
 import { branchExists, mayRestoreHeadBranch, restoreHeadBranch } from './restore'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Put a merged pull request's head branch back.
@@ -73,6 +73,6 @@ export default new Action({
     if (!restored.ok)
       return refuse(request, restored.error, 409)
 
-    return response.json({ restored: true, branch, sha })
+    return succeed(request, { restored: true, branch, sha }, 'Branch restored')
   },
 })

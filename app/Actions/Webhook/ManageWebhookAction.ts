@@ -4,7 +4,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { pingPayload, WEBHOOK_EVENTS } from '../../Webhooks/payloads'
 import { inspectUrl } from './ssrf'
 import { readFlag } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Create, update, or delete a repository's webhook.
@@ -97,13 +97,13 @@ export default new Action({
 
       const deliveries = foldAttempts(rows.map(row => parseDelivery(row)))
 
-      return response.json({
+      return succeed(request, {
         deliveries,
         // The same summary the page shows. Two implementations of "is this
         // webhook healthy" would eventually disagree, and the one somebody
         // reads in a script would be the wrong one.
         health: health(deliveries),
-      })
+      }, '')
     }
 
     if (operation === 'delete') {
@@ -119,7 +119,7 @@ export default new Action({
       await db.deleteFrom('webhook_deliveries').where('webhook_id', '=', id).execute()
       await db.deleteFrom('webhooks').where('id', '=', id).execute()
 
-      return response.json({ deleted: id })
+      return succeed(request, { deleted: id }, 'Webhook deleted')
     }
 
     if (operation !== 'create' && operation !== 'update')
@@ -171,7 +171,7 @@ export default new Action({
         .where('id', '=', id)
         .execute()
 
-      return response.json({ id, url, events, active })
+      return succeed(request, { id, url, events, active }, 'Webhook updated')
     }
 
     // Generated rather than accepted. A secret somebody chooses is one they
@@ -215,7 +215,7 @@ export default new Action({
       })
     }
 
-    return response.json({ id, url, events, active, secret }, 201)
+    return succeed(request, { id, url, events, active, secret }, 'Webhook created', { status: 201 })
   },
 })
 

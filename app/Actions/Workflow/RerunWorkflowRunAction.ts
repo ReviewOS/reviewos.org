@@ -7,7 +7,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import type { RerunScope } from './rerun'
 import { rerunRun } from './rerun'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Run it again.
@@ -150,11 +150,11 @@ export default new Action({
       return response.redirect(`/${owner}/${String(repository.name)}/run/${number}`)
     }
 
-    return response.json({
+    return succeed(request, {
       workflow_run: { number, state: 'queued', attempt: outcome.attempt },
       jobs: outcome.jobs,
       reused: outcome.reused ?? 0,
       reason: outcome.reason ?? '',
-    })
+    }, 'Run restarted')
   },
 })

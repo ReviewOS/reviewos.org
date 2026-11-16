@@ -4,7 +4,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { deleteWhereIn, updateWhereIn } from '../Support/rows'
 import { abilityFor, isBulkOperation, selectedNumbers } from './bulk'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Close, reopen, label, unlabel or set a milestone on several issues at once.
@@ -91,7 +91,7 @@ export default new Action({
 async function setState(issues: any[], ids: number[], closing: boolean, actorId: number, repositoryId: number) {
   const moving = issues.filter(row => (String(row.state) === 'open') === closing)
   if (moving.length === 0)
-    return response.json({ changed: [], operation: closing ? 'close' : 'reopen' })
+    return succeed(request, { changed: [], operation: closing ? 'close' : 'reopen' }, 'Nothing to change')
 
   const movingIds = moving.map(row => Number(row.id))
 
@@ -101,13 +101,13 @@ async function setState(issues: any[], ids: number[], closing: boolean, actorId:
 
   await recountOpenIssues(repositoryId)
 
-  return response.json({
+  return succeed(request, {
     changed: moving.map(row => Number(row.number)),
     // Named so a caller can tell "nothing matched" from "everything was already
     // in that state", which look identical in the list of changes.
     unchanged: ids.length - movingIds.length,
     operation: closing ? 'close' : 'reopen',
-  })
+  }, 'Issues updated')
 }
 
 async function setMilestone(ids: number[], requested: unknown, repositoryId: number) {
@@ -132,7 +132,7 @@ async function setMilestone(ids: number[], requested: unknown, repositoryId: num
 
   await updateWhereIn('issues', 'id', ids, { milestone_id: milestoneId })
 
-  return response.json({ changed: ids.length, milestone_id: milestoneId })
+  return succeed(request, { changed: ids.length, milestone_id: milestoneId }, 'Milestone set')
 }
 
 /**
@@ -162,7 +162,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
   if (!adding) {
     await deleteWhereIn('issue_labels', 'issue_id', ids, { label_id: labelId })
 
-    return response.json({ changed: ids.length, label: String(label.name), added: false })
+    return succeed(request, { changed: ids.length, label: String(label.name), added: false }, 'Label removed')
   }
 
   // Already-labelled issues are skipped rather than inserted again: the join
@@ -185,5 +185,5 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
       .execute()
   }
 
-  return response.json({ changed: missing.length, label: String(label.name), added: true })
+  return succeed(request, { changed: missing.length, label: String(label.name), added: true }, 'Label added')
 }

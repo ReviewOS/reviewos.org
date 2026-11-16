@@ -4,7 +4,7 @@ import { setSubjectMute } from './muteSubject'
 import { currentUser } from '../Identity/lookup'
 import { MUTE_DURATIONS, muteExpiry } from './settings'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 const SUBJECTS = ['repository', 'organization', 'issue', 'pull_request'] as const
 
@@ -67,7 +67,7 @@ export default new Action({
           .execute()
       }
 
-      return response.json({ subject_type: subjectType, subject_id: subjectId, muted: false })
+      return succeed(request, { subject_type: subjectType, subject_id: subjectId, muted: false }, 'Unmuted')
     }
 
     const duration = String(request.get('duration') ?? 'forever')
@@ -90,11 +90,11 @@ export default new Action({
 
     const created = await setSubjectMute(user.id, { type: subjectType, id: subjectId }, expiresAtText)
 
-    return response.json({
+    return succeed(request, {
       subject_type: subjectType,
       subject_id: subjectId,
       muted: true,
       expires_at: expiresAtText,
-    }, created ? 201 : 200)
+    }, 'Muted', { status: created ? 201 : 200 })
   },
 })

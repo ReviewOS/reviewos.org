@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Remove an SSH key.
@@ -72,6 +72,6 @@ export default new Action({
       })
     }
 
-    return response.json({ ok: true })
+    return succeed(request, { ok: true }, 'SSH key removed')
   },
 })

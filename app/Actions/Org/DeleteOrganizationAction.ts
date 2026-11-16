@@ -5,7 +5,7 @@ import { canInOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Delete an organization.
@@ -107,6 +107,6 @@ export default new Action({
 
     await db.deleteFrom('organizations').where('id', '=', organizationId).execute()
 
-    return response.json({ deleted: true, handle })
+    return succeed(request, { deleted: true, handle }, 'Organization deleted')
   },
 })

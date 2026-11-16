@@ -4,7 +4,7 @@ import { response } from '@stacksjs/router'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /** Members choose whether their own accepted membership is on their profile. */
 export default new Action({
@@ -35,6 +35,6 @@ export default new Action({
       .where('id', '=', Number(membership.id)).execute()
     if (String(request.header('accept') ?? '').includes('text/html'))
       return response.redirect('/settings/organizations', 303)
-    return response.json({ ok: true })
+    return succeed(request, { ok: true }, 'Visibility updated')
   },
 })

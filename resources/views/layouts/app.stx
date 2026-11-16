@@ -54,6 +54,15 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
  */
 const formError = String((useRoute().query ?? {}).form_error ?? '').slice(0, 300)
 
+/**
+ * And what just worked, from `succeed` in the same file.
+ *
+ * Success needed saying out loud as much as failure did: revoking a token
+ * worked and answered a page of JSON, so there was no way to tell it from a
+ * crash except by reading the payload.
+ */
+const formNotice = String((useRoute().query ?? {}).form_notice ?? '').slice(0, 300)
+
 const themeCss = syntaxThemeCss()
 const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxTheme', attribute: 'syntax-theme', allowed: ['default', ...themeChoices().map(one => one.id)], default: 'default' }, colorMode: { key: 'scheme', attribute: 'theme', default: 'system' } }
 </script>
@@ -2551,6 +2560,12 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
     <SiteNav />
 
     <main id="content" tabindex="-1">
+      @if (formNotice)
+        <div class="form-error-bar">
+          <p class="auth-notice" role="status">{{ formNotice }}</p>
+        </div>
+      @endif
+
       @if (formError)
         {{--
           Above the page's own content rather than inside it: this is the shell,

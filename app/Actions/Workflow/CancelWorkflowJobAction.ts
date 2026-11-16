@@ -6,7 +6,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { settleRun } from './settle'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Stop one job, leaving the rest of the run alone.
@@ -159,7 +159,7 @@ export default new Action({
       return response.redirect(`/${owner}/${String(repository.name)}/run/${number}`)
     }
 
-    return response.json({
+    return succeed(request, {
       /*
        * `jobs[0]` exists - the guard above returned when the list was empty -
        * but the compiler cannot see that through the index, and `noUnchecked
@@ -171,6 +171,6 @@ export default new Action({
       // ago is an ordinary thing to do, and 409 would make a client handle a
       // case where nothing is wrong.
       cancelled: cancelled > 0,
-    })
+    }, 'Job cancelled')
   },
 })

@@ -5,7 +5,7 @@ import { canInOrganization, wouldOrphanOrganization, type OrganizationRole } fro
 import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Change what a member of an organization may do.
@@ -77,6 +77,6 @@ export default new Action({
       detail: { from: memberRole, to: nextRole },
     })
 
-    return response.json({ ok: true, role: nextRole })
+    return succeed(request, { ok: true, role: nextRole }, 'Role changed')
   },
 })

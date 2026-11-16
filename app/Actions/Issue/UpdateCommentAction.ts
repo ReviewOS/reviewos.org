@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recordCrossReferences } from './crossReferences'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Edit a comment.
@@ -93,6 +93,6 @@ export default new Action({
       body,
     )
 
-    return response.json({ id: Number(comment.id), body, edited: true, references })
+    return succeed(request, { id: Number(comment.id), body, edited: true, references }, 'Comment updated')
   },
 })

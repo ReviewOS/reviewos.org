@@ -5,7 +5,7 @@ import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from './authorize'
 import { decideRule, settingsOf } from './branchRules'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Who may push, as this endpoint's two spellings of it.
@@ -160,7 +160,7 @@ export default new Action({
         detail: { pattern, was: settingsOf(existing) },
       })
 
-      return response.json({ deleted: true, pattern })
+      return succeed(request, { deleted: true, pattern }, 'Branch protection removed')
     }
 
     if (operation !== 'save')
@@ -235,6 +235,6 @@ export default new Action({
       },
     })
 
-    return response.json({ repository_id: repositoryId, ...rule }, existing ? 200 : 201)
+    return succeed(request, { repository_id: repositoryId, ...rule }, 'Branch protection saved', { status: existing ? 200 : 201 })
   },
 })

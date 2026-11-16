@@ -5,7 +5,7 @@ import { auditFrom } from '../Git/audit'
 import { organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 import { transferRepository } from './transfer'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Move a repository to a new owner.
@@ -78,6 +78,6 @@ export default new Action({
     if (!result.ok)
       return refuse(request, result.error, result.status)
 
-    return response.json({ id: result.id, owner: result.owner, name: result.name, moved_from: result.moved_from })
+    return succeed(request, { id: result.id, owner: result.owner, name: result.name, moved_from: result.moved_from }, 'Repository transferred')
   },
 })

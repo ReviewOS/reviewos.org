@@ -9,7 +9,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { allowedWhileArchived, decideSettings } from './settings'
 import { coerced, readFlag } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Change a repository's settings.
@@ -158,7 +158,7 @@ export default new Action({
       })
     }
 
-    return response.json({ id: Number(repository.id), ...changes })
+    return succeed(request, { id: Number(repository.id), ...changes }, 'Settings saved')
   },
 })
 

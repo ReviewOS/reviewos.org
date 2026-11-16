@@ -4,7 +4,7 @@ import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { coerced } from '../inputs'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Change an organization's profile, and its handle.
@@ -92,7 +92,7 @@ export default new Action({
     }
 
     if (Object.keys(changes).length === 0)
-      return response.json({ ok: true, unchanged: true })
+      return succeed(request, { ok: true, unchanged: true }, 'Nothing to change')
 
     await db
       .updateTable('organizations')
@@ -100,6 +100,6 @@ export default new Action({
       .where('id', '=', organizationId)
       .execute()
 
-    return response.json({ ok: true, ...changes })
+    return succeed(request, { ok: true, ...changes }, 'Organization updated')
   },
 })

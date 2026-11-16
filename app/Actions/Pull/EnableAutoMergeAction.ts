@@ -3,7 +3,7 @@ import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { allowedStrategies, defaultStrategy, isMergeStrategy } from './merge'
 import { attemptAutoMerge } from './autoMerge'
-import { refuse } from '../Support/forge'
+import { refuse, succeed } from '../Support/forge'
 
 /**
  * Arm auto-merge: merge this pull request the moment its requirements are met.
@@ -77,10 +77,10 @@ export default new Action({
 
     const attempt = await attemptAutoMerge(Number(pullRequest.id))
 
-    return response.json({
+    return succeed(request, {
       armed: true,
       strategy,
       merged: attempt.merged,
-    })
+    }, 'Auto-merge armed')
   },
 })
