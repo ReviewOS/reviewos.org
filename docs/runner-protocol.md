@@ -450,3 +450,29 @@ workspaces for that user. If the runner used a different temporary directory
 `--temporary-root`. Do not change process inspection permissions, disable
 the guard or delete directories by a filename pattern. Old workspaces without a
 journal require an explicit forensic ownership review.
+
+## Standard checkout and artifact actions
+
+After the ordinary action host and pinned-source policy checks, references to
+`github.com/actions/checkout`, `actions/upload-artifact` and
+`actions/download-artifact` use the runner's native services, like the cache
+adapter. Their step results and outputs are journaled before the next step. An action
+failure preserves later `always()` cleanup while the job remains failed.
+
+Checkout operates on the job's exact repository and commit. It supports
+`fetch-depth`, `clean`, `lfs` and `submodules`. A ref must identify that same
+commit or the job's branch. Other repositories, paths, servers and unsupported
+inputs fail explicitly. The bootstrap's expiring, read-only job credential stays
+scoped to this origin for the job lifetime. Action tokens are never persisted
+or used to widen that authority, including when `persist-credentials` is false.
+
+Named artifact uploads use the existing job-token API, quotas and retention.
+They package up to 200 ordinary visible files in a gzip archive, relative to
+the common search root. The adapter supports `name`, `path`,
+`if-no-files-found`, `retention-days` and `compression-level`. Overwriting an
+immutable artifact or including hidden files is refused. Positive, relative
+path patterns are required; links outside the workspace and excessive bytes
+fail the step. Download requires a name and an empty workspace-relative
+directory. It verifies the server digest and expanded byte budget before
+writing ordinary files. Cross-run downloads and unsupported inputs fail
+explicitly. The existing API checks keep downloads inside the token's run.

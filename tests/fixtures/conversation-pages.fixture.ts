@@ -6,7 +6,12 @@ import { conversationPageHref, conversationPageNumber, loadConversation } from '
 
 const dialect = process.env.CONVERSATION_TEST_DIALECT === 'postgres' ? 'postgres' : 'sqlite'
 test(`${dialect} discussion pages bound bodies and preserve every entry in stable order`, async () => {
-    setConfig({ dialect, database: { database: process.env.DB_DATABASE!, host: process.env.DB_HOST, port: Number(process.env.DB_PORT) || undefined, username: process.env.DB_USERNAME, password: process.env.DB_PASSWORD } })
+    // The disposable helper uses Stacks' SQLite path key. DB_DATABASE is the
+    // PostgreSQL name and may be inherited from this checkout's environment.
+    const database = dialect === 'sqlite' ? process.env.DB_DATABASE_PATH : process.env.DB_DATABASE
+    if (!database || (dialect === 'sqlite' && !database.endsWith('.sqlite')))
+      throw new Error('Discussion fixtures require the supplied disposable database')
+    setConfig({ dialect, database: { database, host: process.env.DB_HOST, port: Number(process.env.DB_PORT) || undefined, username: process.env.DB_USERNAME, password: process.env.DB_PASSWORD } })
     const builder = createQueryBuilder<any>()
     ;(globalThis as any).db = builder
     try {

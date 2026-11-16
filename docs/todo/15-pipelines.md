@@ -3588,3 +3588,18 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       cancelled as well as failed, including expired/revoked claims. Leave
       cleanup jobs alone, preserve tolerated failures and request a running
       worker's acknowledgement instead of declaring it stopped.
+
+- [x] Run standard checkout and named artifact actions through native scoped Git
+      and artifact services after the action host/pin policy check. Keep the
+      exact source, full ancestry, step files, retention and immutable digests;
+      reject unsupported inputs, escaping paths, links and oversized archives.
+      Real Git and HTTP-byte round trips remove the local artifact before download.
+
+- [x] Journal action-step conclusions, timings and outputs before the next step,
+      including native adapters. Preserve always/failure cleanup after action
+      failures and journal anonymous skipped steps. Derive action server/API URLs from the controller
+      the runner actually reached rather than an empty proxy request URL.
+
+- [x] Bind the discussion-page SQLite fixture to its supplied disposable path,
+      never an inherited PostgreSQL database name. Repeated real SQLite runs
+      remain isolated instead of writing a database in the project checkout.

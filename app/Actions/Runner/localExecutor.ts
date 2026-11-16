@@ -62,6 +62,8 @@ import { executionMode } from '../../../config/ci-execution'
 import { recoverWorkspaces, workspaceJournal } from './workspaceJournal'
 import { confirmRetirableWorkspaces, runnerRequest as post } from './httpClient'
 import { runnerCapacity } from './capacity'
+import { nativeAction } from './nativeActions'
+import type { NativeActionRuntime } from './nativeActions'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -438,6 +440,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   }
 
   const job = claim.body.job
+  // The runner knows the controller address it actually reached. Reverse-proxy
+  // request wrappers may carry only a relative URL; never pass an empty host.
+  job.server_url = new URL(options.baseUrl).origin
+  job.api_url = `${job.server_url}/api`
   const jobToken = String(job.token ?? '')
 
   /*
@@ -1250,13 +1256,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       if (!decision.run) {
         await send(`::group::${name}\nSkipped: ${decision.reason}\n::endgroup::\n`)
 
-        if (step.id) {
+        if (step.id)
           stepContext[String(step.id)] = { outputs: {}, outcome: 'skipped', conclusion: 'skipped' }
 
-        // A skipped step is a step whose result is "it did not run", and a row
-        // that says nothing is indistinguishable from one nobody reported.
+        // Anonymous steps need the same durable skipped result as named ones.
         timed(index, stepStartedAt, 0, 'skipped', null, decision.reason)
-        }
 
         await renewLease()
 
@@ -1384,9 +1388,16 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
          */
         const actionFiles = stepFiles(workspace, index)
 
+        const actionStartedAt = Date.now()
         const result = await runAction({
           signal: lease.signal,
           context,
+          nativeRuntime: {
+            baseUrl: options.baseUrl, job, workspace, signal: lease.signal,
+            run: command => runStep({ signal: lease.signal, command, cwd: workspace,
+              environment: { ...environmentFor(job, workspace), ...jobEnv, ...serviceEnv, ...carried },
+              onOutput: (text, stream) => send(text, stream) }),
+          },
           uses: String(step.uses),
           with: interpolateValues(step.with ?? {}, context),
           workspace,
@@ -1433,6 +1444,15 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
         await send('::endgroup::\n')
 
+        // Actions are durable steps too. Their conclusion and outputs must be
+        // journaled before the next step, just like ordinary run commands.
+        timed(index, stepStartedAt, Date.now() - actionStartedAt,
+          result.ok || step.continue_on_error ? 'succeeded' : 'failed',
+          result.ok ? 0 : 1, result.ok ? null : result.reason)
+        const recorded = timings[timings.length - 1]
+        if (recorded && Object.keys(wrote.outputs).length) recorded.outputs = wrote.outputs
+        await renewLease()
+
         if (!result.ok) {
           /*
            * `continue-on-error` decided here rather than at the end.
@@ -1448,8 +1468,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           }
 
           failed = `${name}: ${result.reason}`
+          jobFailed = true
           await send(`${failed}\n`, 'stderr')
-          break
+          // Action failures retain the same always()/failure() cleanup path
+          // as run commands; later success must not erase this failure.
+          continue
         }
 
         continue
@@ -3123,6 +3146,7 @@ function runnerArch(): string {
 async function runAction(input: {
   signal?: AbortSignal
   context: ExpressionContext
+  nativeRuntime: NativeActionRuntime
   uses: string
   with: Record<string, unknown>
   workspace: string
@@ -3172,6 +3196,13 @@ async function runAction(input: {
     await input.onOutput(`${decision.reason}\n`, 'stderr')
 
     return { ok: false, reason: decision.reason }
+  }
+
+  const native = await nativeAction({ reference, defaultHost: input.policy.defaultHost,
+    with: input.with, runtime: input.nativeRuntime, output: input.environment.GITHUB_OUTPUT ?? '' })
+  if (native) {
+    await input.onOutput(`${native.reason}\n`, native.ok ? 'stdout' : 'stderr')
+    return native
   }
 
   if (reference.kind === 'container') {
@@ -3278,6 +3309,7 @@ async function runAction(input: {
     return runComposite(definition, input.workspace, environment, input.onOutput, {
       signal: input.signal,
       context: actionContext,
+      nativeRuntime: input.nativeRuntime,
       // What a nested `uses:` needs to resolve the way this one did.
       job: input.job,
       policy: input.policy,
@@ -3409,6 +3441,7 @@ async function runComposite(
   nesting: {
     signal?: AbortSignal
     context: ExpressionContext
+    nativeRuntime: NativeActionRuntime
     job: any
     policy: ReturnType<typeof defaultPolicy>
     cacheRoot: string
@@ -3458,6 +3491,7 @@ async function runComposite(
       const nested = await runAction({
         signal: nesting.signal,
         context,
+        nativeRuntime: nesting.nativeRuntime,
         uses: interpolate(step.uses, context),
         // Evaluated against this action's inputs, so a wrapper can pass its
         // own input down - which is most of what a wrapper is for.
