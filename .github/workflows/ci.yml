@@ -486,11 +486,18 @@ jobs:
         # would do nothing here. `bun test` already applies one of 5s, and it
         # fires: a test body that never returns, and a hook that never returns,
         # both fail on their own, and a test leaving a timer open does not stop
-        # the process exiting. All three were checked. What is not bounded by
-        # anything is a module whose top-level `await` never settles - that
-        # hangs the run before a single test is registered, prints nothing past
-        # the version banner, and can only be stopped from outside. That is the
-        # shape this failure has.
+        # the process exiting. All three were checked. The only shape that
+        # matches - no output past the version banner, stoppable only from
+        # outside - is an unsettled `await` at a module's top level, before any
+        # test exists for a budget to apply to.
+        #
+        # Which module is still unknown, and this step is how we will find out.
+        # The one unbounded module-level probe in the suite was the engine
+        # migration's, since bounded, but measurement cleared it of this: Bun's
+        # `SQL` defaults `connectionTimeout` to 30s, so even the old probe gave
+        # up in 30.3s against a socket that accepted and never spoke. So the
+        # cause is not yet identified, and guessing again is worth less than
+        # one retained log.
         run: |
           status=0
           timeout --signal=INT --kill-after=30s 22m bun run test || status=$?

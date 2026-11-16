@@ -27,26 +27,177 @@ import { adminDatabase, connectionFor } from '../helpers/dialect'
 const MYSQL: Connection = { ...connectionFor('mysql'), database: 'reviewos_engine_test' }
 const POSTGRES: Connection = { ...connectionFor('postgres'), database: 'reviewos_engine_source' }
 
+/**
+ * How long an engine has to answer the probe.
+ *
+ * Generous by three orders of magnitude: a healthy engine answers `SELECT 1`
+ * in single-digit milliseconds, local or containerised. Nothing legitimate
+ * sits between that and thirty seconds, so the budget only ever expires on an
+ * engine that was not going to answer.
+ *
+ * Thirty also happens to match Bun's own `connectionTimeout` default, which
+ * is deliberate: the two bounds should not race each other, and whichever
+ * fires, 30 seconds is the longest this file makes anyone wait to be told an
+ * engine is unreachable.
+ */
+const PROBE_TIMEOUT_MS = 30_000
+
+/**
+ * The probe's own budget expiring, as a type rather than as a message.
+ *
+ * Told apart by `instanceof` because the alternative is matching on text an
+ * engine's driver wrote, and a driver is free to reword its errors in a patch
+ * release. This is the one error the probe reports rather than absorbs, so
+ * mistaking it either way matters: upward, every absent engine becomes a
+ * failure; downward, a wedged one goes back to being a silent skip.
+ */
+class ProbeExpired extends Error {}
+
+/** What the probe found, which is three states rather than two. */
+interface Probe {
+  /** Both engines answered, so the round trips can run. */
+  available: boolean
+  /**
+   * The engine that took the connection and then said nothing, if one did.
+   *
+   * Kept apart from `available: false` because the two mean opposite things.
+   * An engine that refuses a connection is absent, which is the ordinary case
+   * on a laptop running one engine, and skipping is right. An engine that
+   * accepts a connection and never answers is broken, and skipping would
+   * report a pass for work nobody did.
+   */
+  wedged: string | null
+}
+
+/**
+ * Whether one engine answers, bounded and said out loud.
+ *
+ * Two things were wrong with the `await sql.unsafe('SELECT 1')` inside a bare
+ * `try` that used to be here, and only one of them is the obvious one.
+ *
+ * The obvious one is the bound, and it is narrower than it looks. Bun's `SQL`
+ * defaults `connectionTimeout` to 30 seconds, so a socket that accepts a
+ * connection and never finishes the handshake - a service container still
+ * starting - is already handled, and this was checked rather than assumed: a
+ * listener that accepts and says nothing made the old probe give up in 30.3s.
+ * What that setting does not cover is a connection that *is* established and
+ * then goes quiet on the query, because Bun's `SQL` has no query timeout to
+ * set. Under a module-level `await`, anything unbounded there hangs the file
+ * before a single test is registered, where no per-test budget can reach it -
+ * the 5s one needs a test to apply to. So the wait is ours to bound, and now
+ * it is, rather than resting on a driver default that covers the neighbouring
+ * case.
+ *
+ * The one that was actually costing us is the reporting. Every way of failing
+ * to reach an engine used to return the same `false`, and `describe.if` turned
+ * that into a skip - so a wedged engine produced a green file with its round
+ * trips quietly not run. That is the shape this file's own header warns about
+ * two screens up: green where it is read, and the digest is the half that
+ * decides whether any of it means anything. An engine that refuses a
+ * connection is absent and still skips. One that takes the connection and
+ * then will not answer now says so.
+ */
+async function answers(connection: Connection): Promise<Probe> {
+  const sql = connect(connection)
+
+  try {
+    await within(
+      sql.unsafe('SELECT 1'),
+      () => new ProbeExpired(`${connection.adapter} at ${connection.hostname}:${connection.port} accepted a connection and did not answer SELECT 1 within ${PROBE_TIMEOUT_MS / 1000}s`),
+    )
+  }
+  catch (error) {
+    // Everything but the budget is absorbed: a refused connection, a database
+    // that is not there, an authentication failure. Those all mean the engine
+    // is not available to this run, which is what the skip is for.
+    await discard(sql)
+
+    return error instanceof ProbeExpired
+      ? { available: false, wedged: error.message }
+      : { available: false, wedged: null }
+  }
+
+  await discard(sql)
+
+  return { available: true, wedged: null }
+}
+
+/**
+ * Close the connection, and do not wait forever to be allowed to.
+ *
+ * Bounded for the same reason the query above is, and easy to miss: this is
+ * still a module-level `await`, so an unbounded close would move the hang two
+ * lines down rather than remove it. An engine that will not acknowledge a
+ * close is not worth another thirty seconds, and the socket goes when the
+ * process does.
+ */
+async function discard(sql: ReturnType<typeof connect>): Promise<void> {
+  try {
+    await within(Promise.resolve(sql.close()), () => new ProbeExpired('the connection would not close'))
+  }
+  catch {
+    // Nothing to do about it and nothing to report: whether the engine
+    // answered is already decided by the time this runs.
+  }
+}
+
+/**
+ * Await `work`, or give up on it.
+ *
+ * `Promise.race` rather than an `AbortSignal` because `sql.unsafe` takes no
+ * signal. Race attaches a handler to both sides, so the loser rejecting later
+ * is not an unhandled rejection, and the timer is always cleared - a probe
+ * that left one armed would hold the process open for thirty seconds after it
+ * had its answer.
+ */
+async function within<T>(work: Promise<T>, expired: () => Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(expired()), PROBE_TIMEOUT_MS)
+      }),
+    ])
+  }
+  finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Whether both engines answer. Neither round trip is worth faking. */
-async function reachable(): Promise<boolean> {
+async function reachable(): Promise<Probe> {
   for (const connection of [
     { ...MYSQL, database: adminDatabase('mysql') },
     { ...POSTGRES, database: adminDatabase('postgres') },
   ]) {
-    try {
-      const sql = connect(connection)
-      await sql.unsafe('SELECT 1')
-      await sql.close()
-    }
-    catch {
-      return false
-    }
+    const probe = await answers(connection)
+
+    if (!probe.available)
+      return probe
   }
 
-  return true
+  return { available: true, wedged: null }
 }
 
-const available = await reachable()
+const probe = await reachable()
+const available = probe.available
+
+/*
+ * A wedged engine is a failing test rather than a throw up here.
+ *
+ * Throwing at module scope would be louder than the silence it replaces, but
+ * it takes the whole file with it - checked: `bun test` reports the throw as
+ * one error and runs none of the file's tests, including the canonicalizer
+ * ones below that need no engine at all. So the finding gets a test of its own
+ * and everything that can still run, runs.
+ */
+describe.if(probe.wedged !== null)('reaching both engines', () => {
+  test('an engine that accepts a connection answers it', () => {
+    expect(probe.wedged).toBeNull()
+  })
+})
 
 describe('the value canonicalizer', () => {
   test('reads a boolean the same way whichever engine returned it', () => {
