@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, test } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -41,9 +41,25 @@ function templates(dir: string): string[] {
 
 const NOT_TYPED_INTO = new Set(['hidden', 'submit', 'button', 'image', 'reset'])
 
-function unnamedControlsIn(source: string): string[] {
+export function unnamedControlsIn(source: string): string[] {
   let markup = source.replace(/<script[^>]*>[\s\S]*?<\/script>/g, '')
   markup = markup.replace(/<style[^>]*>[\s\S]*?<\/style>/g, '')
+
+  /*
+   * Comments are not markup, and the comments here talk about markup.
+   *
+   * `tokens.stx` documents the control it replaced - "a list of checkboxes
+   * rather than a `<select multiple>`" - and this read that sentence as an
+   * unnamed `<select>` and failed the build. The control it describes had
+   * been deleted in the same commit, so the test was reporting a field that
+   * no longer existed, in prose explaining why it no longer existed.
+   *
+   * Same reasoning as the two lines above: a `<script>` can contain a string
+   * that looks like a control, and so can a comment. Nothing is weakened by
+   * this, because a control inside a comment renders for nobody.
+   */
+  markup = markup.replace(/\{\{--[\s\S]*?--\}\}/g, '')
+  markup = markup.replace(/<!--[\s\S]*?-->/g, '')
 
   const labelled = new Set([...markup.matchAll(/<label\b[^>]*\bfor="([^"]+)"/g)].map(m => m[1]!))
 
@@ -77,6 +93,45 @@ function unnamedControlsIn(source: string): string[] {
 
   return unnamed
 }
+
+describe('what counts as a control', () => {
+  // The scanner itself, because the sweep above can only say "none found",
+  // and "none found" is also what a broken scanner says.
+  test('an unnamed field is reported', () => {
+    expect(unnamedControlsIn('<form><input type="text" name="owner"></form>')).toHaveLength(1)
+  })
+
+  test('and a named one is not, however it was named', () => {
+    const named = [
+      '<label for="a">Owner</label><input id="a" type="text">',
+      '<label>Owner<input type="text"></label>',
+      '<input type="text" aria-label="Owner">',
+      '<input type="text" title="Owner">',
+      '<input type="hidden" name="_token" value="x">',
+    ]
+
+    for (const markup of named)
+      expect(unnamedControlsIn(markup)).toEqual([])
+  })
+
+  /*
+   * The case this file got wrong. `tokens.stx` replaced a `<select multiple>`
+   * with a list of checkboxes and said so in a comment; the scanner read the
+   * sentence as the control and failed the build over a field that had been
+   * deleted in that same commit.
+   */
+  test('and prose about a control is prose, not a control', () => {
+    expect(unnamedControlsIn('{{-- a list of checkboxes rather than a <select\n multiple> --}}')).toEqual([])
+    expect(unnamedControlsIn('<!-- we used to have <input type="text"> here -->')).toEqual([])
+  })
+
+  test('but a real control beside the prose is still found', () => {
+    // The failure mode of the fix: stripping too much and reporting nothing.
+    const markup = '{{-- replaced the <select multiple> --}}<input type="text" name="live">'
+
+    expect(unnamedControlsIn(markup)).toHaveLength(1)
+  })
+})
 
 describe('form controls', () => {
   it('all have a name that is not just a placeholder', () => {
