@@ -477,9 +477,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # `bun run test` shells out to `buddy test`, which only globs
-      # <project>/tests/**, so nothing under storage/framework/core/**/tests
-      # has ever run in CI. The database bootstrap gates every `buddy migrate`
+      # `bun run test` globs <project>/tests/** - by way of
+      # `.github/scripts/test-batched.ts` now, `buddy test` before it, and both
+      # only look there - so nothing under storage/framework/core/**/tests has
+      # ever run in CI. The database bootstrap gates every `buddy migrate`
       # on every server-backed project, so its suite runs explicitly here.
       # Scoped to one file on purpose: wiring up the core suites wholesale
       # needs the pre-existing failures in them triaged first.

@@ -58,7 +58,7 @@
     "typecheck:clean": "bunx --bun rimraf storage/framework/.cache/typescript",
     "types:check": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",
     "types:fix": "./buddy types:fix",
-    "test": "./buddy test",
+    "test": "bun .github/scripts/test-batched.ts",
     "test:ui": "./buddy test:ui",
     "test:coverage": "./buddy test:coverage",
     "test:types": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",

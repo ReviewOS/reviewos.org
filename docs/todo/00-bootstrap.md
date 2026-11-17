@@ -945,3 +945,36 @@ Each one is committed and pushed in the repository named.
       independent runs; the consumer resolves the published exports directly.
 
 - [x] Fix Pantry MySQL project isolation at the source: each project uses its own data directory and startup script, so inspecting or starting a second project cannot rewrite the first project's port. Keep `config/deps.ts` engine-neutral and generate the selected database service from `DB_CONNECTION`.
+
+- [x] **Stop the test suite from exhausting the CI machine, and make the next machine-level death
+      legible.** CI had been dying roughly one run in three, on either dialect, with no test ever
+      failing: six incidents in two days, one commit taking three attempts to land. The two shapes
+      were a step signalled whole and exiting 143, and a runner that stopped answering and was
+      force-cancelled at the 30-minute ceiling - which never finalises the log blob, so the evidence
+      went with it every time.
+
+      Measured, rather than guessed at, by sampling the machine from inside the CI supervisor every
+      fifteen seconds (`machineSample` in `.github/scripts/test-with-budget.ts`). On a `test
+      (postgres)` job that **passed**: available memory fell monotonically from 13,751 MiB to
+      142 MiB of 15,982, and swap from 3,072 MiB to 16. A passing run was finishing one bad minute
+      from exhaustion, so ordinary variance decided whether a job lived, and when the kernel's
+      victim was the CI agent the job died with nothing to say why. The in-job deadline could not
+      catch it either: a box with 16 MiB of swap free cannot schedule the timer that would fire.
+
+      The cause is `--isolate`, which `buddy test` passes: each file gets a fresh global, paid for by
+      evaluating the module graph again, and those graphs stay for as long as the process does. So
+      peak memory grows with the *number* of files. About 23 MiB a file against about 0.48 MiB
+      without isolation - forty times - which is 13.3 GB across 590 files.
+
+      Fixed in the framework, at `storage/framework/core/actions/src/test/runner.ts`
+      (stacksjs/stacks `eff017f7a3`): the files run in batches of 100, one process each, so memory
+      returns to the floor between batches and the peak is a batch rather than the suite. Isolation
+      is untouched, because dropping it would be a semantic change dressed up as a memory fix.
+      `BUDDY_TEST_BATCH_FILES` overrides the size and `off` restores one process, which is how you
+      tell a suite that fails only when batched from one that fails anyway.
+
+      This app resolves `@stacksjs/actions` from npm rather than from a linked checkout, so
+      `.github/scripts/test-batched.ts` bridges `bun run test` until a release carries that commit:
+      6 batches, estimated peak 2.2 GiB against 13.3. **Delete the bridge and restore
+      `"test": "./buddy test"` once the release is in.** It covers CI only; `./buddy test` locally
+      still runs one process, and the answer to that is the release rather than more bridge.
