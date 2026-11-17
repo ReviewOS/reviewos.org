@@ -2505,3 +2505,9 @@ failed evidence into success.
       workflow to dispatch before claiming its runner. Keep the existing setup
       and dispatch deadlines. Exercise all three HTTP/executor cases against
       an owned disposable MySQL instance.
+
+- [x] Keep the existing full-suite deadline inside the job with owned process
+      cleanup and bounded output drainage. Preserve original progress and fail
+      on a timeout or an output pipe left open after exit. Real-process tests
+      cover success, command failure, an unsettled module and an escaped writer.
+      This supplies diagnostics; the intermittent module hang remains unproven.

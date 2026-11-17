@@ -1,0 +1,2 @@
+# CI lifecycle supervision must start before application preload code.
+preload = []
