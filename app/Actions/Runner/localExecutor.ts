@@ -1444,9 +1444,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           context,
           nativeRuntime: {
             baseUrl: options.baseUrl, job, workspace, signal: lease.signal,
-            run: command => runStep({ signal: lease.signal, command, cwd: workspace,
-              environment: { ...environmentFor(job, workspace), ...jobEnv, ...serviceEnv, ...carried },
-              onOutput: (text, stream) => send(text, stream) }),
+            run: async command => {
+              let errors = ''
+              const result = await runStep({ signal: lease.signal, command, cwd: workspace,
+                environment: { ...environmentFor(job, workspace), ...jobEnv, ...serviceEnv, ...carried },
+                onOutput: async (text, stream) => {
+                  if (stream === 'stderr') errors = (errors + text).slice(-8192)
+                  await send(text, stream)
+                } })
+              return { ...result, errors }
+            },
+            onOutput: text => send(text, 'stderr'),
           },
           uses: String(step.uses),
           with: interpolateValues(step.with ?? {}, context),

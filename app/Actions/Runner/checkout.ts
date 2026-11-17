@@ -74,6 +74,25 @@ export function shellQuote(value: string): string {
   return `'${String(value ?? '').replace(/'/g, `'\\''`)}'`
 }
 
+/** Replay only a Git transfer, preserving the caller's lease and diagnostics. */
+export async function retryGitTransfer<T extends { ok: boolean, errors?: string }>(
+  run: () => Promise<T>,
+  onRetry: (text: string) => Promise<void>,
+  signal?: AbortSignal,
+): Promise<T> {
+  let result = await run()
+  for (let attempt = 2; attempt <= 3 && !result.ok; attempt++) {
+    const errors = result.errors ?? ''
+    if (/authentication failed|\b(?:401|403)\b|could not read Username|not our ref|unadvertised object/i.test(errors)
+      || !/early EOF|unexpected disconnect|RPC failed|connection (?:reset|timed out)|could not resolve host|HTTP (?:502|503|504)/i.test(errors)) break
+    await onRetry(`The Git transfer was interrupted; retrying the same commit (attempt ${attempt} of 3).\n`)
+    await Bun.sleep(750 * (attempt - 1))
+    signal?.throwIfAborted()
+    result = await run()
+  }
+  return result
+}
+
 /**
  * The commands that put `sha` in the workspace.
  *
@@ -306,15 +325,9 @@ export async function checkoutCode(input: {
     // Only a remote fetch may be replayed. Initialization, checkout, hooks,
     // submodules and LFS are never repeated after a transfer failure.
     for (const command of onHost ? [plan.commands.join(' && ')] : plan.commands) {
-      let result = await run(command)
-      for (let attempt = 2; attempt <= 3 && !result.ok && command.startsWith('git fetch '); attempt++) {
-        if (/authentication failed|\b(?:401|403)\b|could not read Username|not our ref|unadvertised object/i.test(result.errors)
-          || !/early EOF|unexpected disconnect|RPC failed|connection (?:reset|timed out)|could not resolve host|HTTP (?:502|503|504)/i.test(result.errors)) break
-        await input.onOutput(`The Git transfer was interrupted; retrying the same commit (attempt ${attempt} of 3).\n`, 'stderr')
-        await Bun.sleep(750 * (attempt - 1))
-        result = await run(command)
-      }
-      clone = result
+      clone = command.startsWith('git fetch ')
+        ? await retryGitTransfer(() => run(command), text => input.onOutput(text, 'stderr'))
+        : await run(command)
       if (!clone.ok) break
     }
   }

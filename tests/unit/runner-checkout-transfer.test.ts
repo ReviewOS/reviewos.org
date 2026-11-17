@@ -3,8 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkoutCode } from '../../app/Actions/Runner/checkout'
+import { nativeAction } from '../../app/Actions/Runner/nativeActions'
 
-test.each(['interrupted', 'forbidden', 'persistent'] as const)('remote checkout handles %s transfers without replaying initialization', async (failure) => {
+// Real Git over a truncated HTTP response covers bootstrap and the public
+// compatibility action. Controller authentication is covered at its own seam.
+test.each(['interrupted', 'forbidden', 'persistent'].flatMap(failure => ['bootstrap', 'action'].map(mode => ({ failure, mode }))))('remote $mode checkout handles $failure transfers without replaying initialization', async ({ failure, mode }) => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-transfer-'))
   const source = join(root, 'source'), bare = join(root, 'widgets.git'), workspace = join(root, 'workspace')
   mkdirSync(source); mkdirSync(workspace)
@@ -17,6 +20,11 @@ test.each(['interrupted', 'forbidden', 'persistent'] as const)('remote checkout 
   git('init', '-q', '-b', 'main')
   writeFileSync(join(source, 'tracked.txt'), 'The exact requested source.\n')
   git('add', '.'); git('commit', '-qm', 'fixture')
+  if (mode === 'action') {
+    git('clone', '-q', source, workspace)
+    writeFileSync(join(source, 'tracked.txt'), 'The exact requested source, after bootstrap.\n')
+    git('commit', '-qam', 'new source')
+  }
   const sha = git('rev-parse', 'HEAD')
   git('clone', '--bare', '-q', source, bare)
   git('-C', bare, 'repack', '-ad'); git('-C', bare, 'update-server-info')
@@ -40,23 +48,28 @@ test.each(['interrupted', 'forbidden', 'persistent'] as const)('remote checkout 
   } })
   const commands: string[] = [], output: string[] = []
   try {
-    const result = await checkoutCode({ reposRoot: join(root, 'absent'), fullName: 'acme/widgets', sha, workspace, baseUrl: server.url.origin, options: { depth: 0 }, onOutput: async text => { output.push(text) }, run: async options => {
+    const run = async (options: { command: string, cwd: string, environment: Record<string, string>, onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void> }) => {
       commands.push(options.command)
       const proc = Bun.spawn(['sh', '-c', options.command], { cwd: options.cwd, env: { ...env, ...options.environment, GIT_HTTP_LOW_SPEED_LIMIT: '1', GIT_HTTP_LOW_SPEED_TIME: '2' }, stdout: 'pipe', stderr: 'pipe' })
       const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
       await options.onOutput(stdout, 'stdout'); await options.onOutput(stderr, 'stderr')
-      return { ok: code === 0, exitCode: code }
-    } })
-    expect(commands.filter(command => command.includes('git init'))).toHaveLength(1)
-    expect(commands.filter(command => command.includes('git remote add'))).toHaveLength(1)
+      return { ok: code === 0, exitCode: code, errors: stderr }
+    }
+    if (mode === 'action') git('-C', workspace, 'remote', 'set-url', 'origin', server.url.origin + '/git/acme/widgets.git')
+    const result = mode === 'bootstrap'
+      ? await checkoutCode({ reposRoot: join(root, 'absent'), fullName: 'acme/widgets', sha, workspace, baseUrl: server.url.origin, options: { depth: 0 }, onOutput: async text => { output.push(text) }, run })
+      : await nativeAction({ reference: { kind: 'remote', host: 'github.com', repository: 'actions/checkout' } as any, defaultHost: 'github.com', with: { 'fetch-depth': 0 }, output: '', runtime: { baseUrl: server.url.origin, workspace, job: { repository_full_name: 'acme/widgets', run: { head_sha: sha, ref: 'refs/heads/main' } }, run: command => run({ command, cwd: workspace, environment: {}, onOutput: async text => { output.push(text) } }) } })
+    expect(result).not.toBeNull()
+    expect(commands.filter(command => command.includes('git init'))).toHaveLength(mode === 'bootstrap' ? 1 : 0)
+    expect(commands.filter(command => command.includes('git remote add'))).toHaveLength(mode === 'bootstrap' ? 1 : 0)
     if (failure === 'interrupted') {
-      expect(result.ok, output.join('')).toBe(true)
+      expect(result?.ok, output.join('')).toBe(true)
       expect(packs).toBe(2)
-      expect(readFileSync(join(workspace, 'tracked.txt'), 'utf8')).toBe('The exact requested source.\n')
+      expect(readFileSync(join(workspace, 'tracked.txt'), 'utf8')).toBe(mode === 'bootstrap' ? 'The exact requested source.\n' : 'The exact requested source, after bootstrap.\n')
       expect(git('-C', workspace, 'rev-parse', 'HEAD')).toBe(sha)
     }
     else {
-      expect(result.ok).toBe(false)
+      expect(result?.ok).toBe(false)
       expect(commands.some(command => command.startsWith('git checkout'))).toBe(false)
       if (failure === 'forbidden') expect(rejected).toBe(1)
       else expect(packs).toBe(3)

@@ -2520,4 +2520,4 @@ failed evidence into success.
       and its log endpoint returned 404. The application hang and this missing
       supervisor completion remain unproven; no rollout is accepted from it.
 
-- [x] Retry interrupted remote Git fetches for the exact requested commit, at most three attempts, without replaying checkout initialization. Authentication failures and unavailable objects stop immediately. Real HTTP pack truncation regressions cover recovery, permanent failure and HTTP 403. The original job timeout and transfer diagnostics remain in effect.
+- [x] Retry interrupted remote Git fetches for the exact requested commit, including full-history fetches in the native `actions/checkout` adapter, at most three attempts, without replaying checkout initialization, reset or clean. Authentication failures and unavailable objects stop immediately. Real HTTP pack truncation regressions cover recovery, permanent failure and HTTP 403. The original job timeout and transfer diagnostics remain in effect.

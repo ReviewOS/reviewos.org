@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import type { ActionReference } from './actionRef'
-import { shellQuote } from './checkout'
+import { retryGitTransfer, shellQuote } from './checkout'
 import { artifactAction } from './artifactActions'
 
 export interface NativeActionRuntime {
@@ -8,7 +8,8 @@ export interface NativeActionRuntime {
   workspace: string
   signal?: AbortSignal
   job: any
-  run: (command: string) => Promise<{ ok: boolean, exitCode: number }>
+  run: (command: string) => Promise<{ ok: boolean, exitCode: number, errors?: string }>
+  onOutput?: (text: string) => Promise<void>
 }
 
 /** Compatibility actions use the forge's existing scoped services, like cache. */
@@ -52,12 +53,18 @@ export async function nativeAction(input: {
   // A default action already has the bootstrap commit. Reusing it avoids a
   // second shallow negotiation; deeper/full history must still be fetched.
   // Checkout/reset/clean below always run, including after intervening steps.
-  const commands = depth === 0
+  const transfers = depth === 0
     ? ['if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --quiet --unshallow origin; else git fetch --quiet origin; fi', `git fetch --quiet origin ${shellQuote(sha)}`]
     : depth === 1
       ? [`if [ "$(git rev-parse --verify HEAD 2>/dev/null)" = ${shellQuote(sha)} ] && git cat-file -e ${shellQuote(`${sha}^{commit}`)}; then :; else git fetch --quiet --depth 1 origin ${shellQuote(sha)}; fi`]
       : [`git fetch --quiet --depth ${depth} origin ${shellQuote(sha)}`]
-  commands.push(`git checkout --quiet --force ${shellQuote(sha)}`)
+  // History fetches use the same bounded transfer policy as bootstrap. Never
+  // replay checkout, reset, clean, submodules or LFS after a failed transfer.
+  for (const command of transfers) {
+    const transfer = await retryGitTransfer(() => runtime.run(command), async text => { await runtime.onOutput?.(text) }, runtime.signal)
+    if (!transfer.ok) return { ok: false, reason: `Native checkout exited ${transfer.exitCode}` }
+  }
+  const commands = [`git checkout --quiet --force ${shellQuote(sha)}`]
   if (String(values.clean ?? true) !== 'false') {
     commands.push(`git reset --hard --quiet ${shellQuote(sha)}`, 'git clean -ffdx -e .reviewos-runner/')
   }
