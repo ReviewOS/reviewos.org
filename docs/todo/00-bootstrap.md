@@ -1046,3 +1046,31 @@ Each one is committed and pushed in the repository named.
       one assignment and the control cannot drift from the value being posted. Still one
       comma-separated field on the way out, because `CreateTokenAction` accepts that shape and
       repeated form fields arrive as one value or as a list depending on the parser.
+
+- [x] **A form can answer without replacing the page, where that is the better answer.** Nothing was
+      ever stopping it. `respond()` returns a 303 only when `Accept` carries `text/html` and JSON
+      otherwise, which is how the CLI already talks to the same actions; the CSRF middleware reads
+      `_token` out of the body, which the form already carries; and `push.ts`, `wikipreview.ts`,
+      `live.ts` and `diffviewer.ts` have been POSTing by fetch all along. The full round trip is a
+      default, written down in `docs/architecture.md` as "server-rendered, with islands where
+      interactivity is worth it", not a limitation.
+
+      It stays the default, because most forms are better for it: refresh does not re-post, the back
+      button lands somewhere sane, and a validation failure comes back rendered by the server with
+      every field filled in. So `public/js/form-live.js` is opt-in per form with `data-live`, and
+      the profile form is the only one that takes it.
+
+      What a form gives up by not navigating is the page that would have answered it, so it names
+      where the answer goes (`data-live-status`). Two cases are deliberate rather than incidental: a
+      network failure submits natively, handing the browser a problem it already has a page and a
+      retry for; and a rename reloads, because the heading link and every repository URL on that page
+      carry the old handle and staying would leave somebody reading `/old` while they are `/new`.
+
+      Not `@submit.prevent` on the form: a handler there runs before the document-level one in
+      `form-busy.js`, so cancelling at the form means the busy behaviour sees an already-cancelled
+      submit and the button never says anything. Installed after that module, the order is mark
+      busy, cancel, send, clear - which is why `clearBusy` is now exported.
+
+      Verified in a browser against the real router on all three paths, with a marker on `window` to
+      prove the page was not replaced: a save stays put and says so, a refusal shows the server's own
+      sentence with the typing intact, and a rename reloads and comes back correct.

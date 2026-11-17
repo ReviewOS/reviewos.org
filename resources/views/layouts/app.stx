@@ -1141,6 +1141,17 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         the rule for the name box. */
       .field-hint { margin: -8px 0 14px; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
+      /* What a form says when it answered without replacing the page. Quiet
+         by default, because the common answer is "saved" and nobody needs that
+         shouted; the failure borrows the one colour that means failure. */
+      .field-live {
+        margin: 0 0 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .field-live.is-bad { color: var(--bad); }
+
       .field-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
       /* One card, one form, one thing to do: on the auth screens the button is
@@ -2816,6 +2827,14 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
        * test imports that same file. Importing it installs it.
        */
       await import('/js/form-busy.js')
+
+      /*
+       * And the forms that answer without replacing the page, which is opt-in
+       * per form with `data-live`. Imported after the module above on purpose:
+       * both listen on the document, so registration order is what puts "mark
+       * the button busy" before "cancel the navigation".
+       */
+      await import('/js/form-live.js')
 
       const diagrams = document.querySelectorAll('pre.mermaid')
 

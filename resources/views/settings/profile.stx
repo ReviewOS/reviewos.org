@@ -80,7 +80,20 @@ const website = String(account?.website ?? '')
         form in the product rather than this one, and this button only says
         what it should read while it works.
       --}}
-      <form class="key-form panel" method="post" action="/api/user/profile">
+      {{-- `data-live` opts this one form into answering without replacing the
+          page: `public/js/form-live.js`. With no JavaScript it posts natively
+          and the action redirects, exactly as before - which is why the form
+          is unchanged apart from the attributes.
+
+          `data-live-was` is the handle this page was rendered for. A rename
+          makes every link on the page wrong, so that case reloads; everything
+          else stays put and says so in the line below the button. --}}
+      <form
+        class="key-form panel"
+        method="post"
+        action="/api/user/profile"
+        data-live
+        data-live-was="{{ handle }}">
         <CsrfField />
 
         <label class="field-label" for="handle">Handle</label>
@@ -106,6 +119,10 @@ const website = String(account?.website ?? '')
 
         <label class="field-label" for="website">Website</label>
         <input id="website" class="field-input" type="url" name="website" value="{{ website }}" maxlength="200" placeholder="https://example.com">
+
+        {{-- Where the answer goes, now that there is no new page to carry it.
+            `role="status"` so a screen reader hears it without being moved. --}}
+        <p class="field-live" data-live-status role="status" hidden></p>
 
         <div class="field-actions">
           {{-- `data-busy-label` rather than a flag of its own: the behaviour is

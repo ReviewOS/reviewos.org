@@ -100,7 +100,16 @@ export function install(root) {
 
     button.setAttribute('aria-busy', 'true')
     button.classList.add('is-busy')
-    button.textContent = busyLabel(button.textContent.trim(), button.dataset.busyLabel)
+
+    // Kept so `clearBusy` can restore it. A navigating form never needs this,
+    // because the page it is replaced by renders the label fresh.
+    const was = button.textContent.trim()
+    const next = busyLabel(was, button.dataset.busyLabel)
+
+    if (next !== was)
+      button.dataset.busyWas = was
+
+    button.textContent = next
   })
 
   /*
@@ -116,13 +125,31 @@ export function install(root) {
         return
 
       for (const form of root.querySelectorAll('form[data-busy="1"]'))
-        form.removeAttribute('data-busy')
-
-      for (const button of root.querySelectorAll('button.is-busy')) {
-        button.classList.remove('is-busy')
-        button.removeAttribute('aria-busy')
-      }
+        clearBusy(form)
     })
+  }
+}
+
+/**
+ * Let a form go again, and put its button back the way it was.
+ *
+ * Needed by anything that handles a submit itself rather than letting the
+ * browser navigate: without the navigation there is nothing to replace the
+ * page, so the marks have to come off deliberately. `form-live.js` calls this
+ * when its request finishes, and `pageshow` calls it for a page restored
+ * mid-submit from the back/forward cache.
+ */
+export function clearBusy(form) {
+  form.removeAttribute('data-busy')
+
+  for (const button of form.querySelectorAll('button.is-busy')) {
+    button.classList.remove('is-busy')
+    button.removeAttribute('aria-busy')
+
+    if (button.dataset.busyWas !== undefined) {
+      button.textContent = button.dataset.busyWas
+      delete button.dataset.busyWas
+    }
   }
 }
 
