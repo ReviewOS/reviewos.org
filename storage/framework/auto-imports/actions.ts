@@ -470,6 +470,7 @@ export const actions = {
   'Actions/Runner/quota': '../../../app/Actions/Runner/quota.ts',
   'Actions/Runner/redact': '../../../app/Actions/Runner/redact.ts',
   'Actions/Runner/report': '../../../app/Actions/Runner/report.ts',
+  'Actions/Runner/resume': '../../../app/Actions/Runner/resume.ts',
   'Actions/Runner/services': '../../../app/Actions/Runner/services.ts',
   'Actions/Runner/snapshot': '../../../app/Actions/Runner/snapshot.ts',
   'Actions/Runner/standalone': '../../../app/Actions/Runner/standalone.ts',
