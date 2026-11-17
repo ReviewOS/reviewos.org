@@ -1,3 +1,4 @@
+import { selectWorkflow } from './select-workflow'
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
@@ -77,9 +78,9 @@ export default new Action({
      * dispatch endpoint uses, because a client that can start a workflow by
      * name and cannot read it by name has two vocabularies for one thing.
      */
-    const workflow = candidates.find(row => String(row.path) === wanted)
-      ?? candidates.find(row => String(row.path).endsWith(`/${wanted}`))
-      ?? candidates.find(row => String(row.name) === wanted)
+    const selected = selectWorkflow(candidates, wanted)
+    if (selected.error) return response.json({ error: selected.error }, 422)
+    const workflow = selected.workflow
 
     if (!workflow)
       return response.json({ error: 'No such workflow' }, 404)

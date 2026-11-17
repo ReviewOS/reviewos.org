@@ -3613,3 +3613,5 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       silent. Subscribe before the report, verify the ignored response and
       unchanged completed check, then require the same delivery set. Required
       checks API fixtures fail instead of passing when database setup fails.
+
+- [x] Resolve short workflow names to a unique active definition after provider migration, retain exact historical paths, and reject ambiguous aliases before dispatch or management.

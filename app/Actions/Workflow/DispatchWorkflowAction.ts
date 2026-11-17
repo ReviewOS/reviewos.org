@@ -1,3 +1,4 @@
+import { selectWorkflow } from './select-workflow'
 import { Action } from '@stacksjs/actions'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
@@ -114,9 +115,9 @@ export default new Action({
       .where('repository_id', '=', repository.id)
       .execute()
 
-    const workflow = candidates.find(row => String(row.path) === wanted)
-      ?? candidates.find(row => String(row.path).endsWith(`/${wanted}`))
-      ?? candidates.find(row => String(row.name) === wanted)
+    const selected = selectWorkflow(candidates, wanted)
+    if (selected.error) return refuse(request, selected.error, 422)
+    const workflow = selected.workflow
 
     if (!workflow)
       return refuse(request, 'No such workflow', 404)

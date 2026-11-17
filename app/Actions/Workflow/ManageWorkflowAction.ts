@@ -1,3 +1,4 @@
+import { selectWorkflow } from './select-workflow'
 import { Action } from '@stacksjs/actions'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
@@ -81,9 +82,9 @@ export default new Action({
       .execute()
       .catch(() => [])
 
-    const workflow = candidates.find(row => String(row.path) === key)
-      ?? candidates.find(row => String(row.path).endsWith(`/${key}`))
-      ?? candidates.find(row => String(row.name) === key)
+    const selected = selectWorkflow(candidates, key)
+    if (selected.error) return response.json({ error: selected.error }, 422)
+    const workflow = selected.workflow
 
     if (!workflow)
       return response.json({ error: 'No such workflow in this repository' }, 404)

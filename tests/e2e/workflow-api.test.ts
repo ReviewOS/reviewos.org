@@ -1611,3 +1611,29 @@ describe('disabling a workflow', () => {
     expect((await manage({ operation: 'disable', workflow: '.github/workflows/nothing.yml' })).status).toBe(404)
   }, 120_000)
 })
+
+describe('workflow aliases after migrating providers', () => {
+  test('dispatches the active definition and keeps an explicit removed path unavailable', async () => {
+    if (!available) return
+    const original = await db.selectFrom('workflow_versions').select(['workflow_id']).where('id', '=', created.versionId).executeTakeFirst()
+    let replacement = 0
+    try {
+      await db.updateTable('workflows').set({ state: 'removed' }).where('id', '=', Number(original.workflow_id)).execute()
+      const row = await db.insertInto('workflows').values({ owner_type: 'user', owner_id: created.ownerId, repository_id: created.repositoryId, path: '.reviewos/workflows/ci.yml', name: 'CI', state: 'active' }).returning(['id']).executeTakeFirst()
+      replacement = Number(row.id)
+      const version = await db.insertInto('workflow_versions').values({ workflow_id: replacement, source_sha: initialCommit, source_path: '.reviewos/workflows/ci.yml', content_digest: unique('migration'), on_dispatch: true }).returning(['id']).executeTakeFirst()
+      const init = { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json', 'Content-Type': 'application/json' } }
+      const answer = await api(`/api/repos/workflows/dispatch?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, init)
+      expect(answer.status).toBe(201)
+      const run = await db.selectFrom('workflow_runs').select(['workflow_version_id']).where('repository_id', '=', created.repositoryId).where('number', '=', Number(answer.body.workflow_run.number)).executeTakeFirst()
+      expect(Number(run.workflow_version_id)).toBe(Number(version.id))
+      const old = await api(`/api/repos/workflows/dispatch?owner=${created.handle}&repo=${created.name}&workflow=.github/workflows/ci.yml`, init)
+      expect(old.status).toBe(409)
+      expect(old.body.error).toContain('removed')
+    }
+    finally {
+      await db.updateTable('workflows').set({ state: 'active' }).where('id', '=', Number(original.workflow_id)).execute()
+      if (replacement) await db.updateTable('workflows').set({ state: 'removed' }).where('id', '=', replacement).execute()
+    }
+  })
+})
