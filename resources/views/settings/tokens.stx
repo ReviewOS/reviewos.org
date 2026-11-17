@@ -43,6 +43,16 @@ const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHea
 const tokens = viewer ? await tokensFor(viewer.id) : []
 const repositories = viewer ? await scopableRepositories(viewer.id) : []
 
+/*
+ * `owner/name` for each row, for the picker's "nothing matches" line.
+ *
+ * Built here rather than in the template because the filter needs to count
+ * matches, and counting them in the markup means asking each row whether it is
+ * visible. Safe to embed: `isSafeSegment` allows `[A-Za-z0-9._-]` and nothing
+ * else, so no label can carry a quote out of its attribute.
+ */
+const repositoryLabels = repositories.map(repository => `${repository.owner}/${repository.name}`)
+
 // A settings page for nobody is not a 404. The page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 //
@@ -214,26 +224,83 @@ if (viewer?.is_admin || maintainsPools) {
               </p>
             @else
               {{--
-                A comma-separated list rather than a checkbox per repository:
-                repeated form fields arrive as one value or as a list depending
-                on the parser, and a settings page should not be betting on
-                which. `CreateTokenAction` accepts both shapes, and drops any id
-                the account cannot reach.
+                A filter and a list of checkboxes rather than a `<select
+                multiple>`.
 
-                The select is `multiple`, so this is still a list to click, and
-                the hidden field is what gets posted.
+                The native control asks somebody to ctrl-click rows in a
+                six-row window, loses the whole selection on a stray click, and
+                on a phone opens a full-screen list with no way to search it.
+                This is the shape npm uses for the same job, and the job is the
+                same: pick a few things out of a list that is as long as your
+                account is old.
+
+                What is deliberately not here is an "all repositories" option.
+                A token that reaches everything is the thing this form exists to
+                avoid handing out by accident, and the hint below says so.
+
+                Still one comma-separated hidden field on the way out:
+                `CreateTokenAction` accepts that shape and drops any id the
+                account cannot reach, and repeated form fields arrive as one
+                value or as a list depending on the parser.
               --}}
-              <div x-data="{ chosen: [] }">
-                <select
-                  class="tok-repos"
-                  multiple
-                  size="6"
-                  aria-label="Repositories this token may reach"
-                  @change="chosen = Array.from($event.target.selectedOptions).map(option => option.value)">
+              <div
+                class="tok-picker"
+                x-data="{
+                  query: '',
+                  chosen: [],
+                  all: {{ JSON.stringify(repositoryLabels) }},
+                  matches(label) {
+                    const needle = this.query.trim().toLowerCase()
+                    return needle === '' || label.toLowerCase().includes(needle)
+                  },
+                  get showing() { return this.all.filter(label => this.matches(label)).length },
+                  toggle(id, on) {
+                    this.chosen = on ? [...this.chosen, id] : this.chosen.filter(other => other !== id)
+                  },
+                }">
+                <div class="tok-picker-head">
+                  <input
+                    class="tok-search"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Filter repositories"
+                    aria-label="Filter repositories"
+                    x-model="query">
+                  {{-- Count and clear, which the native control had no room
+                      for. The count is the answer to "did that click land". --}}
+                  <p class="tok-count" x-show="chosen.length > 0">
+                    <span x-text="chosen.length === 1 ? '1 selected' : chosen.length + ' selected'"></span>
+                    <button type="button" class="tok-clear" @click="chosen = []">Clear</button>
+                  </p>
+                </div>
+
+                <div class="tok-list" role="group" aria-label="Repositories this token may reach">
                   @foreach (repositories as repository)
-                    <option value="{{ repository.id }}">{{ repository.name }}</option>
+                    {{-- The owner is part of the name here, not decoration: an
+                        account can reach two repositories called the same
+                        thing, and `/{owner}/{name}` is how the rest of the
+                        product tells them apart. --}}
+                    <label class="tok-repo" x-show="matches('{{ repository.owner }}/{{ repository.name }}')">
+                      {{-- `:checked` off the same list the hidden field is
+                          built from, so Clear is `chosen = []` and nothing has
+                          to go and find the boxes to untick. One source of
+                          truth, and the control cannot drift from the value
+                          being posted. --}}
+                      <input
+                        type="checkbox"
+                        value="{{ repository.id }}"
+                        :checked="chosen.includes('{{ repository.id }}')"
+                        @change="toggle('{{ repository.id }}', $event.target.checked)">
+                      <span class="tok-repo-label">
+                        <span class="tok-repo-owner">{{ repository.owner }}/</span>{{ repository.name }}
+                      </span>
+                    </label>
                   @endforeach
-                </select>
+                </div>
+
+                <p class="muted tok-hint" x-show="showing === 0">
+                  No repository matches that.
+                </p>
 
                 <input type="hidden" name="selection" value="selected">
                 <input type="hidden" name="repository_ids" :value="chosen.join(',')">
@@ -395,7 +462,7 @@ if (viewer?.is_admin || maintainsPools) {
 
   .tok-input,
   .tok-select,
-  .tok-repos {
+  .tok-search {
     display: block;
     width: 100%;
     padding: 8px 10px;
@@ -408,6 +475,84 @@ if (viewer?.is_admin || maintainsPools) {
 
   .tok-input { margin-bottom: 6px; }
   .tok-hint { font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+
+  /* The repository picker.
+     A filter over a scrolling list of checkboxes, which is the shape this job
+     actually has: pick a few out of a list as long as the account is old. The
+     native `<select multiple>` it replaced asked for ctrl-click, threw the
+     whole selection away on a stray click, and had nothing to search with. */
+  .tok-picker { margin-bottom: 14px; }
+
+  .tok-picker-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .tok-search { flex: 1; margin: 0; }
+
+  .tok-count {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .tok-clear {
+    border: 0;
+    padding: 0;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--accent-text);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  /* Taller than the six rows the old control showed, and it scrolls rather
+     than growing: a hundred repositories should not push the Issue button off
+     the page. */
+  .tok-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+    background: var(--bg);
+  }
+
+  .tok-repo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px;
+    border-radius: var(--r-control, 8px);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .tok-repo:hover { background: var(--surface-tint); }
+
+  /* The row is the hit area, not the twelve pixels of the box. */
+  .tok-repo input { flex: none; margin: 0; cursor: pointer; }
+
+  .tok-repo-label { min-width: 0; overflow-wrap: anywhere; }
+
+  /* Quieter than the name, because the name is what somebody is scanning for;
+     the owner is there to tell two identical names apart. */
+  .tok-repo-owner { color: var(--muted); }
+
+  /* On a phone the count and the filter were sharing 375 pixels, which left
+     the filter 163 of them. The count is one line; the filter is the control
+     somebody is actually using. */
+  @media (max-width: 480px) {
+    .tok-picker-head { flex-wrap: wrap; }
+    .tok-search { flex: 1 1 100%; }
+  }
 
   .tok-fieldset {
     padding: 14px;

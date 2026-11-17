@@ -227,6 +227,26 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
   return listings.sort((a, b) => (parseTime(b.createdAt) ?? 0) - (parseTime(a.createdAt) ?? 0))
 }
 
+
+/** The handle for each owner in a set of rows, keyed `type:id`. */
+async function ownerHandles(rows: { ownerType: string, ownerId: number }[]): Promise<Map<string, string>> {
+  const users = [...new Set(rows.filter(row => row.ownerType === 'user').map(row => row.ownerId))]
+  const organizations = [...new Set(rows.filter(row => row.ownerType === 'organization').map(row => row.ownerId))]
+  const handles = new Map<string, string>()
+
+  if (users.length > 0) {
+    for (const row of await db.selectFrom('users').select(['id', 'handle']).where('id', 'in', users).execute() as any[])
+      handles.set(`user:${Number(row.id)}`, String(row.handle))
+  }
+
+  if (organizations.length > 0) {
+    for (const row of await db.selectFrom('organizations').select(['id', 'handle']).where('id', 'in', organizations).execute() as any[])
+      handles.set(`organization:${Number(row.id)}`, String(row.handle))
+  }
+
+  return handles
+}
+
 /**
  * The repositories an account may scope a token to.
  *
@@ -234,11 +254,23 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
  * somebody cannot pick a repository the endpoint is going to drop. Owned and
  * collaborating on, or reaching through organization membership. Selecting one
  * organization repository must not require selecting the entire organization.
+ *
+ * ## Why the owner comes back too
+ *
+ * This deduplicates by id and used to return the name alone, so an account
+ * that can reach two repositories called `bun-unocss` - one its own, one an
+ * organization's - was offered two rows reading `bun-unocss`. Both are real
+ * and they are different repositories, so the list was not wrong; it was
+ * unanswerable. Picking the wrong one hands a token to the wrong repository
+ * and nothing afterwards says so.
+ *
+ * A name is only unique under its owner, which is what `/{owner}/{name}` means
+ * everywhere else in the product, so that is what the picker shows.
  */
-export async function scopableRepositories(userId: number): Promise<{ id: number, name: string }[]> {
+export async function scopableRepositories(userId: number): Promise<{ id: number, name: string, owner: string }[]> {
   const owned = await db
     .selectFrom('repositories')
-    .select(['id', 'name'])
+    .select(['id', 'name', 'owner_type', 'owner_id'])
     .where('owner_type', '=', 'user')
     .where('owner_id', '=', userId)
     .execute()
@@ -246,20 +278,20 @@ export async function scopableRepositories(userId: number): Promise<{ id: number
   const collaborating = await db
     .selectFrom('repo_collaborators')
     .innerJoin('repositories', 'repositories.id', '=', 'repo_collaborators.repository_id')
-    .select(['repositories.id as id', 'repositories.name as name'])
+    .select(['repositories.id as id', 'repositories.name as name', 'repositories.owner_type as owner_type', 'repositories.owner_id as owner_id'])
     .where('repo_collaborators.user_id', '=', userId)
     .execute()
 
   const organizationRepositories = await db
     .selectFrom('org_members')
     .innerJoin('repositories', 'repositories.owner_id', '=', 'org_members.organization_id')
-    .select(['repositories.id as id', 'repositories.name as name'])
+    .select(['repositories.id as id', 'repositories.name as name', 'repositories.owner_type as owner_type', 'repositories.owner_id as owner_id'])
     .where('repositories.owner_type', '=', 'organization')
     .where('org_members.user_id', '=', userId)
     .execute()
 
   const seen = new Set<number>()
-  const all: { id: number, name: string }[] = []
+  const rows: { id: number, name: string, ownerType: string, ownerId: number }[] = []
 
   for (const row of [...owned, ...collaborating, ...organizationRepositories] as any[]) {
     const id = Number(row.id)
@@ -267,8 +299,19 @@ export async function scopableRepositories(userId: number): Promise<{ id: number
       continue
 
     seen.add(id)
-    all.push({ id, name: String(row.name) })
+    rows.push({ id, name: String(row.name), ownerType: String(row.owner_type), ownerId: Number(row.owner_id) })
   }
 
-  return all.sort((a, b) => a.name.localeCompare(b.name))
+  /*
+   * Two lookups for the whole list rather than one per row. A reader with
+   * forty repositories across six organizations is ordinary, and a query per
+   * row is how a settings page starts taking a second to paint.
+   */
+  const handles = await ownerHandles(rows)
+
+  return rows
+    .map(row => ({ id: row.id, name: row.name, owner: handles.get(`${row.ownerType}:${row.ownerId}`) ?? '' }))
+    // By owner, then by name, so the two `bun-unocss` rows land beside the
+    // rest of their owner's work rather than beside each other.
+    .sort((a, b) => a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name))
 }

@@ -209,7 +209,8 @@ describe('the access tokens page', () => {
     if (!available)
       return
 
-    const organization = await db.insertInto('organizations').values({ handle: unique('scopeorg'), name: 'Token picker organization' }).returning(['id']).executeTakeFirst()
+    const organizationHandle = unique('scopeorg')
+    const organization = await db.insertInto('organizations').values({ handle: organizationHandle, name: 'Token picker organization' }).returning(['id']).executeTakeFirst()
     const organizationId = Number(organization.id)
     let repositoryId = 0
     try {
@@ -217,9 +218,22 @@ describe('the access tokens page', () => {
       const repository = await db.insertInto('repositories').values({ owner_type: 'organization', owner_id: organizationId, name: 'organization-private-scope', visibility: 'private', default_branch: 'main', disk_path: `${organizationId}/organization-private-scope.git` }).returning(['id']).executeTakeFirst()
       repositoryId = Number(repository.id)
       const { scopableRepositories } = await import('../../app/Actions/Tokens/load')
-      expect((await scopableRepositories(created.userId)).filter(entry => entry.id === repositoryId)).toHaveLength(1)
+      const offered = (await scopableRepositories(created.userId)).filter(entry => entry.id === repositoryId)
+      expect(offered).toHaveLength(1)
+
+      // The owner travels with the name. An account can reach two
+      // repositories called the same thing, and a picker that shows the name
+      // alone cannot be answered: picking the wrong one hands the token to the
+      // wrong repository and nothing afterwards says so.
+      expect(offered[0].owner).toBe(organizationHandle)
+
       const html = await fetchPage('/settings/tokens', created.token)
-      expect(html).toContain(`<option value="${repositoryId}">organization-private-scope</option>`)
+
+      // A checkbox now, not an option. The id is what gets posted and the
+      // label is what somebody reads, so both are asserted.
+      expect(html).toContain(`value="${repositoryId}"`)
+      expect(html).toContain('organization-private-scope')
+      expect(html).toContain(organizationHandle)
 
       await db.deleteFrom('org_members').where('organization_id', '=', organizationId).where('user_id', '=', created.userId).execute()
       expect((await scopableRepositories(created.userId)).some(entry => entry.id === repositoryId)).toBe(false)

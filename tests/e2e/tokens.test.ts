@@ -632,6 +632,65 @@ describe('the tokens settings page reads', () => {
     const strangers = await scopableRepositories(created.ownerId)
     expect(strangers.map(entry => entry.name)).toContain(created.repositoryName)
   })
+
+  /*
+   * Two repositories, one name.
+   *
+   * The list deduplicates by id, so both of these are real and both belong in
+   * it. Returning the name alone made them two identical rows, and a picker
+   * nobody can answer is worse than one that is missing something: picking the
+   * wrong one scopes the token to the wrong repository and nothing afterwards
+   * says so.
+   */
+  test('tells two repositories with the same name apart by their owner', async () => {
+    if (!available)
+      return
+
+    const { scopableRepositories } = await import('../../app/Actions/Tokens/load')
+    const shared = `twin-${Math.random().toString(36).slice(2, 8)}`
+    let organizationId = 0
+    let organizationRepositoryId = 0
+    let ownedRepositoryId = 0
+
+    try {
+      const owner: any = await db.selectFrom('users').select(['handle']).where('id', '=', created.ownerId).executeTakeFirst()
+      const organizationHandle = `twinorg-${Math.random().toString(36).slice(2, 8)}`
+
+      const organization: any = await db.insertInto('organizations').values({ handle: organizationHandle, name: 'Twin name organization' }).returning(['id']).executeTakeFirst()
+      organizationId = Number(organization.id)
+      await db.insertInto('org_members').values({ organization_id: organizationId, user_id: created.ownerId, role: 'owner', joined_at: new Date().toISOString() }).execute()
+
+      const owned: any = await db.insertInto('repositories').values({ owner_type: 'user', owner_id: created.ownerId, name: shared, visibility: 'private', default_branch: 'main', disk_path: `${created.ownerId}/${shared}.git` }).returning(['id']).executeTakeFirst()
+      ownedRepositoryId = Number(owned.id)
+
+      const theirs: any = await db.insertInto('repositories').values({ owner_type: 'organization', owner_id: organizationId, name: shared, visibility: 'private', default_branch: 'main', disk_path: `${organizationId}/${shared}.git` }).returning(['id']).executeTakeFirst()
+      organizationRepositoryId = Number(theirs.id)
+
+      const twins = (await scopableRepositories(created.ownerId)).filter(entry => entry.name === shared)
+
+      // Both offered, because both are reachable.
+      expect(twins).toHaveLength(2)
+
+      // And distinguishable, which is the whole point.
+      const owners = twins.map(entry => entry.owner).sort()
+      expect(owners).toEqual([String(owner.handle), organizationHandle].sort())
+      expect(new Set(owners).size).toBe(2)
+
+      // The pair a reader actually sees is unique, where the name alone was not.
+      const labels = twins.map(entry => `${entry.owner}/${entry.name}`)
+      expect(new Set(labels).size).toBe(2)
+    }
+    finally {
+      for (const id of [ownedRepositoryId, organizationRepositoryId]) {
+        if (id)
+          await db.deleteFrom('repositories').where('id', '=', id).execute()
+      }
+      if (organizationId) {
+        await db.deleteFrom('org_members').where('organization_id', '=', organizationId).execute()
+        await db.deleteFrom('organizations').where('id', '=', organizationId).execute()
+      }
+    }
+  })
 })
 
 describe('a token is issued with exactly what the form chose', () => {

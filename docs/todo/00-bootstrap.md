@@ -1024,3 +1024,25 @@ Each one is committed and pushed in the repository named.
       over "Delete", "Revoke" or "Merge pull request" names the wrong action, which is worse than
       naming none, so those get the spinner alone. GET forms are left alone entirely: the search box
       is a query, not a change.
+
+- [x] **The token repository picker became answerable.** It was a `<select multiple size="6">`: pick
+      a few repositories out of a list as long as your account is old, by ctrl-clicking rows in a
+      six-row window, losing the whole selection on a stray click, with nothing to search and no way
+      to see how many were chosen. It is a filter over a scrolling list of checkboxes now, with a
+      count and a Clear, which is the shape npm uses for the same job.
+
+      Underneath it was worse than awkward. `scopableRepositories` deduplicates by id but returned
+      the name alone, so an account that can reach two repositories called `bun-unocss` - one its
+      own, one an organization's - was shown two identical rows. Both were real and they were
+      different repositories, so the list was not wrong; it was unanswerable, and picking the wrong
+      one scopes a token to the wrong repository with nothing afterwards to say so. It returns the
+      owner handle too, and the picker shows `owner/name`, which is what `/{owner}/{name}` means
+      everywhere else in the product. Two lookups for the whole list rather than one per row.
+
+      Deliberately absent: an "all repositories" option. A token that reaches everything is what
+      this form exists to avoid handing out by accident, and the hint under the list says so.
+
+      The checkboxes bind `:checked` to the same list the hidden field is built from, so Clear is
+      one assignment and the control cannot drift from the value being posted. Still one
+      comma-separated field on the way out, because `CreateTokenAction` accepts that shape and
+      repeated form fields arrive as one value or as a list depending on the parser.
