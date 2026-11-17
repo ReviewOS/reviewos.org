@@ -2519,3 +2519,5 @@ failed evidence into success.
       but run 43988540719 still reached GitHub's 30-minute ceiling for MySQL
       and its log endpoint returned 404. The application hang and this missing
       supervisor completion remain unproven; no rollout is accepted from it.
+
+- [x] Retry interrupted remote Git fetches for the exact requested commit, at most three attempts, without replaying checkout initialization. Authentication failures and unavailable objects stop immediately. Real HTTP pack truncation regressions cover recovery, permanent failure and HTTP 403. The original job timeout and transfer diagnostics remain in effect.

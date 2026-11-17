@@ -273,32 +273,50 @@ export async function checkoutCode(input: {
   await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)} (${plan.summary})\n`, 'stdout')
 
   const askpass = input.cloneToken && !onHost ? askpassFor(input.workspace, input.cloneToken) : undefined
-  let clone: { ok: boolean, exitCode: number }
+  let clone: { ok: boolean, exitCode: number } = { ok: true, exitCode: 0 }
   try {
-    clone = await input.run({
-      // Joined with `&&`: each step of a checkout depends on the one before it,
-      // and a sparse-checkout that failed followed by a fetch that succeeded is a
-      // build against the wrong tree with a green checkout above it.
-      command: plan.commands.join(' && '),
-      cwd: input.workspace,
-      environment: {
-        PATH: process.env.PATH ?? '/usr/bin:/bin',
-        HOME: input.workspace,
-        GIT_TERMINAL_PROMPT: '0',
-        /*
-         * The credential, when there is one, through an askpass helper rather
-         * than in the URL: a token in a remote URL is written into
-         * `.git/config`, which is inside the workspace a step can read.
-         */
-        ...(askpass
-          ? {
-              GIT_ASKPASS: askpass,
-              GIT_CONFIG_PARAMETERS: `'credential.helper='`,
-            }
-          : {}),
-      },
-      onOutput: input.onOutput,
-    })
+    const run = async (command: string) => {
+      let errors = ''
+      const result = await input.run({
+        command,
+        cwd: input.workspace,
+        environment: {
+          PATH: process.env.PATH ?? '/usr/bin:/bin',
+          HOME: input.workspace,
+          GIT_TERMINAL_PROMPT: '0',
+          /*
+           * The credential, when there is one, through an askpass helper rather
+           * than in the URL: a token in a remote URL is written into
+           * `.git/config`, which is inside the workspace a step can read.
+           */
+          ...(askpass
+            ? {
+                GIT_ASKPASS: askpass,
+                GIT_CONFIG_PARAMETERS: `'credential.helper='`,
+              }
+            : {}),
+        },
+        onOutput: async (text, stream) => {
+          if (stream === 'stderr') errors = (errors + text).slice(-8192)
+          await input.onOutput(text, stream)
+        },
+      })
+      return { ...result, errors }
+    }
+    // Only a remote fetch may be replayed. Initialization, checkout, hooks,
+    // submodules and LFS are never repeated after a transfer failure.
+    for (const command of onHost ? [plan.commands.join(' && ')] : plan.commands) {
+      let result = await run(command)
+      for (let attempt = 2; attempt <= 3 && !result.ok && command.startsWith('git fetch '); attempt++) {
+        if (/authentication failed|\b(?:401|403)\b|could not read Username|not our ref|unadvertised object/i.test(result.errors)
+          || !/early EOF|unexpected disconnect|RPC failed|connection (?:reset|timed out)|could not resolve host|HTTP (?:502|503|504)/i.test(result.errors)) break
+        await input.onOutput(`The Git transfer was interrupted; retrying the same commit (attempt ${attempt} of 3).\n`, 'stderr')
+        await Bun.sleep(750 * (attempt - 1))
+        result = await run(command)
+      }
+      clone = result
+      if (!clone.ok) break
+    }
   }
   finally {
     if (askpass)
