@@ -152,8 +152,11 @@ describe('the way out of the product', () => {
 
     expect(signOutForm(html)).not.toBeNull()
 
-    // Named for somebody who cannot see the icon. The control is an icon
-    // button, so without this the accessible name is the empty string.
+    // Named for somebody who cannot see the icon. It carries a visible
+    // "Sign out" beside that icon now that it lives in the account menu, so
+    // the label is no longer the only name it has - but it is still the one
+    // asserted here, because the label is what survives the item going back
+    // to an icon in a tighter bar.
     expect(html).toMatch(/aria-label\s*=\s*["']Sign out["']/i)
 
     /*

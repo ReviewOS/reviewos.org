@@ -62,43 +62,77 @@ const onRegister = here.startsWith('/register')
 </script>
 
 @if (viewer)
-  <a class="account-link" href="/settings/profile" title="Settings" aria-label="Settings">
-    <span class="i-hugeicons-settings-01" aria-hidden="true"></span>
-  </a>
-  {{-- The handle beside the face, not instead of it. A bar that shows only an
-      avatar makes "am I signed in as the right account" a hover away, and on a
-      forge people do keep two. --}}
-  <a class="account-you" href="/{{ viewer.handle }}">
-    <span class="account-face" aria-hidden="true">{{ String(viewer.handle).charAt(0).toUpperCase() }}</span>
-    <span class="account-handle">{{ viewer.handle }}</span>
-  </a>
-  {{-- And a way back out, which the product did not have.
-      `POST /api/auth/logout` has existed and worked the whole time, revoking
-      the token rather than just dropping the cookie, and `review logout` calls
-      it from the CLI. Nothing in the interface did, so a signed-in reader's
-      only way to sign out of the web product was to clear their cookies, and
-      `forgot-password.stx` tells them to "sign out first" with no control
-      anywhere to do it with. That is the exact failure this component was
-      written to fix - a page that exists and nothing links to - one step out.
+  {{-- One control rather than three.
 
-      A form, not a link, because the action is POST only and for a good
-      reason it documents: an `<img src="/logout">` in a comment would sign out
-      every reader of that page on GET. It needs no script either, because the
-      action already answers an HTML request with a 303 to `/` and the cleared
-      cookie, so the browser does the whole thing natively. --}}
-  <form class="account-out" method="post" action="/api/auth/logout">
-    {{-- Without this the button is a 403. The CSRF middleware is
-        double-submit and this product runs no client-side JavaScript, so the
-        token has to travel in the body; `CsrfField.stx` is the one place that
-        knows how to read it. Its own comment puts it best: a form that forgets
-        it is a button that silently does nothing. This form forgot it, and the
-        first run of the test below returned `CSRF token mismatch` rather than
-        the redirect. --}}
-    <CsrfField />
-    <button class="account-link" type="submit" title="Sign out" aria-label="Sign out">
-      <span class="i-hugeicons-logout-03" aria-hidden="true"></span>
-    </button>
-  </form>
+      The bar used to carry a settings gear, the handle, and a sign-out icon
+      side by side: three items competing for the same corner, two of them
+      unlabelled icons, and the sign-out sitting one mis-click from the gear.
+      They are all the same kind of thing - things you do to your own account -
+      so they belong behind the thing that names the account.
+
+      A plain `<details>`, for the reason `BranchPicker.stx` gives: it opens
+      before any JavaScript has run, which is the point of rendering on the
+      server. It is also the only option that keeps the sign-out working, since
+      that control is a form post and this product runs no client-side script
+      to drive a menu with.
+
+      What it does not do, and `BranchPicker` does not either: close on an
+      outside click or on Escape. Both want a listener. Clicking the summary
+      again closes it, and any link inside navigates away, which covers every
+      way out of this particular menu. --}}
+  <details class="account-menu">
+    {{-- The handle beside the face, not instead of it. A bar that shows only
+        an avatar makes "am I signed in as the right account" a hover away, and
+        on a forge people do keep two. It is also the menu's accessible name,
+        which is why the initial is hidden from it: "chris" reads better than
+        "C chris". --}}
+    <summary class="account-you">
+      <span class="account-face" aria-hidden="true">{{ String(viewer.handle).charAt(0).toUpperCase() }}</span>
+      <span class="account-handle">{{ viewer.handle }}</span>
+      <span class="account-caret i-hugeicons-arrow-down-01" aria-hidden="true"></span>
+    </summary>
+
+    <div class="account-panel">
+      {{-- The profile first, because it is the one item here that is about
+          what other people see rather than about settings. The handle used to
+          link straight here; now that the handle opens the menu, this is where
+          that link went. --}}
+      <a class="account-item" href="/{{ viewer.handle }}">
+        <span class="i-hugeicons-user" aria-hidden="true"></span>
+        Your profile
+      </a>
+      <a class="account-item" href="/settings/profile">
+        <span class="i-hugeicons-settings-01" aria-hidden="true"></span>
+        Settings
+      </a>
+
+      {{-- And a way back out, which the product did not have before this
+          component existed. `POST /api/auth/logout` had worked the whole time,
+          revoking the token rather than just dropping the cookie, and
+          `review logout` called it from the CLI. Nothing in the interface did.
+
+          A form, not a link, because the action is POST only and for a good
+          reason it documents: an `<img src="/logout">` in a comment would sign
+          out every reader of that page on GET. It needs no script either: the
+          action answers an HTML request with a 303 to `/` and the cleared
+          cookie, so the browser does the whole thing natively.
+
+          Last, and behind a rule, because it is the one item here that cannot
+          be undone by pressing back. --}}
+      <form class="account-out" method="post" action="/api/auth/logout">
+        {{-- Without this the button is a 403. The CSRF middleware is
+            double-submit and this product runs no client-side JavaScript, so
+            the token has to travel in the body; `CsrfField.stx` is the one
+            place that knows how to read it. Its own comment puts it best: a
+            form that forgets it is a button that silently does nothing. --}}
+        <CsrfField />
+        <button class="account-item" type="submit" aria-label="Sign out">
+          <span class="i-hugeicons-logout-03" aria-hidden="true"></span>
+          Sign out
+        </button>
+      </form>
+    </div>
+  </details>
 @else
   @if (!onSignIn)
     <a class="account-link account-signin" href="{{ signInHref }}">Sign in</a>
@@ -109,6 +143,7 @@ const onRegister = here.startsWith('/register')
 @endif
 
 <style>
+  /* The signed-out half of the bar, which is still two plain controls. */
   .account-link {
     display: inline-flex;
     align-items: center;
@@ -124,36 +159,33 @@ const onRegister = here.startsWith('/register')
   }
 
   .account-link:hover { color: var(--text); background: var(--surface-tint); }
-  .account-link [class^='i-'] { font-size: 17px; }
 
-  /* The sign-out control is a button in a form rather than an anchor, so it
-     needs the parts a button does not inherit: no chrome of its own, and the
-     pointer that says it does something. Everything else it shares with
-     `.account-link`, because it is the same size and weight of control as the
-     settings gear beside it. */
-  .account-out { display: inline-flex; }
+  .account-menu { position: relative; display: inline-block; }
 
-  .account-out .account-link {
-    border: 0;
-    background: none;
-    font-family: inherit;
-    cursor: pointer;
-  }
-
+  /* `list-style: none` and the webkit marker rule are both needed, and for
+     different browsers: without them the summary carries a disclosure triangle
+     next to an avatar, which reads as a tree rather than a menu. */
   .account-you {
     display: inline-flex;
     align-items: center;
     gap: 7px;
     height: 32px;
-    padding: 0 10px 0 6px;
+    padding: 0 8px 0 6px;
     border-radius: 999px;
     font-size: 14px;
     font-weight: 500;
-    text-decoration: none;
+    color: var(--text);
     white-space: nowrap;
+    cursor: pointer;
+    list-style: none;
   }
 
+  .account-you::-webkit-details-marker { display: none; }
   .account-you:hover { background: var(--surface-tint); }
+
+  /* Open is a state worth showing: the panel can be mistaken for part of the
+     page below it, and this ties the two together. */
+  .account-menu[open] > .account-you { background: var(--surface-tint); }
 
   /* The initial rather than a gravatar. Nothing about somebody reading their
      own navigation bar should be a request to a third party. */
@@ -169,6 +201,68 @@ const onRegister = here.startsWith('/register')
     font-size: 11.5px;
     font-weight: 600;
     color: var(--muted);
+  }
+
+  /* The affordance. Without it the handle looks like the link it used to be,
+     and the first click is a surprise either way. */
+  .account-caret {
+    font-size: 14px;
+    color: var(--muted);
+    transition: transform 120ms ease;
+  }
+
+  .account-menu[open] .account-caret { transform: rotate(180deg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .account-caret { transition: none; }
+  }
+
+  .account-panel {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    /* Right rather than left: this sits at the right end of the bar, and a
+       panel hanging off the left edge would run past the window. */
+    right: 0;
+    min-width: 200px;
+    padding: 5px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  }
+
+  /* One rule for the two links and the button, because they are the same kind
+     of control and the button is the one that would otherwise arrive with a
+     browser's own chrome, font and alignment. */
+  .account-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13.5px;
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .account-item:hover { background: var(--accent-quiet); }
+  .account-item [class^='i-'] { font-size: 16px; color: var(--muted); }
+
+  /* The sign-out is the one item here that pressing back does not undo, so it
+     is last and behind a rule rather than loose among the others. */
+  .account-out {
+    display: block;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--line);
   }
 
   /* The one accented item in the bar when signed out. Review state (green,
@@ -201,9 +295,11 @@ const onRegister = here.startsWith('/register')
 
   /* The face without the name, on a phone. The handle is 12 characters of a
     bar that has 375 of them, and it was being printed over the item beside
-    it; the initial still answers "which account is this". */
+    it; the initial still answers "which account is this". The caret goes with
+    it: a chevron on its own beside an avatar is noise, and the panel is still
+    one tap away. */
   @media (max-width: 600px) {
-    .account-handle { display: none; }
+    .account-handle, .account-caret { display: none; }
     .account-you { padding: 0 4px; }
   }
 </style>
