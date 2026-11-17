@@ -240,6 +240,20 @@ export async function recordSteps(jobId: number, steps: StepReport[] | null | un
         // Stated by the runner rather than incremented here, so the same
         // report arriving twice records the same number twice.
         attempts: attempt,
+        /*
+         * A reported step is a step this attempt ran, so it is no longer a
+         * kept one.
+         *
+         * A restart-from-step marks the steps it skips with the attempt that
+         * produced them, and the runner does not report those - it has no
+         * result of its own to send. So a report arriving for a marked step
+         * means the runner declined the skip, which it does when the workspace
+         * those steps were supposed to have filled turns out to be empty. The
+         * mark has to go with it, or the run screen credits this attempt's
+         * work to an earlier one and the restart looks like it skipped work it
+         * actually did.
+         */
+        reused_from_attempt: null,
         error: step.error ? boundedValue(redactSecrets(String(step.error), secrets), 2000).slice(0, 2000) : null,
       })
       .where('workflow_job_id', '=', jobId)

@@ -59,11 +59,30 @@ import { AttemptLedger, reapAbandonedAttempts } from './attempts'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
 import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
+import { keepResumedSteps } from './resume'
 import { recoverWorkspaces, workspaceJournal } from './workspaceJournal'
 import { confirmRetirableWorkspaces, runnerRequest as post } from './httpClient'
 import { runnerCapacity } from './capacity'
 import { nativeAction } from './nativeActions'
 import type { NativeActionRuntime } from './nativeActions'
+
+/**
+ * What is in a workspace, for the resume check in `resume.ts`.
+ *
+ * An unreadable or missing directory counts as empty, which is the safe
+ * answer: it cannot be holding an earlier attempt's output either way, and the
+ * consequence of being wrong here is that a restart runs steps it could have
+ * skipped.
+ */
+function workspaceEntryCount(workspace: string): number {
+  try {
+    return readdirSync(workspace).length
+  }
+  catch {
+    return 0
+  }
+}
+
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -1094,6 +1113,37 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const ownCommand = hooksFor({ stage: 'command', runnerDirectory: options.hooksDirectory })
 
     const steps: any[] = ownCommand.length > 0 ? [] : (Array.isArray(job.steps) ? job.steps : [])
+
+    /*
+     * Whether this restart's kept steps survive contact with the workspace.
+     *
+     * The control plane marked them from the step rows, which record what a
+     * step returned and say nothing about what it left on disk. Checked here
+     * because here is the only place the workspace exists. See `resume.ts` for
+     * the deploy job this is named after, which was told its dependencies were
+     * installed and died seven seconds later because the directory was new.
+     */
+    const resume = keepResumedSteps({
+      kept: steps.filter(step => isTrue(step.reused)).length,
+      // A journaled workspace is made for this attempt and nothing else:
+      // `journal.create` returns a new directory every time. A configured
+      // workspace root gives `job-<id>`, which is the same path on every
+      // attempt and is the one arrangement where a kept step's output is
+      // genuinely still on disk.
+      fresh: !options.workspaceRoot,
+      entries: workspaceEntryCount(workspace),
+    })
+
+    if (!resume.keep) {
+      // Said in the log before the first step, because the job is about to do
+      // more than the person who restarted it asked for, and silently doing
+      // more is how the silently-doing-less bug went unnoticed.
+      await send(`${resume.reason}\n`)
+
+      for (const step of steps)
+        step.reused = false
+    }
+
     let failed: string | null = null
     /*
      * What the failing step exited with, carried to the report so
