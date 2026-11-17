@@ -2511,3 +2511,11 @@ failed evidence into success.
       on a timeout or an output pipe left open after exit. Real-process tests
       cover success, command failure, an unsettled module and an escaped writer.
       This supplies diagnostics; the intermittent module hang remains unproven.
+
+- [x] Capture original suite output as an artifact per SQL engine, including
+      supervisor startup and completion markers. Bound the supervisor itself
+      before the unchanged job ceiling so an unsettled module cannot prevent
+      artifact upload. Both owned-process probes pass on the real Linux runner,
+      but run 43988540719 still reached GitHub's 30-minute ceiling for MySQL
+      and its log endpoint returned 404. The application hang and this missing
+      supervisor completion remain unproven; no rollout is accepted from it.

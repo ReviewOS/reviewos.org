@@ -64,10 +64,12 @@ export async function testWithBudget(options: TestBudgetOptions): Promise<number
 }
 
 if (import.meta.main) {
+  console.log(`CI suite supervisor entered at ${new Date().toISOString()}`)
   process.exitCode = await testWithBudget({
     command: [process.execPath, 'run', 'test'],
     write: chunk => new Promise<void>((resolve, reject) => {
       process.stdout.write(chunk, error => error ? reject(error) : resolve())
     }),
   })
+  console.log(`CI suite supervisor finished with exit ${process.exitCode} at ${new Date().toISOString()}`)
 }

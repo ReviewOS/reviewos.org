@@ -456,11 +456,26 @@ jobs:
           # the environment was wrong. Not a real key; it never leaves the
           # runner.
           APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
-        # Keep the existing 22-minute suite / 30-second cleanup budgets inside
-        # the job. A timed-out job loses its logs, so the supervisor owns the
-        # command and private output pipes and fails the step before that ceiling.
-        # The unchanged public test command still runs every required suite.
-        run: bun --no-env-file --config=.github/scripts/bunfig.toml .github/scripts/test-with-budget.ts
+        # The supervisor keeps the suite's 22-minute deadline. Bound its own
+        # startup and exit too, leaving time to upload the original output
+        # before the unchanged 30-minute job ceiling. Neither guard can pass
+        # a failed suite, and tee's pipeline retains the command's exit status.
+        run: |
+          set -o pipefail
+          mkdir -p storage/logs/ci
+          {
+            printf 'Starting the CI suite supervisor at %s\n' "$(date -u +%FT%TZ)"
+            timeout --signal=TERM --kill-after=30s 23m bun --no-env-file --config=.github/scripts/bunfig.toml .github/scripts/test-with-budget.ts
+          } 2>&1 | tee storage/logs/ci/test-suite.log
+
+      - name: Preserve original suite output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-suite-${{ matrix.dialect }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: storage/logs/ci/test-suite.log
+          if-no-files-found: error
+          retention-days: 7
 
       # `bun run test` shells out to `buddy test`, which only globs
       # <project>/tests/**, so nothing under storage/framework/core/**/tests
