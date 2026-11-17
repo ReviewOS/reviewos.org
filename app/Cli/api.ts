@@ -86,6 +86,18 @@ export async function call<T = any>(
   path: string,
   input: { query?: Record<string, unknown>, body?: unknown, signal?: AbortSignal } = {},
 ): Promise<Answer<T>> {
+  // Known public forges cannot answer this API. Reject them before opening a
+  // connection or attaching an instance credential, including when offline.
+  const forge = otherForge(connection.instance)
+  if (forge) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'wrong_instance',
+      message: `This checkout's remote is ${forge}, which is not a ReviewOS instance.`,
+      fix: `Set REVIEWOS_URL=${HOSTED_INSTANCE} (or your own instance), and pass --repo owner/name if the repository is named differently there.`,
+    }
+  }
   const url = new URL(path, connection.instance.endsWith('/') ? connection.instance : `${connection.instance}/`)
 
   for (const [key, value] of Object.entries(input.query ?? {})) {
@@ -153,18 +165,6 @@ export async function call<T = any>(
   }
 
   if (!answer.ok) {
-    // Another forge's 404 or 422 says nothing about what went wrong here: the
-    // request went to the wrong product. Said once, with the way out.
-    const forge = otherForge(connection.instance)
-    if (forge) {
-      return {
-        ok: false,
-        status: answer.status,
-        message: `This checkout's remote is ${forge}, which is not a ReviewOS instance.`,
-        fix: `Set REVIEWOS_URL=${HOSTED_INSTANCE} (or your own instance), and pass --repo owner/name if the repository is named differently there.`,
-      }
-    }
-
     const described = describe(answer.status, body)
 
     // The server's own words win when it explained itself. A bare

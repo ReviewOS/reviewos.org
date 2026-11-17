@@ -218,10 +218,13 @@ describe('which instance a command talks to', () => {
 
   it('says so, instead of repeating the other forge\'s 404', async () => {
     const { call } = await import('../../app/Cli/api')
-    const answer = await call({ instance: 'https://github.com', token: null }, 'GET', '/api/definitely-not-there')
+    // A known wrong product is rejected locally, even without a network.
+    const answer = await call({ instance: 'https://github.com', token: 'synthetic-token' }, 'GET', '/api/definitely-not-there', { signal: AbortSignal.abort() })
 
-    // Unreachable network is reported as that; reached, it names the forge.
-    if (answer.ok === false && answer.status !== 0) {
+    expect(answer.ok).toBe(false)
+    if (answer.ok === false) {
+      expect(answer.status).toBe(400)
+      expect(answer.code).toBe('wrong_instance')
       expect(answer.message).toContain('github.com, which is not a ReviewOS instance')
       expect(answer.fix).toContain('REVIEWOS_URL=https://reviewos.org')
     }

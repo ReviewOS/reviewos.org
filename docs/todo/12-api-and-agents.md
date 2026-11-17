@@ -645,3 +645,5 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
     lands first. It calls the same `buildStack` the interface does.
   - `GET /api/user` - the smallest useful thing an API can offer, and the one `login` needs to check
     a token before storing it.
+
+- [x] Reject known public forges locally before a CLI API call connects or attaches credentials. The wrong-instance diagnostic works offline; its regression uses an already-aborted signal instead of depending on GitHub latency.
