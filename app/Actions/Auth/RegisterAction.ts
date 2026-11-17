@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { setting } from '../../Ops/settings'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
+import { handleAvailable } from '../Identity/lookup'
 import { safeRedirect, signInCookies, wantsHtml } from './session'
 
 /** The shortest password worth having. Long enough to matter, short enough to type. */
@@ -76,19 +77,34 @@ export default new Action({
     /*
      * Taken is a separate question from well-formed, and it needs the database.
      *
+     * Through `handleAvailable`, which reads `organizations` as well as
+     * `users`. This used to query `users` alone, which let a registration take
+     * a handle an organization already owned - and the reverse was blocked,
+     * because every organization path has always gone through this function.
+     * `/{handle}` then resolves to whichever of the two `resolveOwner` finds
+     * first, which is not a thing to leave to row order, and taking an
+     * organization's name is the same impersonation the consecutive-hyphen
+     * rule exists to stop.
+     *
      * Checked here for the message, and the unique index is what actually
      * enforces it: two registrations in the same millisecond both pass this and
      * one loses at the insert. A check without the index is a race; an index
      * without the check is a stack trace where a sentence belongs.
+     *
+     * That backstop is per-table, so it does not cover the cross-namespace
+     * case: a registration and an organization claiming the same handle in the
+     * same millisecond both pass. Closing that needs one index over both
+     * namespaces, which needs a table that holds both, and this is not that
+     * change. It is a much smaller window than the one that was open before.
+     *
+     * `handleAvailable` re-runs `checkHandle`, which ran above. Deliberate: the
+     * early call is what puts a malformed handle ahead of the email and
+     * password messages, and the function is pure.
      */
-    const clash = await db
-      .selectFrom('users')
-      .select(['id'])
-      .where('handle', '=', handle)
-      .executeTakeFirst()
+    const available = await handleAvailable(handle)
 
-    if (clash)
-      return refuse(request, 'That handle is taken.')
+    if (!available.ok)
+      return refuse(request, available.message ?? 'That handle is taken.')
 
     const { emailIsTaken } = await import('../Identity/emails')
     const existingEmail = await emailIsTaken(email)

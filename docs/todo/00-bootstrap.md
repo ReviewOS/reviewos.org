@@ -978,3 +978,23 @@ Each one is committed and pushed in the repository named.
       6 batches, estimated peak 2.2 GiB against 13.3. **Delete the bridge and restore
       `"test": "./buddy test"` once the release is in.** It covers CI only; `./buddy test` locally
       still runs one process, and the answer to that is the release rather than more bridge.
+
+- [x] **Close the handle namespace to users, not just to organizations.** `handles.ts` says users and
+      organizations share one namespace, and `User.ts` said `handleAvailable` "is the one place that
+      decides whether a handle can be taken, and both models go through it". Every organization path
+      did - create, rename, machine accounts. Neither user path did: `RegisterAction` and
+      `UpdateProfileAction` each ran their own query against `users` alone, so a person could
+      register as, or rename into, a handle an organization already owned, while the reverse was
+      refused. `/{handle}` then resolves to whichever owner `resolveOwner` finds first, so the
+      loser's profile and every repository URL under it goes unreachable on row order, and taking an
+      organization's name is the impersonation the consecutive-hyphen rule already exists to stop.
+
+      Both user paths now go through `handleAvailable`. `tests/e2e/handle-namespace.test.ts` pins the
+      rename, the registration and the case that must keep working, each checked against the stored
+      row rather than the redirect: an action that answers 303 and writes anyway would pass on the
+      status alone.
+
+      Not closed: the check and the write are not atomic. Within `users` the unique index decides a
+      tie, which is why registration has always checked for the message and let the index enforce
+      it. Across the two tables there is no such index, so two claims in the same millisecond still
+      both pass. That needs one index over both namespaces, which needs a table holding both.

@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
+import { handleAvailable } from '../Identity/lookup'
 import { refuse } from '../Support/forge'
 
 /** What a reader may put in each field. Long enough to be useful, short enough to render. */
@@ -72,14 +73,31 @@ export default new Action({
         if (!shape.ok)
           return respond(request, { error: shape.message ?? 'That handle cannot be used.' }, 422)
 
-        const taken = await db
-          .selectFrom('users')
-          .select(['id'])
-          .where('handle', '=', handle)
-          .executeTakeFirst()
+        /*
+         * Through `handleAvailable`, which reads `organizations` as well as
+         * `users`.
+         *
+         * This used to query `users` alone, so a rename could take a handle an
+         * organization already owned, while the reverse was refused - every
+         * organization path has always gone through this function, and
+         * `User.ts` already described it as "the one place that decides
+         * whether a handle can be taken". It was, for one of the two
+         * namespaces it claimed to cover.
+         *
+         * What that cost: `/{handle}` resolves to whichever owner
+         * `resolveOwner` finds first, so the loser's profile and every
+         * repository URL under it becomes unreachable, and which one loses
+         * depends on row order. Taking an organization's name is also the same
+         * impersonation the consecutive-hyphen rule exists to stop.
+         *
+         * It re-runs `checkHandle`, which ran immediately above. Deliberate:
+         * the shape message is more specific than "taken" and should win, and
+         * the function is pure.
+         */
+        const available = await handleAvailable(handle)
 
-        if (taken)
-          return respond(request, { error: 'That handle is taken.' }, 422)
+        if (!available.ok)
+          return respond(request, { error: available.message ?? 'That handle is taken.' }, 422)
 
         changes.handle = handle
       }

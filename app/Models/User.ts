@@ -11,8 +11,9 @@ import { schema } from '@stacksjs/validation'
  *
  * Handles share one namespace with organizations. Both appear at the root of a
  * URL (`/chris`, `/reviewos`), so `handleAvailable` in
- * `app/Actions/Identity/handles.ts` is the one place that decides whether a
- * handle can be taken, and both models go through it.
+ * `app/Actions/Identity/lookup.ts` is the one place that decides whether a
+ * handle can be taken, and both models go through it. (It reads both tables;
+ * the rules it applies live in `handles.ts` beside it.)
  */
 export default defineModel({
   name: 'User',
