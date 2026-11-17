@@ -321,7 +321,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </label>
 
           <div class="actions">
-            <button class="btn btn-primary" type="submit">Save</button>
+            <button class="btn btn-primary" type="submit" data-busy-label="Saving...">Save</button>
           </div>
         </form>
       </section>
@@ -395,7 +395,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </label>
 
           <div class="actions">
-            <button class="btn btn-primary" type="submit">Save</button>
+            <button class="btn btn-primary" type="submit" data-busy-label="Saving...">Save</button>
           </div>
         </form>
       </section>
@@ -418,7 +418,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </label>
 
           <div class="actions">
-            <button class="btn" type="submit">Save topics</button>
+            <button class="btn" type="submit" data-busy-label="Saving...">Save topics</button>
           </div>
         </form>
       </section>
@@ -494,7 +494,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
               @endif
 
               <div class="actions">
-                <button class="btn" type="submit">Save Pages</button>
+                <button class="btn" type="submit" data-busy-label="Saving...">Save Pages</button>
               </div>
             </form>
 
@@ -653,7 +653,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </label>
 
           <div class="actions">
-            <button class="btn" type="submit">Add deploy key</button>
+            <button class="btn" type="submit" data-busy-label="Adding...">Add deploy key</button>
           </div>
         </form>
 
@@ -708,7 +708,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
             <span class="hint muted">Setting an existing name replaces its value for this repository.</span>
           </label>
           <div class="actions">
-            <button class="btn" type="submit">Save repository secret</button>
+            <button class="btn" type="submit" data-busy-label="Saving...">Save repository secret</button>
           </div>
         </form>
 

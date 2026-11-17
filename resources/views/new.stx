@@ -194,7 +194,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
         </section>
 
         <div class="actions">
-          <button class="btn btn-primary" type="submit">Create repository</button>
+          <button class="btn btn-primary" type="submit" data-busy-label="Creating...">Create repository</button>
           <a class="btn" href="/">Cancel</a>
         </div>
       </form>

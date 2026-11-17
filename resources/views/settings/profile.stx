@@ -71,22 +71,16 @@ const website = String(account?.website ?? '')
       @endif
 
       {{--
-        `saving` guards the double submit, which on this form is not a
-        cosmetic worry: a second POST while the first is in flight can rename
-        the handle twice, and the second one races the first's own uniqueness
-        check. The button is the only way to submit, so disabling it closes
-        that door.
+        The double submit this form guards against is not a cosmetic worry: a
+        second POST while the first is in flight can rename the handle twice,
+        and the second one races the first's own uniqueness check.
 
-        Set on `submit` rather than on the button's `click`, so it covers
-        pressing Return in a field as well. Disabling the button inside the
-        handler does not cancel the submission already in flight, and this
-        button carries no `name`, so nothing is lost from the body either.
-
-        It does not need resetting: the action answers a browser with a
-        redirect, and a validation failure re-renders this page from the
-        server, so the state arrives fresh either way.
+        Nothing here does the guarding. `public/js/form-busy.js` refuses the
+        second `submit` on any posting form and marks the button, for every
+        form in the product rather than this one, and this button only says
+        what it should read while it works.
       --}}
-      <form class="key-form panel" method="post" action="/api/user/profile" x-data="{ saving: false }" @submit="saving = true">
+      <form class="key-form panel" method="post" action="/api/user/profile">
         <CsrfField />
 
         <label class="field-label" for="handle">Handle</label>
@@ -114,11 +108,10 @@ const website = String(account?.website ?? '')
         <input id="website" class="field-input" type="url" name="website" value="{{ website }}" maxlength="200" placeholder="https://example.com">
 
         <div class="field-actions">
-          {{-- The label is the server's, so a reader with no JavaScript gets a
-              working button that says Save rather than an empty one. --}}
-          <button type="submit" class="btn btn-primary" :disabled="saving">
-            <span x-text="saving ? 'Saving...' : 'Save'">Save</span>
-          </button>
+          {{-- `data-busy-label` rather than a flag of its own: the behaviour is
+              in `public/js/form-busy.js`, wired once in the layout, and this
+              says what this particular button should read while it works. --}}
+          <button type="submit" class="btn btn-primary" data-busy-label="Saving...">Save</button>
         </div>
       </form>
     @endif

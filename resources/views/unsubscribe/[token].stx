@@ -75,7 +75,7 @@ const usable = Boolean(token)
           holding it can already unsubscribe by opening this page.
         --}}
         <form method="post" action="{{ action }}" class="unsub-form">
-          <button type="submit" class="btn btn-primary">Unsubscribe</button>
+          <button type="submit" class="btn btn-primary" data-busy-label="Unsubscribing...">Unsubscribe</button>
         </form>
 
         <p class="muted unsub-line">

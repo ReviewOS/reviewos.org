@@ -110,7 +110,7 @@ const alreadyIn = Boolean(viewer)
           <input id="password" class="field-input" type="password" name="password" required autocomplete="current-password">
 
           <div class="field-actions">
-            <button type="submit" class="btn btn-primary">Sign in</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Signing in...">Sign in</button>
           </div>
         </form>
 

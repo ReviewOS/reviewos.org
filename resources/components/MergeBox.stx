@@ -100,7 +100,7 @@ const merged = state === 'merged'
         <option value="squash">Squash and merge</option>
         <option value="rebase">Rebase and merge</option>
       </select>
-      <button type="submit" class="btn btn-primary merge-button">Merge pull request</button>
+      <button type="submit" class="btn btn-primary merge-button" data-busy-label="Merging...">Merge pull request</button>
     </form>
   @else
     <p class="bad merge-state">This cannot be merged yet.</p>

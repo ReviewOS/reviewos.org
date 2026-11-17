@@ -113,7 +113,7 @@ if (!viewer)
             placeholder="ssh-ed25519 AAAA… (the contents of ~/.ssh/id_ed25519.pub)"></textarea>
 
           <div class="field-actions">
-            <button type="submit" class="btn btn-primary">Add SSH key</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Adding...">Add SSH key</button>
           </div>
         </form>
 
@@ -183,7 +183,7 @@ if (!viewer)
           </p>
 
           <div class="field-actions">
-            <button type="submit" class="btn btn-primary">Add GPG key</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Adding...">Add GPG key</button>
           </div>
         </form>
 

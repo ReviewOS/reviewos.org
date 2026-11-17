@@ -502,7 +502,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
               <CsrfField />
               <input type="hidden" name="owner" value="{{ ownerHandle }}">
               <input type="hidden" name="repository" value="{{ repositoryName }}">
-              <button type="submit" class="btn">Sync now</button>
+              <button type="submit" class="btn" data-busy-label="Syncing...">Sync now</button>
             </form>
           @endif
         </div>

@@ -998,3 +998,29 @@ Each one is committed and pushed in the repository named.
       tie, which is why registration has always checked for the message and let the index enforce
       it. Across the two tables there is no such index, so two claims in the same millisecond still
       both pass. That needs one index over both namespaces, which needs a table holding both.
+
+- [x] **Every form that changes something says so while it is doing it.** Around eighty submit
+      buttons post across thirty-odd files, and none of them acknowledged the press: the page sat
+      still until the redirect arrived, which on a slow save reads as a button that did nothing and
+      invites a second press. On the profile form a second press is not cosmetic, because two
+      renames in flight each race the other's uniqueness check.
+
+      One behaviour, wired once in the layout, in `public/js/form-busy.js`: a posting form is marked
+      busy, its submitter gets `aria-busy`, a spinner and optionally a `data-busy-label`, and the
+      second `submit` is refused. Plain JavaScript in `public/` because `resources/functions/` is
+      imported by `<script server>` blocks and never reaches the browser;
+      `tests/unit/form-busy.test.ts` imports the shipped file, so the rules tested are the rules
+      served.
+
+      **It never sets `disabled`, and that is the whole finding.** Disabling the submitter inside its
+      own `submit` handler drops the button's `name` and `value` from the body. Measured against a
+      local echo server rather than assumed: `field=v&operation=close` without it,
+      `field=v` with it. The form still posts, so the failure is silent, and this product has ten
+      such buttons - the bulk actions in `RepoList.stx`, approve and deny in `cli/login.stx`, the
+      column moves on a project board, the preview toggle in `MarkdownEditor.stx`. Every one would
+      have broken with no error anywhere. The second press is refused at the event instead.
+
+      `data-busy-label` is set only where the verb is unambiguous and static. A generic "Saving..."
+      over "Delete", "Revoke" or "Merge pull request" names the wrong action, which is worse than
+      naming none, so those get the spinner alone. GET forms are left alone entirely: the search box
+      is a query, not a change.

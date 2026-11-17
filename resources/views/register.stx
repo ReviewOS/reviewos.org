@@ -87,7 +87,7 @@ const site = originFor(serveContext, process.env.APP_URL).replace(/^https?:\/\//
           <p class="field-hint">At least 10 characters. Length is the only rule that helps.</p>
 
           <div class="field-actions">
-            <button type="submit" class="btn btn-primary">Create account</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Creating...">Create account</button>
           </div>
         </form>
 

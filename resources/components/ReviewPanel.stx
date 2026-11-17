@@ -83,7 +83,7 @@ const canReview = typeof mayReview !== 'undefined' && String(mayReview ?? '') ==
       </label>
 
       <textarea class="verdict-body" name="body" rows="3" placeholder="Say what you saw" aria-label="What you saw"></textarea>
-      <button type="submit" class="btn merge-button">Submit review</button>
+      <button type="submit" class="btn merge-button" data-busy-label="Submitting...">Submit review</button>
     </form>
   @endif
 </section>

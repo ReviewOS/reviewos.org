@@ -254,7 +254,7 @@ if (viewer?.is_admin || maintainsPools) {
           </p>
 
           <div class="tok-actions">
-            <button type="submit" class="btn btn-primary">Issue token</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Issuing...">Issue token</button>
           </div>
 
           <p class="tok-warning">

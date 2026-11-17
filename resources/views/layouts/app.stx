@@ -440,6 +440,47 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         cursor: not-allowed;
       }
 
+      /* A control that is working.
+         It keeps its name and its value - see `public/js/form-busy.js` for the
+         measurement that says why nothing here sets `disabled` - so this is
+         what stands in for the usual greying out. `pointer-events: none` is the
+         visible half of the guard; the submit handler is the half that holds
+         when somebody uses the keyboard. */
+      .is-busy {
+        opacity: 0.75;
+        cursor: progress;
+        pointer-events: none;
+      }
+
+      .is-busy::before {
+        content: '';
+        flex: none;
+        width: 13px;
+        height: 13px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        opacity: 0.85;
+        animation: busy-spin 0.6s linear infinite;
+      }
+
+      /* Not flex by default, so the ring would sit on the text's baseline and
+         crowd it. Only the buttons that are not `.btn` need this. */
+      button.is-busy {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      @keyframes busy-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* The ring still says "working"; it just stops going round. */
+      @media (prefers-reduced-motion: reduce) {
+        .is-busy::before { animation: none; }
+      }
+
       /* Status pills are the only fully round thing in the system. */
       .pill {
         display: inline-flex;
@@ -2767,6 +2808,15 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         whoever opened the issue, and the looser levels let a label carry
         markup and a node carry a click handler. --}}
     <script type="module">
+      /*
+       * Forms say they are working.
+       *
+       * Loaded rather than written here: the rules, and the measurement behind
+       * the one that matters, live in `public/js/form-busy.js`, and the unit
+       * test imports that same file. Importing it installs it.
+       */
+      await import('/js/form-busy.js')
+
       const diagrams = document.querySelectorAll('pre.mermaid')
 
       if (diagrams.length > 0) {

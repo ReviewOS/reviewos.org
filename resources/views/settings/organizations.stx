@@ -145,7 +145,7 @@ if (!viewer)
           <input id="org-name" class="org-input" type="text" name="name" maxlength="100" placeholder="Acme">
 
           <div class="org-form-actions">
-            <button type="submit" class="btn btn-primary">Create organization</button>
+            <button type="submit" class="btn btn-primary" data-busy-label="Creating...">Create organization</button>
           </div>
         </form>
 
