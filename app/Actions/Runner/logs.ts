@@ -144,11 +144,32 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
     if (stored.some(chunk => chunk.sequence === input.sequence))
       return { ok: true, duplicate: true, truncated: false, reason: 'already stored' }
     const latest = stored[stored.length - 1]
-    // A secret-bearing stream cannot skip its matcher checkpoint. Correct
-    // runners already deliver serially; an out-of-order writer retries the gap.
-    if (values.length && latest && input.sequence < latest.sequence)
+    /*
+     * The stream is serial, and that is no longer conditional on secrets.
+     *
+     * These two guards used to be gated on `values.length` - the number of
+     * secrets this repository has to redact - because the checkpoint they
+     * protect is a redaction matcher's offset, and with nothing to redact
+     * there is no matcher to protect. That reasoning covered the matcher and
+     * missed the reader.
+     *
+     * `readLog` pages with `sequence > after`. A chunk accepted below the
+     * stored maximum is therefore a chunk no cursor reader can ever reach: it
+     * is behind a cursor that has already passed it. The run screen shows it,
+     * because that renders the whole set ordered by sequence, and the API
+     * does not - so a job's last lines were present on the page and missing
+     * from `/log`, and a failure read as an interruption because its FAIL
+     * line, its `::error::` and its stack never arrived. On a repository with
+     * secrets configured it could not happen, which is why it looked like a
+     * reader bug.
+     *
+     * So the order is the contract now, for every repository. Correct runners
+     * already deliver serially, and one that does not gets the same answer it
+     * has always got here: resend, 500ms apart, until the gap is filled.
+     */
+    if (latest && input.sequence < latest.sequence)
       return { ok: true, duplicate: true, truncated: true, reason: 'already stored or discarded at the log ceiling' }
-    if (values.length && input.sequence !== (latest?.sequence ?? 0) + 1)
+    if (input.sequence !== (latest?.sequence ?? 0) + 1)
       return { ok: false, duplicate: false, truncated: false, reason: 'the preceding log chunk is required', retryAfterMs: 500 }
     let checkpoint = latest?.checkpoint ?? []
     if (values.length && stored.some(chunk => !chunk.checkpointKnown)) {

@@ -34,13 +34,14 @@ export default new Action({
 
   responses: {
     200: {
-      description: 'The job output after the cursor, and the cursor to pass next time. Unchanged when there is nothing new, rather than an empty page that looks like the end.',
+      description: 'The job output after the cursor, and the cursor to pass next time. Unchanged when there is nothing new, rather than an empty page that looks like the end: stop on `complete`, never on an empty page.',
       schema: {
         type: 'object',
         properties: {
           chunks: { type: 'array', items: { type: 'object' } },
           cursor: { type: 'integer' },
-          state: { type: 'string', description: 'The job\'s state, so a client following the output knows when to stop asking without a second request.' },
+          state: { type: 'string', description: 'The job\'s state, read after this page was taken, so a terminal state cannot describe a moment before the chunks below it.' },
+          complete: { type: 'boolean', description: 'The job has finished and this page was empty, so there is nothing more after the cursor. The flag to stop on; a terminal `state` on its own is not, because a job finishes with its last chunks still arriving.' },
           attempt: { type: 'integer', description: 'Which attempt this page is from. The current one unless `attempt` asked for another.' },
         },
       },
@@ -87,16 +88,44 @@ export default new Action({
     const page = await readLog(jobId, Number(request.get('after') ?? 0), 200, attempt)
 
     /*
-     * The job's state, beside its output.
+     * The job's state, read *after* the page and not before it.
      *
      * A client following a log has to know when to stop asking, and the state
      * is the only thing that says so - a job can be quiet for a minute in the
      * middle of a step and quiet forever after it ends, and those look
-     * identical from the chunks alone. Sending it here saves that client a
-     * second request per poll against an endpoint that has already read the
-     * row.
+     * identical from the chunks alone.
+     *
+     * The order is the whole point. The row above was read to answer "is this
+     * job in this repository", which is a question whose answer does not
+     * change; reusing its `state` for this meant reporting a state observed
+     * *before* the page was taken. A job that finished in between therefore
+     * came back terminal beside a page that did not yet have its last chunks,
+     * and a client that stops on a terminal state stopped one poll early -
+     * losing exactly the lines a failure is read from. Read afterwards, a
+     * terminal state is one that was already terminal when the page was
+     * taken.
      */
-    const answer = response.json({ ...page, state: String(job.state), attempt: attempt ?? Number((job as any).attempt ?? 1) })
+    const current = await db
+      .selectFrom('workflow_jobs')
+      .select(['state'])
+      .where('id', '=', jobId)
+      .executeTakeFirst()
+
+    const state = String(current?.state ?? job.state)
+
+    const answer = response.json({
+      ...page,
+      state,
+      attempt: attempt ?? Number((job as any).attempt ?? 1),
+      /*
+       * The one flag a follower can stop on without having to reason about any
+       * of the above: the job has finished *and* this page was empty, so there
+       * is nothing after the cursor and nothing more coming. `state` alone has
+       * never been safe to stop on, because a job reaches its terminal state
+       * with its last chunks still arriving.
+       */
+      complete: ['succeeded', 'failed', 'cancelled', 'skipped'].includes(state) && page.chunks.length === 0,
+    })
     answer.headers.set('Cache-Control', 'private, no-store')
     return answer
   },

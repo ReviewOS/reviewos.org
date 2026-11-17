@@ -342,6 +342,72 @@ describe('reading', () => {
   })
 
   /*
+   * The bug these two are named after.
+   *
+   * The serialization guards used to be gated on the repository having secrets
+   * to redact, because the checkpoint they protect belongs to the redaction
+   * matcher. That covered the matcher and missed the reader: `readLog` pages
+   * with `sequence > after`, so a chunk accepted below the stored maximum sits
+   * behind a cursor that has already passed it and no follower can ever reach
+   * it. The run screen showed those lines, because it renders the whole set
+   * ordered by sequence; `/log` did not. A job's last lines therefore went
+   * missing from the API, and a real check failure read as an interruption.
+   *
+   * This repository has no secrets configured, which is exactly the
+   * configuration the gate used to exempt.
+   */
+  test('a gap in the sequence is refused, so nothing lands behind a reader\'s cursor', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    const first = await call('/runner/logs', { sequence: 1, content: 'one\n' }, job.token)
+    const skipped = await call('/runner/logs', { sequence: 3, content: 'three\n' }, job.token)
+
+    expect(first.status).toBe(200)
+    // Asked to resend rather than refused outright: the chunk is idempotent on
+    // its sequence, so filling the gap costs the runner one retry.
+    expect(skipped.status).toBe(429)
+    expect(skipped.body.retry_after_ms).toBe(500)
+
+    expect((await readLog(job.id)).chunks.map(chunk => chunk.content)).toEqual(['one\n'])
+  })
+
+  test('and the runner that fills the gap gets both chunks to a cursor reader', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    await call('/runner/logs', { sequence: 1, content: 'one\n' }, job.token)
+    await call('/runner/logs', { sequence: 3, content: 'three\n' }, job.token)
+    await call('/runner/logs', { sequence: 2, content: 'two\n' }, job.token)
+    await call('/runner/logs', { sequence: 3, content: 'three\n' }, job.token)
+
+    // The point of the refusal above: everything stored is reachable by
+    // following the cursor, which is the only way the API can be read.
+    const page = await readLog(job.id)
+
+    expect(page.chunks.map(chunk => chunk.content)).toEqual(['one\n', 'two\n', 'three\n'])
+
+    const followed: string[] = []
+    let cursor = 0
+
+    for (let poll = 0; poll < 5; poll++) {
+      const next = await readLog(job.id, cursor)
+
+      if (next.chunks.length === 0)
+        break
+
+      followed.push(...next.chunks.map(chunk => chunk.content))
+      cursor = next.cursor
+    }
+
+    expect(followed).toEqual(['one\n', 'two\n', 'three\n'])
+  })
+
+  /*
    * The job id is a number anybody can increment. Without the repository check
    * it is a way to read another repository's build output.
    */
@@ -586,6 +652,74 @@ test('UTF-8 chunks and structured metadata fit the storage byte limit', async ()
   expect((await appendLog({ jobId: job.id, claimHash: 'expired-claim', sequence: 3, content: 'stale output' })).ok).toBe(false)
 })
 
+
+/*
+ * When a follower may stop asking, which used to be a question with no safe
+ * answer.
+ *
+ * `state` was read from the row fetched to check the job belonged to this
+ * repository - that is, before the page was taken. A job that finished in
+ * between came back terminal beside a page that did not yet hold its last
+ * chunks, so a client stopping on a terminal state stopped one poll early and
+ * lost exactly the lines a failure is read from.
+ */
+describe('a follower knowing when to stop', () => {
+  async function readPage(job: number, after: number) {
+    const r = await fetch(
+      `http://127.0.0.1:${port}/api/repos/workflow-runs/log`
+      + `?owner=${created.handle}&repo=${created.name}&job=${job}&after=${after}`,
+    )
+
+    return await r.json() as any
+  }
+
+  test('is not finished while the job is still running, however quiet it is', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await call('/runner/logs', { sequence: 1, content: 'compiling\n' }, job.token)
+
+    // Caught up with a running job: the quiet in the middle of a long step
+    // looks identical to the quiet after the end, from the chunks alone.
+    const page = await readPage(job.id, 1)
+
+    expect(page.chunks).toEqual([])
+    expect(page.complete).toBe(false)
+  })
+
+  test('is not finished while a finished job still has lines to hand over', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await call('/runner/logs', { sequence: 1, content: 'FAIL tests/thing.test.ts\n' }, job.token)
+    await db.updateTable('workflow_jobs').set({ state: 'failed' }).where('id', '=', job.id).execute()
+
+    // The case that was losing the tail: terminal, with the lines that say
+    // why still unread. Stopping here is stopping before the reason.
+    const page = await readPage(job.id, 0)
+
+    expect(page.state).toBe('failed')
+    expect(page.chunks.length).toBe(1)
+    expect(page.complete).toBe(false)
+  })
+
+  test('and is finished only once a finished job has nothing after the cursor', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await call('/runner/logs', { sequence: 1, content: 'FAIL tests/thing.test.ts\n' }, job.token)
+    await db.updateTable('workflow_jobs').set({ state: 'failed' }).where('id', '=', job.id).execute()
+
+    const page = await readPage(job.id, 1)
+
+    expect(page.state).toBe('failed')
+    expect(page.chunks).toEqual([])
+    expect(page.complete).toBe(true)
+  })
+})
 
 test('orchestrator suspension checkpoints execution and resumed claims retain the accumulated timing', async () => {
   if (!available) return
