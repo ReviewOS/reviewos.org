@@ -120,7 +120,109 @@ function show(form, result) {
   status.hidden = false
 }
 
+/**
+ * A control that submits its form as soon as it changes.
+ *
+ * `data-live-change` on the control, rather than `onchange="this.form.submit()"`
+ * in the markup, for two reasons that both matter.
+ *
+ * `form.submit()` **does not fire a submit event.** Nothing that listens for
+ * one can see it: not the live save here, not the busy behaviour in
+ * `form-busy.js`, not the guard that refuses a second submit while the first
+ * is in flight. A form wired that way silently keeps posting the whole page
+ * however many times it is marked `data-live`, which is the worst of both -
+ * the opt-in says it stays put and it does not. `requestSubmit()` is the one
+ * that behaves like a button press, so everything downstream still works.
+ *
+ * And inline `on*` script in a template is the vanilla JS this project does
+ * not allow in `.stx` - see AGENTS.md. One listener here covers every such
+ * control instead.
+ */
+export function changeSubmits(control) {
+  return Boolean(control && control.dataset && control.dataset.liveChange !== undefined)
+}
+
+/**
+ * The value the server rendered into a control: the last one it accepted.
+ *
+ * A `<select>` keeps its rendered choice in the `selected` *attribute* while
+ * `value` follows whatever the reader picked, so the markup still says what
+ * the database said when the page was built.
+ */
+export function renderedValue(control) {
+  if (!control)
+    return ''
+
+  if (control.tagName === 'SELECT') {
+    const chosen = typeof control.querySelector === 'function' ? control.querySelector('option[selected]') : null
+
+    return chosen ? chosen.value : ''
+  }
+
+  return typeof control.getAttribute === 'function' ? (control.getAttribute('value') ?? '') : ''
+}
+
+/**
+ * Put a submit-on-change control back where it belongs once the server answers.
+ *
+ * Without this a refused change leaves the control showing the value that was
+ * refused: demote the only owner and the select reads "Member" beside the
+ * sentence explaining that it is still Owner. The reload this replaced never
+ * had that problem - the server re-rendered the truth - so staying put has to
+ * do the same job, or the control quietly lies about what is stored.
+ *
+ * On success the accepted value becomes the one to come back to.
+ */
+export function settleControl(control, ok) {
+  if (!control || !control.dataset)
+    return ''
+
+  if (ok) {
+    control.dataset.liveGood = control.value
+
+    return control.value
+  }
+
+  if (control.dataset.liveGood !== undefined)
+    control.value = control.dataset.liveGood
+
+  return control.value
+}
+
 export function install(root, send = fetch) {
+  /*
+   * Which control started each in-flight submit, so the answer can settle it.
+   * A `WeakMap` keyed on the form, because a form removed from the page should
+   * not be kept alive by this.
+   */
+  const changedControls = new WeakMap()
+
+  root.addEventListener('change', (event) => {
+    const control = event.target
+
+    if (!changeSubmits(control))
+      return
+
+    const form = control.form
+
+    if (!form || typeof form.requestSubmit !== 'function')
+      return
+
+    // The value to come back to if the server refuses. Taken from the markup
+    // the first time, because that is what the database said when the page
+    // was built, and from each accepted value after that.
+    if (control.dataset.liveGood === undefined)
+      control.dataset.liveGood = renderedValue(control)
+
+    // Which control to settle once the answer arrives. On the form rather
+    // than in a variable here: the submit is handled in the listener below,
+    // one turn of the loop later.
+    changedControls.set(form, control)
+
+    // `requestSubmit`, never `submit`: see the note above.
+    form.requestSubmit()
+  })
+
   root.addEventListener('submit', async (event) => {
     const form = event.target
 
@@ -160,6 +262,12 @@ export function install(root, send = fetch) {
     }
 
     clearBusy(form)
+
+    // A submit-on-change control goes back to the last accepted value when the
+    // server refuses, so it never shows a choice that was not taken.
+    settleControl(changedControls.get(form), answer.ok)
+    changedControls.delete(form)
+
     show(form, liveMessage(answer.ok, body, form.dataset.liveSays))
   })
 }

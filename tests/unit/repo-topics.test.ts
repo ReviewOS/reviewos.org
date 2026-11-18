@@ -6,7 +6,7 @@
 // site remembered.
 
 import { describe, expect, test } from 'bun:test'
-import { decideTopics, MAX_TOPIC_LENGTH, MAX_TOPICS, normalizeTopic, topicChanges } from '../../app/Actions/Repo/topics'
+import { decideTopics, MAX_TOPIC_LENGTH, MAX_TOPICS, normalizeTopic, topicChanges, topicsSentence } from '../../app/Actions/Repo/topics'
 
 describe('normalizeTopic', () => {
   test('folds case, so one topic is one topic', () => {
@@ -125,5 +125,48 @@ describe('topicChanges', () => {
 
   test('starting from nothing adds everything', () => {
     expect(topicChanges([], ['git'])).toEqual({ add: ['git'], remove: [] })
+  })
+})
+
+describe('topicsSentence', () => {
+  /*
+   * What a person is told. Both halves are things they cannot see otherwise:
+   * the field normalises, so the stored list is often not the typed one, and
+   * `decideTopics` works out what it could not use. The browser was told
+   * neither - `succeed` carries only its message into the redirect, so the
+   * rejected list reached JSON callers while the page got a flat "Topics
+   * saved" whether every topic took or half of them were dropped.
+   */
+  test('names what was stored, because it is not always what was typed', () => {
+    expect(topicsSentence(['typescript', 'git'], []))
+      .toBe('Topics saved: typescript, git.')
+  })
+
+  test('and names what was dropped, which is the part nobody was shown', () => {
+    expect(topicsSentence(['typescript'], ['!!!']))
+      .toBe('Topics saved: typescript. Not used: !!!.')
+  })
+
+  test('clearing them all says so rather than saying nothing', () => {
+    // "Topics saved:" with an empty list reads as a bug.
+    expect(topicsSentence([], [])).toBe('Topics cleared.')
+  })
+
+  test('and clearing them while something was rejected says both', () => {
+    expect(topicsSentence([], ['-'])).toBe('Topics cleared. Not used: -.')
+  })
+
+  test('the whole sentence is one somebody can read out', () => {
+    // No trailing separator, no double space, ends in a full stop.
+    for (const said of [
+      topicsSentence(['a'], []),
+      topicsSentence(['a'], ['b']),
+      topicsSentence([], []),
+      topicsSentence([], ['b']),
+    ]) {
+      expect(said.endsWith('.')).toBe(true)
+      expect(said.includes('  ')).toBe(false)
+      expect(said.includes(': .')).toBe(false)
+    }
   })
 })

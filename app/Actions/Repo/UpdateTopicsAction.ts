@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from './authorize'
-import { decideTopics, topicChanges } from './topics'
+import { decideTopics, topicChanges, topicsSentence } from './topics'
 import { refuse, succeed } from '../Support/forge'
 
 /**
@@ -62,6 +62,14 @@ export default new Action({
     for (const topic of add)
       await db.insertInto('repo_topics').values({ repository_id: repositoryId, topic }).execute()
 
+    /*
+     * One sentence for both paths: the layout's notice banner after a reload,
+     * and the line beside the field when the form answers in place. It names
+     * what was stored, because the field normalises, and what was dropped,
+     * because `decideTopics` works that out and nothing was showing it.
+     */
+    const said = topicsSentence(decision.topics, decision.rejected)
+
     return succeed(request, {
       topics: decision.topics,
       added: add,
@@ -69,6 +77,9 @@ export default new Action({
       // Reported rather than dropped quietly: somebody who typed a topic that
       // could not be used has to be told, or they stop trusting the field.
       rejected: decision.rejected,
-    }, 'Topics saved')
+      // The same words a browser gets, so a live form needs no field of its own
+      // to name and a JSON caller can show them as they are.
+      message: said,
+    }, said)
   },
 })

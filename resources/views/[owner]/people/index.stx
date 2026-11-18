@@ -161,18 +161,38 @@ if (!visible)
                   button. There is one field, and a row of unsaved selects is
                   how somebody changes three people and persuades none of them.
                 --}}
-                <form method="post" action="/api/orgs/members/role" class="person-role">
+                {{--
+                  `data-live`, and `data-live-change` on the select instead of
+                  an inline `onchange`.
+
+                  The two go together. `form.submit()` fires no submit event,
+                  so the live save and the busy guard in `form-busy.js` would
+                  both be blind to it and the page would keep reloading despite
+                  the opt-in; `requestSubmit()`, which the one listener in
+                  `form-live.js` calls, behaves like a button press. It also
+                  takes the inline script out of the template, which is the
+                  vanilla JS this project does not allow in `.stx`.
+
+                  Changing three people's roles used to mean three full
+                  reloads, and the refusals here are worth reading where they
+                  happen: "An organization must keep at least one owner" and
+                  "Only an owner can appoint another owner".
+                --}}
+                <form method="post" action="/api/orgs/members/role" class="person-role" data-live>
                   <CsrfField />
                   <input type="hidden" name="organization_id" value="{{ organization.id }}">
                   <input type="hidden" name="user_id" value="{{ person.id }}">
-                  <select name="role" class="person-select" onchange="this.form.submit()" aria-label="Role for {{ person.handle }}">
+                  <select name="role" class="person-select" data-live-change aria-label="Role for {{ person.handle }}">
                     <option value="member" {{ person.role === 'member' ? 'selected' : '' }}>Member</option>
                     <option value="admin" {{ person.role === 'admin' ? 'selected' : '' }}>Admin</option>
                     @if (isOwner)
                       <option value="owner" {{ person.role === 'owner' ? 'selected' : '' }}>Owner</option>
                     @endif
                   </select>
+                  {{-- Still the fallback with no script, now the only way the
+                      form submits at all when the listener is not there. --}}
                   <noscript><button type="submit" class="btn">Change</button></noscript>
+                  <span class="field-live prefs-live" data-live-status role="status" hidden></span>
                 </form>
 
                 <form method="post" action="/api/orgs/members/remove">

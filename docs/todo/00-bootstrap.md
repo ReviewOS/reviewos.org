@@ -1123,3 +1123,49 @@ Each one is committed and pushed in the repository named.
       load-bearing by reverting it and watching the tests go red, and all three live forms were
       driven in a real browser with a `window` marker proving the page was never replaced, then
       read back from the database.
+
+- [x] **The rest of the settings forms, decided one at a time, and two more bugs out of it.**
+      Going through what was left confirmed the point of deciding per form rather than rolling
+      anything out: most of the remaining forms add or remove a row, and the list they change is
+      rendered by the server, so the reload is the feature. Two more earned the in-place answer -
+      a repository's topics, and the role select on an organization's people page.
+
+      **The role select was wired to defeat the whole mechanism**, and marking it `data-live` would
+      have looked like it worked. It carried `onchange="this.form.submit()"`, and `form.submit()`
+      fires no submit event: not the live save, not the busy guard in `form-busy.js`, not the
+      refusal of a second submit while the first is in flight. Driving it in a browser with the
+      form already marked `data-live` posted the whole page anyway and landed on
+      `?form_notice=Role+changed`. `data-live-change` on the control and one `change` listener
+      calling `requestSubmit()` replaces it, which also takes the last inline `on*` handler out of
+      a template - the vanilla JS AGENTS.md does not allow in `.stx`.
+
+      **A refused change used to leave the control lying.** Demoting the only owner is refused, and
+      the select sat on "Member" beside the sentence saying otherwise - the reload this replaced
+      re-rendered the truth, so staying put has to do the same job. A submit-on-change control now
+      remembers the value the server rendered (the `selected` attribute, which is what the database
+      said when the page was built), commits each accepted value, and goes back on a refusal.
+
+      **Topics were normalising silently and dropping their own error report.** `decideTopics`
+      works out what it could not use, and the comment beside it says somebody who typed an
+      unusable topic "has to be told, or they stop trusting the field" - and then the browser was
+      told nothing, because `succeed` carries only its message into the redirect. So the rejected
+      list reached JSON callers while the page got a flat "Topics saved" whether every topic took
+      or half of them were dropped, on a field that also folds case, converts spaces to dashes,
+      de-duplicates and caps at twenty. `topicsSentence` lives with the other topic rules and says
+      both halves: typing `TypeScript, Code Review, typescript, !!!, git` now answers
+      "Topics saved: typescript, code-review, git. Not used: !!!." in the notice banner after a
+      reload and in the line beside the field when it stays put.
+
+      Three forms are now documented as deliberately *not* live, because the next person to extend
+      this will reach for them: the organization visibility button inverts - both its label and the
+      value it posts are built from the state it is about to change, so answering in place would
+      leave "Show on profile" above a membership that is already shown, posting `public`, with the
+      second click doing nothing - and unmuting takes its own row out of a server-rendered list.
+
+      `tests/unit/form-live-markup.test.ts` now also fails on `form.submit()` anywhere in a
+      template, on any inline `on*` handler on a form control, and on a `data-live-change` outside
+      a `data-live` form, which is the attribute doing nothing useful. Verified in a browser: the
+      role change stays put, the refusal appears in place and snaps the select back to `owner`, the
+      topics sentence names the normalised list and the rejected topic, and the eighteen preference
+      selects still do nothing on change - they have a Save button, and `change` is not a submit
+      anywhere it was not asked for. The database was read back for all of it.

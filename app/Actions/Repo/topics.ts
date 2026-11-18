@@ -110,3 +110,32 @@ export function topicChanges(current: readonly string[], next: readonly string[]
     remove: current.filter(topic => !wanted.has(topic)),
   }
 }
+
+/**
+ * What to tell somebody who just saved topics.
+ *
+ * Both halves, because both are things they cannot see otherwise. The field
+ * normalises - lower case, dashes, de-duplicated, twenty at most - so the
+ * stored list is often not the typed one; and `decideTopics` reports what it
+ * could not use, which its own comment says somebody "has to be told, or they
+ * stop trusting the field".
+ *
+ * They were told neither. `succeed` carries only its message into the
+ * redirect, so `rejected` reached JSON callers and the page got a flat "Topics
+ * saved" whether every topic took or half of them were dropped.
+ *
+ * Here rather than in the action so it is one rule with tests, like the
+ * normalising above it, and so both the notice banner and the line beside the
+ * field say the same words.
+ */
+export function topicsSentence(topics: readonly string[], rejected: readonly string[]): string {
+  const kept = topics.length > 0
+    ? `Topics saved: ${topics.join(', ')}.`
+    : 'Topics cleared.'
+
+  const dropped = rejected.length > 0
+    ? ` Not used: ${rejected.join(', ')}.`
+    : ''
+
+  return `${kept}${dropped}`
+}

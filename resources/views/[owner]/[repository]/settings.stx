@@ -419,7 +419,21 @@ const fullName = `${ownerHandle}/${repositoryName}`
       <section class="card panel">
         <h2 class="card-title">Topics</h2>
 
-        <form class="grid" method="post" action="/api/repos/topics">
+        {{--
+          `data-live`. The field normalises what you type - lower case, dashes,
+          de-duplicated, twenty at most - and the endpoint reports anything it
+          could not use, so the answer here is worth more than a page that
+          looks the same. `UpdateTopicsAction` sends that sentence as `message`,
+          which is what the line below the field shows and what the notice
+          banner shows after a reload with no script.
+
+          Nothing else on this page renders the topics, so staying put leaves
+          nothing stale. The field keeps what was typed rather than being
+          rewritten to the stored list, which is why the sentence names that
+          list: you can see both what you asked for and what was kept, and
+          saving the same text again is the same save.
+        --}}
+        <form class="grid" method="post" action="/api/repos/topics" data-live>
           <CsrfField />
           <input type="hidden" name="owner" value="{{ ownerHandle }}">
           <input type="hidden" name="repo" value="{{ repositoryName }}">
@@ -432,6 +446,10 @@ const fullName = `${ownerHandle}/${repositoryName}`
               and <span class="mono">typescript</span> are one topic.
             </span>
           </label>
+
+          {{-- Where the answer goes, and here it carries the real content:
+              what was stored and what was dropped. --}}
+          <p class="field-live" data-live-status role="status" hidden></p>
 
           <div class="actions">
             <button class="btn" type="submit" data-busy-label="Saving...">Save topics</button>

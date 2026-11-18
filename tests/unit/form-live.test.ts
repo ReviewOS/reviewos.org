@@ -5,7 +5,7 @@
 // itself when there is a `document`, and there is not one here.
 
 import { describe, expect, test } from 'bun:test'
-import { liveDecision, liveMessage, movedAway, pick } from '../../public/js/form-live.js'
+import { changeSubmits, liveDecision, liveMessage, movedAway, pick, renderedValue, settleControl } from '../../public/js/form-live.js'
 
 describe('which submits are handled here', () => {
   test('a posting form that asked to be', () => {
@@ -145,5 +145,102 @@ describe('when staying on the page would be the wrong answer', () => {
     // The repository settings answer carries `name` when a rename happened.
     expect(movedAway('reviewos', { id: 7, name: 'reviewos-core' }, 'name')).toBe(true)
     expect(movedAway('reviewos', { id: 7, handle: 'chris-b' }, 'name')).toBe(false)
+  })
+})
+
+describe('a control that submits as soon as it changes', () => {
+  /*
+   * The role select on the people page used `onchange="this.form.submit()"`.
+   * Two things were wrong with that at once, and the second is the dangerous
+   * one: `form.submit()` fires no submit event, so neither the live save nor
+   * the busy guard in `form-busy.js` can see it. A form wired that way keeps
+   * posting the whole page however many times it is marked `data-live` - the
+   * opt-in says it stays put, and it does not.
+   */
+  test('a control that asked for it', () => {
+    expect(changeSubmits({ dataset: { liveChange: '' } })).toBe(true)
+  })
+
+  test('and no other control, because change is not a submit anywhere else', () => {
+    // Every other select in the product: the preference cells have a Save
+    // button, and a select that posted on change would lose the button's
+    // meaning.
+    expect(changeSubmits({ dataset: {} })).toBe(false)
+    expect(changeSubmits({ dataset: { live: '' } })).toBe(false)
+    expect(changeSubmits({ dataset: { liveStatus: '' } })).toBe(false)
+  })
+
+  test('and nothing that is not a control at all', () => {
+    expect(changeSubmits(null)).toBe(false)
+    expect(changeSubmits(undefined)).toBe(false)
+    expect(changeSubmits({})).toBe(false)
+  })
+})
+
+describe('a submit-on-change control after the server answers', () => {
+  /** A `<select>` stub: `value` is what the reader picked, the attribute is what was rendered. */
+  function select(rendered: string, picked = rendered) {
+    return {
+      tagName: 'SELECT',
+      value: picked,
+      dataset: {} as Record<string, string>,
+      querySelector: (query: string) =>
+        query === 'option[selected]' ? { value: rendered } : null,
+    }
+  }
+
+  test('the rendered value is the one in the markup, not the one picked', () => {
+    // The reader has chosen `member`; the database still says `owner`.
+    expect(renderedValue(select('owner', 'member'))).toBe('owner')
+  })
+
+  test('and an input carries it on the attribute', () => {
+    expect(renderedValue({ tagName: 'INPUT', getAttribute: () => 'typescript' })).toBe('typescript')
+    expect(renderedValue({ tagName: 'INPUT', getAttribute: () => null })).toBe('')
+  })
+
+  test('nothing, for something that is not a control', () => {
+    expect(renderedValue(null)).toBe('')
+    expect(renderedValue(undefined)).toBe('')
+    expect(renderedValue({ tagName: 'SELECT' })).toBe('')
+  })
+
+  /*
+   * The reload this replaced re-rendered the truth, so staying put has to do
+   * the same job. Demoting the only owner is refused - "An organization must
+   * keep at least one owner" - and without this the select would sit on
+   * "Member" beside that sentence, saying the person has a role they do not.
+   */
+  test('a refusal puts the control back where the server had it', () => {
+    const control = select('owner', 'member')
+    control.dataset.liveGood = 'owner'
+
+    expect(settleControl(control, false)).toBe('owner')
+    expect(control.value).toBe('owner')
+  })
+
+  test('and an accepted change becomes the value to come back to', () => {
+    const control = select('member', 'admin')
+    control.dataset.liveGood = 'member'
+
+    expect(settleControl(control, true)).toBe('admin')
+    expect(control.dataset.liveGood).toBe('admin')
+
+    // A later refusal returns to the accepted value, not the rendered one.
+    control.value = 'owner'
+    expect(settleControl(control, false)).toBe('admin')
+  })
+
+  test('with nothing remembered it leaves the control alone', () => {
+    // Better than guessing: a wrong revert is as misleading as no revert.
+    const control = select('member', 'admin')
+
+    expect(settleControl(control, false)).toBe('admin')
+  })
+
+  test('and it is safe when no control started the submit', () => {
+    // Every form with a Save button, which is most of them.
+    expect(settleControl(undefined, true)).toBe('')
+    expect(settleControl(null, false)).toBe('')
   })
 })

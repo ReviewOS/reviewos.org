@@ -178,6 +178,18 @@ if (!viewer)
                 </div>
 
                 <div class="org-actions">
+                  {{--
+                    Not `data-live`, deliberately, and this is the clearest
+                    example of why that is a decision per form.
+
+                    The button inverts: both its label and the hidden value it
+                    posts are built from the state it is about to change. A
+                    form that answered in place would leave "Show on profile"
+                    sitting above a membership that is already shown, still
+                    posting `public`, so the second click would do nothing and
+                    there would be no way back without a manual refresh. The
+                    reload is what makes the control true again.
+                  --}}
                   <form method="post" action="/api/orgs/members/visibility">
                     <CsrfField />
                     <input type="hidden" name="organization_id" value="{{ organization.id }}">

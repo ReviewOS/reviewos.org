@@ -520,6 +520,10 @@ const dayBoxes = [
                 --}}
                 <span class="muted prefs-inbox">{{ mute.until }}</span>
 
+                {{-- Not `data-live`: unmuting takes this row out of the list,
+                    and the list is rendered by the server. Answering in place
+                    would leave the row sitting there with a button that has
+                    nothing left to do. --}}
                 <form class="prefs-control" method="post" action="/api/user/notifications/mutes">
                   <CsrfField />
                   <input type="hidden" name="subject_type" value="{{ mute.subjectType }}">

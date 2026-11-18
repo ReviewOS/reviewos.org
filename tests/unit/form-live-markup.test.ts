@@ -124,9 +124,70 @@ describe('every live form in the product', () => {
 
     expect(live).toEqual([
       'resources/views/[owner]/[repository]/settings.stx',
+      'resources/views/[owner]/people/index.stx',
       'resources/views/settings/notifications.stx',
       'resources/views/settings/profile.stx',
     ])
+  })
+})
+
+describe('a control that submits on change', () => {
+  /*
+   * `form.submit()` fires no submit event, so a form wired with an inline
+   * `onchange="this.form.submit()"` is invisible to the live save and to the
+   * busy guard both: it keeps posting the whole page however many times it is
+   * marked `data-live`. `requestSubmit()` is the one that behaves like a
+   * button press, and `form-live.js` calls it from one listener.
+   *
+   * This fails if that inline form comes back, in any template.
+   */
+  test('nothing calls form.submit() from the markup', () => {
+    const offenders: string[] = []
+
+    for (const file of ROOTS.flatMap(root => templates(root))) {
+      const body = withoutComments(readFileSync(file, 'utf8'))
+
+      if (/\.form\.submit\(\)|form\.submit\(\)/.test(body))
+        offenders.push(`${file}: form.submit() in markup bypasses every submit listener`)
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  test('and no inline on* handler either, which is vanilla JS in a template', () => {
+    // AGENTS.md: no vanilla JS in `.stx`. `onchange` was the last one on a
+    // form, and `data-live-change` replaces it.
+    const offenders: string[] = []
+
+    for (const file of ROOTS.flatMap(root => templates(root))) {
+      const body = withoutComments(readFileSync(file, 'utf8'))
+
+      for (const match of body.matchAll(/<(?:select|input|textarea|button)\b[^>]*\son(change|click|input|submit)=/g))
+        offenders.push(`${file}: inline on${match[1]} on a form control`)
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  test('every data-live-change control sits in a form that answers in place', () => {
+    // On its own the attribute does nothing useful: it would submit a form
+    // that then navigates, which is the behaviour it was meant to replace.
+    const problems: string[] = []
+
+    for (const file of ROOTS.flatMap(root => templates(root))) {
+      const text = readFileSync(file, 'utf8')
+      const body = withoutComments(text)
+
+      if (!/data-live-change/.test(body))
+        continue
+
+      const inLiveForm = liveFormsIn(text).some(form => /data-live-change/.test(form))
+
+      if (!inLiveForm)
+        problems.push(`${file}: data-live-change outside a data-live form`)
+    }
+
+    expect(problems).toEqual([])
   })
 })
 
