@@ -1907,8 +1907,15 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/user/notifications/schedule
    */
-  putUserNotificationsSchedule(input?: { body?: { "breaks_through"?: string; "days"?: number; "do_not_disturb_until"?: string; "ends_at"?: string; "starts_at"?: string; "timezone"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  putUserNotificationsSchedule(input?: { body?: { "breaks_through"?: string; "days"?: unknown; "do_not_disturb_until"?: string; "ends_at"?: unknown; "starts_at"?: unknown; "timezone"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PUT", "/api/user/notifications/schedule", input ?? {}, [], {"required":false,"content":["application/json"]}, "application/json", [], options)
+  },
+
+  /**
+   * POST /api/user/notifications/schedule
+   */
+  postUserNotificationsSchedule(input?: { body?: { "breaks_through"?: string; "days"?: unknown; "do_not_disturb_until"?: string; "ends_at"?: unknown; "starts_at"?: unknown; "timezone"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/notifications/schedule", input ?? {}, [], {"required":false,"content":["application/json"]}, "application/json", [], options)
   },
 
   /**

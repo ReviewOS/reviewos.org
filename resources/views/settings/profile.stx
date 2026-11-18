@@ -85,14 +85,16 @@ const website = String(account?.website ?? '')
           and the action redirects, exactly as before - which is why the form
           is unchanged apart from the attributes.
 
-          `data-live-was` is the handle this page was rendered for. A rename
-          makes every link on the page wrong, so that case reloads; everything
-          else stays put and says so in the line below the button. --}}
+          `data-live-moved` is the field in the answer that would mean this page
+          has moved, and `data-live-was` what it was when the page was rendered.
+          A rename makes every link on the page wrong, so that case reloads;
+          everything else stays put and says so in the line below the button. --}}
       <form
         class="key-form panel"
         method="post"
         action="/api/user/profile"
         data-live
+        data-live-moved="handle"
         data-live-was="{{ handle }}">
         <CsrfField />
 

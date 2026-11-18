@@ -83,6 +83,30 @@ describe('parseDays', () => {
   test('round trips through formatDays', () => {
     expect(formatDays(parseDays('5,1,3'))).toBe('1,3,5')
   })
+
+  /*
+   * `Number('')` is `0`, and `0` is Sunday.
+   *
+   * The settings form posts the week grid as a repeated field with an empty
+   * hidden companion, so that clearing every box can be told apart from not
+   * submitting the field at all - which is the difference between "never
+   * interrupt me" and "leave my hours alone". That companion arrives joined
+   * onto the front of the list, and an empty part converted before it was
+   * filtered turned every weekday choice into a weekday choice plus Sunday:
+   * picking Monday to Wednesday stored `0,1,2,3`, so Sunday went quiet for
+   * everybody who had never chosen it.
+   */
+  test('an empty part is not Sunday', () => {
+    expect(parseDays(',1,2')).toEqual([1, 2])
+    expect(parseDays(',')).toEqual([])
+    expect(parseDays(', ,1')).toEqual([1])
+    expect(parseDays('1,,3')).toEqual([1, 3])
+  })
+
+  test('and a real Sunday still is one', () => {
+    expect(parseDays('0,1')).toEqual([0, 1])
+    expect(parseDays(',0')).toEqual([0])
+  })
 })
 
 describe('parseEventList', () => {

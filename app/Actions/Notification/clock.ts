@@ -77,7 +77,16 @@ function format(timezone: string, epochMs: number): { weekday: number, hour: num
   }
 }
 
-/** Parse the stored `days` column: "1,2,3,4,5" into the numbers it names. */
+/**
+ * Parse the stored `days` column: "1,2,3,4,5" into the numbers it names.
+ *
+ * Empty parts are dropped before anything is converted, because `Number('')`
+ * is `0` and `0` is Sunday. A list is not always written by this file's own
+ * `formatDays`: the settings form posts the week grid as a repeated field with
+ * an empty companion, so that it can tell "every box cleared" from "the field
+ * was not submitted", and `,1,2` reaching here as Sunday-plus-Monday-plus-
+ * Tuesday would silence Sunday for everybody who chose a weekday.
+ */
 export function parseDays(days: string | null | undefined): number[] {
   if (!days)
     return []
@@ -85,7 +94,9 @@ export function parseDays(days: string | null | undefined): number[] {
   return [...new Set(
     days
       .split(',')
-      .map(part => Number(part.trim()))
+      .map(part => part.trim())
+      .filter(part => part !== '')
+      .map(part => Number(part))
       .filter(day => Number.isInteger(day) && day >= 0 && day <= 6),
   )].sort((a, b) => a - b)
 }

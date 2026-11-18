@@ -148,3 +148,59 @@ describe('opening an issue accepts what the new-issue form posts', () => {
     expect(await check(action.validations, body)).toEqual([])
   })
 })
+
+describe('saving notification hours accepts what the schedule form posts', () => {
+  /**
+   * What `resources/views/settings/notifications.stx` posts.
+   *
+   * The week grid is seven checkboxes under one name with an empty hidden
+   * companion, so `days` arrives as `['']` with nothing ticked and
+   * `['', '1', '2']` with two. The times come from `<input type="time">`, which
+   * can only send `HH:MM`.
+   */
+  function scheduleForm(days: unknown): Record<string, unknown> {
+    return { days, starts_at: '09:00', ends_at: '17:00', timezone: 'Europe/Berlin' }
+  }
+
+  /*
+   * `days` was declared `schema.number()`. One ticked box survived it by
+   * coercion and everything else did not: two boxes reach the router as an
+   * array, and the API's own documented shape is the comma list this handler
+   * writes back into the column. So "Save hours" answered 422 "Days must be a
+   * number" to anybody who chose more than one day - on top of the 405 the
+   * form got for posting to a PUT-only route, and the 422 the HH:MM times got
+   * from a handler that read minutes from midnight. Three faults, each enough
+   * on its own, on a form nobody could ever have saved.
+   */
+  test('two days ticked, which arrives as an array', async () => {
+    const action: any = (await import('../../app/Actions/Notification/UpdateScheduleAction')).default
+
+    expect(await check(action.validations, scheduleForm(['', '1', '2']))).toEqual([])
+  })
+
+  test('one day ticked', async () => {
+    const action: any = (await import('../../app/Actions/Notification/UpdateScheduleAction')).default
+
+    expect(await check(action.validations, scheduleForm(['', '1']))).toEqual([])
+  })
+
+  test('none ticked, which still sends the companion', async () => {
+    const action: any = (await import('../../app/Actions/Notification/UpdateScheduleAction')).default
+
+    expect(await check(action.validations, scheduleForm(['']))).toEqual([])
+  })
+
+  test('and the API\'s own comma list, which was refused too', async () => {
+    const action: any = (await import('../../app/Actions/Notification/UpdateScheduleAction')).default
+
+    expect(await check(action.validations, { days: '1,2,3,4,5', starts_at: 540, ends_at: 1020, timezone: 'UTC' }))
+      .toEqual([])
+  })
+
+  test('a timezone is still a string, so the rules are really being read', async () => {
+    const action: any = (await import('../../app/Actions/Notification/UpdateScheduleAction')).default
+
+    expect(await check(action.validations, { ...scheduleForm(['', '1']), timezone: { not: 'a string' } }))
+      .not.toEqual([])
+  })
+})

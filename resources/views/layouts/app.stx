@@ -1152,6 +1152,16 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
 
       .field-live.is-bad { color: var(--bad); }
 
+      /* The same line inside one cell of the preference grid, where it sits
+        beside the button rather than above a row of them. A refusal there can
+        be a whole sentence - "The inbox is the record and cannot be turned
+        off" - so it wraps rather than stretching the column. */
+      .prefs-live {
+        margin: 0;
+        max-width: 22ch;
+        line-height: 1.3;
+      }
+
       .field-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
       /* One card, one form, one thing to do: on the auth screens the button is

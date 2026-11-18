@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-230 of the 241 operations below declare their inputs on the action, and this page
+231 of the 242 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -3919,15 +3919,32 @@ _Inputs are not declared on `Actions/Notification/PushTestAction`, so they are n
 | `422` | Validation failed |
 | `500` | Server error |
 
+### `POST /api/user/notifications/schedule`
+
+| Name | In | Required | Type |
+|---|---|---|---|
+| `breaks_through` | body | optional | string |
+| `days` | body | optional | custom |
+| `do_not_disturb_until` | body | optional | string |
+| `ends_at` | body | optional | custom |
+| `starts_at` | body | optional | custom |
+| `timezone` | body | optional | string |
+
+| Status | Means |
+|---|---|
+| `200` | Successful response |
+| `422` | Validation failed |
+| `500` | Server error |
+
 ### `PUT /api/user/notifications/schedule`
 
 | Name | In | Required | Type |
 |---|---|---|---|
 | `breaks_through` | body | optional | string |
-| `days` | body | optional | number |
+| `days` | body | optional | custom |
 | `do_not_disturb_until` | body | optional | string |
-| `ends_at` | body | optional | string |
-| `starts_at` | body | optional | string |
+| `ends_at` | body | optional | custom |
+| `starts_at` | body | optional | custom |
 | `timezone` | body | optional | string |
 
 | Status | Means |

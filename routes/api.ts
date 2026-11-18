@@ -467,6 +467,12 @@ route.get('/orgs/tokens', 'Actions/Tokens/ListOrganizationTokensAction').middlew
 // When notifications may interrupt, and what has been muted. Both are here
 // rather than under a repository because they are decisions about a person.
 route.put('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')
+// And on POST, for the settings page's form. An HTML form can only GET or POST,
+// and the form carried a hidden `_method` field hoping to be read as a PUT -
+// which is "a convention the router does not have", as the note on
+// `/repos/delete` below says. So every "Save hours" there has ever been got a
+// 405 from a route that was only ever reachable by the API.
+route.post('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')
 route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middleware('auth')
 
 // The inbox itself. POST for marking read rather than PUT, because the page is

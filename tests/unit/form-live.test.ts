@@ -5,7 +5,7 @@
 // itself when there is a `document`, and there is not one here.
 
 import { describe, expect, test } from 'bun:test'
-import { liveDecision, liveMessage, movedAway } from '../../public/js/form-live.js'
+import { liveDecision, liveMessage, movedAway, pick } from '../../public/js/form-live.js'
 
 describe('which submits are handled here', () => {
   test('a posting form that asked to be', () => {
@@ -51,6 +51,59 @@ describe('what it tells somebody', () => {
     expect(liveMessage(true, { message: 'Saved, and the mirror was queued.' }).message)
       .toBe('Saved, and the mirror was queued.')
   })
+
+  /*
+   * The schedule endpoint is the reason this exists. It answers with what the
+   * hours just saved would do to a review request *right now*, which is the
+   * only part of that response worth reading and exactly what the full reload
+   * used to throw away. The form names the field; this module knows no key
+   * belonging to any one action.
+   */
+  test('a form can name the field its answer lives in', () => {
+    const body = {
+      days: '1,2,3',
+      right_now: { decision: 'hold', explanation: 'If your review were requested now, it would wait until 09:00.' },
+    }
+
+    expect(liveMessage(true, body, 'right_now.explanation').message)
+      .toBe('If your review were requested now, it would wait until 09:00.')
+  })
+
+  test('and falls back rather than saying nothing when the field is missing', () => {
+    // A rule that changed shape, an older server, a field renamed: the save
+    // still happened, so the answer is still a confirmation.
+    expect(liveMessage(true, { ok: true }, 'right_now.explanation').message).toBe('Saved.')
+    expect(liveMessage(true, { right_now: {} }, 'right_now.explanation').message).toBe('Saved.')
+    expect(liveMessage(true, { right_now: 'not an object' }, 'right_now.explanation').message).toBe('Saved.')
+  })
+
+  test('a refusal still wins over a named success field', () => {
+    const body = { error: 'A window needs a start and an end that differ', right_now: { explanation: 'ignored' } }
+
+    expect(liveMessage(false, body, 'right_now.explanation'))
+      .toEqual({ ok: false, message: 'A window needs a start and an end that differ' })
+  })
+})
+
+describe('reading a named field out of an answer', () => {
+  test('a dotted path, however deep', () => {
+    expect(pick({ a: { b: { c: 'here' } } }, 'a.b.c')).toBe('here')
+    expect(pick({ top: 'here' }, 'top')).toBe('here')
+  })
+
+  test('and nothing rather than a crash when the path is not there', () => {
+    expect(pick({}, 'a.b')).toBe('')
+    expect(pick(null, 'a')).toBe('')
+    expect(pick({ a: null }, 'a.b')).toBe('')
+    expect(pick({ a: 'string' }, 'a.b')).toBe('')
+  })
+
+  test('and only strings, because this goes into a sentence', () => {
+    // `{ ok: true }` named by mistake would otherwise print "true" at somebody.
+    expect(pick({ ok: true }, 'ok')).toBe('')
+    expect(pick({ count: 3 }, 'count')).toBe('')
+    expect(pick({ at: { nested: {} } }, 'at.nested')).toBe('')
+  })
 })
 
 describe('when staying on the page would be the wrong answer', () => {
@@ -60,19 +113,37 @@ describe('when staying on the page would be the wrong answer', () => {
    * leave somebody reading a page that says `/old` while they are `/new`.
    */
   test('a rename moves the page out from under the reader', () => {
-    expect(movedAway('chris', { ok: true, handle: 'chris-b' })).toBe(true)
+    expect(movedAway('chris', { ok: true, handle: 'chris-b' }, 'handle')).toBe(true)
   })
 
   test('and saving anything else does not', () => {
-    expect(movedAway('chris', { ok: true, handle: 'chris' })).toBe(false)
-    expect(movedAway('chris', { ok: true, unchanged: true })).toBe(false)
-    expect(movedAway('chris', {})).toBe(false)
+    expect(movedAway('chris', { ok: true, handle: 'chris' }, 'handle')).toBe(false)
+    expect(movedAway('chris', { ok: true, unchanged: true }, 'handle')).toBe(false)
+    expect(movedAway('chris', {}, 'handle')).toBe(false)
   })
 
   test('and a form that never had a handle is never moved by one', () => {
     // Every other form that might opt in later. `data-live-was` is absent,
     // so there is nothing for a response to differ from.
-    expect(movedAway(undefined, { handle: 'anything' })).toBe(false)
-    expect(movedAway('', { handle: 'anything' })).toBe(false)
+    expect(movedAway(undefined, { handle: 'anything' }, 'handle')).toBe(false)
+    expect(movedAway('', { handle: 'anything' }, 'handle')).toBe(false)
+  })
+
+  /*
+   * The field is named by the form, and a form that names none cannot be moved.
+   * This is the case that made the old signature a trap: it read `body.handle`
+   * whatever the form was, so the moment a second form went live - a preference
+   * cell, a merge toggle - any action answering with a `handle` of its own
+   * would have reloaded a page that had not moved.
+   */
+  test('a form that names no field is never moved, whatever came back', () => {
+    expect(movedAway('squash', { handle: 'someone-else' }, undefined)).toBe(false)
+    expect(movedAway('squash', { handle: 'someone-else' }, '')).toBe(false)
+  })
+
+  test('and the named field is the only one that counts', () => {
+    // The repository settings answer carries `name` when a rename happened.
+    expect(movedAway('reviewos', { id: 7, name: 'reviewos-core' }, 'name')).toBe(true)
+    expect(movedAway('reviewos', { id: 7, handle: 'chris-b' }, 'name')).toBe(false)
   })
 })

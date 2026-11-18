@@ -5668,14 +5668,27 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "breaks_through"?: string; "days"?: number; "do_not_disturb_until"?: string; "ends_at"?: string; "starts_at"?: string; "timezone"?: string } } }
+    requestBody?: { content: { "application/json": { "breaks_through"?: string; "days"?: unknown; "do_not_disturb_until"?: string; "ends_at"?: unknown; "starts_at"?: unknown; "timezone"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
       "500": { content: never }
     }
   }
-    post?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "breaks_through"?: string; "days"?: unknown; "do_not_disturb_until"?: string; "ends_at"?: unknown; "starts_at"?: unknown; "timezone"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     delete?: never
     options?: never
     head?: never

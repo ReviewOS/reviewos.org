@@ -20657,6 +20657,59 @@
       }
     },
     "/api/user/notifications/schedule": {
+      "post": {
+        "summary": "/api/user/notifications/schedule",
+        "operationId": "post__api_user_notifications_schedule",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "breaks_through": {
+                    "type": "string"
+                  },
+                  "days": {
+                    "type": "custom"
+                  },
+                  "do_not_disturb_until": {
+                    "type": "string"
+                  },
+                  "ends_at": {
+                    "type": "custom"
+                  },
+                  "starts_at": {
+                    "type": "custom"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "summary": "/api/user/notifications/schedule",
         "operationId": "put__api_user_notifications_schedule",
@@ -20690,16 +20743,16 @@
                     "type": "string"
                   },
                   "days": {
-                    "type": "number"
+                    "type": "custom"
                   },
                   "do_not_disturb_until": {
                     "type": "string"
                   },
                   "ends_at": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "starts_at": {
-                    "type": "string"
+                    "type": "custom"
                   },
                   "timezone": {
                     "type": "string"

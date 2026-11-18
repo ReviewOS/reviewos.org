@@ -4,6 +4,7 @@ import { currentUser } from '../Identity/lookup'
 import { formatDays, localTimeIn, parseDays } from './clock'
 import { decisionText, deliveryDecision } from './delivery'
 import { refuse, succeed } from '../Support/forge'
+import { coerced, list } from '../inputs'
 
 /**
  * Set when somebody is reachable.
@@ -25,10 +26,18 @@ export default new Action({
   // coerces takes `coerced` from `app/Actions/inputs.ts` instead.
   validations: {
     breaks_through: { rule: schema.string() },
-    days: { rule: schema.number() },
+    // `list`, not `schema.number()`. The week grid is seven checkboxes under
+    // one name, so a tick arrives as `'1'` and two ticks as `['1','2']`, and
+    // the API's own shape is the comma list this handler writes back - `1,2,3`.
+    // `schema.number()` accepted exactly one of those three, by coercion, and
+    // answered 422 "Days must be a number" to anybody who chose two days or
+    // sent the documented list. See `app/Actions/inputs.ts`.
+    days: { rule: list },
     do_not_disturb_until: { rule: schema.string() },
-    ends_at: { rule: schema.string() },
-    starts_at: { rule: schema.string() },
+    // `coerced`, because `minute()` below reads these through `Number(...)` and
+    // a declared string refuses the `{"starts_at": 540}` the examples show.
+    ends_at: { rule: coerced },
+    starts_at: { rule: coerced },
     timezone: { rule: schema.string() },
   },
 
@@ -51,7 +60,7 @@ export default new Action({
     const endsAt = minute(request.get('ends_at'), Number(existing?.ends_at ?? 1080))
 
     if (startsAt === null || endsAt === null)
-      return refuse(request, 'A time is a minute from midnight, 0 to 1439', 422)
+      return refuse(request, 'A time is a clock time like 09:00, or a minute from midnight, 0 to 1439', 422)
 
     // Equal start and end would be a window of zero length that reads as "all
     // day" to whoever set it. Refusing is kinder than silencing them.
@@ -113,10 +122,35 @@ export default new Action({
   },
 })
 
-/** A minute from midnight, or null when the value is present but not one. */
-function minute(value: unknown, fallback: number): number | null {
+/**
+ * A minute from midnight, or null when the value is present but not one.
+ *
+ * Two spellings, because two callers. The API sends `540`, which is what the
+ * column stores and what the examples document. A browser sends `09:00`,
+ * because the field is `<input type="time">` and that is the only thing that
+ * element can send - a clock is what a person should be given here, not
+ * arithmetic.
+ *
+ * Only the first was accepted, so the settings form's own value came back
+ * "A time is a minute from midnight, 0 to 1439" every time. Both are
+ * unambiguous and neither can be mistaken for the other, so both are read
+ * rather than making the page post something it has no control to produce.
+ */
+export function minute(value: unknown, fallback: number): number | null {
   if (value === undefined || value === null || value === '')
     return fallback
+
+  const clock = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(value).trim())
+
+  if (clock) {
+    const hours = Number(clock[1])
+    const minutes = Number(clock[2])
+
+    if (hours > 23 || minutes > 59)
+      return null
+
+    return hours * 60 + minutes
+  }
 
   const parsed = Number(value)
 

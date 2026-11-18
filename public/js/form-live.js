@@ -45,15 +45,44 @@ export function liveDecision(input) {
  * fallback when it does not, rather than a shape every action would have to be
  * changed to satisfy.
  */
-export function liveMessage(ok, body) {
+export function liveMessage(ok, body, says) {
   const answer = body && typeof body === 'object' ? body : {}
 
-  if (ok)
-    return { ok: true, message: typeof answer.message === 'string' && answer.message ? answer.message : 'Saved.' }
+  if (ok) {
+    // What the form asked for, when it named a field; then a message the
+    // action happened to send; then the plain fallback.
+    const named = says ? pick(answer, says) : ''
+    const sent = typeof answer.message === 'string' && answer.message ? answer.message : ''
+
+    return { ok: true, message: named || sent || 'Saved.' }
+  }
 
   const error = typeof answer.error === 'string' && answer.error ? answer.error : 'That did not save. Try again.'
 
   return { ok: false, message: error }
+}
+
+/**
+ * A field the form named, by dotted path, or `''`.
+ *
+ * `data-live-says="right_now.explanation"` rather than a rule in here about
+ * which key holds the sentence. The actions do not agree on a success shape
+ * and should not have to: the schedule endpoint answers with what your new
+ * hours would do to a review request *right now*, which is the only part of
+ * that response worth reading and is exactly what the full reload used to
+ * discard. A form that names nothing gets "Saved.".
+ */
+export function pick(body, path) {
+  let at = body
+
+  for (const step of String(path).split('.')) {
+    if (!at || typeof at !== 'object')
+      return ''
+
+    at = at[step]
+  }
+
+  return typeof at === 'string' ? at : ''
 }
 
 /**
@@ -64,11 +93,20 @@ export function liveMessage(ok, body) {
  * would leave somebody looking at a page that says `/old` while they are
  * `/new`, which is worse than the reload this was avoiding. So a rename
  * reloads and everything else does not.
+ *
+ * The form names the field (`data-live-moved`) rather than this module knowing
+ * it. Reading `body.handle` unconditionally was fine while one form was live
+ * and becomes a trap as soon as a second one is: any action that answers with
+ * a `handle` for its own reasons - the owner of the thing it just changed,
+ * say - would reload a page that had not moved at all.
  */
-export function movedAway(before, body) {
-  const after = body && typeof body === 'object' ? body.handle : undefined
+export function movedAway(before, body, field) {
+  if (!before || !field)
+    return false
 
-  return Boolean(before) && typeof after === 'string' && after.length > 0 && after !== before
+  const after = pick(body, field)
+
+  return after.length > 0 && after !== before
 }
 
 function show(form, result) {
@@ -116,13 +154,13 @@ export function install(root, send = fetch) {
 
     const body = await answer.json().catch(() => ({}))
 
-    if (answer.ok && movedAway(form.dataset.liveWas, body)) {
+    if (answer.ok && movedAway(form.dataset.liveWas, body, form.dataset.liveMoved)) {
       root.defaultView.location.assign(root.defaultView.location.pathname)
       return
     }
 
     clearBusy(form)
-    show(form, liveMessage(answer.ok, body))
+    show(form, liveMessage(answer.ok, body, form.dataset.liveSays))
   })
 }
 

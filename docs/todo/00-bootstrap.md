@@ -1074,3 +1074,52 @@ Each one is committed and pushed in the repository named.
       Verified in a browser against the real router on all three paths, with a marker on `window` to
       prove the page was not replaced: a save stays put and says so, a refusal shows the server's own
       sentence with the typing intact, and a rename reloads and comes back correct.
+
+- [x] **The settings forms that should answer in place now do, and "Save hours" works at all.**
+      Extending `data-live` past the profile form meant reading each form and asking where its
+      answer goes, which is a decision per form and not a rollout. Three took it: the notification
+      schedule, every cell of the preference grid, and the merge toggles on a repository.
+
+      Finding out that the schedule form could not save was the first thing extending it turned up.
+      It had three faults, each enough on its own, and none visible from the unit suite - which
+      drives `action.handle(...)` directly and so skips routing and declared validation both:
+
+      - The form posts. The route was `PUT` only, and the form carried a hidden `_method=PUT`
+        hoping to be read as one, which `routes/api.ts` says in as many words is "a convention the
+        router does not have". Every submit got **405 Method Not Allowed**.
+      - `days` was declared `schema.number()`. The week grid is seven checkboxes under one name, so
+        two ticks reach the router as an array, and the endpoint's own documented shape is the comma
+        list the handler writes back. Both were refused **422 "Days must be a number"** - so even
+        the API could not set a working week.
+      - The times come from `<input type="time">`, which can only send `09:00`. The handler read a
+        minute from midnight and refused anything else, **422**. `minute()` now reads both, because
+        a clock is the right control for a person and minutes are the right shape for the column.
+
+      Two more were found while fixing those, both from reading the stored row rather than the
+      status code. Unticking every day left `days` absent, which the handler reads as "not
+      submitted", so it kept the old days and answered *saved* to somebody who had just turned
+      every day off - the grid now posts an empty hidden companion so the two cases differ. And
+      `Number('')` is `0`, which is Sunday, so that companion arriving at the front of the list
+      made Monday-to-Wednesday store `0,1,2,3`: `parseDays` now drops empty parts before converting
+      anything, and picking three weekdays no longer silences Sunday.
+
+      A form can now name the field its answer lives in (`data-live-says`, a dotted path). The
+      schedule endpoint already replied with what the new hours would do to a review request right
+      now, which is the only part of that response worth reading and exactly what the full reload
+      threw away; it is what the line under the button says. `movedAway` takes the field from the
+      form too (`data-live-moved`) rather than reading `body.handle` whatever the form is - fine
+      with one live form, a trap with four, since any action answering with a `handle` of its own
+      would have reloaded a page that had not moved.
+
+      Three forms deliberately kept the full round trip, which is the point of deciding per form:
+      the repository's general settings can rename it and so change the URL the page is on, the
+      archive switch changes the character of every page in the repository, and the general form's
+      visibility select changes what the page says about itself.
+
+      `tests/unit/form-live-markup.test.ts` pins the pairing, because a `data-live` form with no
+      `data-live-status` saves correctly and says nothing at all - strictly worse than the reload
+      it replaced, and invisible in review. It also keeps the roster of live forms as a list rather
+      than a count, so adding one is a decision somebody writes down. Each fix was confirmed to be
+      load-bearing by reverting it and watching the tests go red, and all three live forms were
+      driven in a real browser with a `window` marker proving the page was never replaced, then
+      read back from the database.

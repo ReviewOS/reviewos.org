@@ -337,7 +337,20 @@ const fullName = `${ownerHandle}/${repositoryName}`
           Without the hidden field an unticked box sends nothing, and nothing
           means "leave it alone" - a form that could never turn a strategy off.
         --}}
-        <form class="grid" method="post" action="/api/repos/settings">
+        {{--
+          `data-live`, and the only form on this page that gets it. These are
+          five switches whose effect is entirely the values already on screen,
+          so there is no new page worth rendering - and no `data-live-moved`,
+          because nothing here can move the page.
+
+          The two forms above and below deliberately keep the full round trip.
+          The general form can rename the repository, which changes this very
+          URL, and can change visibility, which changes what the page shows
+          about itself; the archive switch changes the character of every page
+          in the repository. Those want the server's own render, not a sentence
+          saying it worked.
+        --}}
+        <form class="grid" method="post" action="/api/repos/settings" data-live>
           <CsrfField />
           <input type="hidden" name="owner" value="{{ ownerHandle }}">
           <input type="hidden" name="repo" value="{{ repositoryName }}">
@@ -394,6 +407,9 @@ const fullName = `${ownerHandle}/${repositoryName}`
             </span>
           </label>
 
+          {{-- Where the answer goes, now that no new page arrives to carry it. --}}
+          <p class="field-live" data-live-status role="status" hidden></p>
+
           <div class="actions">
             <button class="btn btn-primary" type="submit" data-busy-label="Saving...">Save</button>
           </div>
@@ -434,7 +450,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
                  waiting for a URL that was never going to answer. --}}
             <p class="muted">
               This instance serves no Pages host, so nothing can be published yet.
-              An operator sets <span class="mono">PAGES_DOMAIN</span> — see
+              An operator sets <span class="mono">PAGES_DOMAIN</span>. See
               <a href="/docs/pages">the Pages documentation</a>.
             </p>
           @else

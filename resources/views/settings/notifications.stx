@@ -308,7 +308,12 @@ const dayBoxes = [
               </span>
 
               @foreach (row.channels as cell)
-                <form class="prefs-control" method="post" action="/api/user/notifications/preferences">
+                {{-- `data-live`: one cell of a grid is the strongest case for
+                    it in the product. Changing a single answer used to reload
+                    the whole page and put you back at the top of a list of
+                    nine events, so finding the next cell you meant to change
+                    meant scrolling to it again. `public/js/form-live.js`. --}}
+                <form class="prefs-control" method="post" action="/api/user/notifications/preferences" data-live>
                   <CsrfField />
                   <input type="hidden" name="event" value="{{ row.event }}">
                   <input type="hidden" name="channel" value="{{ cell.channel }}">
@@ -334,6 +339,12 @@ const dayBoxes = [
                   @endif
 
                   <button type="submit" class="prefs-save" data-busy-label="Saving...">Save</button>
+
+                  {{-- One cell has no room for a sentence, and does not need
+                      one: the answer is that this cell took. A refusal does
+                      carry words - "The inbox is the record and cannot be
+                      turned off" - and they appear here. --}}
+                  <span class="field-live prefs-live" data-live-status role="status" hidden></span>
                 </form>
               @endforeach
             </li>
@@ -348,12 +359,29 @@ const dayBoxes = [
           when the window opens. The inbox is never held.
         </p>
 
-        <form class="panel prefs-schedule" method="post" action="/api/user/notifications/schedule">
+        {{-- `data-live`: the answer is the explanation below the button, which
+            is the whole point of this form - it tells you what your schedule
+            would do to a review request right now, and a full reload threw
+            that sentence away before it could be read. `public/js/form-live.js`. --}}
+        <form
+          class="panel prefs-schedule"
+          method="post"
+          action="/api/user/notifications/schedule"
+          data-live
+          data-live-says="right_now.explanation">
           <CsrfField />
-          <input type="hidden" name="_method" value="PUT">
 
           <fieldset class="prefs-days">
             <legend class="muted prefs-label">Days</legend>
+            {{--
+              Always present, so unticking every day means what it says.
+              A checkbox sends nothing when it is clear, so with seven clear
+              boxes the field was absent, the handler read that as "not
+              submitted" and kept the days already stored - answering "saved"
+              to somebody who had just turned every day off. The empty value
+              parses to no days; `parseDays` drops it from any longer list.
+            --}}
+            <input type="hidden" name="days" value="">
             @foreach (dayBoxes as day)
               <label class="prefs-day">
                 <input type="checkbox" name="days" value="{{ day.value }}" {{ day.checked }}>
@@ -372,6 +400,9 @@ const dayBoxes = [
             <label class="muted prefs-label" for="timezone">Timezone</label>
             <input id="timezone" class="field-input mono prefs-tz" type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Berlin">
           </div>
+
+          {{-- Where the answer goes, now that no new page arrives to carry it. --}}
+          <p class="field-live" data-live-status role="status" hidden></p>
 
           <div class="field-actions">
             <button type="submit" class="btn btn-primary" data-busy-label="Saving...">Save hours</button>
