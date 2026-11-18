@@ -3615,3 +3615,10 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       checks API fixtures fail instead of passing when database setup fails.
 
 - [x] Resolve short workflow names to a unique active definition after provider migration, retain exact historical paths, and reject ambiguous aliases before dispatch or management.
+
+- [x] Compile fleet runners with the CLI's tested Bun runtime despite PATH
+      shadowing, verifying the produced executable and suppressed app preloads.
+- [x] Diagnose expired runner leases with bounded phase, heartbeat and monotonic
+      timer metadata, without credentials or changes to ownership deadlines.
+- [x] Apply workflow and job environment to toolchain preparation without
+      leaking host control credentials or substituting the host Pantry binary.

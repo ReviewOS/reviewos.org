@@ -705,7 +705,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * process open after its work ended.
    */
   let pulse: ReturnType<typeof setInterval> | null = null
-  const lease = new RunnerLease()
+  const lease = new RunnerLease(undefined, details => {
+    // Numeric transport/timer state only. Never include credentials, request
+    // bodies, workflow text or environment values in failure diagnostics.
+    console.error(JSON.stringify({ event: 'runner-lease-expired', jobId: Number(job.id), runtime: Bun.version, ...details }))
+  })
 
   /*
    * What a stopped runner does with this job: give it up as a lost lease would,
@@ -743,8 +747,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   let heartbeatFailing = false
   const handUpResults = async (): Promise<void> => {
     const pending = timings.slice(sentThrough)
+    lease.heartbeatStarted()
     const answer: { held: boolean, recorded: number, refusal?: string, status?: number } = await beat(options.baseUrl, jobToken, pending)
       .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
+    lease.heartbeatFinished(answer.held, answer.status)
 
     if (answer.held)
       lease.renew()
@@ -861,6 +867,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * local mirror, a cache server or a filesystem snapshot has its own way of
      * putting the code there, and the built-in one would only get in the way.
      */
+    lease.setPhase('checkout')
     const ownCheckout = hooksFor({ stage: 'checkout', runnerDirectory: options.hooksDirectory })
 
     /*
@@ -953,6 +960,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * network that dropped: the job installs the slow way, which is what it did
      * before any of this existed.
      */
+    lease.setPhase('cache')
     const cacheKey = worthCaching(workspace)
       ? keyFor(workspace, { runtime: `bun@${Bun.version}`, image: String((job as any)?.container_image ?? '') || null })
       : null
@@ -1023,7 +1031,16 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * "give me node 22": no image to bake, no registry, and a machine that
      * needs a different version tomorrow installs it rather than being rebuilt.
      */
-    const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text), 'pantry', { signal: lease.signal, trackingId: job.tracking_id })
+    lease.setPhase('toolchain')
+    const toolchainEnvironment = environmentFor(job, workspace)
+    const toolchainEnv = interpolateValues(
+      (job.env && typeof job.env === 'object' ? job.env : {}) as Record<string, string>,
+      expressionContext(job, workspace, { status: 'success', steps: {}, env: toolchainEnvironment }),
+    )
+    const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text), 'pantry', {
+      signal: lease.signal, trackingId: job.tracking_id,
+      environment: { ...toolchainEnvironment, ...toolchainEnv, ...hookEnvironment },
+    })
 
     /*
      * `services:` - a database beside the job, started with pantry.
@@ -1245,6 +1262,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       previousFinishedAt = finished
     }
 
+    lease.setPhase('workflow')
     for (const [index, step] of steps.entries()) {
       lease.signal.throwIfAborted()
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
@@ -1974,6 +1992,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     return { jobId: Number(job.id), state, reason }
   }
   finally {
+    lease.setPhase('cleanup')
     stopPulse()
 
     // Whatever an early way out left running - a failed hook, a refused
@@ -2947,7 +2966,7 @@ export function toolchainFailure(out: string, error: string): string {
  * first, in the one place where being wrong means building against the wrong
  * compiler.
  */
-export async function provideTools(workspace: string, say: (line: string) => Promise<void>, executable = 'pantry', execution: { signal?: AbortSignal, trackingId?: string } = {}): Promise<string> {
+export async function provideTools(workspace: string, say: (line: string) => Promise<void>, executable = 'pantry', execution: { signal?: AbortSignal, trackingId?: string, environment?: Record<string, string> } = {}): Promise<string> {
   execution.signal?.throwIfAborted()
   const manifests = ['deps.yaml', 'deps.yml', 'dependencies.yaml', 'dependencies.yml', 'pkgx.yaml', 'pkgx.yml']
 
@@ -2967,12 +2986,14 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
   let error = ''
   let code: number
   try {
-    if (!Bun.which(executable)) throw new Error(`Executable not found: ${executable}`)
+    // Resolve the trusted host tool before applying the job's own PATH.
+    const program = Bun.which(executable)
+    if (!program) throw new Error(`Executable not found: ${executable}`)
     const result = await runStep({
       signal: execution.signal,
-      argv: [executable, 'env', '--install', '--json', '--dir', workspace],
+      argv: [program, 'env', '--install', '--json', '--dir', workspace],
       cwd: workspace,
-      environment: { ...process.env as Record<string, string>, ...(execution.trackingId ? { [TRACKING_VARIABLE]: execution.trackingId } : {}) },
+      environment: { ...(execution.environment ?? environmentFor({}, workspace)), ...(execution.trackingId ? { [TRACKING_VARIABLE]: execution.trackingId } : {}) },
       onOutput: async (text, stream) => {
         if (stream === 'stdout') out += text
         else error += text

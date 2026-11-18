@@ -34,14 +34,42 @@ export class RunnerStopped extends Error {
   }
 }
 
+export type RunnerPhase = 'preparation' | 'checkout' | 'cache' | 'toolchain' | 'workflow' | 'cleanup'
+
+export interface LeaseExpiryDiagnostics {
+  leaseDurationMs: number
+  renewedAgoMs: number
+  timerLateMs: number
+  phase: RunnerPhase
+  heartbeatsStarted: number
+  heartbeatsAnswered: number
+  inFlightHeartbeats: number
+  lastHeartbeatStatus: number | null
+  lastHeartbeatStartedAgoMs: number | null
+  lastHeartbeatAnsweredAgoMs: number | null
+  lastSuccessfulHeartbeatAgoMs: number | null
+}
+
 /** A job may execute only while the instance still renews its lease. */
 export class RunnerLease {
   private readonly controller = new AbortController()
   private expiry: ReturnType<typeof setTimeout> | undefined
   private closed = false
   private stopped = false
+  private renewedAt = performance.now()
+  private phase: RunnerPhase = 'preparation'
+  private heartbeatsStarted = 0
+  private heartbeatsAnswered = 0
+  private inFlightHeartbeats = 0
+  private lastHeartbeatStatus: number | null = null
+  private lastHeartbeatStartedAt: number | null = null
+  private lastHeartbeatAnsweredAt: number | null = null
+  private lastSuccessfulHeartbeatAt: number | null = null
 
-  constructor(private readonly durationMs = LOCAL_LEASE_MS) {
+  constructor(
+    private readonly durationMs = LOCAL_LEASE_MS,
+    private readonly onExpiry?: (details: LeaseExpiryDiagnostics) => void,
+  ) {
     this.renew()
   }
 
@@ -60,11 +88,51 @@ export class RunnerLease {
     return this.stopped
   }
 
+  setPhase(phase: RunnerPhase): void {
+    this.phase = phase
+  }
+
+  heartbeatStarted(): void {
+    if (this.closed || this.signal.aborted) return
+    this.heartbeatsStarted++
+    this.inFlightHeartbeats++
+    this.lastHeartbeatStartedAt = performance.now()
+  }
+
+  heartbeatFinished(accepted: boolean, status?: number): void {
+    if (this.closed || this.signal.aborted) return
+    this.heartbeatsAnswered++
+    this.inFlightHeartbeats = Math.max(0, this.inFlightHeartbeats - 1)
+    this.lastHeartbeatStatus = status ?? null
+    this.lastHeartbeatAnsweredAt = performance.now()
+    if (accepted) this.lastSuccessfulHeartbeatAt = this.lastHeartbeatAnsweredAt
+  }
+
   renew(): void {
     if (this.closed || this.signal.aborted) return
     clearTimeout(this.expiry)
+    this.renewedAt = performance.now()
+    const expectedAt = this.renewedAt + this.durationMs
     this.expiry = setTimeout(() => {
+      const now = performance.now()
+      const age = (then: number | null): number | null => then === null ? null : Math.max(0, Math.round(now - then))
+      const details: LeaseExpiryDiagnostics = {
+        leaseDurationMs: this.durationMs,
+        renewedAgoMs: Math.round(now - this.renewedAt),
+        timerLateMs: Math.max(0, Math.round(now - expectedAt)),
+        phase: this.phase,
+        heartbeatsStarted: this.heartbeatsStarted,
+        heartbeatsAnswered: this.heartbeatsAnswered,
+        inFlightHeartbeats: this.inFlightHeartbeats,
+        lastHeartbeatStatus: this.lastHeartbeatStatus,
+        lastHeartbeatStartedAgoMs: age(this.lastHeartbeatStartedAt),
+        lastHeartbeatAnsweredAgoMs: age(this.lastHeartbeatAnsweredAt),
+        lastSuccessfulHeartbeatAgoMs: age(this.lastSuccessfulHeartbeatAt),
+      }
       this.controller.abort(new Error('The instance did not renew this job before its lease expired'))
+      // Diagnostics cannot keep an unowned process alive or change its result.
+      try { this.onExpiry?.(details) }
+      catch {}
     }, this.durationMs)
   }
 

@@ -51,6 +51,23 @@ export default function (cli: CLI) {
         return
       }
 
+      const compiler = Bun.which('bun')
+      if (!compiler) {
+        console.error(`Runner builds need the project's Bun ${Bun.version} compiler on PATH.`)
+        process.exitCode = 1
+        return
+      }
+      const compilerEnvironment = { ...process.env, BUN_BE_BUN: '1' }
+      const probe = Bun.spawn([compiler, '--version'], { env: compilerEnvironment, stdout: 'pipe', stderr: 'pipe', timeout: 10_000 })
+      const [version, , probeCode] = await Promise.all([
+        new Response(probe.stdout).text(), new Response(probe.stderr).text(), probe.exited,
+      ])
+      if (probeCode !== 0 || version.trim() !== Bun.version) {
+        console.error(`Runner builds require Bun ${Bun.version}, matching this command. Run with the project's declared Pantry environment; no executable was compiled.`)
+        process.exitCode = 1
+        return
+      }
+
       const directory = resolve(String(options.out ?? 'dist/runner'))
 
       mkdirSync(directory, { recursive: true })
@@ -58,7 +75,7 @@ export default function (cli: CLI) {
       const outfile = resolve(directory, name === 'windows-x64' ? 'reviewos-runner.exe' : 'reviewos-runner')
 
       const child = Bun.spawn([
-        'bun',
+        compiler,
         'build',
         'app/Actions/Runner/standalone.ts',
         '--compile',
@@ -69,7 +86,12 @@ export default function (cli: CLI) {
         ...(target ? ['--target', target] : []),
         '--outfile',
         outfile,
-      ], { stdout: 'inherit', stderr: 'inherit' })
+      ], {
+        // The compiler is qualified above, including for compiled buddy CLIs.
+        env: compilerEnvironment,
+        stdout: 'inherit',
+        stderr: 'inherit',
+      })
 
       const code = await child.exited
 

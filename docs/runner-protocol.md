@@ -17,6 +17,12 @@ service environment. Application preload code must never execute before runner p
 [self-hosting](./self-hosting.md#a-fleet). The rest of this page is for the case
 where you would rather write your own, which is a supported thing to do.
 
+Toolchain preparation receives the workflow and job environment, including
+settings such as `PANTRY_ENV_DEPS=0`, resolved before services and steps exist.
+It uses the same scoped host defaults as workflow steps, without inheriting the
+runner's database or control credentials. Pantry itself is resolved from the
+host PATH before applying the job's PATH.
+
 The shipped runner retries failed log deliveries with the original sequence,
 including connection failures and temporary proxy errors. It makes at most five
 attempts. A command whose output cannot be delivered fails and is stopped;
@@ -128,6 +134,19 @@ heartbeats every 10 seconds, and stops the job's processes when it does. The
 instance waits `RECLAIM_GRACE_SECONDS` (30) past a lapse before another claim or
 the reclaim sweep may hand the job on, so a runner that was only cut off has
 stopped its work before the next attempt can start anywhere.
+
+An expired local lease writes a `runner-lease-expired` JSON record to the
+runner's stderr. It identifies the preparation or workflow phase, embedded Bun
+version, heartbeat starts and answers, pending requests, last HTTP status and
+timer delay. Ages use the monotonic clock. The record contains no credentials,
+request bodies, environment values or workflow text. It distinguishes a late
+local timer from a request that never answered without extending the lease.
+
+`buddy build:runner` requires an installed Bun compiler matching the command's
+runtime, including when buddy is compiled. It rejects a different `bun` earlier
+on `PATH` before compilation, so it cannot silently change the runtime shipped
+to the fleet. Use the project's declared Pantry environment. Generated runners
+continue to suppress automatic dotenv and bunfig loading.
 
 `SIGTERM` or `SIGINT` abandons the job in hand: steps, services and every
 process carrying the job's `RUNNER_TRACKING_ID` are stopped within 15 seconds
