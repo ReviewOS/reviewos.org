@@ -3622,3 +3622,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       timer metadata, without credentials or changes to ownership deadlines.
 - [x] Apply workflow and job environment to toolchain preparation without
       leaking host control credentials or substituting the host Pantry binary.
+- [x] Recover interrupted named-artifact downloads within the existing request
+      budget, including disconnects after response headers. Pin the original
+      digest across retries and never extract partial bytes. Real executor and
+      HTTP-stream tests retain bounded failure, authorization refusal, integrity
+      rejection, cleanup and job-token isolation.

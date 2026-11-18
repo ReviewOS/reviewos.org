@@ -8,8 +8,8 @@ import { runOnce } from '../../app/Actions/Runner/localExecutor'
 
 // Real runner execution and artifact HTTP bytes, without a control-plane DB.
 // Server authorization/retention continue to be covered by artifact API tests.
-for (const failure of ['', 'digest', 'upload', 'outside', 'symlink', 'destination-link', 'oversized', 'missing', 'archive'] as const) {
-  test(`standard artifact actions round-trip the published application${failure ? ` and reject ${failure} failure` : ''}`, async () => {
+for (const failure of ['', 'download-reset', 'download-reset-always', 'download-refused', 'download-changed', 'digest', 'upload', 'outside', 'symlink', 'destination-link', 'oversized', 'missing', 'archive'] as const) {
+  test(`standard artifact actions round-trip the published application${failure === 'download-reset' ? ' and recover an interrupted download' : failure ? ` and reject ${failure} failure` : ''}`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'reviewos-artifact-actions-'))
     const workspace = join(root, 'job-9814')
     mkdirSync(join(workspace, 'build'), { recursive: true })
@@ -19,7 +19,7 @@ for (const failure of ['', 'digest', 'upload', 'outside', 'symlink', 'destinatio
     if (failure === 'destination-link') symlinkSync(root, join(workspace, 'downloaded'))
     if (failure === 'oversized') truncateSync(join(workspace, 'build/app.zip'), 501 * 1024 * 1024)
     const uploadPath = failure === 'outside' ? '../foreign.zip' : failure === 'missing' ? 'absent/*.zip' : 'build/*.zip'
-    let pending = true, logs = '', bytes = new Uint8Array(), uploadName = '', retention = '', authenticated = true
+    let pending = true, logs = '', bytes = new Uint8Array(), uploadName = '', retention = '', authenticated = true, downloads = 0
     const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
       const path = new URL(request.url).pathname
       if (path === '/api/runner/artifacts') {
@@ -32,9 +32,17 @@ for (const failure of ['', 'digest', 'upload', 'outside', 'symlink', 'destinatio
       }
       const body = await request.json().catch(() => ({}))
       if (path === '/api/runner/artifacts/fetch') {
+        downloads++
         authenticated &&= request.headers.get('authorization') === 'Bearer synthetic-artifact-lease'
         expect(body.name).toBe('simulator-42')
-        const downloaded = failure === 'archive' ? gzipSync(await new Bun.Archive({ '../escaped.zip': 'unsafe archive' }).bytes()) : bytes
+        if (failure === 'download-refused') return Response.json({ error: 'refused' }, { status: 401 })
+        const downloaded = failure === 'archive' ? gzipSync(await new Bun.Archive({ '../escaped.zip': 'unsafe archive' }).bytes()) : failure === 'download-changed' && downloads > 1 ? gzipSync(await new Bun.Archive({ 'app.zip': 'a different application' }).bytes()) : bytes
+        if ((['download-reset', 'download-changed'].includes(failure) && downloads === 1) || failure === 'download-reset-always') {
+          return new Response(new ReadableStream({ start(controller) {
+            controller.enqueue(downloaded.slice(0, Math.floor(downloaded.length / 2)))
+            setTimeout(() => controller.error(new Error('Synthetic artifact connection reset after headers')), 20)
+          } }), { headers: { 'X-Artifact-Digest': createHash('sha256').update(downloaded).digest('hex'), 'Content-Length': String(downloaded.length) } })
+        }
         return new Response(downloaded, { headers: { 'X-Artifact-Digest': failure === 'digest' ? '0'.repeat(64) : createHash('sha256').update(downloaded).digest('hex') } })
       }
       if (path.endsWith('/logs')) logs += String(body.content ?? '')
@@ -50,18 +58,24 @@ for (const failure of ['', 'digest', 'upload', 'outside', 'symlink', 'destinatio
     } })
     try {
       const outcome = await runOnce({ baseUrl: `http://127.0.0.1:${server.port}`, token: 'synthetic-runner', workspaceRoot: root, tools: false, policy: { defaultHost: 'github.com', allowedHosts: ['github.com'], requirePinnedSha: true, allowContainers: false } })
-      expect(outcome?.state, logs).toBe(failure ? 'failed' : 'succeeded')
-      if (!failure) {
+      const success = !failure || failure === 'download-reset'
+      expect(outcome?.state, logs).toBe(success ? 'succeeded' : 'failed')
+      if (success) {
         expect(readFileSync(join(workspace, 'downloaded/app.zip'), 'utf8')).toBe('synthetic-native-artifact')
         expect(readFileSync(join(workspace, 'artifact-id.txt'), 'utf8')).toBe('37')
         expect(existsSync(join(workspace, 'build/app.zip'))).toBe(false)
         expect(uploadName).toBe('simulator-42'); expect(retention).toBe('7'); expect(authenticated).toBe(true)
+        expect(downloads).toBe(failure === 'download-reset' ? 2 : 1)
       }
       else {
         expect(existsSync(join(workspace, 'downloaded/app.zip'))).toBe(false)
-        const reasons = { digest: 'digest mismatch', upload: 'upload returned HTTP 503', outside: 'workspace-relative', symlink: 'link outside', 'destination-link': 'link or non-directory', oversized: 'byte limit', missing: 'No files matched', archive: 'unsafe path' }
+        const reasons = { 'download-reset-always': 'socket connection was closed', 'download-refused': 'download returned HTTP 401', 'download-changed': 'digest mismatch', digest: 'digest mismatch', upload: 'upload returned HTTP 503', outside: 'workspace-relative', symlink: 'link outside', 'destination-link': 'link or non-directory', oversized: 'byte limit', missing: 'No files matched', archive: 'unsafe path' }
         expect(logs).toContain(reasons[failure])
-        if (['digest', 'upload', 'destination-link', 'archive'].includes(failure)) expect(uploadName).toBe('simulator-42')
+        if (failure === 'digest' || failure === 'archive') expect(downloads).toBe(1)
+        if (failure === 'download-refused') expect(downloads).toBe(1)
+        if (failure === 'download-changed') expect(downloads).toBe(2)
+        if (failure === 'download-reset-always') expect(downloads).toBe(3)
+        if (['digest', 'upload', 'destination-link', 'archive', 'download-reset-always', 'download-refused', 'download-changed'].includes(failure)) expect(uploadName).toBe('simulator-42')
         else expect(uploadName).toBe('')
         expect(readFileSync(join(root, 'foreign.zip'), 'utf8')).toBe('private fixture bytes')
       }
