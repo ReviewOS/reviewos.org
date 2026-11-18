@@ -310,3 +310,5 @@ infrastructure converges on that pattern, and the container path stops being the
 - [x] Give functional regex tests an explicit startup budget while retaining the production 25 ms isolation deadline.
 
 - [x] Run standalone Git callbacks without application preloads, with real hook and inherited-config regression coverage.
+
+- [x] Start the production page renderer with Bun's supported `--smol` heap policy on the shared host, while keeping the API/Git process and hard memory ceiling independent. This reduces render-heap growth; it does not increase runner lease deadlines or claim additional host capacity.

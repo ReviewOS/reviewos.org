@@ -839,7 +839,11 @@ export const tsCloud: TsCloudConfig = {
       root: '.',
       path: '/',
       domain: env.APP_DOMAIN || 'reviewos.org',
-      start: `./${BUN_BINARY} node_modules/@stacksjs/buddy/dist/serve-entry.js`,
+      // The page renderer shares a host with the control plane and registry.
+      // Collect the growing render heap earlier instead of competing with
+      // runner heartbeats for the host's last RAM. The API/Git process keeps
+      // its own runtime and request budgets.
+      start: `./${BUN_BINARY} --smol node_modules/@stacksjs/buddy/dist/serve-entry.js`,
       port: 3072,
 
       /*
