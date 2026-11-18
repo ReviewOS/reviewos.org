@@ -21,7 +21,7 @@ i18n/src/
 ├── translator.ts         # I18n class, global API (t, tc, te, tm)
 ├── formatter.ts          # Locale-aware formatting (dates, numbers, currency, lists)
 ├── loader.ts             # File-based translation loader (JSON, YAML, JS/TS)
-└── pluralization.ts      # CLDR plural rules for 25+ languages
+└── pluralization.ts      # CLDR plural rules, from the runtime's Intl.PluralRules
 ```
 
 ## Core Types
@@ -101,14 +101,13 @@ tc('items', 5)    // '5 items'
 
 ### Supported Languages
 
-| Rule | Languages |
-|------|-----------|
-| One/Other | en, de, nl, es, it, pt, sv, da, no, fi, el, he, hu, tr |
-| French (0-1=one) | fr |
-| No plural | zh, ja, ko, vi, th, id, ms |
-| One/Few/Many/Other | ru, uk, pl |
-| One/Few/Other | cs, sk |
-| Full (zero/one/two/few/many/other) | ar, cy |
+Every language the runtime's CLDR data covers, through `Intl.PluralRules`,
+for the full locale (`pt` counts 0 as `one`, `pt-PT` does not). A language it
+has no data for says `other` for every number; `hasPluralRule(locale)` tells
+you which. `addPluralRule(locale, rule)` overrides a language. The rules were
+a hand-written table of 33 languages until it turned out to leave out Catalan,
+Croatian, Serbian, Bulgarian and `nb` (they said `other` for 1) and to get
+Hebrew's `two` and Latvian's `zero` wrong.
 
 ```typescript
 import { getPluralCategory, addPluralRule, hasPluralRule } from '@stacksjs/i18n'
@@ -189,8 +188,8 @@ operations must keep different locales.
 `createLocaleSwitchResponse(request, localeCode, config)` sets a locale cookie
 and redirects to an equivalent localized path. `stripLocalePrefix` and
 `localizePath` share its path rules. The default locale remains unprefixed;
-other supported locales receive their prefix. Wire the handler through a real
-route rather than only changing a client string.
+other supported locales receive their prefix. Use this redirect helper for a deliberate server navigation. For an in-place
+app language switch, use the reactive browser composable below.
 
 The package re-exports the ts-i18n disk/codegen surface as
 `loadTranslationsFromDisk`, `generateI18nTypes`, `generateI18nTypesFromModule`,
@@ -218,6 +217,42 @@ default:
 - **YAML parsed with Bun.YAML** - not a third-party parser
 - **Missing keys return the key itself** - not an error, not empty string
 - **Pluralization uses `|` separator** - not ICU MessageFormat
-- **CLDR rules are built-in** - no external data needed, 25+ languages hardcoded
+- **CLDR rules come from the runtime** - `Intl.PluralRules`, no data shipped and no table to fall out of date
 - **HTML escaping is opt-in** - `escapeValues: true` in config
 - **Formatting uses Intl APIs** - delegates to `Intl.DateTimeFormat`, `Intl.NumberFormat`, etc.
+
+## Reactive browser and native screens
+
+Use `createI18n` from `@stacksjs/i18n/client` in browser modules requiring a
+framework-independent translator. This entry has no filesystem loader or app
+configuration imports. File loading and request helpers remain in the root entry.
+
+Use `useI18n` from `@stacksjs/i18n/stx` inside shared STX browser/native modules.
+Its locale and message reads participate in native STX reactivity. The root
+server entry also re-exports this composable. Keep the instance shared by the
+screen's modules; create separate instances for independent server requests.
+
+```ts
+import { useI18n } from '@stacksjs/i18n/stx'
+
+const words = useI18n({
+  locale: 'en',
+  messages: { en: { verified: 'Email verified' }, de: { verified: 'E-Mail bestätigt' } },
+})
+// STX binding: <p :text="words.t('verified')"></p>
+words.setLocale('de') // Updates that binding; the mounted form survives.
+const stop = words.subscribe(() => console.log(words.locale))
+stop() // Remove an optional observer when its owner is disposed.
+```
+
+`setLocale`, assigning `.locale`, and `addTranslations` invalidate reads.
+Selecting the current locale is a no-op. Instances do not change one another.
+The app owns cookie/account preference persistence and `<html lang>` metadata;
+none of these APIs navigate, refetch HTML, reset forms or repeat verification.
+Persist preferences separately from immediate UI updates. Every visible label
+must be a reactive binding, including shared navigation and error messages.
+Existing server-rendered text alone does not become reactive automatically.
+
+`core/i18n/tests/client-i18n.test.ts` verifies browser-safe bundling, reactive
+translation/plural/number updates, preserved unrelated state, subscriptions and
+regional plural fallback. Add app browser tests for the complete switch flow.

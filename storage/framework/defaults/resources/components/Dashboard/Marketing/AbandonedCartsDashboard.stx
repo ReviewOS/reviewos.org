@@ -38,8 +38,6 @@ const search = state('')
 const stateFilter = state('open')
 const idleFilter = state('all')
 const sort = state('value')
-const page = state(1)
-const perPage = 10
 const dialogOpen = state(false)
 const saving = state(false)
 const saveError = state('')
@@ -72,22 +70,13 @@ function filteredRecords(): AbandonedCartRecord[] {
     })
 }
 
-function visibleRecords(): AbandonedCartRecord[] {
-  const start = (page() - 1) * perPage
-  return filteredRecords().slice(start, start + perPage)
+/**
+ * What the table is showing: a change returns it to the first page, as this
+ * page's own pager did before the table took over paging.
+ */
+function viewKey(): string {
+  return JSON.stringify([search(), stateFilter(), idleFilter(), sort()])
 }
-
-function totalPages(): number {
-  return Math.max(1, Math.ceil(filteredRecords().length / perPage))
-}
-
-effect(() => {
-  search()
-  stateFilter()
-  idleFilter()
-  sort()
-  page.set(1)
-})
 
 /** Cart totals and campaign thresholds are integer minor units (stacksjs/stacks#2851). */
 function money(value: number): string {
@@ -121,8 +110,6 @@ async function loadCarts(): Promise<void> {
     campaigns.set(data.campaigns)
     defaultCurrency.set(data.defaultCurrency || 'USD')
     defaultIdleHours.set(data.defaultIdleHours || 4)
-    if (page() > totalPages())
-      page.set(totalPages())
   }
   catch (error) {
     loadError.set(error instanceof Error ? error.message : String(error))
@@ -162,71 +149,54 @@ async function createCampaign(payload: Record<string, unknown>): Promise<void> {
   }
 }
 
-function previousPage(): void {
-  if (page() > 1)
-    page.set(page() - 1)
-}
-
-function nextPage(): void {
-  if (page() < totalPages())
-    page.set(page() + 1)
-}
-
 onMount(() => {
   void loadCarts()
 })
 </script>
 
-<div class="space-y-6">
-  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      <h1 class="font-bold text-2xl text-gray-900 dark:text-white">Abandoned Carts</h1>
-      <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">The audience that already chose the products. Every other campaign starts by guessing.</p>
-    </div>
-    <div class="flex gap-2">
-      <Button :loading="loading()" variant="secondary" @click="loadCarts()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
-      <Button @click="openCompose()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-mail-send-01"></span>New recovery campaign</Button>
-    </div>
-  </header>
+<div class="flex flex-col gap-6">
+  <PageHeader title="Abandoned Carts" description="The audience that already chose the products. Every other campaign starts by guessing.">
+  <div class="flex gap-2">
+    <Button :loading="loading()" variant="secondary" @click="loadCarts()"><span :if="!loading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>Refresh</Button>
+    <Button @click="openCompose()"><span aria-hidden="true" class="h-4 w-4 i-hugeicons-mail-send-01"></span>New recovery campaign</Button>
+  </div>
+  </PageHeader>
 
   <div :if="loadError()" role="alert" class="flex gap-4 items-center justify-between p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900"><span>{{ loadError() }}</span><Button variant="secondary" size="sm" @click="loadCarts()">Retry</Button></div>
 
   <section aria-label="Cart recovery metrics" class="grid gap-3 grid-cols-2 lg:grid-cols-5">
-    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Sitting there</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ summary().open.toLocaleString() }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">Carts abandoned or expired</p></article>
-    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Worth</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ money(summary().openValue) }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">{{ money(summary().averageValue) }} average</p></article>
-    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Chased</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ summary().contacted.toLocaleString() }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">Written to and still cold</p></article>
-    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Recovered</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ money(summary().recoveredValue) }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">{{ summary().recovered.toLocaleString() }} carts checked out after an email</p></article>
-    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Recovery rate</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ percentage(summary().recoveryRate) }}</p><p class="mt-1 text-gray-400 text-xs dark:text-neutral-500">Of the carts actually chased</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Sitting there</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ summary().open.toLocaleString() }}</p><p class="mt-1 text-gray-500 text-xs dark:text-neutral-500">Carts abandoned or expired</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Worth</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ money(summary().openValue) }}</p><p class="mt-1 text-gray-500 text-xs dark:text-neutral-500">{{ money(summary().averageValue) }} average</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Chased</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ summary().contacted.toLocaleString() }}</p><p class="mt-1 text-gray-500 text-xs dark:text-neutral-500">Written to and still cold</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Recovered</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ money(summary().recoveredValue) }}</p><p class="mt-1 text-gray-500 text-xs dark:text-neutral-500">{{ summary().recovered.toLocaleString() }} carts checked out after an email</p></article>
+    <article class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700"><p class="text-gray-500 text-xs dark:text-neutral-400">Recovery rate</p><p class="mt-2 font-semibold text-2xl text-gray-900 dark:text-white">{{ percentage(summary().recoveryRate) }}</p><p class="mt-1 text-gray-500 text-xs dark:text-neutral-500">Of the carts actually chased</p></article>
   </section>
 
   <section :if="campaigns().length > 0" aria-label="Recovery campaigns" class="p-4 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
     <h2 class="font-semibold text-gray-900 text-sm dark:text-white">Recovery campaigns</h2>
     <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">Ordinary campaigns aimed at cold carts. They send, report and are edited on the campaigns screen like any other.</p>
     <ul class="mt-3 divide-gray-200 divide-y dark:divide-neutral-700">
-      <template :for="campaign in campaigns">
-        <li class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-3">
-          <div>
-            <p class="font-medium text-gray-900 text-sm dark:text-white">{{ campaign.name }}</p>
-            <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">Carts idle {{ campaign.idleHours }}h or more<span :if="campaign.minimumValue > 0"> · {{ money(campaign.minimumValue) }} and up</span> · {{ campaignTiming(campaign) }}</p>
-          </div>
-          <div class="flex gap-3 items-center">
-            <p class="text-gray-500 text-xs dark:text-neutral-400">{{ campaign.sentCount.toLocaleString() }} sent</p>
-            <span class="inline-flex px-2 py-1 font-medium text-xs bg-gray-100 dark:bg-neutral-700 rounded-full">{{ campaign.status }}</span>
-          </div>
-        </li>
-      </template>
+      <li :for="campaign in campaigns" class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-3">
+        <div>
+          <p class="font-medium text-gray-900 text-sm dark:text-white">{{ campaign.name }}</p>
+          <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">Carts idle {{ campaign.idleHours }}h or more<span :if="campaign.minimumValue > 0"> · {{ money(campaign.minimumValue) }} and up</span> · {{ campaignTiming(campaign) }}</p>
+        </div>
+        <div class="flex gap-3 items-center">
+          <p class="text-gray-500 text-xs dark:text-neutral-400">{{ campaign.sentCount.toLocaleString() }} sent</p>
+          <span class="inline-flex px-2 py-1 font-medium text-xs bg-gray-100 dark:bg-neutral-700 rounded-full">{{ campaign.status }}</span>
+        </div>
+      </li>
     </ul>
   </section>
 
-  <section class="space-y-3">
+  <section class="flex flex-col gap-3">
     <div class="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-      <label><span class="sr-only">Search carts</span><input x-model="search" type="search" placeholder="Search by customer or product" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
-      <label><span class="sr-only">Filter cart state</span><select x-model="stateFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="open">Still out there</option><option value="cold">Never chased</option><option value="chased">Already chased</option><option value="recovered">Recovered</option><option value="all">Everything</option></select></label>
-      <label><span class="sr-only">Filter by how long the cart has been idle</span><select x-model="idleFilter" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="all">Any age</option><option value="4">Idle 4h or more</option><option value="24">Idle a day or more</option><option value="72">Idle 3 days or more</option></select></label>
-      <label><span class="sr-only">Sort carts</span><select x-model="sort" class="px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"><option value="value">Highest value</option><option value="idle">Longest idle</option><option value="customer">Customer</option></select></label>
+      <SearchFilter v-model:searchValue="search" placeholder="Search by customer or product" ariaLabel="Search carts" />
+      <Select v-model:value="stateFilter" ariaLabel="Filter cart state" placeholder="" :options="[{ value: 'open', label: 'Still out there' }, { value: 'cold', label: 'Never chased' }, { value: 'chased', label: 'Already chased' }, { value: 'recovered', label: 'Recovered' }, { value: 'all', label: 'Everything' }]" />
+      <Select v-model:value="idleFilter" ariaLabel="Filter by how long the cart has been idle" placeholder="" :options="[{ value: 'all', label: 'Any age' }, { value: '4', label: 'Idle 4h or more' }, { value: '24', label: 'Idle a day or more' }, { value: '72', label: 'Idle 3 days or more' }]" />
+      <Select v-model:value="sort" ariaLabel="Sort carts" placeholder="" :options="[{ value: 'value', label: 'Highest value' }, { value: 'idle', label: 'Longest idle' }, { value: 'customer', label: 'Customer' }]" />
     </div>
-    <AbandonedCartsTable :records="visibleRecords()" :loading="loading()" />
-    <div :if="filteredRecords().length > perPage" class="flex items-center justify-between"><p class="text-gray-500 text-sm dark:text-neutral-400">Page {{ page() }} of {{ totalPages() }}</p><div class="flex gap-2"><Button :disabled="page() === 1" variant="secondary" @click="previousPage()">Previous</Button><Button :disabled="page() === totalPages()" variant="secondary" @click="nextPage()">Next</Button></div></div>
+    <AbandonedCartsTable :sort-reset-key="sort()" :page-reset-key="viewKey()" :records="filteredRecords()" :loading="loading()" />
   </section>
 </div>
 

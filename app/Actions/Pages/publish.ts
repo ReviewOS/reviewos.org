@@ -30,6 +30,7 @@ import { dirname, join } from 'node:path'
 import { readArtifactBytes } from '../Artifact/read'
 import { PAGES_ARTIFACT, siteDirectory, siteFor } from './site'
 import { maybeGunzip, untar } from './untar'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface PublishOutcome {
   ok: boolean
@@ -52,12 +53,11 @@ export async function sourceBranchFor(repositoryId: number, configured: string):
   if (configured)
     return configured
 
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['default_branch'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return String(repository?.default_branch ?? 'main')
 }
@@ -79,12 +79,11 @@ export function branchOfRef(ref: unknown): string {
  * row on every one of them would bury the one message that matters.
  */
 export async function publishRun(runId: number): Promise<PublishOutcome> {
-  const run = await db
+  const run = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['id', 'repository_id', 'head_sha', 'event_ref', 'state'])
     .where('id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!run)
     return { ok: false }
@@ -104,13 +103,12 @@ export async function publishRun(runId: number): Promise<PublishOutcome> {
   if (!branch || branch !== wanted)
     return { ok: false }
 
-  const artifact = await db
+  const artifact = await rescue(() => db
     .selectFrom('workflow_artifacts')
     .select(['id', 'digest', 'blob_key', 'size_bytes'])
     .where('workflow_run_id', '=', runId)
     .where('name', '=', PAGES_ARTIFACT)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   // A run on the source branch that published nothing is the common case: a
   // test run, a lint run, anything that is not the docs build. Silent.
@@ -173,7 +171,7 @@ export async function publishRun(runId: number): Promise<PublishOutcome> {
     return await fail(site.id, `The site could not be written to disk: ${error instanceof Error ? error.message : 'unknown error'}`)
   }
 
-  await db
+  await rescue(() => db
     .updateTable('pages_sites')
     .set({
       live_artifact_id: Number(artifact.id),
@@ -183,8 +181,7 @@ export async function publishRun(runId: number): Promise<PublishOutcome> {
       last_error: '',
     })
     .where('id', '=', site.id)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   /*
    * And only the previous commit's directory, by the name it was written under.
@@ -202,12 +199,11 @@ export async function publishRun(runId: number): Promise<PublishOutcome> {
 
 /** Record why a publish did not happen, and say so to the caller. */
 async function fail(siteId: number, reason: string): Promise<PublishOutcome> {
-  await db
+  await rescue(() => db
     .updateTable('pages_sites')
     .set({ last_error: reason.slice(0, 500) })
     .where('id', '=', siteId)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   return { ok: false, reason }
 }

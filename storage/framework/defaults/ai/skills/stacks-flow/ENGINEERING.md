@@ -40,7 +40,7 @@ internals. Run focused Bun tests during the loop and the appropriate buddy
 test suite before finishing. Preserve the user-defined test seams and exercise
 real behavior through public interfaces.
 
-UI uses stx and Crosswind, signals and composables, and Iconify classes. Read
+UI uses stx and ts-css, signals and composables, and Iconify classes. Read
 the design skill before visually important work. Reports may use standalone
 HTML with local CSS; do not introduce Tailwind or React into the application.
 Copied example commands for other package managers are conceptual; use Bun and
@@ -50,6 +50,9 @@ the repository's actual scripts. Do not duplicate better-dx tooling.
 
 Use subagents when the invoked workflow asks for parallel work and the harness
 supports it. Otherwise work sequentially through the same dependency frontier.
+Start each dispatched agent with a fresh context and the task's explicit
+context pointers. Use a fresh implementer per ticket and for the final fixes;
+do not carry one ticket's working context into another ticket.
 Treat user decisions as human-in-the-loop work; a subagent cannot answer them
 for the user. Give workers context pointers, a concrete scope, acceptance
 criteria, and a disjoint edit surface. Preserve existing user edits.

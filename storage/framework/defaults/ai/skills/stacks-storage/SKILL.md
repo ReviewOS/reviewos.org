@@ -23,6 +23,8 @@ File system abstraction with a Laravel-style Storage facade, local/S3/Azure adap
 - Memory adapter: `storage/framework/core/storage/src/adapters/memory.ts`
 - Bun adapter: `storage/framework/core/storage/src/adapters/bun.ts`
 - File utilities: `storage/framework/core/storage/src/files.ts`
+- Bounded local text reads: `storage/framework/core/storage/src/bounded-text-file.ts`
+- Completed local artifacts: `storage/framework/core/storage/src/completed-artifact-directory.ts`
 - Folder utilities: `storage/framework/core/storage/src/folders.ts`
 - Copy: `storage/framework/core/storage/src/copy.ts`
 - Move: `storage/framework/core/storage/src/move.ts`
@@ -70,6 +72,49 @@ import * as storage from '@stacksjs/storage'
 
 ## Storage Facade (StorageManager)
 
+### Completed local artifacts
+
+Use `writeCompletedArtifact` from `@stacksjs/storage/completed-artifact-directory`
+for a bounded, new local output directory containing data files and a JSON
+completion manifest. Pass `(directory, [{ path, contents }], manifestJson)`;
+optional `{ directories: ['images'] }` creates empty folders. It snapshots bytes,
+validates paths/collisions/budgets, writes private exclusive files, syncs files
+and directories, then hard-links the synced manifest to its completion name.
+Read the package README for exact limits and failure behavior. Callers own
+parent-directory authorization and domain validation. This is a local hard-link
+and directory-fsync protocol, not a cloud-adapter transaction or tested hardware
+power-loss guarantee.
+
+For a durable ownership checkpoint before private bytes, use
+`prepareCompletedArtifactDirectorySync(directory, entries, manifestJson, options)`
+from the same subpath or package root. Its deeply frozen handle contains only
+`receipt` and single-use `publishSync()`. Preparation exclusively creates and
+syncs a private empty tree, then closes every descriptor. Persist the receipt
+before calling the same live handle's publication method. The receipt records
+canonical parent/tree/file identities and planned lengths/SHA-256; observed
+file lengths are zero and `manifest.json` is absent. Planned metadata is not
+completed content or a deletion receipt.
+
+Pass plain data records/lists and unshared Uint8Array/Buffer views. Record/list
+validation refuses proxies, getters, holes and hidden/symbol aliases without
+executing caller code; byte views use intrinsic offsets rather than overrides.
+Publication rechecks the empty tree and identities, writes/syncs
+detached bytes, verifies readback hashes and exclusively links the registered
+pending-manifest inode to completion. Every attempt consumes the handle, even
+on error. Errors preserve state; JSON cannot rehydrate a writer. There is no
+overwrite, arbitrary existing-directory writer or implicit cleanup.
+
+Read the storage README's prepared-artifact section before integrating an
+ownership ledger. It defines decimal-string identities, planned byte semantics,
+birth-time availability, prepublication-only change time and legitimate link
+transitions. Parent paths must already exist, belong to the operator and remain
+controlled. Canonical ancestor aliases are allowed; final targets are exclusive.
+Both calls block the isolate, including while holding any caller transaction.
+Caps bound bytes/files rather than I/O duration; database contention and SQL/FS
+atomicity remain caller concerns. The existing async writer keeps asynchronous
+filesystem execution. Real process-interruption tests do not establish hardware
+power-loss, hostile same-user race, deletion or media-erasure guarantees.
+
 ### Recoverable temporary workspaces
 
 Use `TemporaryWorkspaceJournal` for workers that recover temporary directories after a process interruption. Keep its private journal outside job-controlled checkouts and separate it by stable worker and controller identity. `create(key)` returns a frozen live ownership handle; stop its resources, then call `complete(handle)` for normal disposal. A restarted instance cannot forge this capability from a listed record.
@@ -90,6 +135,19 @@ await journal.retire(recovered.id, record => controllerConfirmsFinished(record.k
 ```
 
 The `Storage` singleton is a pre-instantiated `StorageManager`. It lazily builds its config from `@stacksjs/config` (which reads `config/filesystems.ts` and env vars).
+
+### Directory mounts without retirement
+
+Use `inspectDirectoryMounts(canonicalDirectory)` for read-only current-namespace
+mount checks where legitimate readers may stay open. Supply an existing,
+checked canonical directory. An unmounted result means only that the native
+mount table did not reference that directory or a descendant. Unavailable,
+unsupported, aliased or missing paths never return `unmounted: true`.
+
+Keep `inspectTemporaryWorkspace` and journal retirement for deletion: they also
+check process references and inspection permissions. Mount inspection alone
+grants no ownership, quiescence or retirement authority and does not inspect
+other namespaces or prevent later host changes.
 
 ### Basic Operations
 
@@ -233,6 +291,14 @@ const local = createLocalStorage({ root: './storage' })
 - MIME type detection is extension-based (supports txt, html, css, js, json, xml, pdf, zip, jpg, jpeg, png, gif, svg, mp4, mp3, wav)
 - `list()` returns an async iterable; supports `deep: true` for recursive listing
 
+### Memory adapter stream lifecycle
+
+A move to the same normalized path is a no-op for an existing file, preserving
+bytes, visibility and modification time. A missing source still throws.
+`putStream` aborts pending reads promptly, cancels the reader and never publishes
+partial contents. Stream writes release reader locks on success, failure and
+abort. Existing destination contents survive a failed or aborted upload.
+
 ### S3 Adapter (`S3StorageAdapter`)
 
 ```typescript
@@ -350,6 +416,16 @@ const path = await file.move('new/path/file.jpg', 'local')
 
 ### Read/Write Files
 
+For user-selected local text, use
+`readBoundedTextFile(path, { maxBytes })` from
+`@stacksjs/storage/bounded-text-file`. Its standalone entrypoint avoids the
+facade/config graph. It checks the opened descriptor, caps reads at the byte
+limit plus one, strictly decodes UTF-8, rejects final symlinks and nonregular
+files without waiting for FIFO writers, and closes its descriptor. Parent
+directories are followed, so callers own path authorization. See the storage
+package README for errors, platform requirements and concurrent-write limits.
+`readTextFile`, `get` and disk readers do not provide these guarantees.
+
 ```typescript
 import { readJsonFile, readTextFile, readPackageJson, writeFile, writeJsonFile, writeTextFile, put, get } from '@stacksjs/storage'
 
@@ -403,6 +479,15 @@ const result = await storage.rename('old.txt', 'new.txt')
 Low-level storage.move/rename returns a Result; inspect an error result instead
 of assuming an awaited call succeeded. The facade Storage.move targets a disk
 and has a different void/error contract.
+
+Overwrite retains native file/empty-directory rename and uses a recoverable
+backup for directory/type replacements the OS refuses. Inspect
+`StorageRenameRecoveryError` from `@stacksjs/storage/move` for lock, backup,
+phase, original cause and recovery errors. An installed result can still report
+cleanup failure. Read the storage README's recoverable-rename contract before
+using this for complete generated bundles: callers validate content and control
+the parents; two-step directory visibility is not atomic, and interrupted locks
+are preserved for inspection rather than removed by age.
 
 ### Delete
 
@@ -533,6 +618,13 @@ const files = getFiles('dir/')  // all files recursively
 const files = getFiles('dir/', ['node_modules'])  // with exclusions
 deleteFiles('dir/', ['keep.txt'])  // delete all except exclusions
 ```
+
+Recursive deletion unlinks symlinks, including an explicit symlink root, without
+traversing their targets. Listing skips root and descendant symlink entries and cycles. Symlink ancestors
+below the longest cwd/temp anchor reject; platform aliases above it are accepted.
+Exclusions protect paths.
+Config updates copy own enumerable entries and preserve `__proto__` as data;
+inherited fields/getters are not read.
 
 ### Config File Helper
 

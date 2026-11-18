@@ -24,6 +24,7 @@ import { claimNextJob } from '../../app/Actions/Runner/claim'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
 import type { RunnerFacts } from '../../app/Actions/Runner/protocol'
 import { reportJob } from '../../app/Actions/Runner/report'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What the fake runner should say about a job when it claims one. */
 export interface FakeOutcome {
@@ -135,7 +136,7 @@ export async function fakeRunner(options: {
     },
 
     async remove() {
-      await db.deleteFrom('runners').where('id', '=', runnerId).execute().catch(() => null)
+      await rescue(() => db.deleteFrom('runners').where('id', '=', runnerId).execute(), null)
     },
   }
 }

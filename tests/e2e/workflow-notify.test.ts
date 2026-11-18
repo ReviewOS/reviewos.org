@@ -17,6 +17,7 @@ import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { parseWorkflow } from '../../app/Actions/Workflow/parse'
 import { settleRun } from '../../app/Actions/Workflow/settle'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -148,14 +149,14 @@ afterAll(async () => {
   try {
     for (const id of [created.ownerId, created.watcherId, created.strangerId])
       if (id)
-        await db.deleteFrom('notifications').where('user_id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('notifications').where('user_id', '=', id).execute(), undefined)
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
 
     for (const id of [created.ownerId, created.watcherId, created.strangerId])
       if (id)
-        await db.deleteFrom('users').where('id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('users').where('id', '=', id).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

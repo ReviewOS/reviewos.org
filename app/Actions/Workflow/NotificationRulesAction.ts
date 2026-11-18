@@ -4,6 +4,7 @@ import { schema, isEnumInput } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { globMatches } from './notifyRules'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Who hears about this repository's runs, and when.
@@ -131,12 +132,11 @@ export default new Action({
      * arrives, and the moment to catch it is while somebody is looking at it.
      */
     if (workflow !== '*') {
-      const workflows = await db
+      const workflows = await rescue(() => db
         .selectFrom('workflows')
         .select(['name', 'path'])
         .where('repository_id', '=', repositoryId)
-        .execute()
-        .catch(() => [])
+        .execute(), [])
 
       const matches = workflows.some(one =>
         globMatches(workflow, String(one.path))
@@ -183,7 +183,7 @@ export default new Action({
 
 /** Every rule, with the handle rather than the id: a list of numbers is a list nobody prunes. */
 async function listRules(repositoryId: number): Promise<Array<Record<string, unknown>>> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('workflow_notification_rules')
     .innerJoin('users', 'users.id', '=', 'workflow_notification_rules.user_id')
     .select([
@@ -196,8 +196,7 @@ async function listRules(repositoryId: number): Promise<Array<Record<string, unk
     ])
     .where('workflow_notification_rules.repository_id', '=', repositoryId)
     .orderBy('workflow_notification_rules.id')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),

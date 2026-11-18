@@ -8,6 +8,7 @@
 
 import { db } from '@stacksjs/database'
 import { join } from 'node:path'
+import { rescue } from '@stacksjs/error-handling'
 
 /** The artifact name a run has to publish under. */
 export const PAGES_ARTIFACT = 'pages'
@@ -57,12 +58,11 @@ const COLUMNS = [
 
 /** The site for a repository, or null when nobody has configured one. */
 export async function siteFor(repositoryId: number): Promise<PagesSiteRow | null> {
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('pages_sites')
     .select(COLUMNS as any)
     .where('repository_id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return (row as PagesSiteRow | undefined) ?? null
 }
@@ -79,13 +79,12 @@ export async function siteForDomain(domain: string): Promise<PagesSiteRow | null
   if (!normalized)
     return null
 
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('pages_sites')
     .select(COLUMNS as any)
     .where('domain', '=', normalized)
     .where('enabled', '=', true)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return (row as PagesSiteRow | undefined) ?? null
 }
@@ -102,7 +101,7 @@ export async function ensureSite(repositoryId: number): Promise<PagesSiteRow> {
   if (existing)
     return existing
 
-  await db
+  await rescue(() => db
     .insertInto('pages_sites')
     .values({
       repository_id: repositoryId,
@@ -114,8 +113,7 @@ export async function ensureSite(repositoryId: number): Promise<PagesSiteRow> {
       uuid: crypto.randomUUID(),
       created_at: new Date().toISOString(),
     } as any)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   const created = await siteFor(repositoryId)
   if (created)

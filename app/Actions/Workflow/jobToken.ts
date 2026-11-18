@@ -4,6 +4,7 @@ import { db } from '@stacksjs/database'
 import { generateToken } from '../Tokens/secret'
 import { resolvePermissions } from './permissions'
 import type { RepositoryScope, TokenLevel } from '../../TokenScopes'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The token a job gets for talking to this instance's API.
@@ -103,7 +104,7 @@ export async function mintJobToken(input: {
 
   const secret = generateToken()
 
-  const row = await db
+  const row = await rescue(() => db
     .insertInto('access_tokens')
     .values({
       user_id: input.actorId,
@@ -118,24 +119,21 @@ export async function mintJobToken(input: {
       expires_at: new Date(now.getTime() + JOB_TOKEN_MINUTES * 60_000).toISOString(),
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row?.id)
     return null
 
-  await db
+  await rescue(() => db
     .insertInto('access_token_repositories')
     .values({ access_token_id: Number(row.id), repository_id: input.repositoryId })
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   for (const [scope, level] of Object.entries(grants.granted)) {
-    await db
+    await rescue(() => db
       .insertInto('access_token_permissions')
       .values({ access_token_id: Number(row.id), scope: parseEnumInput(scope, 'permission scope', REPOSITORY_SCOPES), level })
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
   return {
@@ -155,7 +153,7 @@ export async function mintJobToken(input: {
  * died. The expiry is the backstop; this is the ordinary path.
  */
 export async function revokeJobTokens(runId: number, jobId: number, now: Date = new Date()): Promise<void> {
-  await db
+  await rescue(() => db
     .updateTable('access_tokens')
     .set({ revoked_at: now.toISOString() })
     .where('name', '=', `Run ${runId}, job ${jobId}`)
@@ -163,6 +161,5 @@ export async function revokeJobTokens(runId: number, jobId: number, now: Date = 
     // a parameter, so the spelling everybody reaches for first matches nothing
     // and the revocation silently does nothing.
     .whereNull('revoked_at')
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }

@@ -45,7 +45,7 @@ export { clamp, notNullish, retry, useOnline } from '@stacksjs/browser'
 
 ## Deep Merge (`merge.ts`)
 
-Replacement for `defu`. Arrays are concatenated, objects are recursively merged, special objects (Date, RegExp, Error, Promise, Map, Set, WeakMap, WeakSet, ArrayBuffer views) are NOT deeply merged.
+Replacement for `defu`. Only own enumerable string keys are read. Arrays concatenate; plain records recursively merge. Non-plain nested values (including URL, ArrayBuffer, Blob and class instances) retain identity. A plain record replaces a non-plain target rather than copying its indices or prototype fields. A `"__proto__"` key is skipped, as defu skips it, so a parsed request body cannot set the result's prototype.
 
 ```typescript
 import { merge, mergeDefaults, createMerger, defu } from '@stacksjs/utils'
@@ -78,6 +78,13 @@ throttledFn.cancel()     // cancel pending invocation
 
 await delay(1000)        // sleep for 1 second (returns Promise<void>)
 ```
+
+Calls and debounce `flush()` return `ReturnType<T> | undefined`: before any
+invocation there is no result; suppressed calls return the last result,
+including a Promise for async callbacks. Both preserve the callback receiver.
+Pending arguments are consumed before invoking, so reentrant calls survive.
+`cancel()` clears pending work; throttle cancellation also resets its interval.
+Manual debounce `flush()` invokes pending work even with `trailing: false`.
 
 Note: unlike some implementations, this debounce does NOT support `maxWait`. The throttle uses `Date.now()` for timing, not setTimeout stacking.
 
@@ -156,6 +163,10 @@ readableSize(1024)                         // alias for formatBytes
 
 Units: B, KB, MB, GB, TB, PB, EB, ZB, YB (decimal) or B, KiB, MiB, GiB, TiB, PiB, EiB, ZiB, YiB (binary).
 
+`parseBytes` accepts a complete decimal with an optional known decimal or
+binary unit (case-insensitive). It rejects partial numbers, unknown units,
+trailing text and non-finite output. Fractions and negative values are allowed.
+
 ## Export Size Calculation (`size.ts`)
 
 ```typescript
@@ -210,6 +221,8 @@ Pipeline.send('hello')
 ```
 
 Internally uses `reduceRight` so pipes execute in order (first pipe wraps outermost).
+`through()` snapshots its readonly input array. Builder-local `pipe()` calls and
+later edits to the caller array do not change other pipelines.
 
 ## Markdown Tables (`markdown.ts`)
 
@@ -220,6 +233,7 @@ interface MarkdownTableOptions {
   delimiter?: string          // default: '|'
   delimiterStart?: boolean    // default: true
   delimiterEnd?: boolean      // default: true
+  escapeCells?: boolean       // default: true; false accepts preformatted cells
   alignDelimiter?: string     // default: '-'
 }
 
@@ -254,6 +268,11 @@ loadYaml(content)         // alias for parseYaml
 dumpYaml(object)          // Bun.YAML.stringify(content), falls back to JSON.stringify
 ```
 
+Tables normalize headers and data rows to the same column count. Text cells
+escape literal backslashes and pipes and replace CR/LF with `<br>`, keeping one
+cell from creating columns or rows. `escapeCells: false` preserves caller-owned
+Markdown escaping. This is table structure handling, not an HTML sanitizer.
+
 ## Macroable (`macroable.ts`)
 
 Laravel-inspired dynamic method registration on classes.
@@ -287,6 +306,13 @@ Enhanced.macro('newMethod', fn)
 
 Static methods: `macro(name, fn, replace?)`, `mixin(obj, replace?)`, `hasMacro(name)`, `flushMacros()`, `getMacros()`.
 
+Registrations belong to the receiving constructor in all three APIs. Descendants
+see effective inherited macros; sibling mutations are isolated. Flush removes
+only own registrations, restoring original descriptors and revealing inherited
+methods again. Existing native methods need explicit `replace: true` (the third
+argument); `constructor` is reserved. Failed installation publishes no registry
+entry. `getMacros` includes effective inherited macro names.
+
 ## ResizeObserver (`observer.ts`)
 
 ```typescript
@@ -303,7 +329,12 @@ const stop = observeElementSize(element, (entry) => {
 stop()                                     // stop observing
 ```
 
-The polyfill uses `requestAnimationFrame` (or `setTimeout` fallback) to poll element sizes via `getBoundingClientRect()`.
+The polyfill polls bounding-box width/height with `requestAnimationFrame` (or a
+16-ms timeout). It delivers initial measurements and size changes, not position
+changes or every frame. Callback errors still reach host error reporting while
+monitoring continues. Unobserve/disconnect discard measurements and pending work;
+reobserving starts with a new initial delivery. This simple fallback does not
+implement native content/border/device-pixel box measurement distinctions.
 
 ## Deep Equality (`equal.ts`)
 
@@ -371,9 +402,14 @@ isIpv6(address)                          // check if AddressInfo is IPv6 (handle
 ## Find Stacks Projects (`find.ts`)
 
 ```typescript
-await findStacksProjects(dir?, options?)   // recursively search for Stacks projects
-// A Stacks project = directory with 'buddy' file + 'storage/framework/core/buddy' structure
-// Excludes: node_modules, dist, vendor, storage/framework, ~/Documents, ~/Pictures, ~/Library, ~/.Trash, dotfolders
+await findStacksProjects(dir?, options?)   // walk a directory tree for Stacks projects ({ quiet, maxDepth })
+// The disk scan behind `buddy projects:scan`. To ask which projects are on the
+// machine, read the list instead: `listProjects()` / `findProject()` in `@stacksjs/path`.
+// A Stacks project = whatever `isProjectRoot()` in `@stacksjs/path` accepts: a package.json
+// beside `storage/framework`, or beside `config/app.ts`, or declaring a native app.
+// Skips by directory NAME: node_modules, dist, out, vendor, pantry and dot-folders, and does not
+// look inside a project it has found. With no `dir` it starts at the home directory and also
+// skips ~/Documents, ~/Pictures, ~/Library, ~/Movies, ~/Music, ~/Applications.
 ```
 
 ## Git Utilities (`git.ts`)
@@ -433,11 +469,16 @@ Glob belongs to `@stacksjs/storage`; it is not re-exported from the utils root.
 
 ## Safe serialization and typed composition
 
-`safeJsonParse(text, fallback?)`, `safeJsonParseResult`, and
-`safeJsonStringify(value, space?)` make parse failure behavior explicit. Their
-generic result type is a caller annotation, not validation of untrusted JSON.
+`safeJsonParse(text, fallback?)` and `safeJsonParseResult` make parse failure
+behavior explicit. A parse generic result type is a caller annotation, not
+validation of untrusted JSON.
 Validate decoded objects at the request boundary before treating them as a
 model, config, or provider payload.
+
+`safeJsonStringify` returns `string | undefined`, matching JSON for unsupported
+roots (undefined, functions and symbols). Shared non-cyclic objects serialize
+at every occurrence; only ancestor cycles become `[Circular]`. BigInts become
+decimal strings. User getters and `toJSON` methods can still throw.
 
 `pipe(value, ...steps)` applies ordinary typed unary functions left to right.
 `piped(...steps)` returns the composed function and `tap(effect)` returns a
@@ -445,9 +486,22 @@ pass-through step. These differ from middleware-style `Pipeline`, whose pipes
 receive a next function. Choose the simple function seam for data transforms.
 
 `isDeepEqual` now compares Date, RegExp, Map, Set, typed arrays and ArrayBuffers
-by value and tracks circular pairs. Host objects and Errors remain identity
+by value and tracks active circular pairs. Cycle topology/sharing need not
+match when fields are structurally equal. Objects require matching own
+enumerable string keys. Arrays distinguish a hole from an own undefined slot;
+two corresponding holes compare equal. Host objects and Errors remain identity
 comparisons. Read retained equal tests for a non-plain object rather than
 assuming every object with similar printable fields is equal.
+
+`retry` (re-exported from the browser package) validates a finite non-negative
+safe-integer retry count before work starts. It runs once plus that retry budget.
+Delay and factor must be finite non-negative numbers. `calculateDelay` saturates
+exponential/jitter output at 2147483647 ms, preventing platform timeout overflow
+from turning long backoffs into rapid retries.
+
+`setEnvValue` preserves literal dollar replacement sequences for existing and
+appended keys. Unknown-error helpers guard accessors/proxies and return safe
+fallbacks instead of replacing the original error during extraction.
 
 ## Gotchas
 - `merge()` concatenates arrays instead of replacing them -- this differs from spread/Object.assign behavior
@@ -461,4 +515,7 @@ assuming every object with similar printable fields is equal.
 - `detectIndent` in utils (`detect.ts`) is a different, simpler implementation than the one in strings (`detect-indent.ts`)
 - `isDeepEqual` uses `getTypeName` from `@stacksjs/types` for type checking
 - Version comparison uses `Bun.semver.order()` which returns -1, 0, or 1
-- `cleanProject()` uses `Bun.$` shell -- destructive operation that removes lock files, node_modules, and dist
+- `cleanProject()` removes lock files and generated artifacts using native filesystem
+  operations, including nested framework `dist` and `node_modules` directories.
+  Symlink entries may be unlinked as artifacts, but aliased parents and external
+  targets are never traversed.

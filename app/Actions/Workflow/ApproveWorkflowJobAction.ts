@@ -10,6 +10,7 @@ import { environmentRules, mayApprove } from './environments'
 import { settleRun } from './settle'
 import { coerced } from '../inputs'
 import { refuse } from '../Support/forge'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Open a gate.
@@ -272,12 +273,11 @@ async function approveEnvironment(input: EnvironmentApproval): Promise<ApprovalO
   if (!rules)
     return { ok: false, error: 'That environment does not exist here', status: 404 }
 
-  const run = await db
+  const run = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['actor_id', 'event_ref'])
     .where('id', '=', input.runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const allowed = mayApprove(rules, input.userId, run?.actor_id ? Number(run.actor_id) : null)
 

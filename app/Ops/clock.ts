@@ -1,7 +1,7 @@
 import { db, utcDefaultSql } from '@stacksjs/database'
 import { currentDialect, portable, speaksMysql } from '../Actions/Support/sql'
 
-export interface ClockDatabase { unsafe: (sql: string) => { execute: () => Promise<unknown> } }
+export interface ClockDatabase { unsafe: (sql: string) => { execute: () => unknown } }
 
 /** Inspect legacy defaults only. Existing timestamp values are never rewritten. */
 export async function sessionClockDefaults(connection: ClockDatabase = db, dialect = currentDialect()): Promise<Array<{ table: string, column: string }>> {

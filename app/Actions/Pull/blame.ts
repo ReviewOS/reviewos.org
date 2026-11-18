@@ -15,6 +15,7 @@
 import { runGit } from '../Git/git'
 import { parseBlame } from '../Browse/parse'
 import type { BlameLine } from '../Browse/parse'
+import { rescue } from '@stacksjs/error-handling'
 
 export async function blameLineAt(
   diskPath: string,
@@ -65,26 +66,24 @@ export async function pullRequestForCommit(
 ): Promise<BlamedPullRequest | null> {
   // Two plain queries, not one with a composed predicate: `where(eb => ...)`
   // is the documented builder defect, and this file is not where it recurs.
-  const byMerge = await db
+  const byMerge = await rescue(() => db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)
     .where('state', '=', 'merged')
     .where('merge_commit_sha', '=', sha)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (byMerge)
     return { number: Number(byMerge.number), title: String(byMerge.title) }
 
-  const byHead = await db
+  const byHead = await rescue(() => db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)
     .where('state', '=', 'merged')
     .where('head_sha', '=', sha)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (byHead)
     return { number: Number(byHead.number), title: String(byHead.title) }
@@ -103,14 +102,13 @@ export async function pullRequestForCommit(
   if (!mergeSha)
     return null
 
-  const carried = await db
+  const carried = await rescue(() => db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)
     .where('state', '=', 'merged')
     .where('merge_commit_sha', '=', mergeSha)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return carried ? { number: Number(carried.number), title: String(carried.title) } : null
 }

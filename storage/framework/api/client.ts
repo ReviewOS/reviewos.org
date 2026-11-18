@@ -442,10 +442,24 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/notification-deliveries/bulk-delete
+   */
+  postNotificationDeliveriesBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/notification-deliveries/bulk-delete", {}, [], null, "application/json", [], options)
+  },
+
+  /**
    * GET /api/notification-deliveries/{id}
    */
   getNotificationDeliveriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/notification-deliveries/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
+  },
+
+  /**
+   * DELETE /api/notification-deliveries/{id}
+   */
+  deleteNotificationDeliveriesId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/notification-deliveries/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
   },
 
   /**
@@ -456,10 +470,45 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/notifications
+   */
+  postNotifications(options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "POST", "/api/notifications", {}, [], null, "application/json", [], options)
+  },
+
+  /**
+   * POST /api/notifications/bulk-delete
+   */
+  postNotificationsBulkDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/notifications/bulk-delete", {}, [], null, "application/json", [], options)
+  },
+
+  /**
    * GET /api/notifications/{id}
    */
   getNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
     return request(config, "GET", "/api/notifications/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
+  },
+
+  /**
+   * PUT /api/notifications/{id}
+   */
+  putNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PUT", "/api/notifications/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
+  },
+
+  /**
+   * DELETE /api/notifications/{id}
+   */
+  deleteNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "DELETE", "/api/notifications/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
+  },
+
+  /**
+   * PATCH /api/notifications/{id}
+   */
+  patchNotificationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } }>> {
+    return request(config, "PATCH", "/api/notifications/{id}", input ?? {}, [{"name":"id","in":"path","required":true}], null, "application/json", [], options)
   },
 
   /**
@@ -801,7 +850,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/issues
    */
-  postReposIssues(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "title": string; "body"?: string; "labels"?: Array<unknown>; "milestone_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown> | null>> {
+  postReposIssues(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "title": string; "body"?: string; "labels"?: unknown; "milestone_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown> | null>> {
     return request(config, "POST", "/api/repos/issues", input ?? {}, [], {"required":true,"content":["application/json"]}, "application/json", [], options)
   },
 
@@ -1403,7 +1452,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/workflow-runs/log
    */
-  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number; "attempt"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "attempt"?: number }>> {
+  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number; "attempt"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "complete"?: boolean; "attempt"?: number }>> {
     return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, [{"name":"owner","in":"query","required":false},{"name":"repo","in":"query","required":false},{"name":"job","in":"query","required":true},{"name":"after","in":"query","required":false},{"name":"attempt","in":"query","required":false}], null, "application/json", [], options)
   },
 
@@ -1893,7 +1942,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/tokens
    */
-  postUserTokens(input: { body: { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: Array<unknown> } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown> | null>> {
+  postUserTokens(input: { body: { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: unknown } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown> | null>> {
     return request(config, "POST", "/api/user/tokens", input ?? {}, [], {"required":true,"content":["application/json"]}, "application/json", [], options)
   },
 

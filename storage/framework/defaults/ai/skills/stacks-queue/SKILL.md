@@ -15,6 +15,18 @@ allowed-tools: Read Edit Write Bash Grep Glob
 - Job model: `storage/framework/defaults/app/Models/Job.ts`
 - Failed job model: `storage/framework/defaults/app/Models/FailedJob.ts`
 
+Database reservations record Linux process incarnation ownership. After a
+worker exits, the normal reservation sweep can recover its positively dead
+local reservations before their TTL. Foreign, unsupported and legacy owners
+retain TTL protection. Application leases can share this proof through
+`captureProcessLeaseOwner()` and `processLeaseOwnerStatus(owner)`; only `dead`
+authorizes early recovery, never `unknown`. No custom heartbeat is needed.
+
+Operator commands accept both `--queue name` and `--queue=name`, preserving
+identity values and rejecting a missing queue value before any mutation.
+`queue:clear` and `queue:flush` require `--force` and keep an explicit queue
+filter on the native database delete; unrelated queues stay intact.
+
 ## Source Files
 ```
 queue/src/
@@ -59,6 +71,13 @@ export class Job {
 ```
 
 ### Dispatch Routing
+
+Production defaults to the database driver. An explicit `sync` driver in production
+throws; reserved/unknown drivers also throw. `resolveQueueDriver()` shares this
+policy across both dispatch APIs and workers. For a transactional database job
+intent, `storeJob` from `@stacksjs/queue/utils` inserts immediately on the active
+transaction; its consumer is the normal database queue worker, including retries.
+
 1. Checks `isFaked()` -- if testing, dispatches to FakeQueue
 2. `sync` driver: calls `dispatchNow()` (immediate execution)
 3. `redis` driver: creates `RedisQueue`, calls `queue.add()` with bun-queue options
@@ -548,7 +567,7 @@ await SendWelcomeEmail.dispatchNow({ email, name })        // bypass queue
 ## config/queue.ts
 ```typescript
 {
-  default: 'sync',  // implemented dispatch drivers: sync | database | redis
+  default: env.QUEUE_DRIVER || (env.APP_ENV === 'production' ? 'database' : 'sync'),  // sync | database | redis
   connections: {
     sync: { driver: 'sync' },
     database: { driver: 'database', table: 'jobs', queue: 'default', retryAfter: 90 },

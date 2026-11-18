@@ -62,7 +62,6 @@ export default defineModel({
       // query stays single-table. The kanban API keeps it in sync on
       // card create/move (Phase 2).
       validation: { rule: schema.number().required() },
-      factory: () => 1,
     },
 
     title: {
@@ -115,5 +114,12 @@ export default defineModel({
     },
   },
 
-  dashboard: { enabled: false },
+  dashboard: {
+    columns: ['title', 'board', 'boardColumn', 'user', 'dueDate', 'archived'],
+    enabled: false,
+    // Prose, asked for in a box with room for it.
+    fields: {
+      description: { input: 'longtext' },
+    },
+  },
 } as const)

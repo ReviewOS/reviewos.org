@@ -26,6 +26,7 @@
 
 import { db } from '@stacksjs/database'
 import { rowsChanged } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /** A run whose orchestrator should be running again. */
 export interface DueSleep {
@@ -43,7 +44,7 @@ export interface DueSleep {
  * person had already stopped - which is worse than the sleep never ending.
  */
 export async function dueSleeps(now: Date, limit = 200): Promise<DueSleep[]> {
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('workflow_journal_entries')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_journal_entries.workflow_run_id')
     .innerJoin('workflow_jobs', 'workflow_jobs.workflow_run_id', '=', 'workflow_runs.id')
@@ -63,8 +64,7 @@ export async function dueSleeps(now: Date, limit = 200): Promise<DueSleep[]> {
     .where('workflow_jobs.state', 'in', ['queued', 'sleeping'])
     .orderBy('workflow_journal_entries.wake_at', 'asc')
     .limit(limit)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     runId: Number(row.run_id),
@@ -123,7 +123,7 @@ export async function wakeOne(jobId: number): Promise<boolean> {
  * is every caller checking first and racing anyway.
  */
 export async function deliverEvent(runId: number, name: string, payload: unknown = null): Promise<boolean> {
-  const entry: any = await db
+  const entry: any = await rescue(() => db
     .selectFrom('workflow_journal_entries')
     .select(['id'])
     .where('workflow_run_id', '=', runId)
@@ -133,8 +133,7 @@ export async function deliverEvent(runId: number, name: string, payload: unknown
     // The earliest still waiting, so a program that waits on one name twice
     // receives the two events in the order they arrived.
     .orderBy('sequence', 'asc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!entry)
     return false
@@ -149,14 +148,13 @@ export async function deliverEvent(runId: number, name: string, payload: unknown
     .where('state', '=', 'pending')
     .execute()
 
-  const job: any = await db
+  const job: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id'])
     .where('workflow_run_id', '=', runId)
     .where('orchestrator', '=', true)
     .where('state', '=', 'sleeping')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (job)
     await wakeOne(Number(job.id))

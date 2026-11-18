@@ -15,6 +15,7 @@ import { dispatchKey, withRedeliveryKey } from './redelivery'
 import { requestIdOf } from '../../Api/correlation'
 import { isTrue } from '../Support/sql'
 import { refuse } from '../Support/forge'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Start a workflow by hand.
@@ -165,13 +166,12 @@ export default new Action({
     const idempotency = dispatchKey(Number(repository.id), String(request.get('key') ?? ''))
 
     if (idempotency) {
-      const already = await db
+      const already = await rescue(() => db
         .selectFrom('workflow_runs')
         .select(['id', 'number', 'state'])
         .where('repository_id', '=', Number(repository.id))
         .where('redelivery_key', '=', idempotency)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       if (already) {
         return response.json({

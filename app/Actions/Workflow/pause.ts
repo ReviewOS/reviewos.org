@@ -31,6 +31,7 @@
 import { db } from '@stacksjs/database'
 import { rowsChanged } from '../Support/sql'
 import { settleRun } from './settle'
+import { rescue } from '@stacksjs/error-handling'
 
 /** Runs nobody may pause, because they have already stopped. */
 const FINISHED = ['succeeded', 'failed', 'cancelled']
@@ -96,15 +97,14 @@ export async function pauseRun(input: { runId: number, actorId?: number | null, 
   if (run.paused_at)
     return { ok: true, state: 'paused', changed: false }
 
-  const changed = await db
+  const changed = await rescue(() => db
     .updateTable('workflow_runs')
     .set({ state: 'paused', paused_at: now.toISOString(), paused_by_id: input.actorId ?? null })
     .where('id', '=', input.runId)
     // Guarded on the state it was read at, so a run that finished in between is
     // not dragged back out of a conclusion by a button pressed a second late.
     .where('state', '=', from)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   return rowsChanged(changed)
     ? { ok: true, state: 'paused', changed: true }
@@ -135,7 +135,7 @@ export async function resumeRun(input: { runId: number, now?: Date }): Promise<P
   if (!run.paused_at)
     return { ok: true, state: String(run.state ?? 'queued'), changed: false }
 
-  await db
+  await rescue(() => db
     .updateTable('workflow_runs')
     /*
      * Back to `queued` before settling, rather than to a guess.
@@ -148,8 +148,7 @@ export async function resumeRun(input: { runId: number, now?: Date }): Promise<P
     .set({ state: 'queued', paused_at: null, paused_by_id: null })
     .where('id', '=', input.runId)
     .where('state', '=', 'paused')
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   const state = await settleRun(input.runId, now)
 

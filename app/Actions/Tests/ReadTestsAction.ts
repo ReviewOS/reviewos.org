@@ -3,6 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Reading the test intelligence: suites, runs, executions, and what each test is.
@@ -135,12 +136,11 @@ async function suiteOf(repositoryId: number, named: string): Promise<number | nu
    * builder's expression callback is not the callable form, and the alternative
    * is two round trips to answer one question - by slug, then by name.
    */
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('test_suites')
     .select(['id', 'name', 'slug'])
     .where('repository_id', '=', repositoryId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const found = rows.find(row => String(row.slug) === named) ?? rows.find(row => String(row.name) === named)
 
@@ -149,25 +149,23 @@ async function suiteOf(repositoryId: number, named: string): Promise<number | nu
 
 /** Every suite, with the shape of its last run. */
 async function suites(repositoryId: number): Promise<Array<Record<string, unknown>>> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('test_suites')
     .select(['id', 'name', 'slug'])
     .where('repository_id', '=', repositoryId)
     .orderBy('name')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const described: Array<Record<string, unknown>> = []
 
   for (const suite of rows) {
-    const last = await db
+    const last = await rescue(() => db
       .selectFrom('test_runs')
       .select(['id', 'branch', 'head_sha', 'passed', 'failed', 'skipped', 'muted_failures', 'duration_ms', 'created_at'])
       .where('test_suite_id', '=', Number(suite.id))
       .orderBy('id', 'desc')
       .limit(1)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     described.push({
       id: Number(suite.id),
@@ -205,7 +203,7 @@ async function runs(input: { suiteId: number, branch: string, limit: number, aft
   if (input.after)
     query = query.where('id', '<', input.after)
 
-  const rows = await query.orderBy('id', 'desc').limit(input.limit).execute().catch(() => [])
+  const rows = await rescue(() => query.orderBy('id', 'desc').limit(input.limit).execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -273,7 +271,7 @@ async function executions(input: {
   if (input.after)
     query = query.where('test_executions.id', '<', input.after)
 
-  const rows = await query.orderBy('test_executions.id', 'desc').limit(input.limit).execute().catch(() => [])
+  const rows = await rescue(() => query.orderBy('test_executions.id', 'desc').limit(input.limit).execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -335,7 +333,7 @@ async function states(input: {
   if (input.after)
     query = query.where('managed_tests.id', '<', input.after)
 
-  const rows = await query.orderBy('managed_tests.id', 'desc').limit(input.limit).execute().catch(() => [])
+  const rows = await rescue(() => query.orderBy('managed_tests.id', 'desc').limit(input.limit).execute(), [])
   const now = Date.now()
 
   return rows.map(row => ({

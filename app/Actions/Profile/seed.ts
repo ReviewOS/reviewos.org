@@ -26,6 +26,7 @@ import { initBare, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import type { CommitAuthor } from '../Git/write'
 import { authorEnvironment } from '../Git/write'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What the seed did, in the words the command prints. */
 export type SeedOutcome =
@@ -100,12 +101,11 @@ export async function seedProfile(request: SeedRequest): Promise<SeedOutcome> {
    * moved reads this column, and a repository that has content and no date
    * sorts as though it were the oldest thing on the instance.
    */
-  await db
+  await rescue(() => db
     .updateTable('repositories')
     .set({ pushed_at: new Date().toISOString() })
     .where('id', '=', repositoryId)
-    .execute()
-    .catch(() => undefined)
+    .execute(), undefined)
 
   return { done: 'seeded', repository: label, commit: commit.sha }
 }
@@ -165,30 +165,29 @@ async function writeInitialCommit(
 interface ResolvedOwner { id: number, type: 'organization' | 'user' }
 
 async function resolveOwner(handle: string): Promise<ResolvedOwner | null> {
-  const org = await db.selectFrom('organizations').select(['id']).where('handle', '=', handle).executeTakeFirst().catch(() => undefined)
+  const org = await rescue(() => db.selectFrom('organizations').select(['id']).where('handle', '=', handle).executeTakeFirst(), undefined)
 
   if (org)
     return { id: Number(org.id), type: 'organization' }
 
-  const user = await db.selectFrom('users').select(['id']).where('handle', '=', handle).executeTakeFirst().catch(() => undefined)
+  const user = await rescue(() => db.selectFrom('users').select(['id']).where('handle', '=', handle).executeTakeFirst(), undefined)
 
   return user ? { id: Number(user.id), type: 'user' } : null
 }
 
 async function upsertRepository(owner: ResolvedOwner, name: string, diskPath: string): Promise<number | null> {
-  const existing = await db
+  const existing = await rescue(() => db
     .selectFrom('repositories')
     .select(['id'])
     .where('owner_type', '=', owner.type)
     .where('owner_id', '=', owner.id)
     .where('name', '=', name)
-    .executeTakeFirst()
-    .catch(() => undefined)
+    .executeTakeFirst(), undefined)
 
   if (existing)
     return Number(existing.id)
 
-  const inserted = await db
+  const inserted = await rescue(() => db
     .insertInto('repositories')
     .values({
       owner_type: owner.type,
@@ -202,8 +201,7 @@ async function upsertRepository(owner: ResolvedOwner, name: string, diskPath: st
       description: 'This owner\'s profile page',
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => undefined)
+    .executeTakeFirst(), undefined)
 
   return inserted ? Number(inserted.id) : null
 }

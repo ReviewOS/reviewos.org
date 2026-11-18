@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Variables at four levels, and the answer to "where did this value come
@@ -100,25 +101,23 @@ export function resolveVariables(settings: readonly VariableSetting[]): Resolved
 
 /** Every level's settings for one repository, in one query per level. */
 export async function settingsFor(repositoryId: number, workflowEnv: Record<string, string> = {}): Promise<VariableSetting[]> {
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'name', 'owner_type', 'owner_id'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!repository)
     return []
 
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('workflow_variables')
     .select(['scope_type', 'scope_id', 'key', 'value'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const owner: any = String(repository.owner_type) === 'user'
-    ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst().catch(() => null)
-    : await db.selectFrom('organizations').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst().catch(() => null)
+    ? await rescue(() => db.selectFrom('users').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst(), null)
+    : await rescue(() => db.selectFrom('organizations').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst(), null)
 
   const ownerHandle = String(owner?.handle ?? '')
   const settings: VariableSetting[] = []

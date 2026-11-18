@@ -10,6 +10,7 @@ import { blobStore } from '../Actions/Git/blobs'
 import { latestCheckpoint } from '../Actions/Git/checkpoint'
 import { initBare, runGit } from '../Actions/Git/git'
 import { entriesFor, replay, verifyBundle } from '../Actions/Git/wal'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Put a repository back the way it was.
@@ -189,24 +190,22 @@ async function restore(reference: string, options: any): Promise<void> {
 
 async function resolveRepository(ownerHandle: string, name: string): Promise<number | null> {
   for (const table of ['users', 'organizations'] as const) {
-    const owner: any = await db
+    const owner: any = await rescue(() => db
       .selectFrom(table)
       .select(['id'])
       .where('handle', '=', ownerHandle)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!owner)
       continue
 
-    const repository: any = await db
+    const repository: any = await rescue(() => db
       .selectFrom('repositories')
       .select(['id'])
       .where('owner_type', '=', table === 'users' ? 'user' : 'organization')
       .where('owner_id', '=', Number(owner.id))
       .where('name', '=', name)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (repository)
       return Number(repository.id)

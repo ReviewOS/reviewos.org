@@ -1,6 +1,6 @@
 ---
 name: stacks-migrations
-description: Use when working with database migrations in a Stacks application - creating migration files, running migrations, fresh migration (drop + recreate), seeding after migration, migration file naming conventions, or the 237 built-in migration files. For the database API itself (queries, connections, SQL helpers), see stacks-database.
+description: Use when working with database migrations in a Stacks application - creating migration files, running migrations, fresh migration (drop + recreate), seeding after migration, migration file naming conventions, or the 256 built-in migration files. For the database API itself (queries, connections, SQL helpers), see stacks-database.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -18,7 +18,9 @@ Schema change management via migration files.
 ## CLI Commands
 
 ```bash
-buddy migrate                       # run pending migrations
+buddy migrate                       # run pending migrations (and generate new ones from the models, in an interactive terminal only)
+buddy migrate --generate            # generate from the models even when not interactive
+buddy migrate --no-generate         # apply committed migrations only, even in a terminal
 buddy migrate --diff                # show SQL without running
 buddy migrate --auth                # include auth tables
 buddy migrate:fresh                 # drop ALL tables and re-migrate
@@ -26,11 +28,34 @@ buddy migrate:fresh --seed          # drop, migrate, then seed
 buddy make:migration <name>         # create new migration file
 buddy seed                          # seed database
 buddy generate:migrations           # generate migrations from model diffs
+buddy generate:migrations --dialect postgres  # into another dialect's corpus, no Postgres needed
+buddy generate:migrations --dialect all       # the connected dialect and every other corpus
+buddy generate:db-types --dialect postgres    # generate committed raw-row types for an explicit target
 buddy migrate:regenerate <dialect>  # rebuild the whole corpus from the models
 buddy migrate:status                # corpus vs ledger vs live schema; lists hand-written files
 buddy migrate:align                 # plan repairs of a database that drifted from the models
+buddy migrate:align --relax-constraints # also plan lossless removal of obsolete constraints
 buddy migrate:align --apply         # rename legacy indexes, add missing indexes/FKs/columns, widen losslessly
 ```
+
+An app that develops on one dialect and deploys on another keeps a corpus per
+dialect (`database/migrations/<dialect>/`, each with its own snapshot). A plain
+`generate:migrations` moves only the connected dialect and then warns, naming
+any other corpus the models have left behind; `--dialect <name>` or `--dialect
+all` brings it up to date from the models and that dialect's snapshot, without a
+database of that dialect (#2949).
+
+`buddy migrate` never writes the committed migration files. What it adapts for
+the connected database (idempotent ALTERs on Postgres, statements SQLite cannot
+run, gated features) happens to a copy of the corpus made for that run, so a
+SQLite app's migrations stay SQLite after a migrate against Postgres (#2929).
+
+A non-interactive `buddy migrate` (CI, a deploy step) generates nothing unless
+given `--generate` (#2948). Generating there authored a migration nobody
+reviewed and applied it in the same run, and on a deploy box the file then
+vanished with the release directory. Generate locally, commit the files, and let
+the deploy apply them; add `--strict` in CI to fail when the models have drifted
+from the committed migrations.
 
 ## Creating a Schema Migration
 
@@ -61,6 +86,14 @@ schema and excludes framework demo tables. Set
 `database.models.includeFrameworkDefaults` only when the application deliberately
 wants the merged registry; application models override matching framework names.
 Discovered package model roots also contribute their declared models.
+
+The framework's default routes follow the same exclusion. At boot, a default
+route whose framework action uses an excluded model is not registered when the
+database has no table for that model, and one warning names each such route
+(#2943). Before this, those routes answered 500. If the table exists (for
+example, the app created it before the exclusion), the route registers as usual.
+Publish the model (`buddy publish model <Name>`) to serve the route from the
+app's own schema.
 
 The generator diffs the resolved registry against the committed dialect snapshot.
 An application does not need an `app/Models/` directory for fallback framework
@@ -176,6 +209,16 @@ are excluded. Removing a feature from generation is not permission to drop its
 live data. MySQL/PostgreSQL/Vitess/Turso require their own SQL and evidence
 checks; never run SQLite SQL on a different provider because its filename exists.
 
+Two functions answer "which models are in this app's schema", by the same
+rules. `resolveModelSources()` is the generator's: it also stages the models
+into one flat directory, deleting and rebuilding it on every call when the
+framework defaults are merged in. Only generating migrations may call it.
+Anything that just needs the list (a dashboard request, search indexing,
+`generate:erd`, `generate:vschema`, starting the dev dashboard) calls
+`listModelSources()`, which reads directory listings and writes nothing.
+`tests/unit/dashboard-model-sources.test.ts` fails if another package calls
+the generator's.
+
 Source: `core/database/src/{migrations,model-sources,migration-ledger,
 safe-migrations,schema-drift,fk-audit,unique-audit}.ts`, `config/query-builder.ts`,
 and their retained database tests.
@@ -194,6 +237,14 @@ adds missing indexes, foreign keys after an orphan check, missing columns, and
 lossless widenings; reports everything destructive), then
 `migrate:status --reconcile` and `migrate`.
 
+A database that moved onto a corpus of its own (Postgres beside a SQLite
+`database/migrations`) keeps a row for every file it ran from the old corpus.
+`migrate:status` lists those as history, not drift, and reconcile never
+repoints, prunes or deletes them: the files are still in the other corpus, and
+the rows stop them running twice. Reconcile names every ledger row it changes.
+A row whose name several files share (`auto-misc`) is ambiguous, never a
+duplicate.
+
 ## Gotchas
 - `migrate:fresh` drops ALL tables — only use in development
 - Migrations run in filename order; two files with one number run alphabetically, which `--strict` refuses
@@ -203,6 +254,15 @@ lossless widenings; reports everything destructive), then
 - Do not commit a second snapshot under `.qb/`; that indicates a missing `snapshotDir` configuration
 - If a generated SQLite migration rebuilds tables, test it against a copy of the current database and run `PRAGMA integrity_check` plus `PRAGMA foreign_key_check`
 - `--seed` flag after `migrate:fresh` seeds the database with factory data
-- 237 migration files exist by default for all framework models
+- 256 migration files exist by default for all framework models
 - SQLite >= 3.47.2 is required (system requirement)
 - For the database API (queries, connections), see the `stacks-database` skill
+
+`migrate:align --relax-constraints` also plans removal of legacy NOT NULL
+constraints where the current model allows null, and foreign keys on polymorphic
+id/type pairs where the model declares no single-table reference. It also removes
+a conflicting parent reference when the model's correct foreign key is already
+enforced. If that key is missing, the first pass adds it after an orphan check;
+a later pass can remove the obsolete key. It never makes
+nullable data required or relaxes primary keys. Inspect the plan, then add `--apply`
+to run it. The default continues to report these differences without changing them.

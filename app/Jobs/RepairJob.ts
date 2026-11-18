@@ -6,6 +6,7 @@ import { mintRepairCredential, revokeRepairCredential } from '../Actions/Workflo
 import { proposeRepair, repairBranch } from '../Actions/Workflow/repairAgent'
 import { ownerOf, repairLoad, startAttempt, withinRepairQuota } from '../Actions/Workflow/repairQuota'
 import { configured, repairMaxWaits, repairWaitSeconds } from '../../config/ci-repair'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Perform one repair attempt, off the request path.
@@ -161,12 +162,11 @@ export default new Job({
     if (!await startAttempt(attemptId))
       return { skipped: 'this attempt is already running or already finished' }
 
-    const run: any = await db
+    const run: any = await rescue(() => db
       .selectFrom('workflow_runs')
       .select(['actor_id'])
       .where('id', '=', runId)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     const actorId = Number(run?.actor_id ?? 0) || null
 

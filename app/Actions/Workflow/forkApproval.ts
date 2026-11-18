@@ -12,6 +12,8 @@
  * opt out, because the file is in the repository and the risk is the operator's.
  */
 
+import { rescue } from '@stacksjs/error-handling'
+
 export type ForkApprovalPolicy = 'first-time' | 'always' | 'never'
 
 export interface ForkApprovalFacts {
@@ -105,21 +107,19 @@ export async function forkApprovalFacts(input: {
   if (!input.actorId)
     return { policy, trusted: false, contributedBefore: false, collaborator: false }
 
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .selectAll()
     .where('id', '=', input.repositoryId)
-    .executeTakeFirst()
-    .catch(() => undefined)
+    .executeTakeFirst(), undefined)
 
-  const merged = await db
+  const merged = await rescue(() => db
     .selectFrom('pull_requests')
     .select(['id'])
     .where('repository_id', '=', input.repositoryId)
     .where('author_id', '=', Number(input.actorId))
     .where('state', '=', 'merged')
-    .executeTakeFirst()
-    .catch(() => undefined)
+    .executeTakeFirst(), undefined)
 
   /*
    * "Can they push here" asked with the same function every page and endpoint

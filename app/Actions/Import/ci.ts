@@ -17,6 +17,7 @@
 import { db } from '@stacksjs/database'
 import { parseActionRef } from '../Runner/actionRef'
 import { parseWorkflow } from '../Workflow/parse'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface WorkflowReport {
   path: string
@@ -197,12 +198,11 @@ function labelsIn(document: Record<string, any>): string[] {
  * answers to - which is the difference between "queued" and "queued forever".
  */
 async function labelsOnThisInstance(): Promise<Map<string, number>> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('runners')
     .select(['labels'])
     .where('state', '=', 'active')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const counts = new Map<string, number>()
 

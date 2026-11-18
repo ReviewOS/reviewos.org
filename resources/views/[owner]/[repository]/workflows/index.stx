@@ -213,17 +213,24 @@ const canDispatch = typeof repoAccess?.can === 'function' && repoAccess.can('wor
  * hidden - a suggestion that removes options is one that is wrong at somebody's
  * expense.
  */
-const languages = repoRow
-  ? (await db
+let languageRows: any[] = []
+
+if (repoRow) {
+  try {
+    languageRows = await db
       .selectFrom('repository_languages')
       .select(['name'])
       .where('repository_id', '=', Number(repoRow.id))
       .orderBy('bytes', 'desc')
       .limit(4)
       .execute()
-      .catch(() => []))
-      .map(row => String(row.name ?? '').toLowerCase())
-  : []
+  }
+  catch {
+    languageRows = []
+  }
+}
+
+const languages = languageRows.map(row => String(row.name ?? '').toLowerCase())
 
 const starters = rows.length === 0 ? startersFor(languages) : []
 
@@ -236,17 +243,25 @@ const starters = rows.length === 0 ? startersFor(languages) : []
  * A repository with none gets a text field and a line saying why, rather than
  * an empty select nobody can submit.
  */
-const environments = repoRow
-  ? (await db
+let environmentRows: any[] = []
+
+if (repoRow) {
+  try {
+    environmentRows = await db
       .selectFrom('environments')
       .select(['name'])
       .where('repository_id', '=', Number(repoRow.id))
       .orderBy('name')
       .execute()
-      .catch(() => []))
-      .map(row => String(row.name ?? ''))
-      .filter(name => name.length > 0)
-  : []
+  }
+  catch {
+    environmentRows = []
+  }
+}
+
+const environments = environmentRows
+  .map(row => String(row.name ?? ''))
+  .filter(name => name.length > 0)
 </script>
 
 @layout('app')

@@ -81,8 +81,19 @@ Each sets an internal cron pattern. Once a timing method is called, the schedule
 | `weekly()`             | `0 0 * * 0`        | Sunday at midnight          |
 | `monthly()`            | `0 0 1 * *`        | 1st of month at midnight    |
 | `yearly()` / `annually()` | `0 0 1 1 *`    | Jan 1 at midnight           |
+| `weekdays()`           | `0 0 * * 1-5`      | Monday to Friday            |
 | `onDays(days: number[])` | `0 0 * * {days}` | e.g. `onDays([1,3,5])` => `0 0 * * 1,3,5` |
 | `at(time: string)`      | `{min} {hr} * * *` | e.g. `at('14:30')` => `30 14 * * *` |
+
+The patterns above are what each method answers on its own. Chained, they
+compose on two independent axes and the order does not matter: the time of day
+(`at`, `hourly`, `every*Minutes`) and the days it runs on (`daily`, `weekly`,
+`monthly`, `yearly`, `weekdays`, `onDays`). Each method writes its own axis and
+keeps the other, so `.at('09:00').onDays([2])` and `.onDays([2]).at('09:00')`
+are both `0 9 * * 2`. Two calls on the same axis means the last one wins, so
+`.monthly().weekly()` is weekly. A `cron()` expression replaces both axes, and
+`everySecond()` leaves cron entirely (any cadence method after it returns to a
+cron pattern).
 
 ### Configuration Methods (chainable, returns `this`)
 
@@ -111,7 +122,7 @@ interface ScheduledJob {
 
 ### Timezone Type
 
-The `Timezone` type is a string union of ~70 IANA timezone identifiers (e.g., `'America/New_York'`, `'Europe/Berlin'`, `'Asia/Tokyo'`, `'UTC'`). Default is `'America/Los_Angeles'`.
+The `Timezone` type is a string union of ~70 IANA timezone identifiers (e.g., `'America/New_York'`, `'Europe/Berlin'`, `'Asia/Tokyo'`, `'UTC'`). A task without `setTimeZone()` runs on `config.app.timezone`, or UTC when the app sets none, read when its next run is computed.
 
 ### Internal Scheduling Engine
 
@@ -131,6 +142,17 @@ release when their connection disconnects. SQLite/Turso use only the host's file
 lock, and a DB-unavailable fallback warns rather than promising cluster
 coordination. Use the same task name on all participating hosts. Names are
 sanitized and hashed for lock paths.
+
+The advisory lock is released when a run ends, so on its own it only stops
+two runs at once. `onOneServer()` therefore also claims the slot: each tick
+inserts `(task, slot)` into a `scheduler_claims` table with a unique key, and
+only the server whose row went in first runs it (`scheduler-claims.ts`,
+stacksjs/stacks#3152). The slot is the cron time the tick woke for; for
+`everySecond()` it is the wall-clock second, and interval timers are not
+aligned across servers, so ticks that straddle a boundary both run. The table
+is created on first use with CREATE TABLE IF NOT EXISTS, and claims older than
+a day are pruned. `Schedule.runNow()` and `buddy schedule:run-one` have no
+slot and always run. SQLite and the DB-unavailable fallback claim nothing.
 
 ### Background Execution
 
@@ -161,7 +183,7 @@ import { parse } from '@stacksjs/cron'
 parse(expression: string, relativeDate?: Date | number, options?: { tz?: string }): Date | null
 ```
 
-- Uses `Bun.cron.parse()` when available and no timezone is supplied. With tz, or without native support, it uses the built-in parseCron implementation.
+- Reads the expression in UTC, or in the given tz, using the built-in parseCron. It does not use `Bun.cron.parse()`, which reads in the server's local time.
 - Returns the next matching UTC `Date`, or `null` if no match within ~4 years.
 - Throws on invalid expressions (wrong field count, out-of-range values).
 
@@ -348,10 +370,10 @@ export default {
 
 ## Gotchas
 - The Schedule constructor starts through a microtask after the synchronous chain; asynchronous configuration arrives too late
-- Default timezone is `'America/Los_Angeles'`, not UTC
+- A task's default timezone is the app's (`config.app.timezone`, which `config/app.ts` ships as `'America/Los_Angeles'`), not a fixed zone; UTC when the app sets none
 - `everySecond()` uses `setInterval`, not cron -- it sets `intervalMs = 1000` and bypasses the cron parser entirely
 - The `Queue` class in `schedule.ts` is just an empty subclass of `Schedule` (`export class Queue extends Schedule {}`) -- it adds no functionality
-- `withoutOverlapping()` provides local file locking. `onOneServer()` adds PostgreSQL/MySQL advisory coordination where available
+- `withoutOverlapping()` provides local file locking. `onOneServer()` adds a PostgreSQL/MySQL advisory lock and a per-slot claim in `scheduler_claims`, created on first use
 - SQLite/Turso and DB-unavailable fallback cannot provide cluster-wide scheduler coordination; read scheduler-lock.ts and its warning
 - `runInBackground()` runs the task by name in a `buddy schedule:run-one <name> --in-process` child, so the task must be registered under that name by the app's scheduler file, and an unnamed callback is refused
 - There are TWO scheduler systems: `@stacksjs/scheduler` (fluent API in `schedule.ts`) and the queue-level scheduler in `@stacksjs/queue` (`queue/src/scheduler.ts`). The former runs tasks in-process; the latter dispatches to the queue
@@ -372,8 +394,13 @@ six-field forms: all-wildcard intervals in seconds dividing 60, or leading zero
 seconds with a five-field schedule. Unsupported specific-second forms throw.
 `dailyAt(time)`, `weekdays()` and `onQueue(name)` are native methods.
 `sendOutputTo(path)` and `appendOutputTo(path)` capture supported command
-output. `runMissed({ since, max? })` performs bounded catch-up; read its
-window/overlap behavior before using it for non-idempotent tasks.
+output. `runMissed({ since, max? })` performs bounded catch-up: each missed
+slot runs in this process, awaited, through the live guards. A paused task
+runs none, only slots inside `between()` run, and a slot is skipped while the
+task holds its `withoutOverlapping()` or `onOneServer()` lock. An
+`onOneServer()` task also claims each slot it replays, so two servers that
+boot together run each missed slot once.
+
 
 `schedule.notification(recipient, payload, channels?, options?)` schedules
 native notify fan-out and fails the task if any channel result failed.

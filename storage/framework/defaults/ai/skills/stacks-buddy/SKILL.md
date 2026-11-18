@@ -1,6 +1,6 @@
 ---
 name: stacks-buddy
-description: Use when working with the Stacks CLI (buddy/bud/stacks/stx) - understanding every command with its flags and options, adding custom commands, the make:* scaffolding commands, development server commands, build commands, deployment commands, email/mail commands, environment management, or domain/DNS commands. Covers @stacksjs/buddy and all CLI command files.
+description: Use when working with the Stacks CLI (buddy/bud/stacks) - understanding every command with its flags and options, adding custom commands, the make:* scaffolding commands, development server commands, build commands, deployment commands, email/mail commands, environment management, or domain/DNS commands. Covers @stacksjs/buddy and all CLI command files.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -15,6 +15,9 @@ The complete CLI runtime for the Stacks framework, lazy-loaded for fast cold sta
 - CLI entry point: `storage/framework/core/buddy/src/cli.ts`
 - Commands directory: `storage/framework/core/buddy/src/commands/`
 - Lazy command registry: `storage/framework/core/buddy/src/lazy-commands.ts`
+- Launcher (which project, whose CLI): `storage/framework/core/buddy/src/launcher.ts`
+- Machine project list and service records: `storage/framework/core/path/src/projects.ts`
+- Background daemon: `storage/framework/core/actions/src/daemon/`
 - Config system: `storage/framework/core/buddy/src/config.ts`
 - Shell entry: `buddy` (shell script at project root that invokes `bun run ./storage/framework/core/buddy/src/cli.ts`)
 - Application commands: `app/Commands/` (auto-discovered; no registration step)
@@ -22,7 +25,77 @@ The complete CLI runtime for the Stacks framework, lazy-loaded for fast cold sta
 - Make templates: `storage/framework/defaults/`
 
 ## CLI Aliases
-All invoke the same CLI: `./buddy`, `bud`, `stacks`, `stx`
+`./buddy`, `bud`, and `stacks` invoke the Stacks CLI. The `stx` binary belongs
+to the STX template engine; use it for template and native screen compilation.
+
+## One buddy for every project
+
+Buddy is installed once (`bun add -g @stacksjs/buddy`) and serves every Stacks
+project on the machine. Each invocation first settles two things in
+`launcher.ts`, before any command module loads:
+
+1. **Which project.** `--project <name|path>` when given (`-p` too, on the
+   built-in commands that declare it as the project), otherwise the nearest
+   ancestor of the working directory that `isProjectRoot` accepts. So
+   `buddy migrate` works from `app/Models`, and `buddy migrate --project shop`
+   (or `buddy --project shop migrate`) works from anywhere. A name that
+   matches no project, or more than one, is refused rather than guessed. The
+   selector is consumed there: the command starts in the root and never sees
+   it.
+2. **Whose code runs it.** A project that has its own `buddy` installed gets
+   the command handed to it (the process is replaced, not wrapped), so it runs
+   on the framework version that project pins. A project with nothing
+   installed runs `buddy install` and nothing else: its code imports packages
+   that are not there.
+
+The process that does the work always starts in the project root, because Bun
+reads `bunfig.toml` and its preloads from the directory it starts in. The
+published executable starts Bun with `--config=/dev/null --no-install`
+(`src/runtime-flags.ts`), so the visiting process never runs the project's
+preloads; when it is the project's own CLI it restarts under the project's
+config.
+
+Machine-level commands are never handed to a project and run from any
+directory: `new`, `create`, `projects`, `projects:*`, `cd`, `daemon`,
+`daemon:*`, `dashboard`.
+
+```bash
+buddy projects                 # the projects on this machine, most recently used first
+  -q/--quiet                   # paths only, one per line
+  --json                       # the list as JSON
+buddy projects:add [path]      # add a project (the current one by default)
+buddy projects:remove <name>   # take one off the list (alias: projects:forget)
+buddy projects:scan [dir]      # find projects on disk and add them
+buddy projects:prune           # drop listed projects whose directory is gone
+buddy cd <name>                # print a project's path (--eval for a shell function)
+
+buddy dashboard [project]      # open a project's dashboard, started in the background if needed
+  --no-open                    # print the address without opening a browser
+  --stop                       # stop that project's background dashboard
+
+buddy daemon                   # is buddy running in the background, and what is it running
+buddy daemon:start             # start it (nothing requires this; it starts on demand)
+buddy daemon:stop              # stop it and the dashboards it started
+buddy daemon:restart
+buddy daemon:logs              # --lines <count>
+```
+
+A project joins the list (`~/.stacks/projects/<id>.json`, one file each) the
+first time buddy runs inside it (`noteProjectUsed`), unless it is a git
+worktree or under the temp directory (`isTransientCheckout`); `projects:add`
+and `registerProject` list anything. `listProjects()` leaves out entries whose
+directory is missing (`{ includeMissing: true }` for all). Read the list with `listProjects()` and
+`findProject()` from `@stacksjs/path`; do not walk the filesystem for
+projects. `findStacksProjects()` in `@stacksjs/utils` is the disk scan behind
+`projects:scan` and nothing else should need it.
+
+The daemon (`core/actions/src/daemon/`) starts a project's dashboard through
+that project's own `./buddy dev:dashboard`, on a port reserved for that project
+(3900 upwards, the same one every time), with no native window and an idle
+limit. It listens on a unix socket in `~/.stacks/buddy/`, loads no project
+code, polls nothing, and exits once it has no dashboards left. Reach it through
+`openProjectDashboard()` / `daemonStatus()` in `@stacksjs/actions/daemon/client`,
+which start it when it is not running.
 
 ## Architecture
 
@@ -128,6 +201,7 @@ buddy dev -i/--interactive   # interactive server selection menu
 buddy dev -l/--with-localhost # include localhost URL in output
 buddy dev --browser          # open the browser app instead of a configured native window
 buddy dev --site             # open the marketing site instead of the detected app entry
+buddy dev --detach           # outlive the shell: nohup ./buddy dev --frontend --detach &
 buddy dev -p/--project [name]
 buddy dev --verbose
 ```
@@ -340,6 +414,7 @@ buddy env:set [key] [value]      # set env var
   -f/--file [file]               # env file path
   -fk/--file-keys [path]         # keys file path
   --plain                        # don't encrypt the value
+  --stdin                        # read exact value from piped stdin; excludes a value argument
 buddy env:encrypt [key]          # encrypt env var(s)
   -f/--file [file]               # env file path
   -fk/--file-keys [path]         # keys file path
@@ -571,10 +646,12 @@ buddy outdated               # check outdated deps
 buddy add                    # add dependency
 
 buddy upgrade                # upgrade Stacks framework (alias: update)
-  -v/--version <version>     # install specific version (e.g., 0.70.23)
+  -V/--version <version>     # install specific version (e.g., 0.70.23)
   --canary                   # upgrade to canary build
   --stable                   # switch to stable release
   -f/--force                 # force re-download
+  --dry-run                  # preview; marks any (downgrade) a real run refuses
+  --allow-downgrade          # accept a release older than the app's own pins
 buddy upgrade:all            # upgrade framework + dependencies + Bun + binary
 buddy upgrade:dependencies   # upgrade dependencies (alias: upgrade:deps)
 buddy upgrade:bun            # upgrade Bun runtime
@@ -611,7 +688,7 @@ buddy ai:context             # compact deterministic project context for coding 
   -o/--output [path]         # write to a file instead of stdout
   --max-chars [characters]   # prompt payload character budget (default: 4000)
   --model [model]            # model family for heuristic token estimates
-buddy doctor                 # health checks (Bun version, Node, package.json, .env, APP_KEY, mail DNS)
+buddy doctor                 # health checks (Bun version, Node, package.json, .env, APP_KEY, mail DNS, forms their action's rules refuse)
 buddy tinker                 # interactive REPL with Stacks preloaded
   -e/--eval [expr]           # evaluate expression and exit
   --print [expr]             # evaluate, print, and exit
@@ -626,6 +703,14 @@ buddy release                # release new version via GitHub Actions
   --dry-run                  # preview without releasing
   --bump <type>              # non-interactive bump, including build, calendar, or x.y.z
   --preid <identifier>       # prerelease channel, for example beta or rc
+buddy release:ios            # iOS build: regenerate the project, commit, tag v<version>-build.<n>, push
+  --bump <type>              # build (default) | patch | minor | major | x.y.z
+  --notes <text>             # What to Test instead of the generated notes (also --notes-file, RELEASE_NOTES, config/mobile.ts release.notes)
+  --wait [minutes]           # wait for the build in App Store Connect, then set What to Test there too
+  --keep-builds <n>          # TestFlight builds kept besides the new one
+  --dry-run                  # print the tag, the notes and the GitHub release
+buddy release:notes [tag]    # a mobile tag's tester notes (--play: 500 chars for Google Play, --markdown, --testflight: set them in App Store Connect)
+buddy release:github [tag]   # create the GitHub release for a pushed tag
 buddy route                  # route management
 buddy share [type]           # share local dev server via public tunnel (localtunnel)
   -p/--port <port>           # local port
@@ -637,11 +722,10 @@ buddy search                 # search engine operations
 buddy configure              # configure project
 buddy create                 # create new project
 buddy completion [shell]     # shell completion (bash/zsh/fish)
-buddy ports                  # port management
-  -l/--list                  # list used ports (default)
-  -c/--check                 # check port availability
-buddy ports:list             # list ports for project
-buddy ports:check            # check ports across all Stacks projects
+buddy ports                  # the ports this project's servers use
+  -c/--check                 # which of them are free and which are in use
+buddy ports:list             # same list
+buddy ports:check            # which of this project's ports are free or in use
 buddy setup                  # ensure project is set up correctly (alias: ensure)
   --skip-aws                 # skip AWS configuration
   --skip-keygen              # skip APP_KEY generation
@@ -658,6 +742,8 @@ buddy telemetry              # telemetry management
 buddy list                   # list all available commands
 buddy version                # display version (flags: --version, -v)
 buddy saas                   # SaaS management
+buddy hq:connect [services]  # connect to HQ services, write keys to .env (--no-open, --no-verify)
+buddy hq:status              # usage against each connected HQ service's allowance
 buddy sms                    # SMS commands
 buddy phone                  # phone commands
 buddy http                   # HTTP commands
@@ -665,7 +751,7 @@ buddy auth                   # auth commands
 buddy queue                  # queue management
 buddy schedule               # schedule management
 buddy package                # package management
-buddy projects               # project management
+buddy projects               # the Stacks projects on this machine (see "One buddy for every project")
 buddy prepublish             # pre-publish checks
 buddy stacks                 # Stacks framework commands (registered as 'stack' in lazy-commands)
 ```
@@ -752,7 +838,9 @@ export default {
 
 ## Gotchas
 - Application commands go in `app/Commands/`, framework commands in `storage/framework/core/buddy/src/commands/`
-- The `buddy` file at root is a shell script that bootstraps pantry, ensures Bun is available, then runs `bun run ./storage/framework/core/buddy/src/cli.ts`
+- The `buddy` file at root is a shell script that picks a usable Bun and runs the project's CLI entry: vendored `storage/framework/core/buddy/src/cli.ts` first, then `@stacksjs/buddy` from `node_modules`, then from `pantry`. `projectCliEntry()` in `@stacksjs/path` looks in the same places in the same order, and `buddy/tests/launcher.test.ts` fails when the two disagree
+- `--project` is read by the launcher, before the command runs, and only for built-in commands. An application command's own `--project` is passed through untouched. `build`, `make`, `preview`, `serve`, `serve:api` and `share` use `-p` for something else, so only the long form selects a project there
+- `buddy dev:dashboard` becomes the dashboard server (the CLI process is replaced) instead of waiting beside it
 - Commands are lazy-loaded with a 5-second timeout per command to prevent startup hangs
 - The `list` command loads ALL commands to display them
 - When no command matches, the CLI loads only `version` for minimal overhead

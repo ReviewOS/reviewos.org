@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 import { isTrue } from '../../app/Actions/Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -207,13 +208,13 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     if (created.repositoryId) {
-      await db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     }
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the files still go, below */ }
 
@@ -340,7 +341,7 @@ describe('a pull request from a fork', () => {
     expect(fromFork).toBeDefined()
     expect(isTrue(fromFork.trusted)).toBe(false)
 
-    await db.deleteFrom('repositories').where('id', '=', created.forkId).execute().catch(() => {})
+    await rescue(() => db.deleteFrom('repositories').where('id', '=', created.forkId).execute(), undefined)
   })
 })
 

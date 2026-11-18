@@ -1,7 +1,7 @@
 import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions/runtime'
 import { response } from '@stacksjs/router'
-import { dashboardOperationalError } from '../dashboard-response'
+import { destroyModelRow, requestAccountId, rowRefusalResponse } from './model-row-writes'
 import { parseRowId, resolveWritableModel } from './model-write'
 
 /**
@@ -9,7 +9,8 @@ import { parseRowId, resolveWritableModel } from './model-write'
  *
  * Deletes one row from the dashboard's generic model browser. Goes through
  * the model rather than the table so soft deletes, observers and cascade
- * behaviour all apply exactly as they would anywhere else in the app.
+ * behaviour all apply exactly as they would anywhere else in the app. A user
+ * other records still point at is anonymized instead: see `./model-destroy`.
  */
 export default new Action({
   name: 'Dashboard Model Destroy',
@@ -25,15 +26,7 @@ export default new Action({
     if (id === null)
       return response.json({ message: 'A numeric row id is required.' }, 400)
 
-    try {
-      const row = await resolved.Model.find(id)
-      if (!row)
-        return response.json({ message: `${resolved.modelName} ${id} not found.` }, 404)
-      await row.delete()
-      return { ok: true, id }
-    }
-    catch (error) {
-      return dashboardOperationalError(error, 'The model record could not be deleted.', 'ModelDestroyAction', 500)
-    }
+    const result = await destroyModelRow(resolved, id, await requestAccountId(request))
+    return result.ok ? { ok: true, id, anonymized: result.anonymized } : rowRefusalResponse(result)
   },
 })

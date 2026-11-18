@@ -11,6 +11,7 @@
 // state the pattern has to describe honestly.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   userId: 0,
@@ -241,7 +242,7 @@ afterAll(async () => {
     if (db) {
       const tokens = [created.firstId, created.secondId].filter(Boolean)
 
-      await db.deleteFrom('operations').where('subject_id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('operations').where('subject_id', '=', created.repositoryId).execute(), undefined)
 
       if (created.mirrorId)
         await db.deleteFrom('repository_mirrors').where('id', '=', created.mirrorId).execute()
@@ -255,7 +256,7 @@ afterAll(async () => {
         const ids = all.map(row => Number(row.id)).concat(tokens)
 
         if (ids.length > 0) {
-          await db.deleteFrom('operations').where('access_token_id', 'in', ids).execute().catch(() => {})
+          await rescue(() => db.deleteFrom('operations').where('access_token_id', 'in', ids).execute(), undefined)
           await db.deleteFrom('access_token_permissions').where('access_token_id', 'in', ids).execute()
         }
 

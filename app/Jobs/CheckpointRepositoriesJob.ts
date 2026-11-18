@@ -4,6 +4,7 @@ import { log } from '@stacksjs/logging'
 import { db } from '@stacksjs/database'
 import { advertiseBundle, latestCheckpoint, pruneCheckpoints, pruneThrough, writeCheckpoint } from '../Actions/Git/checkpoint'
 import { walKeepEntries, walMode } from '../../config/git-wal'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Keep the write-ahead log from growing forever.
@@ -38,12 +39,11 @@ export default new Job({
     const minimum = Math.max(1, Number(payload?.minimumEntries ?? 1))
     const keep = walKeepEntries()
 
-    const rows: any[] = await db
+    const rows: any[] = await rescue(() => db
       .selectFrom('git_wal_entries')
       .select(['repository_id'])
       .where('status', '=', 'committed')
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     const byRepository = new Map<number, number>()
 
@@ -148,23 +148,21 @@ function bundleUrl(owner: string, name: string): string | null {
 
 /** Where a repository is on this node, and who owns it. */
 async function locate(repositoryId: number): Promise<{ path: string, owner: string, name: string } | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return null
 
   const table = String(row.owner_type) === 'organization' ? 'organizations' : 'users'
-  const owner: any = await db
+  const owner: any = await rescue(() => db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(row.owner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!owner?.handle)
     return null

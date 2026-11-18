@@ -3,6 +3,7 @@ import { log } from '@stacksjs/logging'
 import { db } from '@stacksjs/database'
 import { divergence, ledgerFor, refsOnDisk, seedLedger } from '../Actions/Git/refs'
 import { walMode } from '../../config/git-wal'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Check what this node holds against what the database says, and say so.
@@ -40,11 +41,10 @@ export default new Job({
     const only = Number(payload?.repositoryId ?? 0)
     const sample = Math.max(1, Number(payload?.sample ?? 50))
 
-    const rows: any[] = await db
+    const rows: any[] = await rescue(() => db
       .selectFrom('repositories')
       .select(['id', 'name', 'owner_type', 'owner_id'])
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     const candidates = only ? rows.filter(row => Number(row.id) === only) : rotate(rows, sample)
 
@@ -120,12 +120,11 @@ function rotate<T>(rows: readonly T[], size: number): T[] {
 
 async function pathFor(row: any): Promise<string | null> {
   const table = String(row.owner_type) === 'organization' ? 'organizations' : 'users'
-  const owner: any = await db
+  const owner: any = await rescue(() => db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(row.owner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!owner?.handle)
     return null

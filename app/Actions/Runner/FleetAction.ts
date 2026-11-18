@@ -10,6 +10,7 @@ import { auditFrom } from '../Git/audit'
 import { currentActor } from '../Identity/lookup'
 import { fineGrainedToken } from '../Repo/authorize'
 import { tokenAllowsOnInstance } from '../../TokenScopes'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The fleet: pools, queues, and which machines serve what.
@@ -201,13 +202,12 @@ export default new Action({
        * needs to know whether the thing they are about to rotate exists.
        */
       const names = async () => {
-        const rows = await db
+        const rows = await rescue(() => db
           .selectFrom('workflow_secrets')
           .select(['key', 'updated_at'])
           .where('scope_type', '=', 'pool')
           .where('scope_id', '=', poolId)
-          .execute()
-          .catch(() => [])
+          .execute(), [])
 
         return rows
           .map(row => ({ key: String(row.key), updated_at: row.updated_at ? String(row.updated_at) : null }))

@@ -14,6 +14,7 @@
 // somewhere else.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -171,9 +172,9 @@ afterAll(async () => {
     server?.stop?.(true)
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

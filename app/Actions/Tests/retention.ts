@@ -1,5 +1,6 @@
 import { db } from '@stacksjs/database'
 import { numberSetting } from '../../Ops/settings'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * How long test executions are kept, and the sweep that keeps that promise.
@@ -94,7 +95,7 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
    * mistake always goes, and it deletes the history instead of keeping it.
    */
   if (days <= 0) {
-    const held = await db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst().catch(() => null)
+    const held = await rescue(() => db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst(), null)
 
     return { ok: true, days: 0, removed: 0, remaining: Number(held?.count ?? 0) }
   }
@@ -109,25 +110,23 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
      * its own worth trusting - it belongs to the run that reported it, and that
      * is the timestamp somebody set out to keep for ninety days.
      */
-    const runs = await db
+    const runs = await rescue(() => db
       .selectFrom('test_runs')
       .select(['id'])
       .where('created_at', '<', cutoff)
       .orderBy('id', 'asc')
       .limit(200)
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     if (!runs.length)
       break
 
     const ids = runs.map(row => Number(row.id))
 
-    const result = await db
+    const result = await rescue(() => db
       .deleteFrom('test_executions')
       .where('test_run_id', 'in', ids)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     removed += Number(result?.numDeletedRows ?? 0)
 
@@ -139,18 +138,16 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
      * distrust the whole table. The tests themselves stay: their mutes, owners
      * and reasons are decisions people made, not data that piled up.
      */
-    await db
+    await rescue(() => db
       .deleteFrom('test_runs')
       .where('id', 'in', ids)
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
-  const left = await db
+  const left = await rescue(() => db
     .selectFrom('test_executions')
     .select(db.fn.count('id').as('count'))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return { ok: true, days, removed, remaining: Number(left?.count ?? 0) }
 }

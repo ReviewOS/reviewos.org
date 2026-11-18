@@ -38,11 +38,13 @@ title, required allDay and optional description/address/timezone; the root entry
 does not re-export that type. Infer a literal or read src/types.ts when extending
 the package.
 
-The older single-event generator has its own timezone/time-format rules and
-does not emit a VTIMEZONE block. Its UID derives from event timing/title, so
-editing those changes the UID. Do not promise subscription update semantics
-from a generated single-event link. Prefer the feed builder for stable records,
-escaping and folded lines.
+Single-event exports write a timed event as UTC instants (`...Z`), so a link
+means the same on every host; `timezone` only sets the zone Google's compose
+screen displays it in. All-day dates are the UTC calendar dates of from/to.
+The ICS body escapes and folds its text as the feed builder does. Its UID
+derives from the event's instants and title, so editing those changes the
+UID. Do not promise subscription update semantics from a generated
+single-event link; use the feed builder for stable records.
 
 ## Native subscribable feeds
 
@@ -59,13 +61,19 @@ control, even when the feed declares a suggested interval.
 
 ## Recurrence
 
-parseRRule(value) returns RecurrenceRule or null for unsupported frequency.
-expandRecurrence(rule, dtstart, windowStart, windowEnd) returns matching UTC
-start instants, capped defensively. Supported fields include DAILY/WEEKLY/
-MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY and BYMONTHDAY. This is a subset;
-unknown fields are not a proof of full RFC conformance. Callers own timezone
-interpretation and DST policy. Calendar clients can expand a feed's raw rrule
-independently from the server subset.
+parseRRule(value) returns a RecurrenceRule, or null for any rule it cannot
+follow exactly: an unsupported frequency or part (BYMONTH, BYSETPOS, BYWEEKNO,
+BYYEARDAY, BYHOUR...), a combination RFC 5545 rules out or this subset does
+not cover, or a value it cannot read. Null means "do not expand this here",
+never "expanded without the part". expandRecurrence(rule, dtstart, windowStart,
+windowEnd) returns matching UTC start instants, capped at 1000.
+
+The subset: DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT or UNTIL, WKST, BYDAY
+(a filter for DAILY and WEEKLY; within a month, `MO` is every Monday and `2TU`
+or `-1FR` an ordinal) and BYMONTHDAY for DAILY or MONTHLY (`-1` is the last
+day). Weeks start on WKST, Monday by default, as clients expand them. YEARLY
+repeats dtstart's date, skipping years without it (Feb 29). Callers own
+timezone interpretation and DST policy.
 
 ## Sources and evidence
 

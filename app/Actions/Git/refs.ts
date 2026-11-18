@@ -30,6 +30,7 @@
 import { db } from '@stacksjs/database'
 import { isFullSha, runGit } from './git'
 import type { WalRefUpdate } from './wal'
+import { rescue } from '@stacksjs/error-handling'
 
 export const ZERO_SHA = '0'.repeat(40)
 
@@ -78,12 +79,11 @@ export function acceptable(update: WalRefUpdate): boolean {
 
 /** The whole ledger for a repository. */
 export async function ledgerFor(repositoryId: number): Promise<LedgerEntry[]> {
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('git_refs')
     .select(['ref', 'sha', 'sequence'])
     .where('repository_id', '=', repositoryId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     ref: String(row.ref),
@@ -121,13 +121,12 @@ export async function applyToLedger(
 }
 
 async function applyOne(repositoryId: number, update: WalRefUpdate, sequence: number): Promise<RefResult> {
-  const existing: any = await db
+  const existing: any = await rescue(() => db
     .selectFrom('git_refs')
     .select(['id', 'sha'])
     .where('repository_id', '=', repositoryId)
     .where('ref', '=', update.ref)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const held = existing ? String(existing.sha) : null
 
@@ -143,12 +142,11 @@ async function applyOne(repositoryId: number, update: WalRefUpdate, sequence: nu
     if (!isCreation(update) && held !== update.before)
       return { ref: update.ref, outcome: 'conflicted', held }
 
-    const removed: any = await db
+    const removed: any = await rescue(() => db
       .deleteFrom('git_refs')
       .where('id', '=', Number(existing.id))
       .where('sha', '=', held!)
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     return { ref: update.ref, outcome: removed === null ? 'conflicted' : 'applied', held }
   }
@@ -157,12 +155,13 @@ async function applyOne(repositoryId: number, update: WalRefUpdate, sequence: nu
     // A creation, and the unique index is what makes this a compare-and-swap:
     // two nodes creating the same ref means one insert fails, and the loser
     // reports a conflict rather than overwriting.
-    const created = await db
-      .insertInto('git_refs')
-      .values({ repository_id: repositoryId, ref: update.ref, sha: update.after, sequence } as any)
-      .execute()
-      .then(() => true)
-      .catch(() => false)
+    const created = await rescue(async () => {
+      await db
+        .insertInto('git_refs')
+        .values({ repository_id: repositoryId, ref: update.ref, sha: update.after, sequence } as any)
+        .execute()
+      return true
+    }, false)
 
     return { ref: update.ref, outcome: created ? 'applied' : 'conflicted', held }
   }
@@ -180,14 +179,15 @@ async function applyOne(repositoryId: number, update: WalRefUpdate, sequence: nu
    * this write, another node may have moved the ref, and without the guard
    * this would overwrite it with a value derived from a stale view.
    */
-  const moved = await db
-    .updateTable('git_refs')
-    .set({ sha: update.after, sequence } as any)
-    .where('id', '=', Number(existing.id))
-    .where('sha', '=', update.before)
-    .execute()
-    .then(() => true)
-    .catch(() => false)
+  const moved = await rescue(async () => {
+    await db
+      .updateTable('git_refs')
+      .set({ sha: update.after, sequence } as any)
+      .where('id', '=', Number(existing.id))
+      .where('sha', '=', update.before)
+      .execute()
+    return true
+  }, false)
 
   return { ref: update.ref, outcome: moved ? 'applied' : 'conflicted', held }
 }
@@ -216,23 +216,23 @@ export async function seedLedger(repositoryId: number, repositoryPath: string): 
     if (!ref || !sha || !isFullSha(sha))
       continue
 
-    const existing = await db
+    const existing = await rescue(() => db
       .selectFrom('git_refs')
       .select(['id'])
       .where('repository_id', '=', repositoryId)
       .where('ref', '=', ref)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (existing)
       continue
 
-    const created = await db
-      .insertInto('git_refs')
-      .values({ repository_id: repositoryId, ref, sha, sequence: 0 } as any)
-      .execute()
-      .then(() => true)
-      .catch(() => false)
+    const created = await rescue(async () => {
+      await db
+        .insertInto('git_refs')
+        .values({ repository_id: repositoryId, ref, sha, sequence: 0 } as any)
+        .execute()
+      return true
+    }, false)
 
     if (created)
       seeded += 1

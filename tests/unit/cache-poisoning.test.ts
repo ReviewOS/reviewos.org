@@ -16,6 +16,7 @@
 // the thing that was meant to catch it.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 import { findRestorable } from '../../app/Actions/Workflow/cache'
 import { writableScope } from '../../app/Actions/Workflow/cacheScope'
 import type { RunFacts } from '../../app/Actions/Workflow/cacheScope'
@@ -99,7 +100,7 @@ describe('a cache a fork wrote', () => {
 
   afterAll(async () => {
     if (repositoryId)
-      await db?.deleteFrom('repositories').where('id', '=', repositoryId).execute().catch(() => null)
+      await rescue(() => db?.deleteFrom('repositories').where('id', '=', repositoryId).execute(), null)
   })
 
   test('is there, so the rest of this file is testing a real row', async () => {

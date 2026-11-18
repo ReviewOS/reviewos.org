@@ -5,6 +5,7 @@ import { db } from '@stacksjs/database'
 import { findRestorable, MAX_UPLOAD_SNAPSHOT_BYTES, markRestored, runFactsFor } from '../Workflow/cache'
 import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The snapshot this run is entitled to for a key, as bytes.
@@ -161,23 +162,21 @@ async function countLookup(jobId: number, hit: boolean): Promise<void> {
    * statistic that is occasionally one low is worth less than the lock it would
    * take to be exact.
    */
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['cache_lookups', 'cache_hits'])
     .where('id', '=', jobId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return
 
-  await db
+  await rescue(() => db
     .updateTable('workflow_jobs')
     .set({
       cache_lookups: Number(row.cache_lookups ?? 0) + 1,
       cache_hits: Number(row.cache_hits ?? 0) + (hit ? 1 : 0),
     })
     .where('id', '=', jobId)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }

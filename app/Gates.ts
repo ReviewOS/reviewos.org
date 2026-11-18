@@ -1,4 +1,4 @@
-import type { UserModel } from '@stacksjs/orm'
+import type { GateUser } from '@stacksjs/auth'
 import type { RepositoryAbility, RepositoryAccessInput } from './Permissions'
 import { allowedOnArchivedRepository, canOnRepository, wouldOrphanOrganization } from './Permissions'
 
@@ -42,7 +42,7 @@ export const gates = {
    * the mail domain in `.env` controls the instance - and that anybody who can
    * register with an address at that domain administers it.
    */
-  'access-admin': (user: UserModel | null) => {
+  'access-admin': (user: GateUser | null) => {
     return Boolean((user as any)?.is_admin)
   },
 
@@ -59,7 +59,7 @@ export const gates = {
    * `RemoveMemberAction` both apply it directly. This is here so the same
    * question has one name when it is asked from anywhere else.
    */
-  'orphan-organization': (_user: UserModel | null, input: Parameters<typeof wouldOrphanOrganization>[0]) => {
+  'orphan-organization': (_user: GateUser | null, input: Parameters<typeof wouldOrphanOrganization>[0]) => {
     return !wouldOrphanOrganization(input)
   },
 
@@ -76,7 +76,7 @@ export const gates = {
    * because that needs the database, and a gate that queries is a gate that
    * cannot be tested against literals.
    */
-  'repository': (_user: UserModel | null, input: RepositoryAccessInput, ability: RepositoryAbility) => {
+  'repository': (_user: GateUser | null, input: RepositoryAccessInput, ability: RepositoryAbility) => {
     return canOnRepository(input, ability)
   },
 
@@ -88,7 +88,7 @@ export const gates = {
    * Archiving is about the repository's state rather than the reader's rights,
    * and folding the two together is how "unarchive" ends up needing write.
    */
-  'archived-repository': (_user: UserModel | null, ability: RepositoryAbility) => {
+  'archived-repository': (_user: GateUser | null, ability: RepositoryAbility) => {
     return allowedOnArchivedRepository(ability)
   },
 }
@@ -125,7 +125,7 @@ export const policies: Record<string, string | { policy: string, model?: string 
  * // Super admins bypass all checks
  * (user) => user?.role === 'super-admin' ? true : null
  */
-export const before: Array<(user: UserModel | null, ability: string, args: any[]) => boolean | null | Promise<boolean | null>> = [
+export const before: Array<(user: GateUser | null, ability: string, args: any[]) => boolean | null | Promise<boolean | null>> = [
   // Example: Super admin bypass
   // (user, ability) => {
   //   if (user?.role === 'super-admin') {
@@ -140,7 +140,7 @@ export const before: Array<(user: UserModel | null, ability: string, args: any[]
  *
  * Run after gate/policy checks. Can override the result.
  */
-export const after: Array<(user: UserModel | null, ability: string, result: boolean, args: any[]) => boolean | void | Promise<boolean | void>> = [
+export const after: Array<(user: GateUser | null, ability: string, result: boolean, args: any[]) => boolean | void | Promise<boolean | void>> = [
   // Example: Log all authorization checks
   // (user, ability, result) => {
   //   console.log(`User ${user?.id} ${result ? 'allowed' : 'denied'} for ${ability}`)

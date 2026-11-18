@@ -32,6 +32,7 @@ import { fineGrainedToken } from './authorize'
 import { permissionOn } from '../Git/access'
 import { currentUser } from '../Identity/lookup'
 import { tokenAllows, tokenReaches } from '../../TokenScopes'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface OwnerScope {
   ok: boolean
@@ -71,7 +72,7 @@ export async function authorizeOwnerRepositories(request: any, ability: Reposito
   const token = presented
 
   const user = token
-    ? await db.selectFrom('users').select(['id', 'handle', 'is_admin']).where('id', '=', token.userId).executeTakeFirst().catch(() => null)
+    ? await rescue(() => db.selectFrom('users').select(['id', 'handle', 'is_admin']).where('id', '=', token.userId).executeTakeFirst(), null)
     : await currentUser(request)
 
   /*
@@ -83,14 +84,13 @@ export async function authorizeOwnerRepositories(request: any, ability: Reposito
   if (token && !tokenAllows(token.grants, ability))
     return { ok: false, repositoryIds: [], ownerId: Number(owner.id), error: `This token does not carry the ${ability} permission`, status: 403 }
 
-  const repositories = await db
+  const repositories = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'name', 'visibility', 'owner_type', 'owner_id'])
     .where('owner_type', '=', String(owner.type))
     .where('owner_id', '=', Number(owner.id))
     .limit(1000)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const allowed: number[] = []
 
@@ -124,22 +124,20 @@ export async function authorizeOwnerRepositories(request: any, ability: Reposito
 
 /** A user or an organization by handle, whichever has it. */
 async function ownerByHandle(handle: string): Promise<{ id: number, type: 'user' | 'organization' } | null> {
-  const user = await db
+  const user = await rescue(() => db
     .selectFrom('users')
     .select(['id'])
     .where('handle', '=', handle)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (user?.id)
     return { id: Number(user.id), type: 'user' }
 
-  const organization = await db
+  const organization = await rescue(() => db
     .selectFrom('organizations')
     .select(['id'])
     .where('handle', '=', handle)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return organization?.id ? { id: Number(organization.id), type: 'organization' } : null
 }

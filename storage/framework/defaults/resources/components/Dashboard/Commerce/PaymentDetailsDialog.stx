@@ -5,7 +5,7 @@ import { formatCurrency } from '@stacksjs/commerce/money'
 
 const open = useReactiveProp('open', false)
 const record = useReactiveProp('record', null as PaymentRecord | null)
-const emit = defineEmits()
+const emit = defineEmits(['close', 'request-refund'])
 
 function label(value: string): string {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ')
@@ -47,11 +47,9 @@ function refundable(): boolean {
     <span class="px-2 py-1 capitalize font-medium text-gray-700 text-xs dark:text-neutral-200 bg-gray-100 dark:bg-neutral-700 rounded-full">{{ label(record()?.status || '') }}</span>
   </template>
       <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <template :for="item in detailRows()" :key="item.label">
-          <div><dt class="text-gray-400 text-xs dark:text-neutral-500">{{ item.label }}</dt><dd class="mt-1 break-all text-gray-800 text-sm dark:text-neutral-100">{{ item.value }}</dd></div>
-        </template>
-        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Method</dt><dd class="mt-1 capitalize text-gray-800 text-sm dark:text-neutral-100">{{ label(record()?.method || '') }}</dd></div>
-        <div><dt class="text-gray-400 text-xs dark:text-neutral-500">Refund recorded</dt><dd class="mt-1 text-gray-800 text-sm dark:text-neutral-100">{{ record()?.refundAmount ? money(record()?.refundAmount || 0, record()?.currency || 'USD') : record()?.status === 'refunded' && !record()?.refundRecorded ? 'Amount missing' : money(0, record()?.currency || 'USD') }}</dd></div>
+        <div :for="item in detailRows()" :key="item.label"><dt class="text-gray-500 text-xs dark:text-neutral-500">{{ item.label }}</dt><dd class="mt-1 break-all text-gray-800 text-sm dark:text-neutral-100">{{ item.value }}</dd></div>
+        <div><dt class="text-gray-500 text-xs dark:text-neutral-500">Method</dt><dd class="mt-1 capitalize text-gray-800 text-sm dark:text-neutral-100">{{ label(record()?.method || '') }}</dd></div>
+        <div><dt class="text-gray-500 text-xs dark:text-neutral-500">Refund recorded</dt><dd class="mt-1 text-gray-800 text-sm dark:text-neutral-100">{{ record()?.refundAmount ? money(record()?.refundAmount || 0, record()?.currency || 'USD') : record()?.status === 'refunded' && !record()?.refundRecorded ? 'Amount missing' : money(0, record()?.currency || 'USD') }}</dd></div>
       </dl>
 
       <div :if="record()?.notes" class="mt-5 p-3 text-gray-600 text-sm dark:text-neutral-300 bg-gray-50 dark:bg-neutral-900/60 rounded-lg">{{ record()?.notes }}</div>

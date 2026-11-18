@@ -70,6 +70,7 @@ import { auditEvent } from '../../Audit/events'
 import { mayProposeRepair, type RepairPolicy, type RepairVerdict } from './repairPolicy'
 import { REPAIR_BRANCH_PREFIX } from './repairAttempts'
 import { configured, repairEffort, repairLogLines, repairMaxFiles, repairMaxTokens, repairModel } from '../../../config/ci-repair'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What the model is shown, and the one capability it is given. */
 export interface RepairContext {
@@ -141,12 +142,11 @@ export async function proposeRepair(input: RepairInput, model?: RepairModel): Pr
 
   const place = facts.place
 
-  const run: any = await db
+  const run: any = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['head_sha', 'workflow_version_id', 'event_ref', 'pull_request_id'])
     .where('id', '=', input.runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const headSha = String(run?.head_sha ?? '')
 
@@ -256,12 +256,11 @@ export async function baseBranchFor(facts: RepositoryFacts, run: any): Promise<s
   const pullRequestId = Number(run?.pull_request_id ?? 0)
 
   if (pullRequestId) {
-    const pull: any = await db
+    const pull: any = await rescue(() => db
       .selectFrom('pull_requests')
       .select(['head_branch'])
       .where('id', '=', pullRequestId)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     const branch = String(pull?.head_branch ?? '').trim()
 
@@ -521,12 +520,11 @@ export function weakensRequiredCheck(required: readonly string[], files: Record<
  * so a repository with a broken column behaves one way across the product.
  */
 export async function requiredChecksOf(repositoryId: number): Promise<string[]> {
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('protected_branches')
     .select(['required_checks'])
     .where('repository_id', '=', repositoryId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.flatMap((row) => {
     try {
@@ -774,24 +772,22 @@ export interface RepositoryFacts {
  * to disagree about which repository this is.
  */
 async function factsOf(repositoryId: number): Promise<RepositoryFacts | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id', 'default_branch'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row?.name)
     return null
 
   const table = String(row.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const owner: any = await db
+  const owner: any = await rescue(() => db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(row.owner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!owner?.handle)
     return null
@@ -853,12 +849,11 @@ async function workflowSourceOf(place: string, versionId: unknown): Promise<stri
   if (!id)
     return ''
 
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_versions')
     .select(['source_path', 'source_sha'])
     .where('id', '=', id)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const path = String(row?.source_path ?? '').trim()
   const sha = String(row?.source_sha ?? '').trim()
@@ -873,7 +868,7 @@ async function workflowSourceOf(place: string, versionId: unknown): Promise<stri
 async function logTailOf(jobId: number): Promise<string> {
   const lines = repairLogLines()
 
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('workflow_job_logs')
     .select(['content'])
     .where('workflow_job_id', '=', jobId)
@@ -882,8 +877,7 @@ async function logTailOf(jobId: number): Promise<string> {
     // front hands the model the setup and stops before the error.
     .orderBy('sequence', 'desc')
     .limit(lines)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows
     .reverse()
@@ -897,13 +891,12 @@ async function logTailOf(jobId: number): Promise<string> {
 
 /** What the failing step exited with, when it was recorded. */
 async function exitStatusOf(jobId: number, step: string): Promise<number | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_steps')
     .select(['exit_code'])
     .where('workflow_job_id', '=', jobId)
     .where('name', '=', step)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const code = Number(row?.exit_code)
 

@@ -199,28 +199,24 @@ onMount(() => {
 })
 </script>
 
-<div class="space-y-6">
-  <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      <h1 class="font-bold text-2xl text-gray-900 dark:text-white">Deployments</h1>
-      <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Deployment model records through the guarded dashboard API.</p>
-    </div>
-    <div class="flex gap-2 items-center">
-      <Button :disabled="isStarting() || isPreviewing()" variant="outline" @click="openDeploymentDialog('preview')">
-        Preview
-      </Button>
-      <Button :disabled="isStarting() || isPreviewing() || isRollingBack()" variant="secondary" @click="openRollback">
-        Rollback
-      </Button>
-      <Button :disabled="isStarting() || isPreviewing()" @click="openDeploymentDialog('deploy')">
-        Deploy
-      </Button>
-      <Button :loading="isLoading()" variant="secondary" @click="loadDeployments">
-        <span :if="!isLoading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>
-        Refresh
-      </Button>
-    </div>
-  </header>
+<div class="flex flex-col gap-6">
+  <PageHeader title="Deployments" description="Deployment model records through the guarded dashboard API.">
+  <div class="flex gap-2 items-center">
+    <Button :disabled="isStarting() || isPreviewing()" variant="outline" @click="openDeploymentDialog('preview')">
+      Preview
+    </Button>
+    <Button :disabled="isStarting() || isPreviewing() || isRollingBack()" variant="secondary" @click="openRollback">
+      Rollback
+    </Button>
+    <Button :disabled="isStarting() || isPreviewing()" @click="openDeploymentDialog('deploy')">
+      Deploy
+    </Button>
+    <Button :loading="isLoading()" variant="secondary" @click="loadDeployments">
+      <span :if="!isLoading()" aria-hidden="true" class="h-4 w-4 i-hugeicons-refresh"></span>
+      Refresh
+    </Button>
+  </div>
+  </PageHeader>
 
   <div :if="loadError()" class="p-4 text-red-700 text-sm dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-lg dark:border-red-900">{{ loadError() }}</div>
 
@@ -243,24 +239,15 @@ onMount(() => {
     </div>
   </section>
 
-  <section class="space-y-3">
+  <section class="flex flex-col gap-3">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h2 class="font-semibold text-gray-900 dark:text-white">Deployment history</h2>
         <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">No estimated totals or synthetic build activity.</p>
       </div>
       <div class="flex gap-2">
-        <label class="sr-only" for="deployment-status">Status</label>
-        <select id="deployment-status" x-model="status" class="px-3 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700">
-          <option value="all">All statuses</option>
-          <option value="success">Success</option>
-          <option value="failed">Failed</option>
-          <option value="running">Running</option>
-          <option value="pending">Pending</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <label class="sr-only" for="deployment-search">Search deployments</label>
-        <input id="deployment-search" x-model="search" type="search" placeholder="Search deployments" class="px-3 py-2 w-56 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700" />
+        <Select v-model:value="status" id="deployment-status" ariaLabel="Status" placeholder="" :options="[{ value: 'all', label: 'All statuses' }, { value: 'success', label: 'Success' }, { value: 'failed', label: 'Failed' }, { value: 'running', label: 'Running' }, { value: 'pending', label: 'Pending' }, { value: 'cancelled', label: 'Cancelled' }]" />
+        <SearchFilter v-model:searchValue="search" placeholder="Search deployments" ariaLabel="Search deployments" class="w-56" />
       </div>
     </div>
     <DeploymentTable :deployments="rows()" :loading="isLoading" />
@@ -278,7 +265,7 @@ onMount(() => {
     size="sm"
     @close="showDeployModal.set(false)"
   >
-    <div class="space-y-4">
+    <div class="flex flex-col gap-4">
       <Select
         v-model:value="environment"
         :options="environmentOptions"
@@ -312,7 +299,7 @@ onMount(() => {
   <DeploymentPreviewDialog :plan="previewPlan" @close="previewPlan.set(null)" @deploy="continueFromPreview" />
 
   <Modal :isOpen="showRollbackModal()" title="Rollback deployment" description="Preview and validate a preserved release before changing the active runtime." size="lg" @close="showRollbackModal.set(false)">
-    <div class="space-y-4">
+    <div class="flex flex-col gap-4">
       <div class="grid gap-4 sm:grid-cols-2">
         <Select v-model:value="environment" :options="environmentOptions" label="Environment" placeholder="" />
         <Input v-model:value="rollbackSite" label="Site" placeholder="All application sites" hint="Optional site slug." />

@@ -30,6 +30,7 @@ import { statfs } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { createRepositoryWorkspace } from './snapshotWorkspace'
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /** How long a full bundle of a large repository may take. */
 const CHECKPOINT_TIMEOUT_MS = 30 * 60_000
@@ -271,13 +272,12 @@ export function prunable(
 export async function pruneThrough(repositoryId: number, sequence: number, keepEntries: number): Promise<PruneOutcome> {
   const outcome: PruneOutcome = { removedRows: 0, removedBlobs: 0 }
 
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('git_wal_entries')
     .select(['id', 'sequence', 'blob_key', 'status'])
     .where('repository_id', '=', repositoryId)
     .where('sequence', '<=', sequence)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const doomed = prunable(
     rows.map(row => ({
@@ -298,7 +298,7 @@ export async function pruneThrough(repositoryId: number, sequence: number, keepE
       outcome.removedBlobs += 1
     }
 
-    await db.deleteFrom('git_wal_entries').where('id', '=', entry.id).execute().catch(() => undefined)
+    await rescue(() => db.deleteFrom('git_wal_entries').where('id', '=', entry.id).execute(), undefined)
     outcome.removedRows += 1
   }
 

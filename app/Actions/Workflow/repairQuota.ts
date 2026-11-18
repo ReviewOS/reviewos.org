@@ -48,6 +48,7 @@ import {
   repairMaxRunningPerRepository,
   repairStaleMinutes,
 } from '../../../config/ci-repair'
+import { rescue } from '@stacksjs/error-handling'
 
 /** How many repairs each repository and owner is running right now. */
 export interface RepairLoad {
@@ -78,7 +79,7 @@ export function emptyRepairLoad(): RepairLoad {
 export async function repairLoad(now: Date = new Date()): Promise<RepairLoad> {
   const since = new Date(now.getTime() - repairStaleMinutes() * 60_000).toISOString()
 
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('repair_attempts')
     .innerJoin('repositories', 'repositories.id', '=', 'repair_attempts.repository_id')
     .select([
@@ -89,8 +90,7 @@ export async function repairLoad(now: Date = new Date()): Promise<RepairLoad> {
     .where('repair_attempts.started_at', 'is not', null)
     .where('repair_attempts.started_at', '>=', since)
     .limit(5000)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const load = emptyRepairLoad()
 
@@ -147,26 +147,24 @@ export function withinRepairQuota(load: RepairLoad, repair: { repositoryId: numb
  * finished, which is the shape a duplicate queue delivery takes.
  */
 export async function startAttempt(attemptId: number, now: Date = new Date()): Promise<boolean> {
-  const changed: any = await db
+  const changed: any = await rescue(() => db
     .updateTable('repair_attempts')
     .set({ started_at: now.toISOString() })
     .where('id', '=', attemptId)
     .where('state', '=', 'attempted')
     .whereNull('started_at')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return changed ? rowsChanged(changed) : false
 }
 
 /** The owner of a repository, for the ceiling that spans them. */
 export async function ownerOf(repositoryId: number): Promise<number> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repositories')
     .select(['owner_id'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return Number(row?.owner_id ?? 0)
 }

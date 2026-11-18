@@ -104,11 +104,19 @@ export default defineModel({
     isApproved: {
       required: false,
       fillable: true,
-      default: 0,
+      default: false,
       validation: {
-        rule: schema.number(),
+        rule: schema.boolean(),
       },
-      factory: faker => faker.number.int({ min: 0, max: 1 }),
+      factory: faker => faker.datatype.boolean(),
+    },
+  },
+
+  dashboard: {
+    // Prose, asked for in a box with room for it.
+    fields: {
+      content: { input: 'longtext' },
+      body: { input: 'longtext' },
     },
   },
 } as const)

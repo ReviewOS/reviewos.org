@@ -126,6 +126,10 @@ export const kanbanStore = defineStore('kanban', () => {
   const loading = state(true)
   const loadingBoard = state(false)
   const error = state<string | null>(null)
+  // Why the last board delete failed. Kept apart from `error`, which means the
+  // board list could not load: a failed delete used to replace the whole list
+  // with "Couldn't load boards" (stacksjs/stacks#3217).
+  const deleteError = state<string | null>(null)
   const errorBoard = state<string | null>(null)
 
   // Card detail modal state. Holding card + comments here
@@ -137,8 +141,13 @@ export const kanbanStore = defineStore('kanban', () => {
   const openCard = state<CardDetail | null>(null)
   const loadingCard = state(false)
   const errorCard = state<string | null>(null)
+  // The assignee picker's users: one bounded page of a server-side search
+  // (stacksjs/stacks#3216), and how many users matched it.
   const users = state<UserSummary[]>([])
+  const usersTotal = state(0)
+  const userSearch = state('')
   const loadingUsers = state(false)
+  let usersRequest = 0
 
   const hasBoards = derived(() => boards().length > 0)
 
@@ -224,6 +233,7 @@ export const kanbanStore = defineStore('kanban', () => {
 
   async function deleteBoard(id: number): Promise<boolean> {
     const snapshot = boards()
+    deleteError.set(null)
     // Optimistic remove.
     boards.set(snapshot.filter(b => b.id !== id))
     try {
@@ -232,7 +242,7 @@ export const kanbanStore = defineStore('kanban', () => {
     }
     catch (e) {
       boards.set(snapshot)
-      error.set(e instanceof Error ? e.message : String(e))
+      deleteError.set(e instanceof Error ? e.message : String(e))
       return false
     }
   }
@@ -491,18 +501,37 @@ export const kanbanStore = defineStore('kanban', () => {
     }
   }
 
-  async function loadUsers(): Promise<void> {
-    if (loadingUsers() || users().length > 0) return
+  /**
+   * The users matching `search` (name or email, ignoring case), newest request
+   * wins. It used to load the first 500 by name once and never search, so
+   * anyone past the 500th could not be assigned.
+   */
+  async function loadUsers(search = ''): Promise<void> {
+    const term = search.trim()
+    userSearch.set(term)
+    const request = ++usersRequest
     loadingUsers.set(true)
     try {
-      const data = await dashboardApi<{ users?: UserSummary[] }>('/api/dashboard/kanban/users')
+      const params = new URLSearchParams()
+      if (term)
+        params.set('q', term)
+      const suffix = params.toString()
+      const data = await dashboardApi<{ users?: UserSummary[], total?: number }>(`/api/dashboard/kanban/users${suffix ? `?${suffix}` : ''}`)
+      if (request !== usersRequest)
+        return
       users.set(data.users ?? [])
+      usersTotal.set(data.total ?? (data.users?.length ?? 0))
     }
     catch {
-      // Soft-fail — assignee picker just shows empty.
+      // Soft-fail: the picker shows no users rather than an error.
+      if (request === usersRequest) {
+        users.set([])
+        usersTotal.set(0)
+      }
     }
     finally {
-      loadingUsers.set(false)
+      if (request === usersRequest)
+        loadingUsers.set(false)
     }
   }
 
@@ -700,6 +729,7 @@ export const kanbanStore = defineStore('kanban', () => {
     loading,
     loadingBoard,
     error,
+    deleteError,
     errorBoard,
     hasBoards,
     loadBoards,
@@ -717,6 +747,8 @@ export const kanbanStore = defineStore('kanban', () => {
     loadingCard,
     errorCard,
     users,
+    usersTotal,
+    userSearch,
     loadingUsers,
     openCardDetail,
     closeCardDetail,

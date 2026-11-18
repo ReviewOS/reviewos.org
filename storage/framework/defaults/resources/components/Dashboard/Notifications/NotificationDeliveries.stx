@@ -13,8 +13,6 @@ const title = useReactiveProp('title', 'Notification Deliveries')
 const description = useReactiveProp('description', 'Monitor notification transport attempts.')
 
 const deliveries = state<NotificationDelivery[]>([])
-const currentPage = state(1)
-const perPage = state(10)
 const isLoading = state(true)
 const searchQuery = state('')
 const selectedStatus = state('all')
@@ -46,30 +44,27 @@ const sortedDeliveries = derived(() => [...filteredDeliveries()].sort((a, b) => 
   return sortDirection() === 'asc' ? comparison : -comparison
 }))
 
-const paginatedDeliveries = derived(() => {
-  const start = (currentPage() - 1) * perPage()
-  return sortedDeliveries().slice(start, start + perPage())
-})
-
-const totalItems = derived(() => filteredDeliveries().length)
-const totalPages = derived(() => Math.max(1, Math.ceil(totalItems() / perPage())))
-const rangeStart = derived(() => totalItems() === 0 ? 0 : (currentPage() - 1) * perPage() + 1)
-const rangeEnd = derived(() => Math.min(currentPage() * perPage(), totalItems()))
-const canGoBack = derived(() => currentPage() > 1)
-const canGoForward = derived(() => currentPage() < totalPages())
 const sentCount = derived(() => deliveries().filter(delivery => delivery.status === 'sent' || delivery.status === 'delivered').length)
 const failedCount = derived(() => deliveries().filter(delivery => delivery.status === 'failed').length)
 const pendingCount = derived(() => deliveries().filter(delivery => delivery.status === 'pending').length)
 
-effect(() => {
-  searchQuery()
-  selectedStatus()
-  sortDirection()
-  currentPage.set(1)
-})
+/**
+ * What the table is showing: a change returns it to the first page, as this
+ * page's own pager did before the table took over paging.
+ */
+const viewKey = derived(() => JSON.stringify([searchQuery().trim(), selectedStatus(), sortDirection()]))
 
-function openDelivery(event: CustomEvent<NotificationDelivery>): void {
-  selectedDelivery.set(event.detail)
+/**
+ * A component event reaches this handler as the emitted value, not as a
+ * CustomEvent, so reading `.detail` gave undefined: View opened an empty
+ * dialog and Retry did nothing (stacksjs/stacks#2977). Accept either.
+ */
+function eventValue<T>(value: T | CustomEvent<T>): T {
+  return value instanceof CustomEvent ? value.detail : value
+}
+
+function openDelivery(event: NotificationDelivery | CustomEvent<NotificationDelivery>): void {
+  selectedDelivery.set(eventValue(event))
   showDetails.set(true)
 }
 
@@ -84,8 +79,8 @@ async function loadDeliveries(): Promise<void> {
   isLoading.set(false)
 }
 
-async function retryDelivery(event: CustomEvent<NotificationDelivery>): Promise<void> {
-  const delivery = event.detail
+async function retryDelivery(event: NotificationDelivery | CustomEvent<NotificationDelivery>): Promise<void> {
+  const delivery = eventValue(event)
   retryingId.set(delivery.id)
   const retried = await retryNotificationDelivery(delivery)
   if (retried)
@@ -99,16 +94,6 @@ function resetFilters(): void {
   sortDirection.set('desc')
 }
 
-function previousPage(): void {
-  if (canGoBack())
-    currentPage.update(page => page - 1)
-}
-
-function nextPage(): void {
-  if (canGoForward())
-    currentPage.update(page => page + 1)
-}
-
 onMount(loadDeliveries)
 </script>
 
@@ -119,7 +104,7 @@ onMount(loadDeliveries)
     </div>
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
-        <h1 class="font-semibold leading-6 text-base text-gray-900 dark:text-neutral-100">{{ title }}</h1>
+        <h1 class="font-bold text-2xl text-gray-900 dark:text-neutral-100">{{ title }}</h1>
         <p class="mt-2 text-gray-700 text-sm dark:text-neutral-300">{{ description }}</p>
       </div>
       <div class="sm:flex-none mt-4 sm:ml-16 sm:mt-0">
@@ -150,32 +135,9 @@ onMount(loadDeliveries)
     </dl>
 
     <div :show="showFilters" class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-4">
-      <label class="block">
-        <span class="sr-only">Search notification deliveries</span>
-        <span class="block relative">
-          <span class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
-            <span class="h-5 w-5 text-gray-400 i-hugeicons-search-01"></span>
-          </span>
-          <input x-model.trim="searchQuery" type="search" placeholder="Search recipient or content..." class="block pl-10 py-1.5 w-full text-gray-900 sm:leading-6 sm:text-sm dark:text-neutral-100 placeholder:text-gray-400 dark:bg-neutral-600 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600 focus:ring-inset" />
-        </span>
-      </label>
-      <label class="block">
-        <span class="sr-only">Delivery status</span>
-        <select x-model="selectedStatus" class="block pl-3 pr-10 py-1.5 w-full text-gray-900 sm:leading-6 sm:text-sm dark:text-neutral-100 dark:bg-neutral-600 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600">
-          <option value="all">All Statuses</option>
-          <option value="sent">Sent</option>
-          <option value="delivered">Delivered</option>
-          <option value="failed">Failed</option>
-          <option value="pending">Pending</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="sr-only">Attempt order</span>
-        <select x-model="sortDirection" class="block pl-3 pr-10 py-1.5 w-full text-gray-900 sm:leading-6 sm:text-sm dark:text-neutral-100 dark:bg-neutral-600 border-0 ring-1 ring-gray-300 ring-inset rounded-md dark:ring-neutral-600 focus:ring-2 focus:ring-blue-600">
-          <option value="desc">Newest First</option>
-          <option value="asc">Oldest First</option>
-        </select>
-      </label>
+      <SearchFilter v-model:searchValue="searchQuery" placeholder="Search recipient or content..." ariaLabel="Search notification deliveries" />
+      <Select v-model:value="selectedStatus" ariaLabel="Delivery status" placeholder="" :options="[{ value: 'all', label: 'All Statuses' }, { value: 'sent', label: 'Sent' }, { value: 'delivered', label: 'Delivered' }, { value: 'failed', label: 'Failed' }, { value: 'pending', label: 'Pending' }]" />
+      <Select v-model:value="sortDirection" ariaLabel="Attempt order" placeholder="" :options="[{ value: 'desc', label: 'Newest First' }, { value: 'asc', label: 'Oldest First' }]" />
       <div>
         <Button variant="secondary" @click="resetFilters()">Reset Filters</Button>
       </div>
@@ -183,7 +145,10 @@ onMount(loadDeliveries)
 
     <div class="mt-8">
       <NotificationDeliveryTable
-        :deliveries="paginatedDeliveries"
+        :deliveries="sortedDeliveries"
+        :paginated="true"
+        :sort-reset-key="sortDirection"
+        :page-reset-key="viewKey"
         :loading="isLoading"
         :actions="true"
         :retryingId="retryingId"
@@ -191,16 +156,6 @@ onMount(loadDeliveries)
         @view="openDelivery($event)"
         @retry="retryDelivery($event)"
       />
-    </div>
-
-    <div class="flex items-center justify-between mt-4">
-      <p class="text-gray-700 text-sm dark:text-neutral-300">
-        Showing <span class="font-medium">{{ rangeStart }}</span> to <span class="font-medium">{{ rangeEnd }}</span> of <span class="font-medium">{{ totalItems }}</span> results
-      </p>
-      <div class="flex gap-2 items-center">
-        <Button variant="secondary" :disabled="!canGoBack" @click="previousPage()">Previous</Button>
-        <Button variant="secondary" :disabled="!canGoForward" @click="nextPage()">Next</Button>
-      </div>
     </div>
   </div>
 

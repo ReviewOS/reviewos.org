@@ -10,6 +10,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { parseWorkflow } from '../../app/Actions/Workflow/parse'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -141,14 +142,14 @@ afterAll(async () => {
   try {
     for (const id of [created.covered, created.ignored]) {
       if (id)
-        await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('repositories').where('id', '=', id).execute(), undefined)
     }
 
     if (created.workflowId)
-      await db.deleteFrom('workflows').where('id', '=', created.workflowId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('workflows').where('id', '=', created.workflowId).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

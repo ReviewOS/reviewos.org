@@ -1286,7 +1286,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `repository` | body | optional | string |
 | `title` | body | required | string |
 | `body` | body | optional | string |
-| `labels` | body | optional | array |
+| `labels` | body | optional | custom |
 | `milestone_id` | body | optional | number |
 
 | Status | Means |
@@ -2873,7 +2873,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 | Status | Means |
 |---|---|
-| `200` | The job output after the cursor, and the cursor to pass next time. Unchanged when there is nothing new, rather than an empty page that looks like the end. |
+| `200` | The job output after the cursor, and the cursor to pass next time. Unchanged when there is nothing new, rather than an empty page that looks like the end: stop on `complete`, never on an empty page. |
 | `401` | No credential, or one this instance does not recognise. |
 | `403` | The caller may see this repository but not do this to it, or their token does not carry the permission. |
 | `404` | No such repository, or a job that is not this one's - the job id is a number anybody can increment. |
@@ -4012,7 +4012,7 @@ _Inputs are not declared on `Actions/Tokens/ListTokensAction`, so they are not l
 | `organization_id` | body | optional | number |
 | `machine_account_id` | body | optional | number |
 | `permissions` | body | optional | array |
-| `repository_ids` | body | optional | array |
+| `repository_ids` | body | optional | custom |
 
 | Status | Means |
 |---|---|

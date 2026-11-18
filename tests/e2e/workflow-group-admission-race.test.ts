@@ -105,7 +105,9 @@ for (const pendingState of ['queued', 'waiting']) {
         // Admission holds its repository lock while a normal foreign-key
         // insert runs independently. A primary-key UPDATE would block this.
         foreignWriteCompleted = false
-        foreignWrite = db.insertInto('stars').values({ repository_id: repositoryId, user_id: ownerId }).execute()
+        // The insert is its value when nothing holds the lock it needs, and a
+        // promise when something does; either way it is followed the same.
+        foreignWrite = Promise.resolve(db.insertInto('stars').values({ repository_id: repositoryId, user_id: ownerId }).execute())
         void foreignWrite!.then(() => { foreignWriteCompleted = true })
         await until(async () => foreignWriteCompleted || Number((await diagnostic`SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query ILIKE '%INSERT INTO%stars%'`)[0].n) > 0)
       }

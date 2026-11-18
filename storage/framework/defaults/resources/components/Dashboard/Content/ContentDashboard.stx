@@ -1,8 +1,8 @@
 <script client>
 import { dashboardApi } from '../../../../functions/dashboard-api'
 import { pushToast } from '../../../../functions/toasts'
-import type { ChartCtor, ChartDataset, ChartLike, ChartOptions } from '~/storage/framework/defaults/views/dashboard/composables/useChart'
-import { useChart } from '~/storage/framework/defaults/views/dashboard/composables/useChart'
+import type { ChartCtor, ChartDataset, ChartLike, ChartOptions } from '@stacksjs/defaults/views/dashboard/composables/useChart'
+import { useChart } from '@stacksjs/defaults/views/dashboard/composables/useChart'
 
 interface ContentPostSummary {
   id: number
@@ -242,20 +242,10 @@ onDestroy(() => {
     <div>
       <p class="font-semibold text-blue-600 text-xs tracking-wide uppercase dark:text-blue-400">Content</p>
       <h1 class="mt-1 font-bold text-2xl text-gray-900 dark:text-white">Content Dashboard</h1>
-      <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Persisted CMS activity for the selected period.</p>
+      <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">What was written, published and read in the selected period.</p>
     </div>
     <div class="flex gap-2">
-      <label>
-        <span class="sr-only">Content reporting period</span>
-        <select
-          x-model="selectedRange"
-          aria-label="Content reporting period"
-          class="block pl-3 pr-10 py-2 text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-800 border border-gray-300 rounded-md dark:border-neutral-700"
-          @change="changeRange"
-        >
-          <option :for="range in rangeOptions" :value="range.value">{{ range.label }}</option>
-        </select>
-      </label>
+      <Select v-model:value="selectedRange" ariaLabel="Content reporting period" placeholder="" :options="rangeOptions" @change="changeRange" />
       <Button variant="secondary" :loading="loading()" @click="loadOverview()">
         <span :if="!loading()" class="h-4 w-4 i-hugeicons-refresh"></span>
         Refresh
@@ -319,7 +309,7 @@ onDestroy(() => {
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-neutral-700">
       <div>
         <h2 class="font-semibold text-gray-900 text-sm dark:text-white">Top posts</h2>
-        <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">Ranked by persisted view count.</p>
+        <p class="mt-1 text-gray-500 text-xs dark:text-neutral-400">Ranked by views.</p>
       </div>
       <a href="/content/posts" class="font-semibold text-blue-600 text-sm dark:text-blue-400">Manage posts</a>
     </div>
@@ -343,18 +333,16 @@ onDestroy(() => {
             <tr><td colspan="6" class="px-4 py-10 text-center text-gray-500 text-sm dark:text-neutral-400">No posts in this period.</td></tr>
           </template>
           <template :else>
-            <template :for="post in overview().topPosts">
-              <tr>
-                <td class="px-4 py-3 font-medium text-gray-900 text-sm dark:text-white">{{ post.title }}</td>
-                <td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ post.category }}</td>
-                <td class="px-4 py-3 text-gray-500 text-right text-sm dark:text-neutral-400">{{ formatNumber(post.views) }}</td>
-                <td class="px-4 py-3 text-gray-500 text-right text-sm dark:text-neutral-400">{{ formatNumber(post.comments) }}</td>
-                <td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ formatDate(post.publishedAt) }}</td>
-                <td class="px-4 py-3">
-                  <span :class="postStatusClass(post.status)" class="inline-flex px-2 py-1 font-semibold text-xs rounded-full">{{ post.status }}</span>
-                </td>
-              </tr>
-            </template>
+            <tr :for="post in overview().topPosts">
+              <td class="px-4 py-3 font-medium text-gray-900 text-sm dark:text-white">{{ post.title }}</td>
+              <td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ post.category }}</td>
+              <td class="px-4 py-3 text-gray-500 text-right text-sm dark:text-neutral-400">{{ formatNumber(post.views) }}</td>
+              <td class="px-4 py-3 text-gray-500 text-right text-sm dark:text-neutral-400">{{ formatNumber(post.comments) }}</td>
+              <td class="px-4 py-3 text-gray-500 text-sm dark:text-neutral-400">{{ formatDate(post.publishedAt) }}</td>
+              <td class="px-4 py-3">
+                <span :class="postStatusClass(post.status)" class="inline-flex px-2 py-1 font-semibold text-xs rounded-full">{{ post.status }}</span>
+              </td>
+            </tr>
           </template>
         </tbody>
       </table>

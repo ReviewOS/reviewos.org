@@ -8,6 +8,7 @@
 // and five previews for one branch of which four point at nothing.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, pullRequestId: 0, handle: '', name: '', token: '' }
 
@@ -110,15 +111,15 @@ afterAll(async () => {
 
   try {
     if (created.repositoryId) {
-      await db.deleteFrom('deployment_statuses').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('deployments').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('deployment_statuses').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('deployments').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     }
 
     if (created.ownerId) {
-      await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute().catch(() => {})
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute(), undefined)
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
     }
   }
   catch { /* the next run uses fresh names */ }

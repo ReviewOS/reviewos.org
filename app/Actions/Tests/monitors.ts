@@ -1,6 +1,7 @@
 import { db } from '@stacksjs/database'
 import { notifyProgramsOnly } from '../../Notifications/emit'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Rules that watch a suite over time, and fire once when the answer changes.
@@ -106,7 +107,7 @@ export async function measure(monitor: MonitorRow, now: Date = new Date()): Prom
   if (monitor.suite)
     query = query.where('test_suites.slug', '=', monitor.suite)
 
-  const rows: any[] = await query.limit(200_000).execute().catch(() => [])
+  const rows: any[] = await rescue(() => query.limit(200_000).execute(), [])
 
   if (!rows.length)
     return { value: null, samples: 0 }
@@ -177,7 +178,7 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
   if (repositoryId)
     query = query.where('repository_id', '=', repositoryId)
 
-  const monitors: any[] = await query.limit(1000).execute().catch(() => [])
+  const monitors: any[] = await rescue(() => query.limit(1000).execute(), [])
   const outcome: EvaluationOutcome = { evaluated: 0, transitions: [] }
 
   for (const row of monitors) {
@@ -201,7 +202,7 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
      * not. The difference is how somebody tells "this rule says everything is
      * fine" from "this rule has not run since March".
      */
-    await db
+    await rescue(() => db
       .updateTable('test_monitors')
       .set({
         evaluated_at: now.toISOString(),
@@ -209,8 +210,7 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
         ...(transition ? { state: transition === 'alarm' ? 'alarm' : 'ok', changed_at: now.toISOString() } : {}),
       })
       .where('id', '=', monitor.id)
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     if (!transition)
       continue

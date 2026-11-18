@@ -6,6 +6,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Turning a workflow off without deleting it.
@@ -75,12 +76,11 @@ export default new Action({
      * it: a repository has a handful of workflows, and this builder's
      * expression callback is not the callable form the `any` was papering over.
      */
-    const candidates = await db
+    const candidates = await rescue(() => db
       .selectFrom('workflows')
       .select(['id', 'name', 'path', 'state'])
       .where('repository_id', '=', Number(auth.context.repository.id))
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     const selected = selectWorkflow(candidates, key)
     if (selected.error) return response.json({ error: selected.error }, 422)

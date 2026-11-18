@@ -8,6 +8,7 @@
 // from a branch of this repository.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -75,8 +76,8 @@ afterAll(async () => {
   if (!available || !db)
     return
 
-  await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => null)
-  await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => null)
+  await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), null)
+  await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), null)
 })
 
 describe('a snapshot the default branch wrote', () => {

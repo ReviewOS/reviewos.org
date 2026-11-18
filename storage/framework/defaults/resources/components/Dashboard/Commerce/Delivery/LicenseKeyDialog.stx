@@ -1,4 +1,6 @@
 <script client>
+import { dashboardApi } from '../../../../../functions/dashboard-api'
+
 type LicenseKeyStatus = 'active' | 'inactive' | 'unassigned'
 
 interface LicenseKeyOption {
@@ -7,11 +9,7 @@ interface LicenseKeyOption {
   detail?: string
 }
 
-interface LicenseKeyOptions {
-  customers: LicenseKeyOption[]
-  products: LicenseKeyOption[]
-  orders: LicenseKeyOption[]
-}
+type ChoiceKind = 'customers' | 'products' | 'orders'
 
 interface LicenseKeyRecord {
   id: number
@@ -22,19 +20,17 @@ interface LicenseKeyRecord {
   order_id?: number | null
   expiry_date: string
   status: LicenseKeyStatus
+  customer?: LicenseKeyOption | null
+  product?: LicenseKeyOption | null
+  order?: LicenseKeyOption | null
 }
 
 const open = useReactiveProp('open', false)
 const mode = useReactiveProp('mode', 'create')
 const record = useReactiveProp('record', null as LicenseKeyRecord | null)
-const options = useReactiveProp('options', {
-  customers: [],
-  products: [],
-  orders: [],
-} as LicenseKeyOptions)
 const busy = useReactiveProp('busy', false)
 const error = useReactiveProp('error', '')
-const emit = defineEmits()
+const emit = defineEmits(['invalid', 'submit', 'close'])
 const keyValue = state('')
 const templateValue = state('Standard License')
 const customerId = state('')
@@ -43,6 +39,62 @@ const orderId = state('')
 const expiryDate = state('')
 const status = state<LicenseKeyStatus>('unassigned')
 let hydrationKey = ''
+
+// The customer, product and order choices are server searches
+// (stacksjs/stacks#3218): this used to be handed the first 500 of each, so a
+// key could not be linked to any later one.
+const choices = state<Record<ChoiceKind, LicenseKeyOption[]>>({ customers: [], products: [], orders: [] })
+const matches = state<Record<ChoiceKind, number>>({ customers: 0, products: 0, orders: 0 })
+const customerQuery = state('')
+const productQuery = state('')
+const orderQuery = state('')
+const requests: Record<ChoiceKind, number> = { customers: 0, products: 0, orders: 0 }
+const timers: Record<ChoiceKind, ReturnType<typeof setTimeout> | null> = { customers: null, products: null, orders: null }
+
+async function loadChoices(kind: ChoiceKind, term: string): Promise<void> {
+  const request = ++requests[kind]
+  const params = new URLSearchParams({ kind })
+  if (term)
+    params.set('q', term)
+  let found: LicenseKeyOption[] = []
+  let count = 0
+  try {
+    const data = await dashboardApi<{ choices?: LicenseKeyOption[], total?: number }>(`/api/dashboard/commerce/license-key-options?${params}`)
+    found = Array.isArray(data.choices) ? data.choices : []
+    count = Number(data.total) || found.length
+  }
+  catch {
+    // Soft-fail: the key's own links stay selectable.
+  }
+  if (request !== requests[kind])
+    return
+  choices.set({ ...choices(), [kind]: found })
+  matches.set({ ...matches(), [kind]: count })
+}
+
+function searchSoon(kind: ChoiceKind): void {
+  const timer = timers[kind]
+  if (timer)
+    clearTimeout(timer)
+  const query = kind === 'customers' ? customerQuery : kind === 'products' ? productQuery : orderQuery
+  timers[kind] = setTimeout(() => { void loadChoices(kind, query().trim()) }, 250)
+}
+
+/** The choices to show for one link: the search results, with the key's own kept in. */
+function optionsFor(kind: ChoiceKind): LicenseKeyOption[] {
+  const found = choices()[kind]
+  const current = record()
+  const own = kind === 'customers' ? current?.customer : kind === 'products' ? current?.product : current?.order
+  if (!own || found.some(option => option.id === own.id))
+    return found
+  return [own, ...found]
+}
+
+function moreLabel(kind: ChoiceKind, noun: string): string {
+  const shown = choices()[kind].length
+  const total = matches()[kind]
+  return total > shown ? `Showing ${shown} of ${total.toLocaleString()} matching ${noun}. Search to narrow it down.` : ''
+}
 
 function toDateTimeLocal(value?: string): string {
   if (!value)
@@ -83,6 +135,12 @@ effect(() => {
   orderId.set(current?.order_id ? String(current.order_id) : '')
   expiryDate.set(toDateTimeLocal(current?.expiry_date) || defaultExpiry())
   status.set(current?.status || 'unassigned')
+  customerQuery.set('')
+  productQuery.set('')
+  orderQuery.set('')
+  void loadChoices('customers', '')
+  void loadChoices('products', '')
+  void loadChoices('orders', '')
 })
 
 function relationId(value: string): number | null {
@@ -135,20 +193,24 @@ function submit(): void {
           <div>
             <label for="license-key-value" class="font-medium text-gray-700 text-sm dark:text-neutral-200">License key</label>
             <span class="flex gap-2 mt-1">
-              <input id="license-key-value" x-model="keyValue" type="text" required maxlength="24" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" class="flex-1 px-3 py-2 min-w-0 font-mono text-gray-900 text-sm uppercase dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" />
+              <div class="flex-1 min-w-0"><Input id="license-key-value" v-model:value="keyValue" ariaLabel="License key" :required="true" :maxLength="24" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" :monospace="true" class="uppercase" /></div>
               <Button variant="secondary" @click="generateKey()">Generate</Button>
             </span>
           </div>
-          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Template</span><select x-model="templateValue" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="Standard License">Standard License</option><option value="Premium License">Premium License</option><option value="Enterprise License">Enterprise License</option></select></label>
-          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
-            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Customer</span><select x-model="customerId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().customers" :key="option.id"><option :value="option.id">{{ option.label }}{{ option.detail ? ' - ' + option.detail : '' }}</option></template></select></label>
-            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Product</span><select x-model="productId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().products" :key="option.id"><option :value="option.id">{{ option.label }}</option></template></select></label>
+          <div>
+            <Select v-model:value="templateValue" label="Template" placeholder="" :options="[{ value: 'Standard License', label: 'Standard License' }, { value: 'Premium License', label: 'Premium License' }, { value: 'Enterprise License', label: 'Enterprise License' }]" />
           </div>
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
-            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Order</span><select x-model="orderId" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="">Unassigned</option><template :for="option in options().orders" :key="option.id"><option :value="option.id">{{ option.label }}{{ option.detail ? ' - ' + option.detail : '' }}</option></template></select></label>
-            <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Expiry date</span><input x-model="expiryDate" type="datetime-local" required class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700" /></label>
+            <div><Input v-model:value="customerQuery" label="Customer" type="search" name="customer_search" ariaLabel="Search customers by name or email" placeholder="Search by name or email" @input="searchSoon('customers')" /><div class="mt-2"><Select v-model:value="customerId" ariaLabel="Customer" placeholder="" :options="[{ value: '', label: 'Unassigned' }, ...optionsFor('customers').map(option => ({ value: option.id, label: option.label + (option.detail ? ' - ' + option.detail : '') }))]" /></div><p :if="moreLabel('customers', 'customers')" class="mt-1 text-gray-500 text-xs dark:text-neutral-400" :text="moreLabel('customers', 'customers')"></p></div>
+            <div><Input v-model:value="productQuery" label="Product" type="search" name="product_search" ariaLabel="Search products by name or id" placeholder="Search by name or id" @input="searchSoon('products')" /><div class="mt-2"><Select v-model:value="productId" ariaLabel="Product" placeholder="" :options="[{ value: '', label: 'Unassigned' }, ...optionsFor('products').map(option => ({ value: option.id, label: option.label }))]" /></div><p :if="moreLabel('products', 'products')" class="mt-1 text-gray-500 text-xs dark:text-neutral-400" :text="moreLabel('products', 'products')"></p></div>
           </div>
-          <label class="block"><span class="font-medium text-gray-700 text-sm dark:text-neutral-200">Status</span><select x-model="status" class="mt-1 px-3 py-2 w-full text-gray-900 text-sm dark:text-white bg-white dark:bg-neutral-900 border border-gray-300 rounded-md dark:border-neutral-700"><option value="unassigned">Unassigned</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <div><Input v-model:value="orderQuery" label="Order" type="search" name="order_search" ariaLabel="Search orders by number or status" placeholder="Search by number or status" @input="searchSoon('orders')" /><div class="mt-2"><Select v-model:value="orderId" ariaLabel="Order" placeholder="" :options="[{ value: '', label: 'Unassigned' }, ...optionsFor('orders').map(option => ({ value: option.id, label: option.label + (option.detail ? ' - ' + option.detail : '') }))]" /></div><p :if="moreLabel('orders', 'orders')" class="mt-1 text-gray-500 text-xs dark:text-neutral-400" :text="moreLabel('orders', 'orders')"></p></div>
+            <Input v-model:value="expiryDate" label="Expiry date" type="datetime-local" :required="true" />
+          </div>
+          <div>
+            <Select v-model:value="status" label="Status" placeholder="" :options="[{ value: 'unassigned', label: 'Unassigned' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]" />
+          </div>
         </div>
     </form>
   <template #footer>

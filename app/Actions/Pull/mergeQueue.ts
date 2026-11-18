@@ -143,18 +143,18 @@ import { db } from '@stacksjs/database'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { performMerge } from './apply'
+import { rescue } from '@stacksjs/error-handling'
 
 /** The queue for one branch, in landing order. */
 export async function queueFor(repositoryId: number, baseBranch: string): Promise<MergeQueueEntry[]> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('merge_queue_entries')
     .select(['id', 'pull_request_id', 'position', 'state', 'merge_sha'])
     .where('repository_id', '=', repositoryId)
     .where('base_branch', '=', baseBranch)
     .where('state', 'in', ['queued', 'testing'])
     .orderBy('position', 'asc')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -181,12 +181,11 @@ export async function enqueue(input: {
   pullRequestId: number
   baseBranch: string
 }): Promise<EnqueueOutcome> {
-  const existing = await db
+  const existing = await rescue(() => db
     .selectFrom('merge_queue_entries')
     .select(['id', 'state'])
     .where('pull_request_id', '=', input.pullRequestId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (existing && ['queued', 'testing'].includes(String(existing.state)))
     return { ok: false, reason: 'That pull request is already in the queue', status: 409 }
@@ -327,12 +326,11 @@ export async function settleEntry(input: {
   ownerHandle: string
   repositoryName: string
 }): Promise<{ ok: boolean, merged: boolean, requeued: number }> {
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('merge_queue_entries')
     .select(['id', 'repository_id', 'pull_request_id', 'base_branch', 'position', 'state', 'merge_sha'])
     .where('id', '=', input.entryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row || String(row.state) !== 'testing')
     return { ok: false, merged: false, requeued: 0 }
@@ -405,12 +403,11 @@ export async function settleEntry(input: {
     .where('id', '=', entry.id)
     .execute()
 
-  await db
+  await rescue(() => db
     .updateTable('pull_requests')
     .set({ state: 'merged', merged_at: new Date().toISOString() })
     .where('id', '=', entry.pullRequestId)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   return { ok: true, merged: true, requeued: 0 }
 }

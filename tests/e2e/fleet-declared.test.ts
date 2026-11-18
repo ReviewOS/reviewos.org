@@ -8,6 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { applyFleet, planFleet, readDeclaration } from '../../app/Actions/Runner/declare'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', poolIds: [] as number[] }
 
@@ -72,16 +73,16 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     for (const id of created.poolIds) {
-      await db.deleteFrom('runner_pool_repositories').where('runner_pool_id', '=', id).execute().catch(() => {})
-      await db.deleteFrom('runner_queues').where('runner_pool_id', '=', id).execute().catch(() => {})
-      await db.deleteFrom('runner_pools').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runner_pool_repositories').where('runner_pool_id', '=', id).execute(), undefined)
+      await rescue(() => db.deleteFrom('runner_queues').where('runner_pool_id', '=', id).execute(), undefined)
+      await rescue(() => db.deleteFrom('runner_pools').where('id', '=', id).execute(), undefined)
     }
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

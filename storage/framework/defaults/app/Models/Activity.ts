@@ -78,6 +78,7 @@ export default defineModel({
     properties: {
       required: false,
       fillable: true,
+      type: 'text',
       validation: {
         rule: schema.string(),
       },
@@ -93,5 +94,9 @@ export default defineModel({
       },
       factory: faker => faker.internet.ip(),
     },
+  },
+
+  dashboard: {
+    columns: ['description', 'type', 'subjectType', 'causer', 'createdAt'],
   },
 } as const)

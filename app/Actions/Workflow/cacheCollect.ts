@@ -24,6 +24,7 @@
  */
 
 import process from 'node:process'
+import { rescue } from '@stacksjs/error-handling'
 
 /** One entry, as much of it as a decision needs. */
 export interface Collectable {
@@ -153,11 +154,10 @@ export async function collectCaches(options: { dryRun?: boolean, now?: number } 
   const policy = cachePolicy(process.env as Record<string, string | undefined>)
   const now = options.now ?? Date.now()
 
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('workflow_cache_entries')
     .select(['id', 'repository_id', 'scope', 'digest', 'blob_key', 'size_bytes', 'last_used_at', 'created_at'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const byRepository = new Map<number, any[]>()
 
@@ -205,7 +205,7 @@ export async function collectCaches(options: { dryRun?: boolean, now?: number } 
        * nothing, which costs a restore that fails on a machine somebody is
        * waiting for.
        */
-      await db.deleteFrom('workflow_cache_entries').where('id', '=', going.id).execute().catch(() => null)
+      await rescue(() => db.deleteFrom('workflow_cache_entries').where('id', '=', going.id).execute(), null)
 
       /*
        * And the bytes only when nothing else points at them.
@@ -219,12 +219,11 @@ export async function collectCaches(options: { dryRun?: boolean, now?: number } 
       if (!key)
         continue
 
-      const shared: any = await db
+      const shared: any = await rescue(() => db
         .selectFrom('workflow_cache_entries')
         .select(['id'])
         .where('blob_key', '=', key)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       if (!shared)
         await blobStore().then(store => store.delete(key)).catch(() => null)

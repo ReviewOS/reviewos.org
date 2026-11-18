@@ -11,6 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { isTrue } from '../../app/Actions/Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, workflowId: 0, versionId: 0, handle: '', name: '' }
 
@@ -109,9 +110,9 @@ afterAll(async () => {
   if (!db || !created.repositoryId)
     return
 
-  await db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-  await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
-  await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+  await rescue(() => db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute(), undefined)
+  await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
+  await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
 })
 
 describe('the schedule sweep', () => {

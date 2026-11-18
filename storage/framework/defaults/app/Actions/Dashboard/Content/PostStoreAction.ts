@@ -44,12 +44,14 @@ export default new Action({
             poster: payload.poster,
             status: payload.status,
             author_id: payload.authorId,
-            is_featured: payload.featured ? 1 : 0,
+            is_featured: Boolean(payload.featured),
             views: 0,
             published_at: publishedAtFor(payload.status, null, now),
             created_at: now,
             updated_at: now,
           } as any)
+          // PostgreSQL reports no insert id without RETURNING (#3004).
+          .returningAll()
           .executeTakeFirst()
 
         const id = insertedId(insertResult)

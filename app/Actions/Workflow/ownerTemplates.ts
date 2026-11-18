@@ -4,6 +4,7 @@ import { ensureLocal } from '../Git/storage'
 import { runGit } from '../Git/git'
 import { parseWorkflow } from './parse'
 import { syncWorkflowFile } from './sync'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Templates an owner publishes, and applying one to a repository.
@@ -226,13 +227,12 @@ export async function applyTemplate(input: {
 
 /** An owner's templates, newest first. */
 export async function templatesFor(ownerType: string, ownerId: number): Promise<any[]> {
-  return db
+  return rescue(() => db
     .selectFrom('workflow_templates')
     .select(['id', 'slug', 'name', 'description', 'path', 'created_at'])
     .where('owner_type', '=', ownerType)
     .where('owner_id', '=', ownerId)
     .orderBy('id', 'desc')
     .limit(200)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 }

@@ -2,6 +2,7 @@ import { db } from '@stacksjs/database'
 import { changedPaths, commitMessage } from '../Actions/Workflow/changed'
 import { discoverWorkflows } from '../Actions/Workflow/discover'
 import { syncWorkflowFile } from '../Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Register a repository's workflows when its default branch moves.
@@ -164,12 +165,11 @@ async function retireMissing(repositoryId: number, present: string[]): Promise<v
   const gone = active.filter(workflow => !present.includes(String(workflow.path)))
 
   for (const workflow of gone) {
-    await db
+    await rescue(() => db
       .updateTable('workflows')
       .set({ state: 'removed' })
       .where('id', '=', Number(workflow.id))
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 }
 

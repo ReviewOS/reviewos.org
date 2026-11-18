@@ -17,6 +17,7 @@ import { effectivePolicy, pluginVerdict } from './policy'
 import { parameterEnvironment, validateParameters } from './manifest'
 import { isProblem, parsePluginReference } from './reference'
 import { resolvePlugin } from './resolve'
+import { rescue } from '@stacksjs/error-handling'
 
 /** A plugin as stored on a job row, and as handed to a runner. */
 export interface PreparedPlugin {
@@ -256,12 +257,11 @@ export async function poolPlugins(poolId: number | null | undefined): Promise<Pr
 
   const { db } = await import('@stacksjs/database')
 
-  const pool = await db
+  const pool = await rescue(() => db
     .selectFrom('runner_pools')
     .select(['plugins'])
     .where('id', '=', Number(poolId))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const references = String(pool?.plugins ?? '')
     .split('\n')

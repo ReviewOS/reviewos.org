@@ -115,7 +115,7 @@ Limitations:
 - SQLite SQL over Hrana HTTP: each statement outside a transaction is one request, and a transaction holds one server stream for its duration.
 - sqld refuses VACUUM, ATTACH, temporary tables and every PRAGMA except the read-only ones and foreign_keys.
 - Embedded replicas are not supported; the connection is always remote.
-- Inside transaction(), write through the tx handle: model writes use their own connection, as on PostgreSQL and MySQL, and wait while the transaction holds the write lock.
+- Model writes inside transaction() have not been measured on libSQL: on SQLite, PostgreSQL and MySQL they are part of the transaction (stacksjs/stacks#3269), but here write through the tx handle until a live sqld test shows the same.
 - Scheduler onOneServer() locks stay per-host, as they are on SQLite.
 - `buddy db:backup` does not dump a Turso database; rely on Turso's own point-in-time restore.
 
@@ -235,6 +235,26 @@ Retained evidence:
 - [storage/framework/core/cache/tests/Memory.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/Memory.test.ts)
 - [storage/framework/core/cache/tests/ttl.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/ttl.test.ts)
 
+## cache: sqlite
+
+Status: **supported**. Topology: embedded.
+
+Implementation: [storage/framework/core/cache/src/drivers/sqlite.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/src/drivers/sqlite.ts).
+
+Prerequisites:
+
+- Bun SQLite and a writable persistent file
+
+Limitations:
+
+- Values must be JSON-serializable. Retain the SQLite file across deploys. Stampede protection is process-local; this is not a distributed cache.
+
+Retained evidence:
+
+- [storage/framework/core/cache/tests/sqlite-cache.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/sqlite-cache.test.ts)
+- [storage/framework/core/cache/tests/sqlite-concurrent-open.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/sqlite-concurrent-open.test.ts)
+- [storage/framework/core/cache/tests/tag-index-processes.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/tag-index-processes.test.ts)
+
 ## cache: redis
 
 Status: **supported**. Topology: client-server.
@@ -247,11 +267,13 @@ Prerequisites:
 
 Limitations:
 
-- The retained contract covers core cache and TTL operations; TLS/authenticated deployments require separate provider evidence.
+- The retained contract covers core cache and TTL operations, a connection built from host and port, and namespace isolation from the queue and realtime; TLS/authenticated deployments require separate provider evidence.
 
 Retained evidence:
 
 - [storage/framework/core/cache/tests/redis-contract.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/redis-contract.test.ts)
+- [storage/framework/core/cache/tests/redis-config-connection.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/redis-config-connection.test.ts)
+- [storage/framework/core/cache/tests/redis-namespaces.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/cache/tests/redis-namespaces.test.ts)
 
 ## cache: singlestore
 
@@ -467,6 +489,25 @@ Retained evidence:
 
 - [storage/framework/core/email/tests/driver-credentials.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/email/tests/driver-credentials.test.ts)
 
+## mail: commshq
+
+Status: **partial**. Topology: managed-service.
+
+Implementation: [storage/framework/core/email/src/drivers/commshq.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/email/src/drivers/commshq.ts).
+
+Prerequisites:
+
+- COMMSHQ_KEY, written by `buddy hq:connect commshq`
+
+Limitations:
+
+- CI validates the request against a stand-in for CommsHQ without a live delivery assertion.
+- Attachments are refused: use the smtp driver for a message that carries one.
+
+Retained evidence:
+
+- [storage/framework/core/email/tests/commshq-driver.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/email/tests/commshq-driver.test.ts)
+
 ## realtime: websocket
 
 Status: **supported**. Topology: single-process-websocket.
@@ -485,6 +526,85 @@ Retained evidence:
 
 - [storage/framework/core/realtime/tests/ws-auth.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/ws-auth.test.ts)
 - [storage/framework/core/realtime/tests/websocket-options.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/websocket-options.test.ts)
+
+## realtime: redis-invalidations
+
+Status: **experimental**. Topology: worker-and-redis.
+
+Implementation: [storage/framework/core/realtime/src/redis-invalidations.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/src/redis-invalidations.ts).
+
+Prerequisites:
+
+- Explicit createRedisInvalidationBus and createBroadcastResponse invalidations option
+- Bun native Redis Pub/Sub methods (qualified on Bun 1.4.4)
+- Operator-owned Redis URL and application/environment namespace
+- Owned Redis binary for live tests (qualified on Redis 8.8.0)
+- Current per-request/channel authorization
+
+Limitations:
+
+- Metadata-only at-most-once hints; no transcript forwarding, durable delivery or automatic WebSocket cluster fan-out.
+- Bun documents the native Pub/Sub interface as experimental; unsupported runtimes fail only on explicit factory use.
+- Live tests own isolated loopback Redis and skip without STACKS_TEST_REDIS_BINARY or redis-server on PATH; this record does not claim a CI service contract.
+- Reconnect issues resync hints, but producer-only outages can lose hints; applications still need authoritative snapshots/replay or periodic refresh.
+- TLS, ACL and managed cluster configurations require separate qualification.
+
+Retained evidence:
+
+- [storage/framework/core/realtime/tests/invalidation-bus.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/invalidation-bus.test.ts)
+- [storage/framework/core/realtime/tests/stream-invalidations.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/stream-invalidations.test.ts)
+- [storage/framework/core/realtime/tests/redis-invalidations.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/redis-invalidations.test.ts)
+- [storage/framework/core/realtime/tests/redis-invalidation-process.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/redis-invalidation-process.test.ts)
+
+## realtime: sqlite-replay
+
+Status: **supported**. Topology: worker-and-embedded-sqlite.
+
+Implementation: [storage/framework/core/realtime/src/durable-replay-sql.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/src/durable-replay-sql.ts).
+
+Prerequisites:
+
+- Opt-in app-owned model-generated channel/event tables
+- Transaction-bound SQLite adapter that resolves after commit
+- Fresh application channel authorization
+
+Limitations:
+
+- Selected explicitly with createSqlDurableReplayStore; this is finite history, not a live transport driver.
+- Idempotency expires with retained events; permanent domain deduplication remains application-owned.
+- Applications bound channel cardinality and prune inactive channels.
+- Nested savepoints cannot publish a committed cursor before the outer transaction commits.
+
+Retained evidence:
+
+- [storage/framework/core/realtime/tests/durable-replay-sql.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-sql.test.ts)
+- [storage/framework/core/realtime/tests/durable-replay-process.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-process.test.ts)
+- [storage/framework/core/realtime/tests/durable-replay-http.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-http.test.ts)
+
+## realtime: postgres-replay
+
+Status: **supported**. Topology: client-server.
+
+Implementation: [storage/framework/core/realtime/src/durable-replay-sql.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/src/durable-replay-sql.ts).
+
+Prerequisites:
+
+- Opt-in app-owned model-generated channel/event tables
+- Transaction-bound PostgreSQL adapter that resolves after commit
+- Fresh application channel authorization
+
+Limitations:
+
+- Selected explicitly with createSqlDurableReplayStore; this is finite history, not a live transport driver.
+- Idempotency expires with retained events; permanent domain deduplication remains application-owned.
+- Applications bound channel cardinality and prune inactive channels.
+- Nested savepoints cannot publish a committed cursor before the outer transaction commits.
+
+Retained evidence:
+
+- [storage/framework/core/realtime/tests/durable-replay-sql.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-sql.test.ts)
+- [storage/framework/core/realtime/tests/durable-replay-process.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-process.test.ts)
+- [storage/framework/core/realtime/tests/durable-replay-http.test.ts](https://github.com/stacksjs/stacks/blob/main/storage/framework/core/realtime/tests/durable-replay-http.test.ts)
 
 ## deploy: ts-cloud-hetzner
 

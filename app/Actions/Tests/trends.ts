@@ -1,5 +1,6 @@
 import { db } from '@stacksjs/database'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a suite has been doing lately: the slowest tests, the least reliable
@@ -125,7 +126,7 @@ export async function testTrends(input: {
    * reliable, another for the totals - is three scans that can disagree with
    * each other if a run lands between them.
    */
-  const rows: any[] = await query.limit(200_000).execute().catch(() => [])
+  const rows: any[] = await rescue(() => query.limit(200_000).execute(), [])
 
   if (!rows.length)
     return empty
@@ -231,14 +232,13 @@ export async function testTrends(input: {
 
 /** Quarantined tests whose review date has passed. */
 async function overdueCount(repositoryId: number): Promise<number> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('managed_tests')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
     .select(['managed_tests.review_at as review_at'])
     .where('test_suites.repository_id', '=', repositoryId)
     .where('managed_tests.state', '!=', 'enabled')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const now = new Date().toISOString()
 

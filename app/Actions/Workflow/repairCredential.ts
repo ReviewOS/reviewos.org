@@ -36,6 +36,7 @@ import { REPOSITORY_SCOPES } from '../../TokenScopes'
 
 import { db } from '@stacksjs/database'
 import { generateToken } from '../Tokens/secret'
+import { rescue } from '@stacksjs/error-handling'
 
 /** The one grant a repair gets. */
 export const REPAIR_GRANTS = { contents: 'write' } as const
@@ -78,7 +79,7 @@ export async function mintRepairCredential(input: {
   const expiresAt = new Date(now.getTime() + minutes * 60_000).toISOString()
   const secret = generateToken()
 
-  const row = await db
+  const row = await rescue(() => db
     .insertInto('access_tokens')
     .values({
       user_id: input.actorId,
@@ -89,24 +90,21 @@ export async function mintRepairCredential(input: {
       expires_at: expiresAt,
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row?.id)
     return null
 
-  await db
+  await rescue(() => db
     .insertInto('access_token_repositories')
     .values({ access_token_id: Number(row.id), repository_id: input.repositoryId })
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   for (const [scope, level] of Object.entries(REPAIR_GRANTS)) {
-    await db
+    await rescue(() => db
       .insertInto('access_token_permissions')
       .values({ access_token_id: Number(row.id), scope: parseEnumInput(scope, 'permission scope', REPOSITORY_SCOPES), level })
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
   return { token: secret.token, id: Number(row.id), branch: input.branch, expiresAt }
@@ -120,11 +118,10 @@ export async function mintRepairCredential(input: {
  * only runs on the happy path leaves a live credential every time it does not.
  */
 export async function revokeRepairCredential(attemptId: number, now: Date = new Date()): Promise<void> {
-  await db
+  await rescue(() => db
     .updateTable('access_tokens')
     .set({ revoked_at: now.toISOString() })
     .where('name', '=', repairTokenName(attemptId))
     .whereNull('revoked_at')
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }

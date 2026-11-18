@@ -24,6 +24,7 @@
 
 import { db } from '@stacksjs/database'
 import { maxRunningPerOwner, maxRunningPerRepository } from '../../../config/ci-quotas'
+import { rescue } from '@stacksjs/error-handling'
 
 /** How many jobs each repository and owner is holding right now. */
 export interface FleetLoad {
@@ -39,7 +40,7 @@ export interface FleetLoad {
  * on the hottest path this instance has.
  */
 export async function fleetLoad(): Promise<FleetLoad> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
@@ -49,8 +50,7 @@ export async function fleetLoad(): Promise<FleetLoad> {
     ])
     .where('workflow_jobs.state', '=', 'running')
     .limit(5000)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const byRepository = new Map<number, number>()
   const byOwner = new Map<number, number>()

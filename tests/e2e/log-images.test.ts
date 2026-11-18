@@ -12,6 +12,7 @@ import { artifactPath } from '../../app/Actions/Artifact/storage'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', runNumber: 0, jobToken: '', runnerIds: [] as number[], digests: [] as string[] }
 
@@ -162,13 +163,13 @@ afterAll(async () => {
 
   try {
     for (const id of created.runnerIds)
-      await db.deleteFrom('runners').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', id).execute(), undefined)
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
 
     for (const digest of created.digests) {
       try { rmSync(artifactPath(digest), { force: true }) }

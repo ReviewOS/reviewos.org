@@ -881,6 +881,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/notification-deliveries/bulk-delete": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/notification-deliveries/{id}": {
     get: {
     parameters: {
@@ -898,7 +921,20 @@ export interface paths {
   }
     put?: never
     post?: never
-    delete?: never
+    delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "id": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     options?: never
     head?: never
     patch?: never
@@ -920,7 +956,43 @@ export interface paths {
     }
   }
     put?: never
-    post?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/notifications/bulk-delete": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     delete?: never
     options?: never
     head?: never
@@ -942,12 +1014,51 @@ export interface paths {
       "500": { content: never }
     }
   }
-    put?: never
+    put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "id": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     post?: never
-    delete?: never
+    delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "id": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     options?: never
     head?: never
-    patch?: never
+    patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "id": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     trace?: never
   }
   "/api/og": {
@@ -2011,7 +2122,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "title": string; "body"?: string; "labels"?: Array<unknown>; "milestone_id"?: number } } }
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "title": string; "body"?: string; "labels"?: unknown; "milestone_id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "201": { content: never }
@@ -4027,7 +4138,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "attempt"?: number } } }
+      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "complete"?: boolean; "attempt"?: number } } }
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
@@ -5663,7 +5774,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody: { content: { "application/json": { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: Array<unknown> } } }
+    requestBody: { content: { "application/json": { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: unknown } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "201": { content: never }

@@ -23,6 +23,10 @@ export default defineModel({
     },
   },
 
+  // Cascade, as the framework's own key repair has always made it
+  // (ensureNotificationForeignKeys): a user's delivery log goes with the user.
+  belongsTo: [{ model: 'User', onDelete: 'cascade' }],
+
   attributes: {
     userId: {
       required: false,
@@ -102,5 +106,21 @@ export default defineModel({
         rule: schema.timestamp(),
       },
     },
+  },
+
+  dashboard: {
+    columns: ['recipient', 'channel', 'subject', 'status', 'sentAt'],
+    // Only a failed email or text message can be sent again: the action
+    // refuses the rest, so they are not offered it.
+    actions: [
+      {
+        name: 'retry',
+        label: 'Send again',
+        action: 'Actions/Dashboard/Notifications/NotificationDeliveryRetryAction',
+        icon: 'i-hugeicons-mail-send-01',
+        confirm: 'The same message is sent to the same recipient again.',
+        when: { status: 'failed', channel: ['email', 'sms'] },
+      },
+    ],
   },
 } as const)

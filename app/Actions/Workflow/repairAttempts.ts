@@ -21,6 +21,7 @@
 
 import { db } from '@stacksjs/database'
 import { mayApproveRepair } from './repairPolicy'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The prefix every repair branch carries.
@@ -51,12 +52,11 @@ const NOTHING: RepairSpend = { attempts: 0, minutesSpent: 0, costSpent: 0, token
  * two chances for them to disagree about which rows exist.
  */
 export async function spentOn(runId: number): Promise<RepairSpend> {
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('repair_attempts')
     .select(['state', 'minutes', 'cost', 'tokens'])
     .where('workflow_run_id', '=', runId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return sumSpend(rows)
 }
@@ -122,7 +122,7 @@ export interface AttemptRecord {
  * budgets exist to prevent.
  */
 export async function recordAttempt(input: AttemptRecord): Promise<number | null> {
-  const written: any = await db
+  const written: any = await rescue(() => db
     .insertInto('repair_attempts')
     .values({
       repository_id: input.repositoryId,
@@ -140,8 +140,7 @@ export async function recordAttempt(input: AttemptRecord): Promise<number | null
       tokens: whole(input.tokens),
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return written?.id ? Number(written.id) : null
 }
@@ -166,7 +165,7 @@ export async function finishAttempt(id: number, outcome: {
   cost?: number
   tokens?: number
 }): Promise<void> {
-  await db
+  await rescue(() => db
     .updateTable('repair_attempts')
     .set({
       state: outcome.state,
@@ -181,8 +180,7 @@ export async function finishAttempt(id: number, outcome: {
       updated_at: new Date().toISOString(),
     })
     .where('id', '=', id)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }
 
 /** A stored or supplied number, as a whole non-negative one. */
@@ -214,13 +212,12 @@ export async function repairApprovalRefusal(input: {
   if (!String(input.headBranch ?? '').startsWith(REPAIR_BRANCH_PREFIX))
     return null
 
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repair_attempts')
     .select(['proposed_by'])
     .where('repository_id', '=', input.repositoryId)
     .where('branch', '=', input.headBranch)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return null

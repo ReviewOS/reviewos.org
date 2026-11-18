@@ -5,6 +5,7 @@ import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { ingestTestRun } from './ingest'
 import { parseJunit } from './junit'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Test results, from any CI.
@@ -170,15 +171,14 @@ async function pullRequestFor(repositoryId: number, branch: string): Promise<num
   if (!branch)
     return null
 
-  const pull = await db
+  const pull = await rescue(() => db
     .selectFrom('pull_requests')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
     .where('head_ref', '=', branch)
     .where('state', '=', 'open')
     .orderBy('id', 'desc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return pull ? Number(pull.id) : null
 }

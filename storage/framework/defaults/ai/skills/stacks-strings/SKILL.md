@@ -100,9 +100,9 @@ interface TitleCaseOptions {
   locale?: string | string[]
   sentenceCase?: boolean                 // only capitalize first word + after terminators
   sentenceTerminators?: Set<string>      // default: '.', '!', '?'
-  titleTerminators?: Set<string>         // default: '.', '!', '?', ':', '"', "'", '"'
+  titleTerminators?: Set<string>         // default: '.', '!', '?', ':', '"', "'", and a closing curly quote (U+201D)
   smallWords?: Set<string>               // words not capitalized (see SMALL_WORDS)
-  wordSeparators?: Set<string>           // default: '---', '--', '-', '---', '/'
+  wordSeparators?: Set<string>           // default: em dash (U+2014), en dash (U+2013), '-', horizontal bar (U+2015), '/'
 }
 ```
 
@@ -196,6 +196,10 @@ Extensive built-in character map covering:
 - Vietnamese diacritics
 - Currency symbols ($, EUR, GBP, YEN, etc.)
 - Special characters (trademark, copyright, etc.)
+- Any dash (hyphen, en dash, em dash, figure dash) separates words, as in ts-slug
+- `slug()` keeps ASCII only, which suits identifiers such as a cloud resource name. For a
+  content URL use `slugify` or `uniqueSlug` from `@stacksjs/slug` (ts-slug), which keeps
+  the letters of a script it cannot romanize: `日本茶` stays `日本茶` there and is `""` here
 
 ### Locale Support
 Locale-specific character mappings for: `bg`, `de`, `es`, `fr`, `pt`, `uk`, `vi`, `da`, `nb`, `it`, `nl`, `sv`.
@@ -241,7 +245,7 @@ Native TypeScript implementations (no external validator dependency). All accept
 ### Core Validators
 ```typescript
 isEmail('user@example.com')               // true -- regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-isStrongPassword('Abc123!@#')             // true -- min 8 chars, upper, lower, digit, symbol
+isStrongPassword('Abc123!@#')             // true -- min 8 chars, upper, lower, digit, symbol (any non-letter, non-number)
 isAlphanumeric('abc123')                  // true -- /^[a-zA-Z0-9]+$/
 isAlpha('abcdef')                         // true -- /^[a-zA-Z]+$/
 isNumeric('123')                          // true -- /^[0-9]+$/ (whole numbers only)
@@ -256,16 +260,16 @@ isBase64('SGVsbG8=')                      // true -- btoa(atob(x)) === x
 isBase32('MFZWI===')                      // true -- /^[A-Z2-7]+=*$/
 isAscii('hello')                          // true -- /^[\x00-\x7F]*$/
 isJSON('{"key":"value"}')                 // true -- JSON.parse succeeds
-isHSL('hsl(0, 100%, 50%)')               // true
+isHSL('hsl(0, 100%, 50%)')               // true -- comma syntax: hsl(hue, saturation%, lightness%)
 isMimeType('text/html')                   // true -- /^[a-z]+\/[a-z0-9\-+.]+$/i
-isDataURI('data:text/plain;base64,...')   // true
+isDataURI('data:text/plain;base64,...')   // true -- RFC 2397: the media type and ;base64 are both optional
 isJWT('eyJhbGciOiJIUzI1NiJ9.e30.c2ln')   // true -- shape check only, not signature verification
 ```
 
 ### Network Validators
 ```typescript
 isIP('192.168.1.1')                       // true -- IPv4 and IPv6
-isIPRange('192.168.1.0/24')               // true -- CIDR notation (IPv4: 0-32, IPv6: 0-128)
+isIPRange('192.168.1.0/24')               // true -- CIDR notation, a whole-number prefix (IPv4: 0-32, IPv6: 0-128)
 isMACAddress('00:11:22:33:44:55')         // true -- colon or hyphen separated
 isFQDN('example.com')                     // true -- fully qualified domain name
 ```
@@ -282,7 +286,7 @@ isISSN('0378-5955')                        // true -- mod 11 check
 
 ### Geographic Validators
 ```typescript
-isLatLong('40.7128,-74.0060')             // true -- lat: -90..90, long: -180..180
+isLatLong('40.7128,-74.0060')             // true -- plain decimal numbers; lat: -90..90, long: -180..180
 isLatitude('40.7128')                     // true
 isLongitude('-74.0060')                   // true
 isPostalCode('12345')                     // true -- US, UK, Canada, generic formats
@@ -291,8 +295,8 @@ isPostalCode('12345')                     // true -- US, UK, Canada, generic for
 ### Phone, Identity, Date Validators
 ```typescript
 isMobilePhone('+1234567890')              // true -- international format, min 7 digits
-isUUID('550e8400-e29b-41d4-a716-446655440000') // true -- full value required
-isISO8601('2024-01-01T00:00:00Z')         // true -- with Date validity check
+isUUID('550e8400-e29b-41d4-a716-446655440000') // true -- versions 1-8 (RFC 9562), nil and max; full value required
+isISO8601('2024-01-01T00:00:00Z')         // true -- the day must exist in its month; any number of fraction digits
 isIdentityCard('AB123456')                // true -- generic 5-20 alphanumeric
 isISRC('USRC17607839')                    // true
 isISO31661Alpha2('US')                    // true
@@ -404,7 +408,12 @@ interface PluralizeOptions { count?, inclusive? }
 ```
 
 ## Gotchas
-- Case conversion uses Unicode-aware word boundary detection (`\p{Ll}`, `\p{Lu}`) -- handles international characters
+- Case conversion uses Unicode-aware word boundary detection (`\p{Ll}`, `\p{Lu}`) -- handles international characters.
+  Combining marks stay with their letter and digits from any script are kept, so `kebabCase('नमस्ते दुनिया')`
+  is `'नमस्ते-दुनिया'`
+- `truncate(str, length, end)` never returns more than `length` characters, `end` included; with a `length`
+  shorter than `end` it returns as much of `end` as fits. It and `mask` count code points, so an emoji is one
+  character and is never cut in half
 - `slug()` calls `slugify()` under the hood but defaults to `{ lower: true, strict: true }`; `slugify()` defaults to `{ lower: false, strict: false }`
 - `pascalCase` and `camelCase` accept `PascalCaseOptions` with `mergeAmbiguousCharacters` to control number-prefixed word handling
 - All case functions support `prefixCharacters`/`suffixCharacters` to preserve leading/trailing non-word characters
@@ -420,6 +429,8 @@ interface PluralizeOptions { count?, inclusive? }
 - `helpers.ts` exports `toString()` (Object.prototype.toString, not ordinary
   string coercion) and `mask(value, character, index, length?)`. Mask supports
   a negative starting index and uses the first character of its mask string.
+  Index and explicit length must be safe integers, otherwise it throws RangeError.
+  Negative integer lengths mask nothing. Coordinates count Unicode code points.
 
 ## CSV exports
 

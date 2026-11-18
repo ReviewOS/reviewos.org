@@ -10,6 +10,7 @@ import { announceDeployment, recordStatus } from './statuses'
 import type { Health } from './stages'
 import { decideStage, stagesFrom } from './stages'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Recording what was put where.
@@ -179,15 +180,14 @@ export default new Action({
        * knows what restoring means.
        */
       if (verdict.action === 'roll-back') {
-        const previous: any = await db
+        const previous: any = await rescue(() => db
           .selectFrom('deployments')
           .select(['id'])
           .where('repository_id', '=', repositoryId)
           .where('environment', '=', String(deployment.environment))
           .where('id', '!=', id)
           .orderBy('id', 'desc')
-          .executeTakeFirst()
-          .catch(() => null)
+          .executeTakeFirst(), null)
 
         await db
           .updateTable('deployments')
@@ -456,7 +456,7 @@ async function listDeployments(repositoryId: number, environment: string, limit:
   if (environment)
     query = query.where('environment', '=', environment)
 
-  const rows = await query.orderBy('id', 'desc').limit(limit).execute().catch(() => [])
+  const rows = await rescue(() => query.orderBy('id', 'desc').limit(limit).execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -475,15 +475,14 @@ async function listDeployments(repositoryId: number, environment: string, limit:
 
 /** One deployment's history, oldest first, which is the order it happened in. */
 async function historyOf(repositoryId: number, deploymentId: number): Promise<Array<Record<string, unknown>>> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('deployment_statuses')
     .select(['id', 'state', 'description', 'url', 'restored_deployment_id', 'actor_id', 'created_at'])
     .where('repository_id', '=', repositoryId)
     .where('deployment_id', '=', deploymentId)
     .orderBy('id')
     .limit(200)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -509,13 +508,12 @@ async function historyOf(repositoryId: number, deploymentId: number): Promise<Ar
  * with a gap in the middle, which is not a thing that occurred.
  */
 async function restoreDeployment(repositoryId: number, restoreId: number, actorId: number | null): Promise<number> {
-  const restored: any = await db
+  const restored: any = await rescue(() => db
     .selectFrom('deployments')
     .select(['id', 'environment', 'head_sha', 'ref', 'url', 'workflow_run_id'])
     .where('id', '=', restoreId)
     .where('repository_id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!restored)
     return 0
@@ -531,7 +529,7 @@ async function restoreDeployment(repositoryId: number, restoreId: number, actorI
     .where('state', 'in', ['in_progress', 'active'])
     .execute()
 
-  const again: any = await db
+  const again: any = await rescue(() => db
     .insertInto('deployments')
     .values({
       repository_id: repositoryId,
@@ -545,8 +543,7 @@ async function restoreDeployment(repositoryId: number, restoreId: number, actorI
       created_by_id: actorId,
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!again?.id)
     return 0

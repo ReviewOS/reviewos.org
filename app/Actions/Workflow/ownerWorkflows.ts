@@ -30,6 +30,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a selector is matched against. */
 export interface CoveredRepository {
@@ -128,25 +129,23 @@ export function matchesName(pattern: string, name: string): boolean {
  * doing more than it should.
  */
 export async function ownerVersionsFor(repositoryId: number, columns: readonly string[]): Promise<any[]> {
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'name', 'owner_type', 'owner_id', 'visibility', 'is_archived'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!repository)
     return []
 
-  const workflows = await db
+  const workflows = await rescue(() => db
     .selectFrom('workflows')
     .select(['id', 'selector'])
     .where('owner_type', '=', String(repository.owner_type))
     .where('owner_id', '=', Number(repository.owner_id))
     .whereNull('repository_id')
     .where('state', '=', 'active')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const covering = workflows.filter(workflow => coversRepository(workflow.selector as string | null, {
     name: String(repository.name ?? ''),
@@ -157,15 +156,14 @@ export async function ownerVersionsFor(repositoryId: number, columns: readonly s
   if (covering.length === 0)
     return []
 
-  return db
+  return rescue(() => db
     .selectFrom('workflow_versions')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
     .select(columns as any)
     .where('workflow_versions.workflow_id', 'in', covering.map(one => Number(one.id)))
     // Newest first, so the caller's one-per-workflow pass keeps the current one.
     .orderBy('workflow_versions.id', 'desc')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 }
 
 /**
@@ -176,14 +174,13 @@ export async function ownerVersionsFor(repositoryId: number, columns: readonly s
  * a copy on the run is a copy that can disagree with it.
  */
 export async function isOwnerDefined(runId: number): Promise<boolean> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
     .select(['workflows.repository_id as repository_id'])
     .where('workflow_runs.id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return Boolean(row) && (row.repository_id === null || row.repository_id === undefined)
 }

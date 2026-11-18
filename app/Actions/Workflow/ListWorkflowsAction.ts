@@ -5,6 +5,7 @@ import { decodeCursor, isAfter, pageSize, toPage } from '../../Api/cursor'
 import { apiError } from '../../Api/errors'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { rescue } from '@stacksjs/error-handling'
 
 const STATES = ['active', 'disabled', 'removed']
 
@@ -121,13 +122,12 @@ export default new Action({
     const ids = page.items.map(row => Number(row.id))
 
     const versions: any[] = ids.length > 0
-      ? await db
+      ? await rescue(() => db
         .selectFrom('workflow_versions')
         .select(['id', 'workflow_id', 'source_sha', 'source_path', 'content_digest', 'created_at'])
         .where('workflow_id', 'in', ids)
         .orderBy('id', 'desc')
-        .execute()
-        .catch(() => [])
+        .execute(), [])
       : []
 
     const newest = new Map<number, any>()

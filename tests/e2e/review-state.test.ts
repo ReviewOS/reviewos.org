@@ -15,6 +15,7 @@
 // and skips itself loudly when the database is not there.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 /** Everything this run created, removed in afterAll however it ends. */
 const created = {
@@ -202,7 +203,7 @@ afterAll(async () => {
       await db.deleteFrom('repositories').where('id', '=', id).execute()
 
     for (const id of [created.reviewerId, created.strangerId].filter(Boolean)) {
-      await db.deleteFrom('personal_access_tokens').where('user_id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('personal_access_tokens').where('user_id', '=', id).execute(), undefined)
       await db.deleteFrom('users').where('id', '=', id).execute()
     }
   }

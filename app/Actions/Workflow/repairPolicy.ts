@@ -32,6 +32,7 @@
 
 import { db } from '@stacksjs/database'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a repository allows an automated repair to touch. */
 export interface RepairPolicy {
@@ -260,12 +261,11 @@ export function matchesPath(pattern: string, path: string): boolean {
 export async function repairPolicyFor(repositoryId: number): Promise<RepairPolicy> {
   const defaults = defaultRepairPolicy()
 
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repair_settings')
     .select(['enabled', 'forbidden_paths', 'steps', 'max_attempts', 'max_minutes', 'max_cost'])
     .where('repository_id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return defaults

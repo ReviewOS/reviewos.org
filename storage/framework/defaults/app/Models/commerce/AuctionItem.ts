@@ -74,6 +74,7 @@ export default defineModel({
     description: {
       order: 3,
       fillable: true,
+      type: 'text',
       validation: {
         rule: schema.string(),
       },
@@ -206,5 +207,9 @@ export default defineModel({
   dashboard: {
     icon: 'i-hugeicons-package',
     label: 'Lots',
+    // An address that leads to a picture: shown as one.
+    fields: {
+      imageUrl: { format: 'image' },
+    },
   },
 } as const)

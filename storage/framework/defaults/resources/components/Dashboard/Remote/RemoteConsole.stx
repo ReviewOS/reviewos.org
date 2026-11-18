@@ -1,5 +1,6 @@
 <script client>
 import type { RemoteCommandResult, RemoteRegistry } from '../../../../functions/remote'
+import { DashboardApiError } from '../../../../functions/dashboard-api'
 import { fetchRemoteRegistry, requestRemoteCommand } from '../../../../functions/remote'
 import { registerRemoteTerminal } from '../../../../functions/remote-terminal-element'
 import { pushToast } from '../../../../functions/toasts'
@@ -9,6 +10,9 @@ void registerRemoteTerminal()
 const registry = state<RemoteRegistry | null>(null)
 const isLoading = state(true)
 const loadError = state('')
+// Remote access needs a signed-in account even where the rest of the dev
+// dashboard does not, so a 401 here asks for a sign-in rather than failing.
+const authenticationRequired = state(false)
 const selectedHost = state('')
 const selectedCommand = state('')
 const isRunning = state(false)
@@ -27,6 +31,7 @@ const commandsForHost = derived(() => {
 async function load(): Promise<void> {
   isLoading.set(true)
   loadError.set('')
+  authenticationRequired.set(false)
   try {
     const data = await fetchRemoteRegistry()
     registry.set(data)
@@ -34,7 +39,10 @@ async function load(): Promise<void> {
       selectedHost.set(data.hosts[0].key)
   }
   catch (error) {
-    loadError.set(error instanceof Error ? error.message : 'The remote hosts could not be loaded.')
+    if (error instanceof DashboardApiError && error.status === 401)
+      authenticationRequired.set(true)
+    else
+      loadError.set(error instanceof Error ? error.message : 'The remote hosts could not be loaded.')
   }
   finally {
     isLoading.set(false)
@@ -75,7 +83,7 @@ onMount(() => {
 })
 </script>
 
-<div class="space-y-6">
+<div class="flex flex-col gap-6">
   <header>
     <h1 class="font-bold text-2xl text-gray-900 dark:text-white">Remote</h1>
     <p class="mt-1 text-gray-500 text-sm dark:text-neutral-400">Run configured operations on configured hosts, or open a terminal on a host that allows one. Every run and session is recorded.</p>
@@ -86,6 +94,20 @@ onMount(() => {
   </div>
 
   <div :if="isLoading()" class="text-gray-500 text-sm dark:text-neutral-400">Loading hosts</div>
+
+  <EmptyState
+    :if="!isLoading() && authenticationRequired()"
+    icon="i-hugeicons-user-lock-01"
+    title="Sign in to use remote access"
+    description="Running commands and opening terminals on your servers needs a signed-in account, in every environment. Each run and session is recorded under it."
+  >
+    <template #action>
+      <Button tag="a" href="/login?redirect=/remote">
+        <span class="h-4 w-4 i-hugeicons-login-03"></span>
+        Sign in
+      </Button>
+    </template>
+  </EmptyState>
 
   <section :if="!isLoading() && registry() && hosts().length === 0" class="p-6 bg-white dark:bg-neutral-800 border border-gray-200 rounded-lg dark:border-neutral-700">
     <h2 class="font-semibold text-gray-900 dark:text-white">No hosts are configured</h2>
@@ -99,19 +121,17 @@ onMount(() => {
       <h2 class="font-semibold text-gray-900 dark:text-white">Hosts</h2>
     </div>
     <ul class="divide-gray-200 divide-y dark:divide-neutral-700">
-      <template :for="entry in hosts()">
-        <li class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 py-3">
-          <div>
-            <p class="font-medium text-gray-900 dark:text-white">{{ entry.key }}</p>
-            <p class="font-mono text-gray-500 text-xs dark:text-neutral-400">{{ entry.user + '@' + entry.host + ':' + entry.port }}</p>
-          </div>
-          <Button :if="entry.terminal" variant="outline" @click="showTerminal(entry.key)">
-            <span class="h-4 w-4 i-hugeicons-command-line"></span>
-            Open terminal
-          </Button>
-          <span :if="!entry.terminal" class="text-gray-400 text-xs dark:text-neutral-500">Named commands only</span>
-        </li>
-      </template>
+      <li :for="entry in hosts()" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 py-3">
+        <div>
+          <p class="font-medium text-gray-900 dark:text-white">{{ entry.key }}</p>
+          <p class="font-mono text-gray-500 text-xs dark:text-neutral-400">{{ entry.user + '@' + entry.host + ':' + entry.port }}</p>
+        </div>
+        <Button :if="entry.terminal" variant="outline" @click="showTerminal(entry.key)">
+          <span class="h-4 w-4 i-hugeicons-command-line"></span>
+          Open terminal
+        </Button>
+        <span :if="!entry.terminal" class="text-gray-500 text-xs dark:text-neutral-500">Named commands only</span>
+      </li>
     </ul>
   </section>
 
@@ -134,18 +154,14 @@ onMount(() => {
       <label class="flex flex-col gap-1 text-gray-700 text-sm dark:text-neutral-200">
         Host
         <select x-model="selectedHost" class="px-3 py-2 text-sm dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600">
-          <template :for="entry in hosts()">
-            <option :value="entry.key">{{ entry.key }}</option>
-          </template>
+          <option :for="entry in hosts()" :value="entry.key">{{ entry.key }}</option>
         </select>
       </label>
       <label class="flex flex-1 flex-col gap-1 text-gray-700 text-sm dark:text-neutral-200">
         Command
         <select x-model="selectedCommand" class="px-3 py-2 text-sm dark:bg-neutral-700 border border-gray-300 rounded-md dark:border-neutral-600">
           <option value="">Choose a command</option>
-          <template :for="command in commandsForHost()">
-            <option :value="command.key">{{ command.key }} - {{ command.description }}</option>
-          </template>
+          <option :for="command in commandsForHost()" :value="command.key">{{ command.key }} - {{ command.description }}</option>
         </select>
       </label>
       <Button type="submit" :disabled="!selectedCommand()" :loading="isRunning()">Run</Button>

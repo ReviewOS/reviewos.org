@@ -9,6 +9,7 @@
 
 import type { PluginPolicy } from './policy'
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /** One `plugin_policies` row, as this file reads it. */
 interface PolicyRow {
@@ -38,11 +39,10 @@ function lines(value: unknown): string[] {
 
 /** The instance's policy, and the owner's, in the order they narrow. */
 export async function policyLevels(input: { ownerType?: string, ownerId?: number, poolId?: number }): Promise<PluginPolicy[]> {
-  const rows: PolicyRow[] = await db
+  const rows: PolicyRow[] = await rescue(() => db
     .selectFrom('plugin_policies')
     .select(['scope_type', 'scope_id', 'allowlist', 'require_pinned', 'capabilities'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const found: PluginPolicy[] = []
 

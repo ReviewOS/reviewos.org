@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { renderBadge, stateFor, widthOf } from '../../app/Actions/Workflow/badge'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, publicId: 0, privateId: 0, handle: '', publicName: '', privateName: '', versionId: 0 }
 
@@ -139,10 +140,10 @@ afterAll(async () => {
 
   try {
     for (const id of [created.publicId, created.privateId].filter(Boolean))
-      await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', id).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

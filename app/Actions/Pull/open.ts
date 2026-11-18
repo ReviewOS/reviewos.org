@@ -20,6 +20,7 @@ import { syncIssueRow } from './issueRow'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { allocateNumber } from '../Repo/authorize'
 import { codeownersFor, ownersForPaths, resolveOwners } from './codeowners'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface OpenPullRequestInput {
   /** The bare repository on this node. */
@@ -226,12 +227,11 @@ export async function revision(path: string, ref: string): Promise<string | null
 
 /** An author's handle, when the caller did not already have it. */
 async function handleOf(userId: number): Promise<string> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('users')
     .select(['handle'])
     .where('id', '=', userId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return String(row?.handle ?? '')
 }

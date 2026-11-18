@@ -12,6 +12,7 @@
 // would then be refused, and a stranger is never offered it at all.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -714,7 +715,7 @@ describe('a run that is waiting for a runner', () => {
       expect(html).toContain('runs-on')
     }
     finally {
-      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute(), undefined)
     }
   }, 60_000)
 
@@ -846,9 +847,9 @@ describe('a run that is waiting for a runner', () => {
       expect(html).not.toContain('No runner here has')
     }
     finally {
-      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
-      await db.deleteFrom('runner_queues').where('id', '=', Number(queue.id)).execute().catch(() => {})
-      await db.deleteFrom('runner_pools').where('id', '=', Number(pool.id)).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute(), undefined)
+      await rescue(() => db.deleteFrom('runner_queues').where('id', '=', Number(queue.id)).execute(), undefined)
+      await rescue(() => db.deleteFrom('runner_pools').where('id', '=', Number(pool.id)).execute(), undefined)
     }
   }, 60_000)
   /*
@@ -913,7 +914,7 @@ describe('a run that is waiting for a runner', () => {
       expect(offline).not.toContain('9355 MiB available')
     }
     finally {
-      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute(), undefined)
     }
   }, 60_000)
 })
@@ -1157,7 +1158,7 @@ describe('a repository with no workflows', () => {
       expect(html).toContain('cron')
     }
     finally {
-      await db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute(), undefined)
     }
   }, 60_000)
 

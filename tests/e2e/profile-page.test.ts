@@ -432,19 +432,18 @@ describe('organization memberships on a profile', () => {
     expect(reasonOf(pending)).toBe(reasonOf(stranger))
 
     /*
-     * And the one refusal that still answers a browser with JSON, pinned here
-     * so the day it stops is a day this test changes on purpose.
+     * And the refusal the router makes before the handler runs, now a page too.
      *
      * `visibility` is declared `schema.enum(['public', 'private'])`, and an
      * action's `validations` are enforced by the router *before* `handle`
-     * runs. The handler never executes, so nothing in this application can
-     * turn that 422 into a page - which is exactly the gap glenn hit on the
-     * token form, and exactly what stacksjs/stacks#3309 fixes upstream. It is
-     * on `stacks` main and not in a release yet. When it lands this becomes a
-     * 303 like the rest, and the assertion below is what will say so.
+     * runs. That used to answer a browser with a bare 422 - the gap glenn hit
+     * on the token form - until stacksjs/stacks#3309 sent a form's validation
+     * failure back to the page it came from. It shipped, so this is a 303
+     * back to the settings form like the rest.
      */
     const nonsense = await submit('anything')
-    expect(nonsense.status).toBe(422)
+    expect(nonsense.status).toBe(303)
+    expect(new URL(String(nonsense.headers.get('location')), page).pathname).toBe('/settings/organizations')
 
     // And a program still gets the status, so the split is real.
     const asClient = await fetch(`http://127.0.0.1:${port}/api/orgs/members/visibility`, {

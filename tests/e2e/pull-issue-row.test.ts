@@ -20,6 +20,7 @@
  * immediately; a leak is quiet and looks like data.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', issueNumber: 0, pullNumber: 0, pullId: 0 }
 
@@ -116,7 +117,7 @@ afterAll(async () => {
   if (!db || !created.repositoryId)
     return
 
-  await db.deleteFrom('issue_comments').where('commentable_id', 'in', [created.pullId]).execute().catch(() => {})
+  await rescue(() => db.deleteFrom('issue_comments').where('commentable_id', 'in', [created.pullId]).execute(), undefined)
   await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute()
   await db.deleteFrom('issues').where('repository_id', '=', created.repositoryId).execute()
   await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()

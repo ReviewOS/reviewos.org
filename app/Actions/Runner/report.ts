@@ -29,6 +29,7 @@ import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
 import { hashToken } from './authenticate'
 import type { ClaimedJob } from './claim'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface ReportInput {
   jobId: number
@@ -227,7 +228,7 @@ export async function recordSteps(jobId: number, steps: StepReport[] | null | un
 
     const attempt = Number.isFinite(Number(step.attempt)) && Number(step.attempt) > 0 ? Math.round(Number(step.attempt)) : 1
 
-    const result = await db
+    const result = await rescue(() => db
       .updateTable('workflow_steps')
       .set({
         state: step.state ?? 'succeeded',
@@ -258,8 +259,7 @@ export async function recordSteps(jobId: number, steps: StepReport[] | null | un
       })
       .where('workflow_job_id', '=', jobId)
       .where('position', '=', position)
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     if (rowsChanged(result)) {
       written += 1
@@ -288,24 +288,22 @@ async function recordStepAttempt(
   step: StepReport,
   now: Date,
 ): Promise<void> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_steps')
     .select(['id', 'repository_id'])
     .where('workflow_job_id', '=', jobId)
     .where('position', '=', position)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row?.id)
     return
 
-  const already = await db
+  const already = await rescue(() => db
     .selectFrom('workflow_step_attempts')
     .select(['id'])
     .where('workflow_step_id', '=', Number(row.id))
     .where('attempt', '=', attempt)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const reportedState = String(step.state ?? 'succeeded')
   const state: ReportInput['state'] = reportedState === 'succeeded' || reportedState === 'failed' || reportedState === 'cancelled'
@@ -321,17 +319,16 @@ async function recordStepAttempt(
   }
 
   if (already?.id) {
-    await db
+    await rescue(() => db
       .updateTable('workflow_step_attempts')
       .set(values)
       .where('id', '=', Number(already.id))
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     return
   }
 
-  await db
+  await rescue(() => db
     .insertInto('workflow_step_attempts')
     .values({
       workflow_step_id: Number(row.id),
@@ -339,8 +336,7 @@ async function recordStepAttempt(
       attempt,
       ...values,
     })
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }
 
 /**
@@ -531,12 +527,11 @@ async function recordJobReport(
     : { tolerated: false, reason: '' }
 
   if (tolerated.tolerated) {
-    await db
+    await rescue(() => db
       .updateTable('workflow_jobs')
       .set({ continue_on_error: true, condition_reason: tolerated.reason })
       .where('id', '=', facts.id)
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
   const error = input.error

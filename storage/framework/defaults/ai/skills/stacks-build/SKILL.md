@@ -86,6 +86,9 @@ buddy build --server --verbose --project [name]
 
 ## Standard Build Pattern
 
+For workspace dependency ordering, failure propagation and umbrella builds, read
+[the build package's workspace contract](../../../../core/build/README.md#workspace-builds).
+
 For a library barrel or a package with public subpaths, preserve the module
 graph with the shared transpiler. Identifier-minifying bundles have produced
 invalid re-export bindings on supported Bun versions. Separate bundles also
@@ -143,12 +146,38 @@ buddy build:functions      # just the `functions` packages
 buddy build:components     # just the `components` packages
 buddy build:web-components # just the `web-components` packages
 buddy libs:publish --dry-run
+buddy libs:publish --tag alpha --dry-run # validate an explicit pre-release channel
+buddy libs:publish --publisher bun --tag alpha --dry-run # select a native npm publisher
 buddy libs:publish         # after a build; refuses a package with no dist
 ```
 
 Packages build in `storage/framework/libs/packages/<dir>/`, where `<dir>` is
 the unscoped npm name unless the entry sets `dir`. The whole directory is
 generated and gitignored.
+
+`libs:publish` sends each package to the Pantry registry with `pantry publish`,
+and refuses when pantry is not on PATH. A package that apps install with Bun or
+npm sets `registry: 'npm'`, which publishes with `pantry publish --npm`, or with
+`bun publish` / `npm publish` where pantry is not installed.
+`--publisher bun|npm|pantry` explicitly selects an installed publisher without falling back. Bun and npm can only target npm; Pantry can target either configured registry. Omit the selector to preserve installed-publisher discovery.
+
+`--tag alpha` forwards an explicit lower-case distribution tag to Pantry, Bun or npm. Omit it to preserve the publisher's default tag. Tags must begin with a letter and contain lower-case letters, digits, underscores or hyphens; version-like tags are rejected. A package's first npm publication may also acquire the registry's initial `latest` tag, so verify actual registry tags after release.
+
+Each package publishes its own `readme` (a project-relative Markdown file) as
+README.md, or a short one the build writes from its `description`.
+
+A package build compiles TypeScript and nothing else, so generated data (JSON,
+scripts, lists) ships through `assets`: `{ 'path/in/package': 'project/source' }`,
+copied into `dist/` after the compile. A path with an extension is a file and
+gets an exact export; any other path is a directory whose contents are exported
+as `<name>/<path>/*` (never `<name>/<path>` itself, which would shadow a module
+of the same name). Code reads them with `new URL('./<path>/…', import.meta.url)`.
+`prebuild` is a shell command run in the project root before the package
+builds, so the assets are regenerated rather than shipped stale:
+
+```ts
+{ name: 'my-blocker', include: ['webkit.ts'], prebuild: 'buddy extension:build --target webkit', assets: { webkit: 'dist-webkit' } }
+```
 
 ### Things that will stop a build, on purpose
 
@@ -157,11 +186,84 @@ generated and gitignored.
   packages instead, so an app that never filled in `resources/` is not blocked.
 - **Two packages that resolve to the same directory** (`@acme/ui` and
   `@other/ui` both unscope to `ui`). Give one an explicit `dir`.
+- **A missing asset, or a failed `prebuild`.** Publishing the previous output
+  of a step that just failed is how a stale package ships.
 - **stx ambient globals in a `functions` package.** `state`, `useDark` and the
   rest are injected into an stx page entry and exported by nothing, so a
   bundled copy compiles and then throws `ReferenceError` on the consumer's
   first call. Either import the names explicitly, or set `runtime: 'stx'` on
   the package to declare that it is only ever consumed from inside an stx app.
+
+### Hosted web-component output
+
+Set `packages[].hosted` on a `web-components` package to emit public browser
+assets during the normal native build. No app build hook is needed:
+
+```ts
+{
+  name: '@acme/elements', kind: 'web-components', include: ['widgets/**'],
+  hosted: {
+    outputDir: 'public/widgets', base: '/widgets', entry: 'public/elements.js',
+    styles: ['resources/functions/widgets/layout.css'],
+    loader: {
+      source: 'resources/functions/widgets/loader.ts',
+      exports: ['default', 'createWidget'],
+      define: { ELEMENT_MODULE: JSON.stringify('./bundle.js') },
+    },
+  },
+}
+```
+
+Omit `loader` to have the stable entry re-export the native bundle. An authored
+loader remains application code; `define` supplies explicit public build
+expressions, and `exports` selects the stable entry's public API. Omit `exports`
+to forward the loader's named exports and its default when present. The optional
+`styles` list names literal project-relative `.css` text files to hash. A loader can import the same file using
+`import layoutCss from './layout.css' with { type: 'text' }`. The builder
+reads exact stylesheet text without parsing or executing the authored loader.
+
+`outputDir` and `entry` must be project-relative paths beneath `public/`. `base`
+is its absolute public path or HTTPS URL. Overlapping package destinations,
+path traversal, hidden output segments excluded by CI artifact retention,
+missing loader exports, environment access and privileged server
+imports fail the hosted build. Use explicit public constants in browser code.
+
+The native bundle, component manifest, optional light-DOM CSS and optional loader
+land in `outputDir/<package-version>-<content-hash>/`. The package version
+respects its configured pin. Existing immutable files must contain exactly the
+same bytes or the build fails. The stable ESM entry and `outputDir/manifest.json`
+move to the completed revision. The immutable manifest records public paths,
+SHA-256, SHA-384 SRI, raw/gzip byte sizes and CSP style hashes. Style hashes come
+from the compiler's public exact component style metadata plus declared literal
+stylesheet text, rather than minified standalone CSS files. The hosted `bundle.js`
+is copied unchanged from package `dist/bundle.js`.
+
+The existing package `prebuild` runs once before the loader and literal styles
+are read, so generated inputs are current on both cold and incremental builds.
+Generation-only runs validate configuration and paths without requiring those
+generated files. Paths are rechecked after the hook.
+
+Explicit package `assets` also retain their dist-relative paths (including
+nested files) in the immutable hosted revision. A loader can fetch them with
+`new URL('./data/payload.json', import.meta.url)`. The native copy operation
+provides the output mapping; the builder does not sweep generated SSR, types or
+source maps into public output. Configure only public browser assets. Hidden
+destination segments, symlinks and collisions with native outputs reject.
+Asset hashes, SRI and gzip sizes participate in revision identity, and release
+retention binds each configured asset to the same bytes in the package archive.
+
+Browser validation inspects executable JavaScript/TypeScript syntax across the
+loader and compiler module graph. Literal component copy, strings, comments and
+regular expressions may mention environment keys; executable environment reads
+(including template-literal expressions) still reject. The parser loads only
+when validating hosted browser modules; CSP styles still come from compiler
+metadata and literal CSS, never parsed JavaScript.
+
+`buildLibraryPackages()` returns an optional `hosted` report for each such
+package. Its `files` include absolute paths, project-relative paths, hashes and
+an `immutable` flag for retaining all content and both manifest copies. Source
+and compiled-output checks are retained in `actions/tests/library-hosted.test.ts`;
+set `STACKS_BROWSER_TESTS=1` and `CHROME_PATH` to run its real browser CSP check.
 
 ### Release flow
 
@@ -218,7 +320,7 @@ enum Action {
 |------|-------|
 | **Bun** | Primary bundler (`target: 'bun'`, `format: 'esm'`) |
 | **stx** | Component library builds |
-| **bun-plugin-dtsx** | TypeScript declaration generation |
+| **@dtsx/bun** | TypeScript declaration generation |
 | **Docker** | Server containerization |
 | **@babel/traverse** | AST traversal for export cleanup |
 
@@ -254,3 +356,13 @@ checks used by the build contract. A type declaration export without a matching
 runtime file is a package failure, not a successful build. The current public
 implementation is `storage/framework/core/build/src/index.ts`. Use Bun/TS
 for supporting build scripts and pickier for lint.
+
+## Lazy dependencies in published packages
+
+The shared transpiler emits Node-compatible module syntax while retaining Bun
+runtime APIs. This preserves literal `require('package')` calls inside lazy
+functions, so a later `bun build --compile` can discover and embed the dependency.
+Transpiling to the Bun syntax target first rewrites those calls through
+`import.meta.require`, hiding them from the later standalone build. Preserve
+lazy loading at source boundaries and verify both the source and emitted-package
+paths when changing a dependency used only on errors or optional features.

@@ -16,6 +16,7 @@ import process from 'node:process'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -169,7 +170,7 @@ async function policy(scope: 'instance' | 'pool', values: Record<string, unknown
 
 async function clearPolicies(): Promise<void> {
   for (const id of created.policyIds)
-    await db.deleteFrom('plugin_policies').where('id', '=', id).execute().catch(() => {})
+    await rescue(() => db.deleteFrom('plugin_policies').where('id', '=', id).execute(), undefined)
 
   created.policyIds = []
 }
@@ -348,14 +349,14 @@ afterAll(async () => {
     await clearPolicies()
 
     if (created.runnerId)
-      await db.deleteFrom('runners').where('id', '=', created.runnerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', created.runnerId).execute(), undefined)
     if (created.poolId)
-      await db.deleteFrom('runner_pools').where('id', '=', created.poolId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runner_pools').where('id', '=', created.poolId).execute(), undefined)
     for (const id of [created.repositoryId, created.pluginRepositoryId, created.wrapperRepositoryId])
       if (id)
-        await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('repositories').where('id', '=', id).execute(), undefined)
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 

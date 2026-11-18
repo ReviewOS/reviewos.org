@@ -73,7 +73,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@d738d5fd2e543e3b8380e5fbd5d01ba8936c1790 # v0.10.47
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.47'
           install: 'false'
 
@@ -103,7 +103,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@d738d5fd2e543e3b8380e5fbd5d01ba8936c1790 # v0.10.47
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.47'
           install: 'false'
 
@@ -140,7 +140,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@d738d5fd2e543e3b8380e5fbd5d01ba8936c1790 # v0.10.47
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.47'
           install: 'false'
 
@@ -177,7 +177,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@d738d5fd2e543e3b8380e5fbd5d01ba8936c1790 # v0.10.47
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.47'
           install: 'false'
 
@@ -248,7 +248,7 @@ jobs:
       - name: Create GitHub Release
         uses: pantry-pm/pantry/packages/action@d738d5fd2e543e3b8380e5fbd5d01ba8936c1790 # v0.10.47
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.47'
           install: 'false'
           release: 'true'

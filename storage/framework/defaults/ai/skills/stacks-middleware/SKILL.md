@@ -96,6 +96,7 @@ export default defineMiddleware({
   'abilities': 'Abilities',
   'can': 'Can',
   'throttle': 'Throttle',
+  'honeypot': 'Honeypot',
   'signed': 'Signed',
   'env': 'Env',
   'env:local': 'EnvLocal',
@@ -210,6 +211,7 @@ Parameters are stored on `request._middlewareParams[middlewareName]` and parsed 
 | `team` | Team | 3 | Ensures user belongs to a team (parameterized: `team:teamId`) |
 | `verified` | EnsureEmailIsVerified | 4 | Verifies email is confirmed |
 | `throttle` | Throttle | - | Rate limiting (parameterized: `throttle:60,1` or `throttle:100,5m`) |
+| `honeypot` | Honeypot | 2 | Refuses a submission whose hidden `_hp` field is filled or whose `_renderedMs` is under `config.forms.spam.minSubmitSeconds`; passes requests that send neither |
 | `env:local` | EnvLocal | - | Only allows local environment |
 | `env:development` / `env:dev` | EnvDevelopment | - | Only allows development |
 | `env:staging` | EnvStaging | - | Only allows staging |
@@ -246,7 +248,10 @@ User middleware in `app/Middleware/` always takes precedence over framework defa
 The default `defaults/app/Middleware/Auth.ts` resolves a parsed bearer first,
 then the configured token cookie, then `session_id`. It loads the user, calls
 `Auth.setUser`, stamps `_authenticatedUser`, and stamps `_currentAccessToken`
-for token authentication. The following is only a minimal custom bearer guard:
+for token authentication. Both read back typed, with no cast:
+`_authenticatedUser` is the User row (`AuthenticatedUser`, which
+`@stacksjs/auth` registers through the router's `RequestTypeRegistry`), and
+`_currentAccessToken` is an `AccessToken`, whose `scopes` say what it grants. The following is only a minimal custom bearer guard:
 
 ```typescript
 export default new Middleware({

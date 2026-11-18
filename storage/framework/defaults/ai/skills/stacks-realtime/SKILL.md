@@ -1,6 +1,6 @@
 ---
 name: stacks-realtime
-description: Use when implementing real-time features in Stacks - WebSocket broadcasting, public/private/presence channels, emit to users, the Channel class, broadcast discovery, server lifecycle, or realtime configuration. Covers @stacksjs/realtime and config/realtime.ts.
+description: Use when implementing real-time features in Stacks - WebSocket broadcasting, Redis invalidation hints, durable SQL replay, public/private/presence channels, emit to users, the Channel class, broadcast discovery, server lifecycle, or realtime configuration. Covers @stacksjs/realtime and config/realtime.ts.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -234,7 +234,7 @@ import { replaySince, setReplayBuffer } from '@stacksjs/realtime'
 setReplayBuffer({ channels: ['orders.*'], maxPerChannel: 100, ttlMs: 5 * 60_000 })
 ```
 
-Every broadcast on a matching channel, from any API, is recorded and reaches clients as `{ event, channel, data, seq }`. Patterns match with or without the `private-`/`presence-` prefix (`orders.*` covers `private-orders.1`); `replaySince()` takes the full name. The client keeps the last `seq` per channel and sends it back after reconnecting (through a route of the app's), which answers with `replaySince('private-orders.1', seq)`. The buffer and its numbering are per process.
+Every broadcast on a matching channel, from any API, is recorded and reaches clients as `{ event, channel, data, seq }`. Patterns match with or without the `private-`/`presence-` prefix (`orders.*` covers `private-orders.1`); `replaySince()` takes the full name. The client keeps the last `seq` per channel and sends it back after reconnecting (through a route of the app's), which answers with `replaySince('private-orders.1', seq)`. The buffer and its numbering are per process. A channel's `seq` rises by one per message and keeps rising across a restart (each channel starts from the clock, never below a number already issued), so messages sent after a restart are still newer than the `seq` a reconnecting client holds. Do not assume it starts at 1. When the first replayed `seq` is not the client's `seq + 1`, messages were lost: evicted, expired, or sent before a restart.
 
 ---
 
@@ -361,7 +361,7 @@ automatic broadcast socket upgrade handler.
 - There is no Stacks heartbeat or backpressure guard; use `createServer({ websocket: { idleTimeout, sendPings, backpressureLimit, closeOnBackpressureLimit } })`
 - Serverless/provider shapes in config describe cloud options; inspect their actual deploy/runtime wiring before claiming the Stacks broadcast APIs support that topology
 - Rate limiting defaults: 100 connections per IP, 50 messages/second, 64KB max payload, 300s ban duration
-- The supported Stacks runtime contract is single-process WebSocket; scale-out requires an application-provided fan-out layer and separate provider evidence
+- WebSocket broadcasting remains single-process; the separate opt-in Redis invalidation adapter wakes authorized HTTP consumers only
 - Auto-scaling config (min/max/targetCPU) is for cloud deployment orchestration
 - The `satisfies RealtimeConfig` type annotation ensures the config matches the expected type from `@stacksjs/types`
 
@@ -385,11 +385,90 @@ single-process HTTP transport; it does not initialize Redis or a cluster.
 
 `createBroadcastResponse({ channels, authorize, signal })` returns an SSE Response.
 Select channel names on the server. Authorization is mandatory and runs before
-subscription, before each event, and at every heartbeat. Pass the request's abort
-signal. Cancellation, failed authorization and slow consumers remove the hook.
+subscription, before each event, and at every heartbeat. The callback retains the
+subscriber's async context even when another request broadcasts. It must still
+resolve current credentials, grants and expiry on every call; context binding
+does not freeze authorization facts. Pass the request's abort signal. Cancellation, failed authorization and slow consumers remove the hook.
 Streams bound both queued events and pending authorization work (64 by default).
+
+Optional `onEnqueue(chunk, broadcast)` runs after successful native enqueue with
+the exact queued Uint8Array and original `{ channel, event, data }` metadata.
+Connected/heartbeat metadata is null. Do not mutate the chunk. This observes
+local queue admission, not remote receipt or reader demand. Optional `onClose()`
+runs once after removing the subscription, heartbeat and abort listener. These
+callbacks are captured before initial authorization awaits, keep the subscriber's
+async context and preserve their options receiver. They run synchronously;
+enqueue observer throws or accidental promise rejections close the stream.
+Close observer failures are contained. Initial unauthorized responses create no
+subscription and do not notify close. The optional hooks leave wire bytes,
+authorization, capacity and existing callers unchanged.
 
 STX's `useBroadcastStream({ request, endpoint, onMessage, onConnected })` makes
 fresh authenticated requests using the application's injected transport, reconnects
 with backoff, and cancels on `close()`. Re-read durable state in `onConnected`;
 this stream does not promise durable replay. Credentials stay in HTTP headers.
+
+
+## Durable SQL replay (explicit opt-in)
+
+`createSqlDurableReplayStore({dialect,tables,scope,transaction,...limits})` uses
+application-owned, model-generated channel/event tables. The callback supplies
+one genuinely transaction-bound query handle; checkpoint UPDATE locks serialize
+append, retention and replay. Persisted incarnation/sequence cursors detect
+channel recreation; gaps require domain snapshot resynchronization. Existing
+synchronous `setReplayBuffer`/`emit` behavior is unchanged.
+
+`createMemoryDurableReplayStore` is the deterministic fake for this separate
+contract. `publishDurableReplay({store,input,notify})` commits before notifying;
+hints can repeat and have no exactly-once/network/fan-out guarantee.
+`createDurableReplayResponse({store,channel,after,authorize})` requires current
+per-request/channel authorization before and after storage. Scope columns and
+cursor strings never grant authority. Applications own visibility and channel
+selection; do not replay private messages from a browser-supplied channel name.
+
+Event idempotency lasts only while the event remains retained. JSON payload,
+page, TTL and count bounds are validated; retention records a durable prefix
+floor. Checkpoints retain metadata indefinitely, so applications bound channel
+creation and schedule inactive pruning. Same-policy workers are required.
+No schema is installed by importing realtime and no runtime DDL is performed.
+Read `core/realtime/docs/durable-replay.md` for the exact SQL/transaction contract,
+bounds, crash/retention limitations and native model examples under
+`core/realtime/tests/fixtures/replay-app`. Retained tests are
+`core/realtime/tests/durable-replay*.test.ts`, including independent SQLite and
+PostgreSQL workers, rollback/SIGKILL, restart, scope/reset and HTTP revocation.
+
+## Redis invalidation hints (explicit opt-in, experimental)
+
+`createRedisInvalidationBus({url,namespace,...bounds})` owns separate publisher
+and subscriber Bun clients. Use operator-owned configuration and an explicit
+app/environment namespace: Redis Pub/Sub database numbers do not isolate topics.
+The public API is `publish(channel)`, `subscribe({channels,onInvalidate,onClose?,signal?})`,
+`close()` and readonly `status`. `createMemoryInvalidationBus` is the deterministic
+fake. Importing realtime does not connect Redis; unsupported Bun Pub/Sub methods
+fail only when the explicit Redis factory is called.
+
+Pass a shared worker bus as `createBroadcastResponse({invalidations,channels,authorize,signal})`.
+It captures the initially authorized exact channel set, awaits subscription ACK,
+reauthorizes before opening SSE, then retains per-event and heartbeat checks.
+Hints emit only `{channel,event:'invalidated',data:null}` and require an authorized
+state/replay read. No wildcard subscription, transcript, file, credential or
+arbitrary Redis body is forwarded. Existing local-only callers keep their bytes.
+
+Publish only after domain/outbox commit. Redis Pub/Sub is at-most-once; its
+subscriber connection count is not browser delivery or a durable receipt.
+Reconnect restores subscriptions and emits a bounded resync hint; a producer-only
+outage may still lose hints. Keep authoritative replay/snapshot or periodic refresh.
+Bounds cover channels/subscribers, queued hints, callbacks, pending publishes,
+nonces and command/connect deadlines. Abort/dispose releases references; shutdown
+closes the owned clients and cancels retry/deadline work. Status callbacks receive
+only enums and core paths do not log broker URLs/errors or domain payloads.
+
+Bun's native Pub/Sub interface is experimental, qualified with Bun 1.4.4 and an
+owned Redis 8.8.0 loopback service. TLS/ACL/managed cluster deployments need
+separate evidence. Read `core/realtime/docs/redis-invalidations.md` for protocol,
+limits, archive checksum and live test instructions. `redis-invalidations` and
+`redis-invalidation-process` tests start/stop an owned binary, never shared Redis;
+set `STACKS_TEST_REDIS_BINARY` (or provide redis-server on PATH) so these cases
+run rather than skip. Retained evidence includes separate API/publisher processes,
+real HTTP/SSE, namespace isolation, outage, restart/resync, offline revocation and
+physical unsubscribe. This does not turn WebSocket broadcasting into a cluster.

@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { resolve } from '../Workflow/journal'
 import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a call returned, reported by the orchestrator that owned it.
@@ -70,15 +71,14 @@ export default new Action({
      * an id belonging to somebody else's run reads as "no such call" - which is
      * what it is, from where the caller is standing.
      */
-    const entry: any = await db
+    const entry: any = await rescue(() => db
       .selectFrom('workflow_journal_entries')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_journal_entries.workflow_run_id')
       .innerJoin('workflow_jobs', 'workflow_jobs.workflow_run_id', '=', 'workflow_runs.id')
       .select(['workflow_journal_entries.id as id', 'workflow_journal_entries.state as state'])
       .where('workflow_journal_entries.id', '=', entryId)
       .where('workflow_jobs.id', '=', held.jobId)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!entry)
       return runnerJson({ error: 'No such call on this run' }, 404)

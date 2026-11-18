@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -184,20 +185,20 @@ afterAll(async () => {
   catch { /* already down */ }
 
   try {
-    await db.deleteFrom('workflow_secrets').where('scope_type', '=', 'pool').where('scope_id', 'in', [created.poolId, created.otherPoolId].filter(Boolean)).execute().catch(() => {})
+    await rescue(() => db.deleteFrom('workflow_secrets').where('scope_type', '=', 'pool').where('scope_id', 'in', [created.poolId, created.otherPoolId].filter(Boolean)).execute(), undefined)
 
     for (const id of created.runnerIds)
-      await db.deleteFrom('runners').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', id).execute(), undefined)
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
 
     for (const id of [created.poolId, created.otherPoolId].filter(Boolean))
-      await db.deleteFrom('runner_pools').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runner_pools').where('id', '=', id).execute(), undefined)
 
     if (created.ownerId) {
-      await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute().catch(() => {})
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute(), undefined)
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
     }
   }
   catch { /* the next run uses fresh names */ }

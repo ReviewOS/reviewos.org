@@ -29,11 +29,11 @@ export const config: PantryConfig = {
      * same suite, which is the hole a lockfile exists to close and this file had
      * left open for the one dependency everything else runs on.
      *
-     * 1.4.2 because it is the current release, and because the backpressure
-     * fix is in it: that was verified as "1.4.3" earlier, which is not a
-     * published version at all - it is what a canary build on one developer's
-     * PATH reports. The real evidence is CI, where the test passes on 1.4.2 and
-     * fails on 1.3.11.
+     * 1.4.4, the release the framework now installs and is tested on. The
+     * backpressure fix arrived in 1.4.2: that was verified as "1.4.3" earlier,
+     * which is not a published version at all - it is what a canary build on
+     * one developer's PATH reports. The real evidence is CI, where the test
+     * passes on 1.4.2 and fails on 1.3.11.
      *
      * The GitHub workflows pin it separately and must agree. The pantry action
      * does not read this file: with no `packages` input it logs "Installing
@@ -41,7 +41,7 @@ export const config: PantryConfig = {
      * drift actually came from. `tests/unit/ci-bun-pin.test.ts` holds the two
      * in step.
      */
-    bun: '1.4.2',
+    bun: '1.4.4',
     // Git 2.56 fixes index-pack child delta-base eviction during fresh bundle
     // restores. Pin the verified runtime so deploys reproduce that behavior.
     git: '2.56.0',

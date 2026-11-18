@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { authorizeOwnerRepositories } from '../Repo/authorizeOwner'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a repository's CI has actually been doing - or an owner's.
@@ -125,12 +126,11 @@ export default new Action({
     const workflowId = Number(request.get('workflow'))
 
     const versionIds = Number.isFinite(workflowId) && workflowId > 0
-      ? (await db
+      ? (await rescue(() => db
           .selectFrom('workflow_versions')
           .select(['id'])
           .where('workflow_id', '=', workflowId)
-          .execute()
-          .catch(() => []))
+          .execute(), []))
           .map(row => Number(row.id))
       : null
 
@@ -154,30 +154,28 @@ export default new Action({
     if (versionIds)
       runQuery = runQuery.where('workflow_version_id', 'in', versionIds)
 
-    const runs = await runQuery.limit(5000).execute().catch(() => [])
+    const runs = await rescue(() => runQuery.limit(5000).execute(), [])
 
     if (runs.length === 0)
       return response.json(empty(days, since))
 
     const ids = runs.map(run => Number(run.id))
 
-    const jobs = await db
+    const jobs = await rescue(() => db
       .selectFrom('workflow_jobs')
       .select(['id', 'state', 'attempt', 'queued_at', 'started_at', 'finished_at', 'cache_lookups', 'cache_hits'])
       .where('workflow_run_id', 'in', ids)
       .limit(20_000)
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     const steps = jobs.length > 0
-      ? await db
+      ? await rescue(() => db
         .selectFrom('workflow_steps')
         .select(['name', 'state', 'position'])
         .where('workflow_job_id', 'in', jobs.map(job => Number(job.id)))
         .where('state', '=', 'failed')
         .limit(20_000)
-        .execute()
-        .catch(() => [])
+        .execute(), [])
       : []
 
     const finished = runs.filter(run => ['succeeded', 'failed', 'cancelled'].includes(String(run.state)))

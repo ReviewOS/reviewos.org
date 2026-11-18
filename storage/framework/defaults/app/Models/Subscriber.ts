@@ -88,4 +88,10 @@ export default defineModel({
       factory: () => null,
     },
   },
+
+  dashboard: {
+    columns: ['email', 'status', 'source', 'user', 'createdAt'],
+    // The row of numbers above the list: subscribed, unsubscribed, new.
+    regions: { listTop: 'DataStatCards' },
+  },
 } as const)

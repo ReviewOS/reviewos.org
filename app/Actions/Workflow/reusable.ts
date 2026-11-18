@@ -17,6 +17,7 @@
 import { db } from '@stacksjs/database'
 import { checkInputs } from './inputs'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface CallTarget {
   /** The workflow version whose jobs should be copied in. */
@@ -225,43 +226,39 @@ async function resolveRemoteRepository(
   remote: { owner: string, repository: string },
   scope: CallScope,
 ): Promise<{ ok: true, repositoryId: number } | { ok: false, error: string }> {
-  const caller = await db
+  const caller = await rescue(() => db
     .selectFrom('repositories')
     .select(['owner_type', 'owner_id'])
     .where('id', '=', callerId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!caller)
     return { ok: false, error: 'the calling repository is gone' }
 
-  const owner = await db
+  const owner = await rescue(() => db
     .selectFrom('users')
     .select(['id'])
     .where('handle', '=', remote.owner)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const organization: any = owner
     ? null
-    : await db
+    : await rescue(() => db
         .selectFrom('organizations')
         .select(['id'])
         .where('handle', '=', remote.owner)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
   if (!owner && !organization)
     return { ok: false, error: `there is no owner called \`${remote.owner}\` on this instance` }
 
-  const target = await db
+  const target = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'owner_type', 'owner_id', 'visibility'])
     .where('owner_type', '=', owner ? 'user' : 'organization')
     .where('owner_id', '=', Number(owner?.id ?? organization?.id))
     .where('name', '=', remote.repository)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!target)
     return { ok: false, error: `there is no repository called \`${remote.owner}/${remote.repository}\` here` }

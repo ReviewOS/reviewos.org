@@ -6,6 +6,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { defaultRepairPolicy, repairPolicyFor } from './repairPolicy'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What this repository allows an automated repair to do.
@@ -123,12 +124,11 @@ export default new Action({
     if (Object.keys(changes).length === 0)
       return response.json({ error: 'Nothing to change' }, 422)
 
-    const existing = await db
+    const existing = await rescue(() => db
       .selectFrom('repair_settings')
       .select(['id'])
       .where('repository_id', '=', repositoryId)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (existing?.id) {
       await db.updateTable('repair_settings').set(changes).where('id', '=', Number(existing.id)).execute()

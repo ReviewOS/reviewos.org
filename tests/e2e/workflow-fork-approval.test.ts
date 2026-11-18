@@ -18,6 +18,7 @@ import { splitLabels } from '../../app/Actions/Runner/protocol'
 import { dispatchPullRequest } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 import { isTrue } from '../../app/Actions/Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -178,12 +179,12 @@ afterAll(async () => {
 
   try {
     if (created.runnerId)
-      await db.deleteFrom('runners').where('id', '=', created.runnerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', created.runnerId).execute(), undefined)
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     for (const id of [created.ownerId, created.strangerId])
       if (id)
-        await db.deleteFrom('users').where('id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('users').where('id', '=', id).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

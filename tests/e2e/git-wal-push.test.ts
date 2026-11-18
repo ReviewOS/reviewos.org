@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import type { PushProtectionPattern } from '../../config/push-protection'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Remove a directory this test made, and refuse anything else.
@@ -189,8 +190,8 @@ afterAll(async () => {
     const { db } = await import('@stacksjs/database')
 
     if (created.repositoryId) {
-      await db.deleteFrom('git_wal_entries').where('repository_id', '=', created.repositoryId).execute().catch(() => undefined)
-      await db.deleteFrom('git_refs').where('repository_id', '=', created.repositoryId).execute().catch(() => undefined)
+      await rescue(() => db.deleteFrom('git_wal_entries').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('git_refs').where('repository_id', '=', created.repositoryId).execute(), undefined)
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
     }
 

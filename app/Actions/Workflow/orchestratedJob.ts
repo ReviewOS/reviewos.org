@@ -31,6 +31,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a program may ask for when it asks for a job. */
 export interface JobSpec {
@@ -114,13 +115,12 @@ export async function createOrchestratedJob(input: {
    * the run screen reads to lay them out - and reusing a position would put two
    * jobs in one slot on a screen that has no other ordering to fall back on.
    */
-  const last: any = await db
+  const last: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['position'])
     .where('workflow_run_id', '=', input.runId)
     .orderBy('position', 'desc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const position = Number(last?.position ?? 0) + 1
 
@@ -196,13 +196,12 @@ export async function resolveJobCall(jobId: number, outcome: {
   outputs?: Record<string, string> | null
   error?: string | null
 }): Promise<boolean> {
-  const entry: any = await db
+  const entry: any = await rescue(() => db
     .selectFrom('workflow_journal_entries')
     .select(['id', 'workflow_run_id', 'state'])
     .where('workflow_job_id', '=', jobId)
     .where('state', '=', 'pending')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!entry)
     return false
@@ -229,13 +228,12 @@ export async function resolveJobCall(jobId: number, outcome: {
    */
   const { wakeOne } = await import('./wake')
 
-  const orchestrator: any = await db
+  const orchestrator: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id'])
     .where('workflow_run_id', '=', Number(entry.workflow_run_id))
     .where('orchestrator', '=', true)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (orchestrator)
     await wakeOne(Number(orchestrator.id))

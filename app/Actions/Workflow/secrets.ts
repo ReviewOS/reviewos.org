@@ -2,6 +2,7 @@ import type { SecretStore } from './secretStore'
 import { db } from '@stacksjs/database'
 import { configuredStores, parseReference, REFERENCE_PREFIX, resolveReference } from './secretStore'
 import { decrypt, encrypt } from '@stacksjs/security'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Secrets: encrypted at rest, released to one job at a time, and never read
@@ -384,22 +385,20 @@ async function deliverSecrets(
  * listed them would be listing credentials that may never arrive.
  */
 async function rowsFor(repositoryId: number, poolId: number | null = null): Promise<Array<SecretRow & { updatedAt: string | null }>> {
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'owner_id'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!repository)
     return []
 
-  const environments = await db
+  const environments = await rescue(() => db
     .selectFrom('environments')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const environmentIds = new Set(environments.map(one => Number(one.id)))
 
@@ -428,19 +427,17 @@ async function rowsFor(repositoryId: number, poolId: number | null = null): Prom
   ].filter(one => one.ids.length > 0 && one.ids.every(id => Number.isInteger(id) && id > 0))
 
   const reads = [
-    db
+    rescue(() => db
       .selectFrom('workflow_secrets')
       .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
       .where('scope_type', '=', 'instance')
-      .execute()
-      .catch(() => []),
-    ...wanted.map(one => db
+      .execute(), []),
+    ...wanted.map(one => rescue(() => db
       .selectFrom('workflow_secrets')
       .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
       .where('scope_type', '=', one.type)
       .where('scope_id', 'in', one.ids)
-      .execute()
-      .catch(() => [])),
+      .execute(), [])),
   ]
 
   const rows = (await Promise.all(reads)).flat()
@@ -474,13 +471,12 @@ async function rowsFor(repositoryId: number, poolId: number | null = null): Prom
 
 /** One environment's id, by name. */
 export async function environmentIdOf(repositoryId: number, name: string): Promise<number | null> {
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('environments')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
     .where('name', '=', name)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return row ? Number(row.id) : null
 }

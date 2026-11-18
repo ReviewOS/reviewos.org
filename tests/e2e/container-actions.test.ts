@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, runnerId: 0, handle: '', name: '', diskPath: '', temp: '', token: '', headSha: '' }
 
@@ -187,14 +188,13 @@ beforeAll(async () => {
     let queuedJob = false
 
     while (Date.now() < deadline) {
-      const queued = await db
+      const queued = await rescue(() => db
         .selectFrom('workflow_jobs')
         .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
         .select(['workflow_jobs.id as id'])
         .where('workflow_runs.repository_id', '=', created.repositoryId)
         .where('workflow_jobs.state', '=', 'queued')
-        .execute()
-        .catch(() => [])
+        .execute(), [])
 
       if (queued.length > 0) {
         queuedJob = true
@@ -227,15 +227,15 @@ afterAll(async () => {
 
   try {
     if (created.repositoryId) {
-      await db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     }
 
     if (created.runnerId)
-      await db.deleteFrom('runners').where('id', '=', created.runnerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', created.runnerId).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the files still go, below */ }
 
@@ -250,20 +250,22 @@ afterAll(async () => {
 
 /** Queue this run again, so each test starts from a job nobody has taken. */
 async function requeue(): Promise<void> {
-  await db.updateTable('workflow_jobs')
-    .set({ state: 'queued', runner_id: null, lease_expires_at: null, started_at: null, finished_at: null })
-    .where('workflow_run_id', 'in', db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId))
-    .execute()
-    .catch(async () => {
-      const runs = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+  try {
+    await db.updateTable('workflow_jobs')
+      .set({ state: 'queued', runner_id: null, lease_expires_at: null, started_at: null, finished_at: null })
+      .where('workflow_run_id', 'in', db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId))
+      .execute()
+  }
+  catch {
+    const runs = await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
 
-      for (const run of runs) {
-        await db.updateTable('workflow_jobs')
-          .set({ state: 'queued', runner_id: null, lease_expires_at: null, started_at: null, finished_at: null })
-          .where('workflow_run_id', '=', Number(run.id))
-          .execute()
-      }
-    })
+    for (const run of runs) {
+      await db.updateTable('workflow_jobs')
+        .set({ state: 'queued', runner_id: null, lease_expires_at: null, started_at: null, finished_at: null })
+        .where('workflow_run_id', '=', Number(run.id))
+        .execute()
+    }
+  }
 
   await db.updateTable('workflow_runs')
     .set({ state: 'queued', finished_at: null })

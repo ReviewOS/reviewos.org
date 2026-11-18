@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { itemsFrom, splitForRepository } from '../Tests/history'
 import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The same split, for a job running here.
@@ -97,13 +98,12 @@ export default new Action({
 
 /** The repository this job's run belongs to. The job token names it, not the request. */
 async function repositoryOf(jobId: number): Promise<number | null> {
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_runs.repository_id as repository_id'])
     .where('workflow_jobs.id', '=', jobId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return row?.repository_id ? Number(row.repository_id) : null
 }

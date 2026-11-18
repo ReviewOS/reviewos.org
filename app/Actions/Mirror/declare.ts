@@ -24,6 +24,7 @@
 import { db } from '@stacksjs/database'
 import { addMirror, parseRemote } from '../../Commands/MirrorAdd'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /** One line of the file: an upstream repository, and where it lives here. */
 export interface DeclaredMirror {
@@ -311,7 +312,7 @@ async function settleSettings(current: ExistingMirror, declared: DeclaredMirror)
 async function readExisting(): Promise<Map<string, ExistingMirror>> {
   const found = new Map<string, ExistingMirror>()
 
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('repository_mirrors')
     .innerJoin('repositories', 'repositories.id', '=', 'repository_mirrors.repository_id')
     .select([
@@ -327,8 +328,7 @@ async function readExisting(): Promise<Map<string, ExistingMirror>> {
       'repository_mirrors.credential_ref as credential_ref',
       'repository_mirrors.interval_seconds as interval_seconds',
     ])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   if (rows.length === 0)
     return found
@@ -366,7 +366,7 @@ async function ownerHandles(rows: readonly any[]): Promise<Map<string, string>> 
     if (ids.length === 0)
       continue
 
-    const found: any[] = await db.selectFrom(table).select(['id', 'handle']).where('id', 'in', ids).execute().catch(() => [])
+    const found: any[] = await rescue(() => db.selectFrom(table).select(['id', 'handle']).where('id', 'in', ids).execute(), [])
 
     for (const row of found)
       handles.set(`${type}:${row.id}`, String(row.handle))
@@ -381,11 +381,11 @@ async function ownerExists(handle: string): Promise<boolean> {
   if (!name)
     return false
 
-  const org = await db.selectFrom('organizations').select(['id']).where('handle', '=', name).executeTakeFirst().catch(() => undefined)
+  const org = await rescue(() => db.selectFrom('organizations').select(['id']).where('handle', '=', name).executeTakeFirst(), undefined)
   if (org)
     return true
 
-  const user = await db.selectFrom('users').select(['id']).where('handle', '=', name).executeTakeFirst().catch(() => undefined)
+  const user = await rescue(() => db.selectFrom('users').select(['id']).where('handle', '=', name).executeTakeFirst(), undefined)
 
   return Boolean(user)
 }

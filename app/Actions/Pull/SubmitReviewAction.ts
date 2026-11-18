@@ -3,6 +3,7 @@ import { refusal, spendFor } from '../../Api/token-limits'
 import { schema, isEnumInput } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { refuse } from '../Support/forge'
+import { rescue } from '@stacksjs/error-handling'
 
 const STATES = ['approved', 'changes_requested', 'commented'] as const
 
@@ -256,12 +257,11 @@ export default new Action({
       // Recorded so the next metadata sync recognises this review as one it has
       // already seen rather than importing a second copy of it beside the one
       // that produced it.
-      await db
+      await rescue(() => db
         .updateTable('pull_request_reviews')
         .set({ external_id: String(upstream.externalId) })
         .where('id', '=', reviewId)
-        .execute()
-        .catch(() => undefined)
+        .execute(), undefined)
     }
 
     return response.json({

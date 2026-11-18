@@ -7,6 +7,7 @@
 // differs is a flag saying which job is the program.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, versionId: 0, handle: '' }
 
@@ -87,8 +88,8 @@ afterAll(async () => {
   if (!available || !db)
     return
 
-  await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => null)
-  await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => null)
+  await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), null)
+  await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), null)
 })
 
 /** A run with its orchestrator on it, sleeping the way a suspended one is. */

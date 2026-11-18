@@ -7,6 +7,7 @@ import { dbTimestamp } from '../Support/sql'
 import { clientId, redirectUri } from './client'
 import { resolveIdentity } from './identity'
 import { exchangeCode } from './oauth'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The other side of the redirect, where an identity becomes a session.
@@ -51,11 +52,10 @@ export default new Action({
 
     // Single-use: consumed before anything can go wrong with it.
     if (pending) {
-      await db
+      await rescue(() => db
         .deleteFrom('atproto_auth_requests')
         .where('id', '=', Number(pending.id))
-        .execute()
-        .catch(() => undefined)
+        .execute(), undefined)
     }
 
     if (!pending)

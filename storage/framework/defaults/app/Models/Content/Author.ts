@@ -16,6 +16,8 @@ export default defineModel({
   ],
 
   traits: {
+    // So a fresh seed fills its dashboard page (stacksjs/stacks#3000).
+    useSeeder: { count: 5 },
     gdpr: { erasure: 'anonymize', basis: 'legitimate_interests', purpose: 'Byline on published content' },
     useAuth: {
       usePasskey: true,
@@ -23,9 +25,9 @@ export default defineModel({
     useUuid: true,
     useTimestamps: true, // defaults to true, `timestampable` used as an alias
     useSearch: {
-      displayable: ['id', 'name', 'email'], // the fields to become d (defaults to all fields)
-      searchable: ['name', 'email'], // the fields to become searchable (defaults to all fields)
-      sortable: ['created_at', 'updated_at'], // the fields to become sortable (defaults to all fields)
+      displayable: ['id', 'name', 'email'], // the fields a hit returns
+      searchable: ['name', 'email'], // the fields a query matches against
+      sortable: ['created_at', 'updated_at'], // the fields results can be ordered by
       filterable: [],
     },
 
@@ -111,5 +113,11 @@ export default defineModel({
   },
   dashboard: {
     highlight: true,
+    // Chosen as a file. Its address is what is stored, as before.
+    // Prose, asked for in a box with room for it.
+    fields: {
+      avatar: { input: 'upload', accept: 'image/*' },
+      bio: { input: 'longtext' },
+    },
   },
 } as const)

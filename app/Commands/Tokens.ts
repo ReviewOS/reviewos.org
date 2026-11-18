@@ -13,6 +13,7 @@ import type { IssuedAccessToken } from '../Actions/Tokens/issue'
 import { issueAccessToken, readableRepositories, revokeAccessToken } from '../Actions/Tokens/issue'
 import { resolveOwner, resolveRepository } from '../Actions/Identity/lookup'
 import { INSTANCE_SCOPES, normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, TOKEN_LEVELS } from '../TokenScopes'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Issue and revoke access tokens from the instance's shell.
@@ -118,14 +119,13 @@ async function findUser(who: string): Promise<{ id: number, handle: string } | n
   if (!wanted.includes('@'))
     return null
 
-  const alias: any = await db
+  const alias: any = await rescue(() => db
     .selectFrom('user_emails')
     .innerJoin('users', 'users.id', '=', 'user_emails.user_id')
     .select(['users.id as id', 'users.handle as handle'])
     .where('user_emails.email', '=', wanted)
     .whereNotNull('user_emails.verified_at')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return alias ? { id: Number(alias.id), handle: String(alias.handle) } : null
 }

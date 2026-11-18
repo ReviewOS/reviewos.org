@@ -17,6 +17,7 @@ import type { RefKind, RefUpdate } from '../Git/push'
 import type { RefChange } from './sync'
 import { db } from '@stacksjs/database'
 import { ZERO_SHA } from '../Git/push'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a sync found, as the updates a push of the same refs would carry. */
 export function updatesFromChanges(changes: readonly RefChange[]): RefUpdate[] {
@@ -107,7 +108,7 @@ export async function announceNewRuns(repositoryId: number, updates: readonly Re
   if (heads.length === 0)
     return
 
-  const runs: any[] = await db
+  const runs: any[] = await rescue(() => db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
@@ -115,8 +116,7 @@ export async function announceNewRuns(repositoryId: number, updates: readonly Re
     .where('workflows.repository_id', '=', repositoryId)
     .where('workflow_runs.head_sha', 'in', heads)
     .where('workflow_runs.state', 'in', ['queued', 'waiting', 'paused'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const { reportRunUpstream } = await import('./upstreamStatus')
 

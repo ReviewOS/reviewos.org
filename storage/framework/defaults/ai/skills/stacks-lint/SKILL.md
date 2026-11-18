@@ -19,6 +19,15 @@ it does not wrap ESLint. ESLint-style disable comments are compatibility syntax.
 - `./buddy format`: write formatting; `./buddy format --check` checks without writing.
 - `./buddy lint --stx`: run the separate stx conformance checks from `config/lint.ts`.
 
+All four take paths and lint only what you name: `./buddy lint:fix app/Jobs/Foo.ts`
+fixes that file, `./buddy lint app/Jobs docs` covers those two directories, and
+naming none covers the project. Scope `lint:fix` this way whenever you are
+fixing something specific, because its project-wide run also applies rules you
+are not working on (class ordering across `resources/`, markdown in `docs/`),
+and those land in your diff. A path that matches nothing is an error rather
+than a silent fallback to the project, so a typo cannot widen the run.
+`--stx` grades the project against the config baselines and refuses paths.
+
 For direct CLI use, run `bunx --bun pickier .`, adding `--fix` for supported
 fixes. Re-run without `--fix` to confirm remaining findings. Only apply fixes
 that preserve the source behavior; investigate false positives at Pickier's source.
@@ -33,13 +42,13 @@ selects that file. Keep the command and CI on the same policy.
 Buddy discovers tracked files plus untracked files allowed by `.gitignore`.
 Its extension and path predicate lives in `@stacksjs/actions/lint/files`;
 Code-style discovery includes ts, js, stx, json, md, yaml and yml, including
-Crosswind checks in tracked and newly created STX templates. Use Pickier directly
+ts-css checks in tracked and newly created STX templates. Use Pickier directly
 to include shell sources. Generated framework
 assets belong to the upstream framework's checks, not application edits.
 
 ## Conventions
 
-Use two spaces, single quotes and no optional semicolons. Use Crosswind classes
+Use two spaces, single quotes and no optional semicolons. Use ts-css classes
 and stx signals/directives in templates. Fix real findings in source, rather than
 turning off rules to obtain a clean report. For intentional unused variables,
 prefer a targeted `// eslint-disable-next-line` over an underscore prefix.

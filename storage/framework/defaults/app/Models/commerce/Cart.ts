@@ -136,13 +136,112 @@ export default defineModel({
       order: 10,
       fillable: true,
       validation: {
-        rule: schema.string().required(),
+        // Optional: a cart without a coupon is the common case.
+        rule: schema.string(),
       },
-      factory: () => 'test-coupon-id',
+      // Stored and shown, never resolved: nothing redeems or joins on it yet,
+      // so what it holds is left to the feature that does. No factory, so a
+      // seed does not invent one (stacksjs/stacks#3002).
+    },
+
+    // The storefront's anonymous cart: the shopper's signed stacks_cart cookie
+    // carries this token, checkout records its progress and the address, and
+    // the order is placed from them (stacksjs/stacks#3017). A cart made any
+    // other way has none of them.
+
+    /** Bearer for an anonymous cart, so never returned by the API. No factory: a seeded cart is no shopper's. */
+    sessionToken: {
+      order: 11,
+      unique: true,
+      hidden: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+    },
+
+    checkoutStep: {
+      default: 'cart',
+      order: 12,
+      fillable: true,
+      validation: {
+        rule: schema.enum(['cart', 'shipping', 'payment', 'placed']),
+      },
+    },
+
+    email: {
+      personal: true,
+      order: 13,
+      fillable: true,
+      validation: {
+        rule: schema.string().email().max(255),
+      },
+    },
+
+    shippingName: {
+      personal: true,
+      order: 14,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+    },
+
+    shippingAddress: {
+      personal: true,
+      order: 15,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+    },
+
+    shippingCity: {
+      personal: true,
+      order: 16,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(255),
+      },
+    },
+
+    shippingState: {
+      personal: true,
+      order: 17,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(100),
+      },
+    },
+
+    shippingZip: {
+      personal: true,
+      order: 18,
+      fillable: true,
+      validation: {
+        rule: schema.string().max(20),
+      },
+    },
+
+    /**
+     * The discount code the shopper entered, as typed. Checked when it is
+     * applied and again when the order is placed, since a code can expire or
+     * run out in between. Matches a `Discount` code or a `Coupon` code.
+     */
+    discountCode: {
+      order: 19,
+      fillable: true,
+      nullable: true,
+      validation: {
+        rule: schema.string().max(64),
+      },
     },
   },
 
   dashboard: {
     highlight: true,
+    // Prose, asked for in a box with room for it.
+    fields: {
+      notes: { input: 'longtext' },
+    },
   },
 } as const)

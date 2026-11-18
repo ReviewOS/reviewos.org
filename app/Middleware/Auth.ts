@@ -37,16 +37,14 @@ export default new Middleware({
       if (!result.ok)
         unauthorized(request, 'Unauthorized. Invalid or expired token.')
 
-      const owner = await db
-        .selectFrom('users')
-        .selectAll()
-        .where('id', '=', result.token.userId)
-        .executeTakeFirst()
+      // The model, as the framework's own token branches load it, so the
+      // request carries the same kind of user whichever credential named it.
+      const owner = await User.find(result.token.userId)
 
       if (!owner)
         unauthorized(request, 'Unauthorized. Invalid or expired token.')
 
-      Auth.setUser(owner as any)
+      Auth.setUser(owner)
       request._authenticatedUser = owner
       // Deliberately not `_currentAccessToken`: that field means a framework
       // token, and filling it with one of ours would have `tokenCan()` and the

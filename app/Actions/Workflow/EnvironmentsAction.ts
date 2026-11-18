@@ -7,6 +7,7 @@ import { schema } from '@stacksjs/validation'
 import { isTrue } from '../Support/sql'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The environments a repository deploys to, and who may open their gates.
@@ -244,13 +245,12 @@ function cleanBranches(value: unknown): string {
 }
 
 async function shape(environment: EnvironmentRow | undefined): Promise<Record<string, unknown>> {
-  const reviewers = await db
+  const reviewers = await rescue(() => db
     .selectFrom('environment_reviewers')
     .innerJoin('users', 'users.id', '=', 'environment_reviewers.user_id')
     .select(['users.handle as handle'])
     .where('environment_reviewers.environment_id', '=', Number(environment?.id))
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return {
     name: String(environment?.name ?? ''),

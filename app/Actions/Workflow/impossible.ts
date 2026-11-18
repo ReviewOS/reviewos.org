@@ -41,6 +41,7 @@ import { explainWaiting } from './waiting'
 import { settleRun } from './settle'
 import { splitLabels } from '../Runner/protocol'
 import { rowsChanged } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The waiting kinds that no amount of waiting fixes.
@@ -73,7 +74,7 @@ export interface ImpossibleOutcome {
 export async function failImpossibleJobs(now: Date = new Date()): Promise<ImpossibleOutcome> {
   const cutoff = new Date(now.getTime() - GRACE_MS).toISOString()
 
-  const waiting = await db
+  const waiting = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
@@ -94,8 +95,7 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
     // deciding something another rule already decided.
     .where('workflow_runs.state', 'in', ['queued', 'running'])
     .limit(500)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   if (waiting.length === 0)
     return { failed: 0 }
@@ -119,7 +119,7 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
     if (!IMPOSSIBLE.includes(verdict.kind))
       continue
 
-    const changed = await db
+    const changed = await rescue(() => db
       .updateTable('workflow_jobs')
       .set({
         state: 'failed',
@@ -133,8 +133,7 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
       // sweep was running may have taken the job a moment ago, and taking work
       // from a machine that is doing it is the direction that does damage.
       .where('state', '=', 'queued')
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     if (!rowsChanged(changed))
       continue
@@ -163,11 +162,10 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
  * is willing to serve is what an operator decided this morning.
  */
 async function fleet(): Promise<FleetRunner[]> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('runners')
     .select(['id', 'state', 'scope_type', 'scope_id', 'labels', 'tags'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return (rows as any[]).map(runner => ({
     id: Number(runner.id),

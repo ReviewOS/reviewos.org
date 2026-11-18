@@ -40,7 +40,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -96,7 +96,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -262,7 +262,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -289,7 +289,7 @@ jobs:
 
       # Which Bun is actually here, as opposed to which one was asked for.
       #
-      # `config/deps.ts` and every pantry step name 1.4.2, and
+      # `config/deps.ts` and every pantry step name 1.4.4, and
       # `tests/unit/ci-bun-pin.test.ts` keeps those two in step - but both are
       # declarations, and the thing that went wrong was the gap between a
       # declaration and what the runner installed. On 2026-10-06 two legs of
@@ -301,7 +301,7 @@ jobs:
       # runtime makes of 6,569 tests.
       - name: The Bun this job actually got
         run: |
-          want=1.4.2
+          want=1.4.4
           got=$(bun --version)
           echo "bun $got"
           if [ "$got" != "$want" ]; then
@@ -523,7 +523,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -537,7 +537,7 @@ jobs:
 
       # Which Bun is actually here, as opposed to which one was asked for.
       #
-      # `config/deps.ts` and every pantry step name 1.4.2, and
+      # `config/deps.ts` and every pantry step name 1.4.4, and
       # `tests/unit/ci-bun-pin.test.ts` keeps those two in step - but both are
       # declarations, and the thing that went wrong was the gap between a
       # declaration and what the runner installed. On 2026-10-06 two legs of
@@ -549,7 +549,7 @@ jobs:
       # runtime makes of 6,569 tests.
       - name: The Bun this job actually got
         run: |
-          want=1.4.2
+          want=1.4.4
           got=$(bun --version)
           echo "bun $got"
           if [ "$got" != "$want" ]; then
@@ -661,7 +661,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -743,7 +743,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -870,7 +870,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 
@@ -1065,7 +1065,7 @@ jobs:
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
         with:
-          packages: bun.sh@1.4.2
+          packages: bun.sh@1.4.4
           version: '0.10.50'
           install: 'false'
 

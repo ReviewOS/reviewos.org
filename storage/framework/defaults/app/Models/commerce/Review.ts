@@ -34,7 +34,9 @@ export default defineModel({
     observe: true,
   },
 
-  belongsTo: ['Product', 'Customer'],
+  // The order a storefront review was left for: one review per product per
+  // order, and the proof the reviewer bought it (stacksjs/stacks#3017).
+  belongsTo: ['Product', 'Customer', 'Order'],
 
   attributes: {
     /**
@@ -172,5 +174,9 @@ export default defineModel({
 
   dashboard: {
     highlight: true,
+    // Prose, asked for in a box with room for it.
+    fields: {
+      content: { input: 'longtext' },
+    },
   },
 } as const)

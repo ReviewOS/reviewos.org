@@ -10,6 +10,7 @@ import { db } from '@stacksjs/database'
 import { isFullSha, runGit } from './git'
 import { commitPush, voidPush } from './wal'
 import type { WalRefUpdate } from './wal'
+import { rescue } from '@stacksjs/error-handling'
 
 export type Verdict = 'landed' | 'abandoned' | 'unknown'
 
@@ -81,15 +82,14 @@ export interface ReconcileOutcome {
 export async function reconcilePending(options: { olderThanMinutes?: number } = {}): Promise<ReconcileOutcome> {
   const grace = new Date(Date.now() - Math.max(0, options.olderThanMinutes ?? 10) * 60_000).toISOString()
 
-  const rows: any[] = await db
+  const rows: any[] = await rescue(() => db
     .selectFrom('git_wal_entries')
     .select(['id', 'repository_id', 'updates', 'created_at'])
     .where('status', '=', 'pending')
     .where('created_at', '<', grace as any)
     .orderBy('created_at', 'asc')
     .limit(500)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const outcome: ReconcileOutcome = { examined: 0, committed: 0, voided: 0, unresolved: 0 }
   const paths = new Map<number, string | null>()
@@ -152,23 +152,21 @@ async function observe(path: string, update: WalRefUpdate): Promise<{ tip: strin
 }
 
 async function pathFor(repositoryId: number): Promise<string | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id'])
     .where('id', '=', repositoryId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return null
 
   const table = String(row.owner_type) === 'organization' ? 'organizations' : 'users'
-  const owner: any = await db
+  const owner: any = await rescue(() => db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(row.owner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!owner?.handle)
     return null

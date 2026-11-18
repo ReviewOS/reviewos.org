@@ -12,6 +12,7 @@ import { claimNextJob } from '../../app/Actions/Runner/claim'
 import { splitLabels } from '../../app/Actions/Runner/protocol'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -246,20 +247,20 @@ afterAll(async () => {
     server?.stop?.()
 
     for (const id of created.runnerIds)
-      await db.deleteFrom('runners').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', id).execute(), undefined)
 
     for (const id of created.poolIds)
-      await db.deleteFrom('runner_pools').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runner_pools').where('id', '=', id).execute(), undefined)
 
     for (const id of [created.repositoryId, created.otherRepositoryId])
       if (id)
-        await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+        await rescue(() => db.deleteFrom('repositories').where('id', '=', id).execute(), undefined)
 
     if (created.ownerId)
       await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute()
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

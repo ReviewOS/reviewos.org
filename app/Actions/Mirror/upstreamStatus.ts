@@ -17,6 +17,7 @@
 
 import { db } from '@stacksjs/database'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 export type UpstreamState = 'pending' | 'success' | 'failure' | 'error'
 
@@ -122,14 +123,13 @@ export async function reportRunUpstream(repositoryId: number, run: UpstreamRun, 
 
 /** The workflow's name and the run's page here, for the status's context and link. */
 async function runFacts(repositoryId: number, runId: number): Promise<{ workflow: string, url: string | null }> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
     .select(['workflows.name as workflow', 'workflow_runs.number as number'])
     .where('workflow_runs.id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const repository: any = await db
     .selectFrom('repositories')

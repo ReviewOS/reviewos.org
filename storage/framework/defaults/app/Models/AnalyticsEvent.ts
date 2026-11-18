@@ -67,9 +67,14 @@ export default defineModel({
 
     properties: {
       fillable: true,
+      type: 'text',
       validation: {
         rule: schema.string(),
       },
     },
+  },
+
+  dashboard: {
+    columns: ['name', 'category', 'path', 'value', 'createdAt'],
   },
 } as const)

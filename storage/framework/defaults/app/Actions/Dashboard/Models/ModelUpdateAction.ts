@@ -1,9 +1,8 @@
 import type { RequestInstance } from '@stacksjs/types'
 import { Action } from '@stacksjs/actions/runtime'
-import { toSnakeCaseKeys } from '@stacksjs/orm'
 import { response } from '@stacksjs/router'
-import { dashboardOperationalError } from '../dashboard-response'
-import { parseRowId, prepareModelFields, resolveWritableModel } from './model-write'
+import { formFields, rowRefusalResponse, updateModelRow } from './model-row-writes'
+import { parseRowId, resolveWritableModel } from './model-write'
 
 interface ModelWriteInput {
   fields?: unknown
@@ -31,31 +30,8 @@ export default new Action({
     if (id === null)
       return response.json({ message: 'A numeric row id is required.' }, 400)
 
-    // Edits arrive nested under `fields`. The router's input bag merges the
-    // body with route params and query, so a flat payload would silently
-    // pick up the `slug` and `id` from the URL and try to write them as
-    // columns — and `slug` is a real column on plenty of models, so it
-    // cannot simply be blocklisted. One level of nesting keeps the two
-    // namespaces apart.
-    const input = request.all()
-    const raw = input.fields
-    const body = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw as Record<string, unknown> : {}
-    const prepared = prepareModelFields(resolved.Model, body, true)
-    if (Object.keys(prepared.errors).length > 0)
-      return response.json({ message: 'Validation failed.', errors: prepared.errors }, 422)
-    const changes = toSnakeCaseKeys(prepared.data)
-    if (Object.keys(changes).length === 0)
-      return response.json({ message: 'No writable fields in the request body.' }, 422)
-
-    try {
-      const row = await resolved.Model.find(id)
-      if (!row)
-        return response.json({ message: `${resolved.modelName} ${id} not found.` }, 404)
-      await resolved.Model.update(id, changes)
-      return { ok: true, id, changed: Object.keys(changes) }
-    }
-    catch (error) {
-      return dashboardOperationalError(error, 'The model record could not be updated.', 'ModelUpdateAction', 500)
-    }
+    // Nested under `fields`, apart from the URL's params (see `formFields`).
+    const result = await updateModelRow(resolved, id, formFields(request.all().fields))
+    return result.ok ? { ok: true, id, changed: result.changed } : rowRefusalResponse(result)
   },
 })

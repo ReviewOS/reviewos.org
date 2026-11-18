@@ -1,6 +1,6 @@
 ---
 name: stacks-models
-description: Use when defining or extending Stacks models, deriving migrations and CRUD, configuring attributes/relationships/traits/ownership, or preserving model inference. Covers defineModel, extendModel, model types, native data workflows, and the 107 built-in framework models.
+description: Use when defining or extending Stacks models, deriving migrations and CRUD, configuring attributes/relationships/traits/ownership, or preserving model inference. Covers defineModel, extendModel, model types, native data workflows, and the 113 built-in framework models.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript, SQLite >= 3.47.2
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -123,7 +123,43 @@ of forcing a cast. See `orm/tests/inference-attributes.test-d.ts`.
 
 Also at the top level: `indexes: [{ name, columns, unique?, where? }]` for
 composite and partial-unique indexes, and `dashboard: { highlight: true }` to
-feature the model in the admin UI.
+feature the model in the admin UI. Use `dashboard: { access: false }` to
+exclude a model from generic dashboard catalogs/counts/search and the generic
+model-browser CRUD Actions before database work. Its default is `true`;
+`dashboard.enabled: false` still only hides the sidebar row. `access` leaves
+direct ORM calls, named domain Actions and generated `useApi` routes available.
+Those APIs require their own route selection, middleware, ownership and policies.
+
+`dashboard: { columns: ['name', 'email', 'team', 'createdAt'] }` names the
+columns the model's dashboard list shows, in order, by attribute, column or
+`belongsTo`. Left out, the list shows every column. See `stacks-dashboard`.
+
+`dashboard: { writes: ['update', 'destroy'] }` names what an operator may do to
+the model's rows from the dashboard (`store`, `update`, `destroy`). Left out,
+the dashboard offers the writes the `useApi` routes declare. Name it when the
+two should differ: `User` is editable and deletable in the dashboard while its
+API offers neither, and `store` for it means an emailed invitation, since no
+form can supply a password. It opens nothing on the generated API. See
+`stacks-dashboard`.
+
+`dashboard: { fields: { amount: { label: 'Total', format: 'money' } } }` says
+how one field is called, shown and asked for where the attribute cannot: a
+`label`, a `format` (`money`, `number`, `percent`, `bytes`, `duration`, `date`,
+`datetime`, `badge`, `link`, `image`, `code`, `text`), `help` under its input,
+and for a field of text the `input` it gets (`text`, `longtext`, `email`,
+`url`, `markdown` for an editor with a preview, `upload` for a file chooser
+that stores the file and keeps its address, with `accept` for the kinds it
+takes). It changes how a field reads, never what may be read or written. See
+`stacks-dashboard`.
+
+`dashboard: { actions: [{ name: 'ship', action: 'Actions/Orders/ShipOrderAction' }] }`
+names what an operator can do to a record beyond editing it: each entry is a
+button that runs an action of the app's on that record, with an optional
+`label`, `icon`, `confirm` sentence, `destructive` flag, `on` (`record`,
+`row`, `bulk` for a selection) and `when` (the field values a record must
+hold). An action that takes input is asked for it in a form built from its
+own `validations`; `fields` refines how each is asked. The model names the
+behaviour and the action does it. See `stacks-dashboard`.
 
 `useApi` is an API capability, not a dashboard-view generator. Its generated
 routes are registered from the merged model registry. Framework defaults are
@@ -329,13 +365,19 @@ attributes: {
 - `subject` is derived when left out: `id` on `User`, the `belongsTo: ['User']`
   foreign key elsewhere. A `via` parent must itself declare a subject.
 - Anonymization writes NULL to nullable columns and a typed placeholder to
-  `NOT NULL` ones (`erased-<id>` when unique). A `NOT NULL` enum or timestamp
-  needs `personal: { anonymize: <value> }`, or every request refuses to run.
+  `NOT NULL` ones (`erased-<id>` when unique). A column is `NOT NULL` when its
+  validation rule is `.required()`, which is what the migrations read, or
+  when it sets `required: true`; `nullable: true` overrides both. A `NOT NULL`
+  enum or timestamp needs `personal: { anonymize: <value> }`, or every
+  request refuses to run.
 - A model that `belongsTo: ['User']` and declares nothing is **unclassified**:
   erasure does not reach it and `buddy gdpr:register` lists it. Classify it, even
   as `erasure: 'keep'`. `core/orm/tests/gdpr.test.ts` fails if a built-in one is.
 - Engine: `exportSubjectData`, `eraseSubject({ dryRun })`, `pruneRetainedData`,
-  `resolveGdprPlan`, `renderProcessingRegister`, all from `@stacksjs/orm`.
+  `resolveGdprPlan`, `renderProcessingRegister`, and `anonymizedRows(model,
+  rows)` (which rows already hold what erasure writes, for labelling an erased
+  account in a list), all from `@stacksjs/orm`. The dashboard's delete runs
+  `eraseSubject` for a user the database will not delete: see `stacks-dashboard`.
   Commands: `buddy gdpr:export|erase|prune|register|register:check`. Every
   request writes a `gdpr_requests` row (the `GdprRequest` model).
 
@@ -371,6 +413,26 @@ traits: {
 },
 ```
 
+A factory receives `faker`, the attributes generated above it, and a context
+whose `pick(model, column = 'id')` resolves to a value from a row that already
+exists. Use it for a column whose valid values another row decides, such as a
+polymorphic `subject_id`, which `belongsTo` cannot express because its foreign
+key would forbid most of the values. List every model a factory picks from in
+`useSeeder.after` so it seeds first:
+
+```ts
+traits: { useSeeder: { count: 30, after: ['Issue', 'PullRequest'] } },
+attributes: {
+  subjectType: { required: true, factory: faker => faker.helpers.arrayElement(['Issue', 'PullRequest']) },
+  subjectId: { required: true, factory: (faker, { subjectType }, { pick }) => pick(subjectType) },
+},
+```
+
+A pick that cannot be satisfied (no rows yet, or the model seeds later and is
+missing from `after`) fails that model with the fix in its message, and so does
+a factory that leaves a required column `null`. Neither invents a value
+(#2951).
+
 `buddy seed` walks every model carrying the trait and fills its table from the
 attribute factories. Model fixture data needs no separate seeder or registration.
 Idempotent application bootstrap work can live in `database/seeders` as a
@@ -395,7 +457,7 @@ honoured: fewer rows are seeded rather than a duplicate combination.
 ## Built-in models by category
 
 The ones below are worth knowing by name. They are a selection, not the set:
-`storage/framework/defaults/app/Models/` holds 107, and that directory is the
+`storage/framework/defaults/app/Models/` holds 113, and that directory is the
 authority. This section said "All 62 built-in models by category" while
 listing fewer than that against 102 on disk, so an agent reading to the end
 had no way to tell it was short.
@@ -494,3 +556,14 @@ commands, not a project's resolved models.
   of a validator is not a promise that an arbitrary request body is safe.
 - Dashboard-highlighted models (`dashboard: { highlight: true }`) appear
   prominently in the admin UI.
+
+### Bounded retention jobs
+
+`pruneRetainedData({ models: { Request }, now, batchSize: 500, after })` scans at
+most 500 candidates per model. Persist `result.next` in the next queue job and
+reuse the same `now` until no cursors remain, even when a page changed zero rows.
+This handles mixed SQL/ISO timestamps without skipping candidates. Each bounded
+page commits its deletion/anonymization and retention audit together. A dry run
+returns cursors without changing records. Omitting `batchSize` retains the CLI's
+whole-run behavior. Declare the policy on `traits.gdpr.retention`, publish the
+native `GdprRequest` audit model, and run cleanup through durable queue workers.

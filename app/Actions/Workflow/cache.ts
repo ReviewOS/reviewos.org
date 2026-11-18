@@ -17,6 +17,7 @@ import { db } from '@stacksjs/database'
 import { blobStore } from '../Git/blobs'
 import { canRestore, canSave, readableScopes, writableScope } from './cacheScope'
 import type { RunFacts } from './cacheScope'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * How big a snapshot may be.
@@ -61,7 +62,7 @@ export function snapshotBlobKey(repositoryId: number, digest: string): string {
  * protecting against is decoration.
  */
 export async function runFactsFor(jobId: number): Promise<{ facts: RunFacts, repositoryId: number, runId: number } | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
@@ -74,8 +75,7 @@ export async function runFactsFor(jobId: number): Promise<{ facts: RunFacts, rep
       'repositories.default_branch as default_branch',
     ])
     .where('workflow_jobs.id', '=', jobId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return null
@@ -132,14 +132,13 @@ export async function findRestorable(
   const scopes = readableScopes(facts)
 
   for (const scope of scopes) {
-    const row: any = await db
+    const row: any = await rescue(() => db
       .selectFrom('workflow_cache_entries')
       .select(['id', 'scope', 'cache_key', 'digest', 'blob_key', 'size_bytes'])
       .where('repository_id', '=', repositoryId)
       .where('scope', '=', scope)
       .where('cache_key', '=', String(cacheKey))
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!row)
       continue
@@ -183,7 +182,7 @@ export async function findRestorable(
       continue
 
     for (const scope of scopes) {
-      const row: any = await db
+      const row: any = await rescue(() => db
         .selectFrom('workflow_cache_entries')
         .select(['id', 'scope', 'cache_key', 'digest', 'blob_key', 'size_bytes', 'label'])
         .where('repository_id', '=', repositoryId)
@@ -192,8 +191,7 @@ export async function findRestorable(
         // The newest, because a prefix match is "something close enough" and
         // the most recent is the closest thing to what this run would build.
         .orderBy('id', 'desc')
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       if (!row || !canRestore(facts, String(row.scope)))
         continue
@@ -217,19 +215,17 @@ export async function findRestorable(
 
 /** Record that an entry was restored, for the collector and for the run view. */
 export async function markRestored(id: number): Promise<void> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_cache_entries')
     .select(['restores'])
     .where('id', '=', id)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
-  await db
+  await rescue(() => db
     .updateTable('workflow_cache_entries')
     .set({ last_used_at: new Date().toISOString(), restores: Number(row?.restores ?? 0) + 1 })
     .where('id', '=', id)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }
 
 export interface SaveInput {
@@ -277,14 +273,13 @@ export async function saveSnapshot(input: SaveInput): Promise<SaveOutcome> {
   if (!/^[0-9a-f]{64}$/.test(String(input.digest)))
     return { ok: false, duplicate: false, reason: 'a snapshot is addressed by its sha-256' }
 
-  const existing: any = await db
+  const existing: any = await rescue(() => db
     .selectFrom('workflow_cache_entries')
     .select(['id'])
     .where('repository_id', '=', input.repositoryId)
     .where('scope', '=', scope)
     .where('cache_key', '=', String(input.cacheKey))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   /*
    * Already there, and answered as done.

@@ -5,6 +5,7 @@ import { DEFAULT_BUDGETS, overWallTime, record, resolve, suspend } from '../Work
 import { createOrchestratedJob, isRunnable, NOTHING_TO_RUN, specFrom } from '../Workflow/orchestratedJob'
 import { authenticateJob, refuseJobCredential } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a workflow program calls when it calls `step()`.
@@ -87,7 +88,7 @@ export default new Action({
     if (!held)
       return await refuseJobCredential(request)
 
-    const job: any = await db
+    const job: any = await rescue(() => db
       .selectFrom('workflow_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
       .select([
@@ -98,8 +99,7 @@ export default new Action({
         'workflow_runs.created_at as created_at',
       ])
       .where('workflow_jobs.id', '=', held.jobId)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!job)
       return runnerJson({ error: 'No such job' }, 404)

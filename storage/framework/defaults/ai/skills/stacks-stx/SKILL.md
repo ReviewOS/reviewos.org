@@ -12,14 +12,14 @@ STX is the full-stack templating and component framework for Stacks. It handles 
 
 ## Design & anti-slop skills
 
-When the task is how a page should *look* (not just how stx renders), pair this skill with the design-taste family: `stacks-design-taste` (flagship), the aesthetic presets `stacks-design-soft` / `stacks-design-minimalist` / `stacks-design-brutalist`, `stacks-redesign`, `stacks-design-output`, and the image-first `stacks-image-to-code` / `stacks-imagegen-web` / `stacks-imagegen-mobile` / `stacks-brandkit`. They translate premium design rules into stx + Crosswind + composables.
+When the task is how a page should *look* (not just how stx renders), pair this skill with the design-taste family: `stacks-design-taste` (flagship), the aesthetic presets `stacks-design-soft` / `stacks-design-minimalist` / `stacks-design-brutalist`, `stacks-redesign`, `stacks-design-output`, and the image-first `stacks-image-to-code` / `stacks-imagegen-web` / `stacks-imagegen-mobile` / `stacks-brandkit`. They translate premium design rules into stx + ts-css + composables.
 
 ## Key Paths
 - STX config: `config/ui.ts`
 - STX plugin: `bun-plugin-stx` (loaded via bunfig.toml)
 - STX build cache + route manifest: `storage/framework/stx/` (stx's `stateDir`, set in `config/ui.ts`)
 - Components: `resources/components/`
-- Layouts: `resources/layouts/`
+- Layouts: `resources/views/layouts/` (the one folder scanned when it exists; `resources/layouts/` only in an app without it)
 - Partials: `resources/partials/`
 - Views: `resources/views/`
 - Package: `@stacksjs/stx`
@@ -82,7 +82,7 @@ function increment(): void {
 </template>
 
 <style>
-/* Use crosswind utility classes or custom CSS */
+/* Use ts-css utility classes or custom CSS */
 .container { max-width: 1200px; margin: 0 auto; }
 </style>
 ```
@@ -153,7 +153,7 @@ import type { StxOptions } from '@stacksjs/stx'
 
 export default {
   componentsDir: 'components',
-  layoutsDir: 'layouts',
+  layoutsDir: 'views/layouts',
   partialsDir: 'partials',
 } satisfies StxOptions
 ```
@@ -185,7 +185,8 @@ through STX's asynchronous render boundary. Pair tenant features with
 `stacks-sites`.
 
 The browser has both eagerly delivered and demand-bundled composables.
-Observers, motion helpers and STX `useForm` are usable client primitives in
+Observers, motion helpers, STX `useForm` and `useCompletion` (inline AI ghost
+text; `<AiTextarea>` is the ready-made textarea) are usable client primitives in
 current STX, even when they are not explicit `window.name` aliases. Read
 `stacks-composables/BROWSER.md` before choosing a signature or mixing the
 browser signal API with explicit module Refs.
@@ -329,9 +330,13 @@ await addLayout('admin', { nav: true, footer: true })
 - **Client loop conditions** - `@if` chains that read `:for` or `@for` aliases compile into scoped runtime chains; aliases do not leak outside the loop element
 - **Component tag case is semantic** - `<Input v-model:value="query">` is a paired component, while lowercase `<input v-model="query">` is a native void element. Keep component tags PascalCase, including names that collide with native elements
 - **Structural DOM timing** - use `nextTick()` with `useRef()` after opening reactive markup
-- **Crosswind for styling** - use utility classes, not inline styles
+- **ts-css for styling** - use utility classes, not inline styles
 - **Script block restrictions** - only stx-compatible code (signals, composables, directives), no vanilla DOM APIs
 - **Pre-paint state** - use `@appearanceBootstrap`, never a raw browser script in the template
 - **Components go in `resources/`** - not in `app/` or `storage/`
 - **SEO directives take expressions** - `@seo(seo)`, `@meta('author', post.author)` and `@structuredData(product)` are evaluated; a failure shows up as an inline `<!-- [... Error] -->` comment plus a `[stx]` console warning naming the file, never as silent emptiness. Keep `@seo` inside `<head>`
+- **Dynamic bracket access renders empty** - `{{ labels[item.key] }}` prints an empty string, because the safe evaluator rejects a bracket whose key is a member expression. A bare identifier key (`{{ labels[key] }}`) and dot access (`{{ labels.a }}`) work. The dev log says `stx warning: {{ labels[item.key] }} rendered as an empty string` and names the layout file, not the page. Compute the value in `<script server>` (`items.map(item => ({ ...item, label: labels[item.key] }))`) and interpolate the result. Verified on stx 0.2.842
+- **`{{ value }}` inside `<script client>` is already serialized** - `const tags = {{ tags }}` arrives as `const tags = ["draft", "published"];`. Wrapping it, `{{ JSON.stringify(tags) }}`, hands the client the string `'["draft","published"]'`, which half-works: `.includes('draft')` matches a substring and `.length` counts characters. Interpolate the server value bare. Verified on stx 0.2.842
+- **A layout comment is not inert before stx 0.2.854** - layout source is read for `@extends` and `@layout` before `{{-- --}}` comments are stripped, so a layout whose comment spells out its own extends line extends itself, and the first request spins the dev server at full CPU without answering. Describe directives in a comment without the at sign
+- **A new view needs a dev-server restart** - routes are generated at boot, so a `.stx` file added under `resources/views` answers 404 until `./buddy dev` is restarted. Edits to an existing view reload
 - **118+ modules** - STX is a comprehensive framework covering rendering, routing, forms, i18n, SEO, PWA, and more

@@ -3,6 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { renderBadge, stateFor } from './badge'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The badge a README puts at the top: does this workflow pass on this branch.
@@ -62,12 +63,11 @@ export default new Action({
 
     const { repository } = auth.context
 
-    const candidates = await db
+    const candidates = await rescue(() => db
       .selectFrom('workflows')
       .select(['id', 'name', 'path'])
       .where('repository_id', '=', Number(repository.id))
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     /*
      * By path, then by file name, then by the workflow's name - the same three
@@ -96,7 +96,7 @@ export default new Action({
      * finished run is the answer to. When nothing has finished yet, saying
      * `running` is better than saying `unknown`.
      */
-    const runs = await db
+    const runs = await rescue(() => db
       .selectFrom('workflow_runs')
       .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
       .select(['workflow_runs.id as id', 'workflow_runs.state as state'])
@@ -105,8 +105,7 @@ export default new Action({
       .where('workflow_runs.event_ref', '=', `refs/heads/${branch}`)
       .orderBy('workflow_runs.id', 'desc')
       .limit(20)
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     const finished = runs.find(run => ['succeeded', 'failed', 'cancelled', 'skipped'].includes(String(run.state)))
     const run = finished ?? runs[0]

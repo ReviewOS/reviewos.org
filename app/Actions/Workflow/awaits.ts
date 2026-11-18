@@ -29,6 +29,7 @@
 import { db } from '@stacksjs/database'
 import { rowsChanged } from '../Support/sql'
 import { settleRun } from './settle'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a wait is waiting for, out of the settings the run copied. */
 export interface WaitSettings {
@@ -128,7 +129,7 @@ export interface WaitOutcome {
  * the last holding jobs that are ready to go.
  */
 export async function endDueWaits(now: Date = new Date()): Promise<WaitOutcome> {
-  const due = await db
+  const due = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'settings', 'wake_at'])
     .where('state', '=', 'paused')
@@ -136,8 +137,7 @@ export async function endDueWaits(now: Date = new Date()): Promise<WaitOutcome> 
     .where('wake_at', '<=', now.toISOString())
     .orderBy('wake_at')
     .limit(500)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const outcome: WaitOutcome = { slept: 0, timedOut: 0 }
 
@@ -151,7 +151,7 @@ export async function endDueWaits(now: Date = new Date()): Promise<WaitOutcome> 
      * the row is the only thing that can arbitrate, because neither of them can
      * see the other.
      */
-    const changed = await db
+    const changed = await rescue(() => db
       .updateTable('workflow_jobs')
       .set({
         state: failed ? 'failed' : 'succeeded',
@@ -163,8 +163,7 @@ export async function endDueWaits(now: Date = new Date()): Promise<WaitOutcome> 
       })
       .where('id', '=', Number(job.id))
       .where('state', '=', 'paused')
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     if (!rowsChanged(changed))
       continue
@@ -235,17 +234,16 @@ export async function sendRunEvent(input: {
   const key = String(input.key ?? '').trim()
     || `${input.runId}:${name}:${Math.floor(now.getTime() / 1000)}:${(body ?? '').length}`
 
-  const existing = await db
+  const existing = await rescue(() => db
     .selectFrom('workflow_run_events')
     .select(['id', 'delivered_to'])
     .where('idempotency_key', '=', key)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (existing?.id)
     return { ok: true, duplicate: true, delivered: Number(existing.delivered_to ?? 0) }
 
-  const inserted: any = await db
+  const inserted: any = await rescue(() => db
     .insertInto('workflow_run_events')
     .values({
       workflow_run_id: input.runId,
@@ -258,8 +256,7 @@ export async function sendRunEvent(input: {
       delivered_to: 0,
     })
     .returning(['id'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!inserted?.id) {
     /*
@@ -267,12 +264,11 @@ export async function sendRunEvent(input: {
      * lose. Somebody else delivered this exact event a moment ago, and the
      * honest answer is the one they got.
      */
-    const winner = await db
+    const winner = await rescue(() => db
       .selectFrom('workflow_run_events')
       .select(['delivered_to'])
       .where('idempotency_key', '=', key)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     return winner
       ? { ok: true, duplicate: true, delivered: Number(winner.delivered_to ?? 0) }
@@ -281,12 +277,11 @@ export async function sendRunEvent(input: {
 
   const delivered = await wakeWaitersFor(input.runId, name, body, now)
 
-  await db
+  await rescue(() => db
     .updateTable('workflow_run_events')
     .set({ delivered_to: delivered })
     .where('id', '=', Number(inserted.id))
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 
   if (delivered > 0)
     await settleRun(input.runId, now).catch(() => null)
@@ -305,14 +300,13 @@ export async function sendRunEvent(input: {
  * `needs.approval.outputs.version` - the same way it reads any other job's.
  */
 async function wakeWaitersFor(runId: number, name: string, payload: string | null, now: Date): Promise<number> {
-  const waiting = await db
+  const waiting = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id', 'settings'])
     .where('workflow_run_id', '=', runId)
     .where('state', '=', 'paused')
     .where('kind', '=', 'await')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   let woken = 0
 
@@ -320,7 +314,7 @@ async function wakeWaitersFor(runId: number, name: string, payload: string | nul
     if (waitSettingsOf(job.settings).event !== name)
       continue
 
-    const changed = await db
+    const changed = await rescue(() => db
       .updateTable('workflow_jobs')
       .set({
         state: 'succeeded',
@@ -333,8 +327,7 @@ async function wakeWaitersFor(runId: number, name: string, payload: string | nul
       // Guarded on the state it was read at: the timeout sweep may be ending
       // this same wait right now, and only one of the two may decide.
       .where('state', '=', 'paused')
-      .execute()
-      .catch(() => null)
+      .execute(), null)
 
     if (rowsChanged(changed))
       woken += 1
@@ -354,14 +347,13 @@ export async function alreadySent(runId: number, name: string): Promise<{ payloa
   if (!name)
     return null
 
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('workflow_run_events')
     .select(['payload'])
     .where('workflow_run_id', '=', runId)
     .where('name', '=', name)
     .orderBy('id', 'desc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return row ? { payload: row.payload === null || row.payload === undefined ? null : String(row.payload) } : null
 }

@@ -42,6 +42,7 @@ import { forkApprovalFacts, forkApprovalVerdict } from './forkApproval'
 import { withRedeliveryKey } from './redelivery'
 import { ownerVersionsFor } from './ownerWorkflows'
 import { isNotFalse, isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * A database handle: the pooled one, or a transaction's.
@@ -1216,14 +1217,13 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
   if (!group)
     return null
 
-  const busy = await db
+  const busy = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
     .where('concurrency_group', '=', group)
     .where('state', 'in', ['queued', 'running', 'paused'])
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   // Something in this group is still going. The release happens when *that*
   // one finishes, which is the guarantee the key is bought for.
@@ -1241,7 +1241,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
    * ever lets a second one through. Releasing the oldest of those would run
    * a commit the newest one already contains.
    */
-  const held = await db
+  const held = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['id', 'number'])
     .where('repository_id', '=', repositoryId)
@@ -1249,8 +1249,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
     .where('state', '=', 'waiting')
     .where('approval_state', 'in', GROUP_PENDING_APPROVALS)
     .orderBy('id', 'desc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (held) {
     const moved = await supersedePending(db, {
@@ -1262,15 +1261,14 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
     await finishSuperseded(repositoryId, moved)
   }
 
-  const next = held ?? await db
+  const next = held ?? await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
     .where('concurrency_group', '=', group)
     .where('state', '=', 'waiting')
     .orderBy('id')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!next)
     return null
@@ -1911,7 +1909,9 @@ async function expandCall(input: {
     .where('workflow_version_id', '=', resolved.target.versionId)
     .execute()
 
-  await client
+  const calledVersionId = resolved.target.versionId
+
+  await rescue(() => client
     .insertInto('workflow_jobs')
     .values({
       workflow_run_id: runId,
@@ -1931,10 +1931,9 @@ async function expandCall(input: {
       needs: called.map(row => `${name}/${row.job_id}`).join('\n'),
       runs_on: job.runs_on,
       // Where the outputs come from when this barrier is released.
-      settings: JSON.stringify({ call: { versionId: resolved.target.versionId, prefix: name } }),
+      settings: JSON.stringify({ call: { versionId: calledVersionId, prefix: name } }),
     })
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }
 
 /** `deploy / build`, the way Actions names a called workflow's job. */

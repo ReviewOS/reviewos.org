@@ -9,6 +9,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /** The states a deployment is in while it still means something. */
 export const LIVE_STATES = ['in_progress', 'active'] as const
@@ -44,12 +45,12 @@ export async function expirePreviews(repositoryId: number, pullRequestId?: numbe
   if (pullRequestId)
     query = query.where('deployments.pull_request_id', '=', pullRequestId)
 
-  const live = await query.execute().catch(() => [])
+  const live = await rescue(() => query.execute(), [])
 
   const ended = live.filter(row => String(row.pull_state) !== 'open')
 
   for (const row of ended) {
-    await db
+    await rescue(() => db
       .updateTable('deployments')
       .set({
         state: 'inactive',
@@ -60,8 +61,7 @@ export async function expirePreviews(repositoryId: number, pullRequestId?: numbe
       })
       .where('id', '=', Number(row.id))
       .where('state', 'in', [...LIVE_STATES])
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
   return ended.length
@@ -84,14 +84,13 @@ export interface PreviewLink {
  * nothing is worse than no link.
  */
 export async function previewsFor(pullRequestId: number): Promise<PreviewLink[]> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('deployments')
     .select(['environment', 'url', 'state', 'head_sha', 'workflow_run_id'])
     .where('pull_request_id', '=', pullRequestId)
     .where('state', 'in', [...LIVE_STATES])
     .orderBy('id', 'desc')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const newest = new Map<string, PreviewLink>()
 

@@ -22,6 +22,32 @@ security/src/
 └── hash.ts     # password hashing (bcrypt/argon2)
 ```
 
+## Scanning a project: `buddy security:scan`
+
+`buddy security:scan` (alias `buddy audit`) checks a project for security problems and exits non-zero on findings at or above `--fail-on` (default `high`), so it drops into CI. Five checks, each runnable alone with `--only` or left out with `--skip`:
+
+| Check | Finds |
+|---|---|
+| `dependencies` | Known vulnerabilities in the lockfile (`bun audit`; needs the network, skipped with `--offline`) |
+| `secrets` | Committed credentials: private keys, AWS/Stripe/GitHub/Anthropic/OpenAI/Slack/Google/Twilio/SendGrid/npm tokens, database URLs with passwords, `secret = "high-entropy value"` |
+| `code` | `eval` / `new Function`, shell commands built from strings, SQL built with interpolation, disabled TLS verification, `alg: none`, `innerHTML`, `Math.random()` for tokens, MD5/SHA-1, CORS `*` with credentials |
+| `workflows` | GitHub Actions that paste untrusted text into `run:`, check out a pull request under `pull_request_target`, echo secrets, or follow a branch |
+| `hygiene` | Committed `.env` files with readable secrets (encrypted values are fine), key files, a `.gitignore` without `.env`, no lockfile |
+
+```bash
+buddy security:scan                          # everything, fail on high or worse
+buddy security:scan --only dependencies,secrets --fail-on medium
+buddy security:scan --json                   # the report, for tooling
+buddy security:scan --show-ignored           # what exceptions set aside
+```
+
+A finding that is fine is set aside with a reason, never silently:
+
+- On the line (or the line above): `// security-ignore: code/inner-html the HTML is sanitized by sanitize()`
+- In `.security-ignore.json`: `{ "ignore": [{ "rule": "code/sql-interpolation", "path": "database/seed.ts", "reason": "ids from rows it just selected", "expires": "2027-06-30" }] }`. `rule` takes `code/*`; `path` is a file or a directory ending in `/`; for an advisory use `"reference": "GHSA-…"` or the package name. An entry without a reason, or past its `expires`, is reported and no longer applies.
+
+A check that cannot run (offline, no `bun.lock`) is listed under "not checked", never reported as clean. Programmatic use: `import { runSecurityScan } from '@stacksjs/security/scan'`.
+
 ## App Key Generation
 
 ```typescript
@@ -45,12 +71,17 @@ const decrypted = await decrypt(encrypted, 'custom-passphrase')
 ## Password Hashing
 
 ```typescript
-import { make, check, needsRehash, info, detectAlgorithm } from '@stacksjs/security'
+import { make, makeSync, check, needsRehash, info, detectAlgorithm } from '@stacksjs/security'
 
 // Hash a password
 const hash = await make('password123')                          // bcrypt (default)
 const hash = await make('password123', { algorithm: 'argon2' })
 const hash = await make('password123', { rounds: 14 })          // bcrypt rounds
+
+// The same hash, answered in place. For a model `set:` hook, so the write it
+// belongs to stays in place. It holds the thread for the length of the hash
+// (about a quarter of a second for bcrypt at 12 rounds).
+const hashedNow = makeSync('password123')
 
 // Verify
 const valid = await check('password123', hash)  // true/false
@@ -69,6 +100,7 @@ const algo = detectAlgorithm(hash)  // 'bcrypt' | 'argon2' | 'argon2id' | ...
 - `hashNeedsRehash` = `needsRehash`
 - `hashInfo` = `info`
 - `makeHash` = `make`
+- `hashMakeSync` = `makeHashSync` = `makeSync`
 - `verifyHash` = `check`
 
 ### Algorithm-Specific Functions
@@ -101,6 +133,12 @@ interface HashMakeOptions {
 ## config/security.ts
 ```typescript
 {
+  // Application rate limits and the login lockout are multiplied by this.
+  // Keep 1 in production; tests raise it (or STACKS_RATE_LIMIT_SCALE).
+  rateLimit: { scale: 1 },
+  // Proxies whose forwarding headers name the client (clientAddress()).
+  // Unset = loopback/private/link-local; [] = trust none.
+  trustedProxies: ['10.0.0.0/8'],
   firewall: {
     enabled: true,
     countryCodes: [],                // block by country
@@ -151,7 +189,16 @@ import { eraseSubject, exportSubjectData, pruneRetainedData } from '@stacksjs/or
 - Base64 is encoding, not hashing. Never use `base64Encode()` for credentials.
 - MD5 and base64 password verification are intentionally absent from the main security API.
 - The firewall config is used by cloud deployment for WAF rules
-- Rate limiting is per-minute per-IP (500 default)
+- `security.waf` configures the zig-waf web application firewall on box deploys (Hetzner, `ssh`):
+  `mode` (`off` | `detection` | `blocking`, default `detection`), `paranoiaLevel`, thresholds,
+  `maxBodyBytes`, `bypassPaths`, reviewed `exclusions` (`{ ruleId, pathPattern?, reason }`) and
+  `forward` (Guardian ingest URL and per-host token, usually from `GUARDIAN_INGEST_URL` /
+  `GUARDIAN_INGEST_TOKEN`). It becomes ts-cloud's `infrastructure.compute.waf`; an explicit
+  `compute.waf` in `config/cloud.ts` still wins field by field and the deploy warns about it.
+  Nothing ever switches to `blocking` by itself: read the detection log first. On AWS deploys the
+  zig-waf-only options are reported, not applied.
+- The firewall rate limit is per-minute per-IP at the WAF (`firewall.rateLimitPerMinute`)
+- Application rate limits (`.rateLimit()`, `rateLimit()`, the login lockout) share the Redis cache when it is configured and count per process otherwise; see `stacks-router`
 
 
 ## Encryption and webhook contracts
@@ -208,3 +255,39 @@ endpoints; a cloud WAF setting does not implement model row authorization.
 Capability/config validation and credential recovery have separate tests and
 failure contracts; propagate their real errors rather than interpreting an
 awaited call as proof that a security state transition persisted.
+
+## Shadowed security defaults
+
+`app/` wins resolution over `storage/framework/defaults/app/`, so an app copy of
+a security default freezes that code: framework security fixes to it never run.
+The API server (`buddy dev` and `serve`) warns once at boot, and `buddy doctor`
+reports a "Security overrides" warning, for every file in
+`SECURITY_DEFAULT_FILES` (`@stacksjs/server`) that the app shadows. That list
+covers the Auth, Guest, Csrf, Cors, Throttle, Signed, Abilities, Can,
+Permission, Role and EnsureEmailIsVerified middleware; the sign-in, session,
+token, OAuth, passkey, magic-link, social and session-handoff actions with their
+helpers; and the password-reset actions.
+
+- `identical`: a byte-for-byte copy. Delete it, since it does nothing except
+  block fixes.
+- `modified`: diff it against the current default and port any fixes. Once
+  reviewed, add `// stacks-reviewed-default: <fingerprint>` (the warning prints
+  the value). The fingerprint is a hash of the default, so the warning comes
+  back when the framework changes that default.
+
+Set `STACKS_SHADOWED_DEFAULTS_WARN=false` to silence it. To check
+programmatically, call `findShadowedSecurityDefaults(appDir, defaultsDir)`,
+which returns `{ path, kind, appFile, defaultFile, fingerprint }[]`. Keep app
+hooks in events or app-owned actions rather than copying these files.
+
+## Credential and sign-in hardening
+
+- Social sign-in state is single use, browser bound and stored as a digest
+  (`issueOAuthFlow` / `consumeOAuthFlow`, `stacks-socials`); the callback hands
+  over a one-use code, never tokens in a URL (`createSessionHandoff`,
+  `stacks-auth`).
+- Any change to how an account proves who it is runs
+  `revokeAccountCredentials()` (`stacks-auth`): stamp, then revoke challenges,
+  magic links, OAuth grants, tokens and sessions in one transaction.
+- SMS STOP is never bypassed by `ignorePreferences`; only an explicit
+  `ignoreOptOut` for legally required messages (`stacks-notifications`).

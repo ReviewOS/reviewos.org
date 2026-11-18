@@ -23,6 +23,7 @@ import { effectivePolicy } from '../Plugin/policy'
 import { policyLevels } from '../Plugin/store'
 import { repositoryPath } from '../Git/storage'
 import { isNotFalse, isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a runner asks for when it has capacity.
@@ -450,7 +451,7 @@ export default new Action({
      * runner with an empty step list, did nothing, and reported success. The
      * row's own columns are the record for exactly those jobs.
      */
-    const own = await db
+    const own = await rescue(() => db
       .selectFrom('workflow_steps')
       .select([
         'position', 'name', 'command', 'uses', 'working_directory',
@@ -462,8 +463,7 @@ export default new Action({
       ])
       .where('workflow_job_id', '=', claimed.jobId)
       .orderBy('position')
-      .execute()
-      .catch(() => [])
+      .execute(), [])
 
     /*
      * The run's own rows, and the version tables only when there are none.

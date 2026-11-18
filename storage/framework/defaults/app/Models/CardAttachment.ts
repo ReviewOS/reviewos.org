@@ -107,4 +107,13 @@ export default defineModel({
       factory: faker => faker.number.int({ min: 1000, max: 500_000 }),
     },
   },
+
+  dashboard: {
+    columns: ['path', 'card', 'mimeType', 'sizeBytes', 'createdAt'],
+    // A count of bytes reads as a size: "1.5 MB".
+    fields: {
+      sizeBytes: { label: 'Size', format: 'bytes' },
+      mimeType: { label: 'Type' },
+    },
+  },
 } as const)

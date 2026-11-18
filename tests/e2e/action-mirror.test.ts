@@ -8,6 +8,7 @@
 // only works while the thing it caches is reachable is not a cache.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -112,10 +113,10 @@ afterAll(async () => {
 
   try {
     if (created.repositoryId)
-      await db?.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db?.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
 
     if (created.ownerId)
-      await db?.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db?.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the files still go, below */ }
 

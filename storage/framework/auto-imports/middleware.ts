@@ -27,6 +27,7 @@ export const middleware = {
   'EnvProduction': '@stacksjs/defaults/app/Middleware/EnvProduction.ts',
   'EnvStaging': '@stacksjs/defaults/app/Middleware/EnvStaging.ts',
   'Guest': '@stacksjs/defaults/app/Middleware/Guest.ts',
+  'Honeypot': '@stacksjs/defaults/app/Middleware/Honeypot.ts',
   'Logger': '@stacksjs/defaults/app/Middleware/Logger.ts',
   'Maintenance': '@stacksjs/defaults/app/Middleware/Maintenance.ts',
   'Permission': '@stacksjs/defaults/app/Middleware/Permission.ts',

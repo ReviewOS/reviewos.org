@@ -14,10 +14,11 @@ import { db } from '@stacksjs/database'
 import type { NotificationRule, RunOutcome } from './notifyRules'
 import { matchRules, notificationTitle } from './notifyRules'
 import { isNotFalse } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /** The rules a repository has, in the shape the matcher takes. */
 export async function rulesFor(repositoryId: number): Promise<NotificationRule[]> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('workflow_notification_rules')
     .select(['id', 'user_id', 'workflow', 'branch', 'job_key', 'condition'])
     .where('repository_id', '=', repositoryId)
@@ -26,8 +27,7 @@ export async function rulesFor(repositoryId: number): Promise<NotificationRule[]
     // order the database felt like returning, so the sentence in somebody's
     // notification could differ between two deliveries of the same run.
     .orderBy('id')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -47,7 +47,7 @@ export async function rulesFor(repositoryId: number): Promise<NotificationRule[]
  * not after somebody's branch was.
  */
 export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome, repositoryId: number, runNumber: number } | null> {
-  const run = await db
+  const run = await rescue(() => db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
@@ -63,8 +63,7 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
       'workflows.path as workflow_path',
     ])
     .where('workflow_runs.id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!run)
     return null
@@ -81,7 +80,7 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
 
   const branch = String(run.event_ref ?? '').replace(/^refs\/heads\//, '')
 
-  const previous = await db
+  const previous = await rescue(() => db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .select(['workflow_runs.state as state'])
@@ -92,15 +91,13 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
     .where('workflow_runs.state', 'in', ['succeeded', 'failed', 'cancelled'])
     .orderBy('workflow_runs.id', 'desc')
     .limit(1)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
-  const jobs = await db
+  const jobs = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['job_id', 'state'])
     .where('workflow_run_id', '=', runId)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   /*
    * The previous state of each job, so a per-job rule can say `recovery` too.
@@ -110,7 +107,7 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
    * run that has already finished.
    */
   const previousJobs = previous
-    ? await db
+    ? await rescue(() => db
         .selectFrom('workflow_jobs')
         .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
         .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
@@ -120,8 +117,7 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
         .where('workflow_runs.id', '<', runId)
         .orderBy('workflow_runs.id', 'desc')
         .limit(50)
-        .execute()
-        .catch(() => [])
+        .execute(), [])
     : []
 
   const previousByJob = new Map<string, string>()

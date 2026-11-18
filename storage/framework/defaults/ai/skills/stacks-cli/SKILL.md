@@ -129,6 +129,14 @@ inspection, append a newline, and complete before an immediate `process.exit()`.
 The narrow import needs no application configuration. Use `log` for application
 logging with levels, context and transports.
 
+For large results or piped output, use `await printAsync(...args)` and
+`await printErrorAsync(...args)` from the same entrypoint. Their signatures are
+`(...args: unknown[]) => Promise<void>`. They append a newline, preserve Node
+formatting, wait for stream writes under backpressure, and reject write errors
+such as `EPIPE`. Await them before `process.exit()`. The synchronous helpers
+remain for small, bounded immediate-exit messages and may throw `EAGAIN` when
+a nonblocking pipe is full. These helpers are also exported by `@stacksjs/cli`.
+
 ## Output Formatting
 
 Via `@stacksjs/utils` color functions (available in CLI context):
@@ -187,3 +195,21 @@ Source evidence: `storage/framework/core/cli/src/index.ts`,
 `commands.ts` and `terminal.ts`; command discovery is owned by buddy's
 runtime registry. `buddy list` and `buddy <command> --help` are the
 authoritative command/flag inventory, including package-contributed commands.
+
+## Native command ownership
+
+Import `spawnOwnedProcess` from `@stacksjs/cli/owned-process` for a command whose
+normally inherited descendants belong to the same lifetime. This subpath uses
+only native Bun/Node primitives, with no CLI or application bootstrap.
+
+A controlled owner establishes a POSIX process group or native Windows Job
+Object before admitting the command. `started` resolves its actual command PID;
+`pid` identifies the stable lifecycle owner. Consumer IPC is forwarded with the
+verified command PID. `exited` preserves command status and settles after tree
+disposal. `stop()` is idempotent, and signaling the owner also initiates cleanup.
+Compiled callers supply their installed Bun path as `ownerRuntime`.
+
+This is lifecycle ownership, not a sandbox: deliberate POSIX breakaway is outside
+the group contract. Native admission or disposal failures reject rather than
+falling back to direct-child cleanup. `runBoundedProcess` in `cli/process` retains
+its separate output-byte/deadline contract; it is not this ownership API.

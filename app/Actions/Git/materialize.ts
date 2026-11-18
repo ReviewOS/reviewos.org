@@ -31,6 +31,7 @@ import { latestCheckpoint } from './checkpoint'
 import { initBare, runGit } from './git'
 import { ledgerFor, writeLedgerToDisk } from './refs'
 import { entriesFor } from './wal'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface MaterializeOutcome {
   ok: boolean
@@ -167,24 +168,22 @@ async function fetchBundle(
 /** The repository row for a path, for callers that only know where it lives. */
 export async function repositoryIdFor(owner: string, name: string): Promise<number | null> {
   for (const table of ['users', 'organizations'] as const) {
-    const found: any = await db
+    const found: any = await rescue(() => db
       .selectFrom(table)
       .select(['id'])
       .where('handle', '=', owner)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!found)
       continue
 
-    const repository: any = await db
+    const repository: any = await rescue(() => db
       .selectFrom('repositories')
       .select(['id'])
       .where('owner_type', '=', table === 'users' ? 'user' : 'organization')
       .where('owner_id', '=', Number(found.id))
       .where('name', '=', name)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (repository)
       return Number(repository.id)

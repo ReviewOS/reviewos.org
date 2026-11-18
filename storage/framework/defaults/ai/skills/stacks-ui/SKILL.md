@@ -8,10 +8,10 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 # Stacks UI
 
-Start with the package boundary. Templates use STX signals and Crosswind utilities;
+Start with the package boundary. Templates use STX signals and ts-css utilities;
 the CSS implementation in this checkout is `@stacksjs/ts-css/engine`. Read
 `stacks-stx` for template behavior, `stacks-composables` for browser delivery
-and reactive contracts, and `stacks-crosswind` for actual CSS configuration.
+and reactive contracts, and `stacks-ts-css` for actual CSS configuration.
 For visually important work also read `stacks-design-taste` and the matching
 aesthetic skill. Native applications pair with `stacks-mobile` or
 `stacks-desktop`; admin pages pair with `stacks-dashboard`.
@@ -25,12 +25,13 @@ aesthetic skill. Native applications pair with `stacks-mobile` or
 - STX tags such as `<Button />` and `<Sidebar />` resolve through the plugin
   in `config/ui.ts`, `storage/framework/defaults/stx-components-plugin.ts`.
   Application `resources/components/` overrides are handled by STX. Plugin
-  roots contain the component library, framework defaults, then package roots.
+  roots contain framework defaults, the component library, then package roots.
   Installed packages contribute additive roots through `packageComponentRoots()`;
   inspect that resolver before changing precedence.
 - `STX_COMPONENTS_DIR` explicitly selects a library source directory. The
-  plugin otherwise tries a local STX development checkout and the installed
-  library. A missing component warning is a resolution problem, not proof
+  plugin otherwise uses the installed library, keeping templates with the
+  controllers the application imports. A local checkout's presence never
+  changes that selection. A missing component warning is a resolution problem, not proof
   that a tag is a globally registered Vue component.
 
 ```ts
@@ -80,6 +81,34 @@ Pass `logo` to use your brand image in place of the text wordmark; `brand` remai
 Pass `memberId` and a localized `memberIdLabel` to engrave a permanent account identifier. Keep IDs stable across plans and organizations. Increment the optional numeric `replay` prop to remount the reveal through a keyed signal loop; no DOM access or timers are needed. Reduced motion still displays the complete card without confetti.
 
 Theme the finish through inherited CSS custom properties on the card's container or the application's root. Every property falls back to the original graphite finish: `--membership-card-background`, `--membership-card-color`, `--membership-card-border`, `--membership-card-shadow`, `--membership-card-inset-border`, `--membership-card-grain`, `--membership-card-label`, `--membership-card-name`, `--membership-card-divider`, `--membership-card-serial`, and `--membership-card-detail`. `--membership-card-confetti-1` through `--membership-card-confetti-4` color the celebration. Keep label and name colors readable against every stop of a custom gradient; the component's layout, stable identifier and reduced-motion behavior remain the same.
+
+## Storefront components
+
+`<ProductCard>` accepts generic `description`, `priceNote`, `href` and
+`imageAlt` props alongside the legacy food-specific `ingredient` prop.
+`description` takes precedence over `ingredient`; `priceNote` can explain a
+target or per-unit price without implying a discount. Status badges appear
+with the product copy below the image. Format money at the caller.
+
+`<QuantitySelector>` uses STX component state rather than document listeners.
+It binds `value` through `useModel`, supports `min`/`max`, defaults to whole
+quantities from 1 through 99, and keeps its named native number input ready
+for normal form submission. Use `label` for the input's accessible name.
+Buttons emit native input/change events for existing form integrations;
+`v-model:value` supports reactive parents; `change` remains a single bubbling
+native input event, without an additional custom event.
+Validate quantities again on the server. Multiple selectors keep independent
+state and do not install global click handlers.
+
+## Native 3D viewer
+
+`<ModelViewer :scene="scene()" label="Model inspection" poster="/drawing.png" />`
+renders a reactive `ModelScene` from `@stacksjs/browser/model-viewer`, using native
+WebGL without a third-party 3D library. Camera presets, orbit, pinch/wheel zoom,
+keyboard input, responsive backing resolution and drawing fallback are built in.
+Bind `:label` and `:poster` when switching models; both react with the scene so
+the accessible canvas description and fallback drawing keep the selected context.
+See `stacks-browser` for units, geometry, source limits and cleanup contracts.
 
 ## Gotchas
 

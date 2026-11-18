@@ -12,6 +12,8 @@ export default defineModel({
   ownership: siteOwnership(),
 
   traits: {
+    // So a fresh seed fills its dashboard page (stacksjs/stacks#3000).
+    useSeeder: { count: 10 },
     useUuid: true,
     useTimestamps: true,
     useSearch: {
@@ -214,7 +216,7 @@ export default defineModel({
       validation: {
         rule: schema.enum(['published', 'draft', 'archived']),
         message: {
-          oneOf: 'Status must be either published, draft, or archived',
+          enum: 'Status must be either published, draft, or archived',
         },
       },
       factory: faker => faker.helpers.arrayElement(['published', 'draft', 'archived']),
@@ -225,12 +227,24 @@ export default defineModel({
       order: 13,
       fillable: true,
       validation: {
-        rule: schema.number(),
+        rule: schema.boolean(),
         message: {
-          number: 'Featured must be a number value',
+          boolean: 'Featured must be yes or no',
         },
       },
-      factory: faker => faker.number.int({ min: 0, max: 1 }),
+      factory: faker => faker.datatype.boolean(),
+    },
+  },
+
+  dashboard: {
+    // Chosen as a file. Its address is what is stored, as before.
+    // Prose, asked for in a box with room for it.
+    fields: {
+      poster: { input: 'upload', accept: 'image/*' },
+      content: { input: 'longtext' },
+      excerpt: { input: 'longtext' },
+      metaDescription: { input: 'longtext' },
+      canonicalUrl: { input: 'url', format: 'link' },
     },
   },
 } as const)

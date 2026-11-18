@@ -60,6 +60,9 @@ const fastCommands = [
   'build',
   'test',
   'lint',
+  // Repository documentation tools inspect source without application globals.
+  'docs',
+  'release',
   '--version',
   '-v',
   'version',
@@ -85,7 +88,46 @@ const isRepl = !process.argv[1]
 // otherwise valid. Postinstall scripts are bootstrap work and must stay independent
 // of the application runtime preloader.
 const isPostinstall = process.env.npm_lifecycle_event === 'postinstall'
-const skipPreloader = isRepl || isPostinstall || (args.length > 0 && fastCommands.some(cmd => args[0] === cmd || args[0].startsWith(`${cmd}:`)))
+// runAction starts these framework files directly, with flags rather than a
+// Buddy command in argv[2]. They only inspect/release repository metadata.
+// Match the framework's source and published layouts, never an app action
+// which happens to have the same basename and needs its application globals.
+const entrypoint = (process.argv[1] ?? '').replaceAll('\\', '/')
+const repositoryAction = '(?:release|bump|generate/lib-entries)\\.[jt]s'
+const isRepositoryAction = new RegExp(`(?:^|/)storage/framework/core/actions/src/${repositoryAction}$`).test(entrypoint)
+  || new RegExp(`(?:^|/)(?:node_modules|pantry)/@stacksjs/actions/(?:src|dist(?:/src)?)/${repositoryAction}$`).test(entrypoint)
+
+/**
+ * A `buddy` installed once for the whole machine, started in this project.
+ *
+ * It is only passing through: it finds the project and replaces itself with
+ * the project's own `buddy`, which runs this file again, for real. Everything
+ * below (the env files, the auto-import graph) would be loaded here, thrown
+ * away a moment later, and loaded again: about half a second on every command
+ * typed at a project root.
+ *
+ * Not when this process was itself handed the project (`STACKS_BUDDY_ROOT`):
+ * that one is the last, and does the work.
+ */
+async function isVisitingBuddy(): Promise<boolean> {
+  if (isPostinstall || !/(?:^|\/)buddy\/(?:src\/cli\.ts|dist\/cli\.js)$/.test(entrypoint))
+    return false
+  if (process.env.STACKS_BUDDY_ROOT)
+    return false
+
+  try {
+    const pathPackage = '@stacksjs/' + 'path'
+    const { isVisitingCli } = await import('../../../core/path/src/index.ts').catch(() => import(pathPackage))
+    // An installed @stacksjs/path that predates the helper: carry on as before.
+    return typeof isVisitingCli === 'function' && isVisitingCli(process.cwd(), entrypoint)
+  }
+  catch {
+    return false
+  }
+}
+
+const isPassingThrough = await isVisitingBuddy()
+const skipPreloader = isRepl || isPostinstall || isRepositoryAction || isPassingThrough || (args.length > 0 && fastCommands.some(cmd => args[0] === cmd || args[0].startsWith(`${cmd}:`)))
 
 if (!skipPreloader) {
   // Detect production/deployment commands and set environment accordingly BEFORE loading env files
@@ -126,7 +168,7 @@ if (!skipPreloader) {
 // importing it there can fail (see the isPostinstall note above). The REPL keeps
 // its original skip. The heavy auto-import graph below stays gated separately via
 // `skipAutoImports`.
-if (!isRepl && !isPostinstall) {
+if (!isRepl && !isPostinstall && !isPassingThrough) {
   // Resolve the vendored source first; the package fallback covers non-standard
   // layouts where defaults is consumed outside the framework layout.
   const envPackage = '@stacksjs/' + 'env'
@@ -155,11 +197,19 @@ if (!isRepl && !isPostinstall) {
   // `upgrade` that would fix it. Falling through leaves stx and ts-cloud on
   // their own defaults, which is degraded but recoverable.
   const pathPkg = '@stacksjs/' + 'path'
-  const { applyRuntimeDirectoryEnv } = await import('../../../core/path/src/index.ts')
+  const { applyRuntimeDirectoryEnv, linkPackagedDefaults } = await import('../../../core/path/src/index.ts')
     .catch(() => import(pathPkg))
 
   if (typeof applyRuntimeDirectoryEnv === 'function')
     applyRuntimeDirectoryEnv()
+
+  // An app that does not vendor the framework defaults gets a gitignored
+  // `storage/framework/defaults` link to the installed package. A fresh clone
+  // has no link until something makes one, so boot does: one lstat when it is
+  // already there, and a no-op for a vendored tree. Guarded for the same
+  // published-version reason as the helper above.
+  if (typeof linkPackagedDefaults === 'function')
+    linkPackagedDefaults()
   else
     console.warn('[stacks] installed @stacksjs/path has no applyRuntimeDirectoryEnv; stx and ts-cloud will use their default state directories. Run `buddy upgrade` to refresh the framework packages.')
 }
@@ -340,7 +390,7 @@ export async function loadAutoImports() {
   // Priority: user models (app/Models) override framework defaults
   const modelDirs = [
     path.userModelsPath(),
-    path.storagePath('framework/defaults/app/Models'),
+    path.defaultsPath('app/Models'),
   ]
 
   const loadedModels = new Set<string>()
@@ -411,7 +461,7 @@ export async function loadAutoImports() {
   // Priority: user controllers > default controllers
   const controllerDirs = [
     path.userControllersPath(),
-    path.storagePath('framework/defaults/app/Controllers'),
+    path.defaultsPath('app/Controllers'),
   ]
   const loadedControllers = new Set<string>()
 

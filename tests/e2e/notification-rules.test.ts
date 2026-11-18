@@ -5,6 +5,7 @@
 // four matching rules for one person is still one message.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -81,14 +82,13 @@ async function run(state: string, jobs: Array<{ key: string, state: string }>, b
 }
 
 async function inboxOf(userId: number): Promise<any[]> {
-  return db
+  return rescue(() => db
     .selectFrom('notifications')
     .select(['id', 'type', 'data'])
     .where('user_id', '=', userId)
     .where('type', '=', 'workflow_run')
     .orderBy('id', 'desc')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 }
 
 beforeAll(async () => {
@@ -181,16 +181,16 @@ afterAll(async () => {
 
   try {
     for (const id of [created.ownerId, created.strangerId].filter(Boolean))
-      await db.deleteFrom('notifications').where('user_id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('notifications').where('user_id', '=', id).execute(), undefined)
 
     if (created.repositoryId) {
-      await db.deleteFrom('workflow_notification_rules').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('workflow_notification_rules').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     }
 
     for (const id of [created.ownerId, created.strangerId].filter(Boolean)) {
-      await db.deleteFrom('access_tokens').where('user_id', '=', id).execute().catch(() => {})
-      await db.deleteFrom('users').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('access_tokens').where('user_id', '=', id).execute(), undefined)
+      await rescue(() => db.deleteFrom('users').where('id', '=', id).execute(), undefined)
     }
   }
   catch { /* the next run uses fresh names */ }

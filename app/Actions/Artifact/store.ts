@@ -24,6 +24,7 @@ import {
   isOrphaned,
   withinCeilings,
 } from './storage'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface StoreInput {
   runId: number
@@ -261,12 +262,11 @@ async function announceExpiry(row: any): Promise<void> {
   if (!repositoryId)
     return
 
-  const run: any = await db
+  const run: any = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['id', 'number'])
     .where('id', '=', Number(row.workflow_run_id ?? 0))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const { announceArtifactExpired } = await import('../Workflow/announce')
 

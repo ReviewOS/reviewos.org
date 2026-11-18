@@ -5,6 +5,7 @@ import process from 'node:process'
 // a buddy command does not run through the preloader that injects those.
 import { db } from '@stacksjs/database'
 import { cachePolicy, collectCaches } from '../Actions/Workflow/cacheCollect'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What the dependency cache is holding, and what the next sweep would take.
@@ -30,11 +31,10 @@ export default function (cli: CLI) {
     .action(async (options: { collect?: boolean, json?: boolean }) => {
       const policy = cachePolicy(process.env as Record<string, string | undefined>)
 
-      const held: any[] = await db
+      const held: any[] = await rescue(() => db
         .selectFrom('workflow_cache_entries')
         .select(['repository_id', 'size_bytes'])
-        .execute()
-        .catch(() => [])
+        .execute(), [])
 
       const total = held.reduce((sum, row) => sum + Number(row.size_bytes ?? 0), 0)
 

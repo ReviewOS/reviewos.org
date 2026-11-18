@@ -1,5 +1,6 @@
 import { db } from '@stacksjs/database'
 import { settleRun } from './settle'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Letting go of deploys whose wait timer has run out.
@@ -15,13 +16,12 @@ import { settleRun } from './settle'
  * query that has to understand the rules.
  */
 export async function releaseElapsedWaits(now: Date = new Date()): Promise<{ released: number }> {
-  const held = await db
+  const held = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'settings', 'kind', 'started_at'])
     .where('state', '=', 'paused')
     .limit(500)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   let released = 0
 
@@ -49,12 +49,11 @@ export async function releaseElapsedWaits(now: Date = new Date()): Promise<{ rel
      */
     await settleRun(Number(job.workflow_run_id), now)
 
-    const after = await db
+    const after = await rescue(() => db
       .selectFrom('workflow_jobs')
       .select(['state'])
       .where('id', '=', Number(job.id))
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (after && String(after.state) !== 'paused')
       released += 1

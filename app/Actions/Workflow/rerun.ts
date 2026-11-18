@@ -18,6 +18,7 @@ import { db } from '@stacksjs/database'
 import type { RecordedStep, ReuseDecision } from './reuse'
 import { recordedOutputs, reusePlan, signatureOf, skipThrough } from './reuse'
 import { settleRun } from './settle'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What to run again.
@@ -156,13 +157,12 @@ export async function restartPlan(input: {
   /** Where the caller asked to start, counting from zero. */
   from: number
 }): Promise<{ decisions: ReuseDecision[], skip: number, reason: string }> {
-  const recorded = await db
+  const recorded = await rescue(() => db
     .selectFrom('workflow_steps')
     .select(['position', 'state', 'outputs', 'command', 'uses', 'inputs', 'env', 'shell', 'working_directory', 'condition'])
     .where('workflow_job_id', '=', input.jobId)
     .orderBy('position')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const before: RecordedStep[] = (recorded as any[]).map(step => ({
     position: Number(step.position ?? 0),
@@ -171,7 +171,7 @@ export async function restartPlan(input: {
     outputs: recordedOutputs(step.outputs),
   }))
 
-  const defined = await db
+  const defined = await rescue(() => db
     .selectFrom('workflow_version_steps')
     .innerJoin(
       'workflow_version_jobs',
@@ -193,8 +193,7 @@ export async function restartPlan(input: {
     .where('workflow_runs.id', '=', input.runId)
     .where('workflow_version_jobs.job_id', '=', input.jobKey)
     .orderBy('workflow_version_steps.position')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   /*
    * A generated job is compared against itself, and that is not a loophole.
@@ -422,13 +421,12 @@ async function positionOfStep(jobId: number, reference: string | null | undefine
   if (!wanted)
     return null
 
-  const steps = await db
+  const steps = await rescue(() => db
     .selectFrom('workflow_steps')
     .select(['position', 'name', 'step_id'])
     .where('workflow_job_id', '=', jobId)
     .orderBy('position')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const byId = (steps as any[]).find(step => String(step.step_id ?? '') === wanted)
 
@@ -464,17 +462,16 @@ async function positionOfStep(jobId: number, reference: string | null | undefine
  */
 async function resetSteps(jobId: number, skip: number, attempt: number): Promise<void> {
   if (skip > 0) {
-    await db
+    await rescue(() => db
       .updateTable('workflow_steps')
       .set({ reused_from_attempt: attempt })
       .where('workflow_job_id', '=', jobId)
       .where('position', '<', skip)
       .whereNull('reused_from_attempt')
-      .execute()
-      .catch(() => null)
+      .execute(), null)
   }
 
-  await db
+  await rescue(() => db
     .updateTable('workflow_steps')
     .set({
       state: 'pending',
@@ -489,6 +486,5 @@ async function resetSteps(jobId: number, skip: number, attempt: number): Promise
     })
     .where('workflow_job_id', '=', jobId)
     .where('position', '>=', skip)
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }

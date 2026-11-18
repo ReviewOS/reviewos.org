@@ -13,6 +13,7 @@ import { generateKey, publicKeys, rotateKey, subjectFor } from '../../app/Action
 import { signWork, verifyWork } from '../../app/Actions/Workflow/stepSignature'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 import { isTrue } from '../../app/Actions/Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -199,14 +200,14 @@ afterAll(async () => {
 
   try {
     for (const id of created.runnerIds)
-      await db.deleteFrom('runners').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', id).execute(), undefined)
 
     for (const id of [created.repositoryId, created.otherRepositoryId].filter(Boolean))
-      await db.deleteFrom('repositories').where('id', '=', id).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', id).execute(), undefined)
 
     if (created.ownerId) {
-      await db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute().catch(() => {})
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('access_tokens').where('user_id', '=', created.ownerId).execute(), undefined)
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
     }
   }
   catch { /* the next run uses fresh names */ }

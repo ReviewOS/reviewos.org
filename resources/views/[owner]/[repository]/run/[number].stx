@@ -438,8 +438,11 @@ const actor: any = run?.actor_id
  */
 const runnerIds = [...new Set(jobRows.map((job: any) => String(job.runner_id ?? '')).filter(Boolean))]
 
-const runnerRows: any[] = runnerIds.length > 0
-  ? await db
+let runnerRows: any[] = []
+
+if (runnerIds.length > 0) {
+  try {
+    runnerRows = await db
       .selectFrom('runners')
       .leftJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
       .leftJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
@@ -451,8 +454,11 @@ const runnerRows: any[] = runnerIds.length > 0
       ])
       .where('runners.id', 'in', runnerIds.map(one => Number(one)).filter(one => Number.isFinite(one)))
       .execute()
-      .catch(() => [])
-  : []
+  }
+  catch {
+    runnerRows = []
+  }
+}
 
 const runnersById = new Map<string, any>(runnerRows.map((row: any) => [String(row.id), row]))
 

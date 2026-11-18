@@ -53,9 +53,16 @@ a versioned `STACKS_DEPLOY_PREVIEW_JSON=` line for API and tool consumers.
 
 Automated production deployments on GitHub Actions and ReviewOS require a full provider
 commit SHA and branch ref. Before prerequisite setup, Buddy verifies the checkout against
-that SHA and reads the current branch head from `origin`. A stale commit, tag/PR ref,
-missing metadata or unavailable remote stops the deployment. Ordinary manual deployments
-and staging deployments keep their existing behavior; dry-run previews remain read-only.
+that SHA and accepts an unchanged origin head directly. If the head moved, Buddy fetches
+the branch from `origin` (FETCH_HEAD only), completes shallow history and requires the
+commit to be on it. Unavailable or still-shallow history stops deployment. Before shipping over SSH it
+reads the release each site's `current` link serves and stops only when production
+already runs a commit that landed after this one, so a deploy never goes backwards. A
+verified commit newer than production deploys even when the head has moved on: requiring
+the exact head starved production whenever pushes outpaced CI. A commit off the branch
+(force-pushed away), a tag/PR ref, missing metadata, an unavailable remote or an
+unreadable box stops the deployment. Ordinary manual deployments and staging deployments
+keep their existing behavior; dry-run previews remain read-only.
 
 **AWS** (`provider: 'aws'`)
 
@@ -202,9 +209,18 @@ buddy cloud --diff            # preview infrastructure changes before deploying
 buddy cloud --ssh             # SSH into deployed server
 buddy cloud:remove            # tear down infrastructure (alias: undeploy)
 buddy cloud:cleanup           # clean retained resources
+buddy cloud:targets --json    # each deployed site: host, SSH user and key, app path, env file
 ```
 
+`cloud:targets` is read-only and answers "where does this app run, and how do I
+get a shell in it?" from the stack's pinned state plus at most one provider
+listing (`--no-remote` skips the listing). It is what a tool that opens a
+session in a deployed app starts from, instead of asking for a host and a path.
+It needs `@stacksjs/ts-cloud` 0.16.126 or newer and says so on an older one.
+
 ## Gotchas
+
+- **The web firewall comes from `security.waf`.** Box deploys run zig-waf in detection mode by default; `config/security.ts` `waf` tunes it (see `stacks-security`), and `infrastructure.compute.waf` in `config/cloud.ts` overrides it field by field. `compute.waf: false` turns it off.
 - The API reachability guard recognises `serve:api`, source `serve/api.js`
   entrypoints and compiled `storage/framework/runtime/production/api.js`
   bundles, including wrapper commands and custom site names. Page sites still
@@ -220,8 +236,9 @@ buddy cloud:cleanup           # clean retained resources
 - On Hetzner and SSH, a project's `/etc/rpx/sites.d/<slug>.json` is replaced wholesale, so
   `project.slug` must be unique on a shared box and the config must declare every domain that
   fragment serves
-- `.env.<environment>` is decrypted at deploy time and shipped as every site's `.env`, so declare
-  `tenants` in `config/cloud.ts` on a shared box to strip other tenants' keys
+- `.env.<environment>` is decrypted at deploy time and shipped as every site's `.env`. Supply the
+  shared-box roster through `STACKS_CLOUD_TENANTS` or private tenant files so other tenants' keys
+  are stripped. See `stacks-env` for the private-source precedence.
 - A failover replica bucket (`infrastructure.storage.<name>.failover`) lives outside the stack, so
   `buddy cloud:remove` leaves it, and its data, behind on purpose
 - For infrastructure details, see the `stacks-cloud` skill
@@ -241,3 +258,31 @@ installed file's shape rather than moving tsCloud settings into an unrelated
 flat object. A cloud SQS queue definition does not implement QUEUE_DRIVER=sqs
 in the Stacks queue package. Previews, destructive removal, secret writes and
 provider mutations need the user's existing task authorization.
+
+## Projects with multiple runtimes
+
+Keep an application's models, routes and cloud configuration in its own top-level
+project. An attached app owns its website and API and deploys from its own repo;
+the compute host must not check out or publish tenant source. Use `cloud.attachTo`
+with an independent project slug.
+
+`buddy deploy --prod --env-file .env.web` selects only the web runtime's env file
+and its scoped decryption key. It never falls back to the native signing file.
+Use `database.models.include` and `security.api.models` to scope hosted schema and
+APIs, keeping local native models in their explicit native registry.
+
+For an intentional hostname handoff, the old owner removes its site and runs
+`buddy deploy --prod --retire-domains old.example.com`. This operator input retires
+omitted names without committing tenant names to the host's config. It cannot
+retire a domain the configuration still declares.
+
+## ReviewOS application pipeline
+
+Declare owned runner labels, scoped secret names and application argv hooks in
+`config/workflows.ts` using `WorkflowConfig`. `buddy workflow:setup` generates
+the normal checks and ordered deployment, and `--check` verifies committed
+workflow freshness. The deployment defaults to `buddy deploy --prod --yes`.
+Declare `after-deploy` to verify the actual application before native acceptance.
+Production and iOS signing secrets belong to their protected environments;
+check jobs receive only their declared check secrets. Do not copy per-app
+provider polling scripts or bypass the acceptance graph when switching hosts.

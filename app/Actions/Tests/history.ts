@@ -1,6 +1,7 @@
 import { db } from '@stacksjs/database'
 import { splitTests } from './split'
 import type { SplitOutcome } from './split'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * The split, computed from a repository's recorded timings.
@@ -23,7 +24,7 @@ export async function splitForRepository(input: {
    * takes on its command line. Splitting by individual test would give a
    * better partition and a client nobody can write.
    */
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('test_executions')
     .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
@@ -38,8 +39,7 @@ export async function splitForRepository(input: {
     // the file holding it look slower than it will be.
     .where('managed_tests.state', '!=', 'skipped')
     .groupBy('managed_tests.scope')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   /*
    * Divided by the number of runs those executions came from, not left as a
@@ -73,14 +73,13 @@ export async function splitForRepository(input: {
 
 /** How many runs the history spans, so a sum can become a per-run average. */
 async function runCount(repositoryId: number, suite: string): Promise<number> {
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom('test_runs')
     .innerJoin('test_suites', 'test_suites.id', '=', 'test_runs.test_suite_id')
     .select(db.fn.count('test_runs.id').as('runs'))
     .where('test_suites.repository_id', '=', repositoryId)
     .where('test_suites.slug', '=', suite)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return Math.max(1, Number(row?.runs ?? 1))
 }

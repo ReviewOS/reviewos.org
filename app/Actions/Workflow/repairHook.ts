@@ -29,6 +29,7 @@ import { auditEvent } from '../../Audit/events'
 import { isTrue } from '../Support/sql'
 import { mayAttemptRepair, repairPolicyFor } from './repairPolicy'
 import { recordAttempt, spentOn } from './repairAttempts'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface RepairTrigger {
   /** The job row's own id, which is what the runner reported against. */
@@ -185,14 +186,13 @@ async function decide(trigger: RepairTrigger): Promise<RepairDecision> {
  * job; the steps after it either did not run or ran on a workspace it left.
  */
 export async function failedStepOf(jobId: number): Promise<string | null> {
-  const row: any = await db
+  const row: any = await rescue(() => db
     .selectFrom('workflow_steps')
     .select(['name', 'position', 'continue_on_error'])
     .where('workflow_job_id', '=', jobId)
     .where('state', '=', 'failed')
     .orderBy('position', 'asc')
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!row)
     return null

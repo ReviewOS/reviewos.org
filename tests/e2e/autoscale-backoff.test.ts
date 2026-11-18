@@ -7,6 +7,7 @@
 // were told is a row in an administrator's inbox.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, adminId: 0, repositoryId: 0, workflowId: 0, versionId: 0, handle: '', name: '', group: '' }
 const runnerIds: number[] = []
@@ -191,13 +192,13 @@ afterAll(async () => {
     return
 
   if (runnerIds.length > 0)
-    await db.deleteFrom('runners').where('id', 'in', runnerIds).execute().catch(() => null)
-  await db.deleteFrom('runner_group_backoffs').where('group_name', '=', created.group).execute().catch(() => null)
-  await db.deleteFrom('notification_deliveries').where('user_id', '=', created.adminId).execute().catch(() => null)
-  await db.deleteFrom('notifications').where('user_id', '=', created.adminId).execute().catch(() => null)
-  await db.deleteFrom('workflows').where('id', '=', created.workflowId).execute().catch(() => null)
-  await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => null)
-  await db.deleteFrom('users').where('id', 'in', [created.ownerId, created.adminId]).execute().catch(() => null)
+    await rescue(() => db.deleteFrom('runners').where('id', 'in', runnerIds).execute(), null)
+  await rescue(() => db.deleteFrom('runner_group_backoffs').where('group_name', '=', created.group).execute(), null)
+  await rescue(() => db.deleteFrom('notification_deliveries').where('user_id', '=', created.adminId).execute(), null)
+  await rescue(() => db.deleteFrom('notifications').where('user_id', '=', created.adminId).execute(), null)
+  await rescue(() => db.deleteFrom('workflows').where('id', '=', created.workflowId).execute(), null)
+  await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), null)
+  await rescue(() => db.deleteFrom('users').where('id', 'in', [created.ownerId, created.adminId]).execute(), null)
 })
 
 describe('a runner group whose launches never register', () => {

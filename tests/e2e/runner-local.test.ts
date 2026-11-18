@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = {
   ownerId: 0,
@@ -323,15 +324,15 @@ afterAll(async () => {
 
   try {
     if (created.repositoryId) {
-      await db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('workflow_runs').where('repository_id', '=', created.repositoryId).execute(), undefined)
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     }
 
     if (created.runnerId)
-      await db.deleteFrom('runners').where('id', '=', created.runnerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('runners').where('id', '=', created.runnerId).execute(), undefined)
 
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the files still go, below */ }
 

@@ -1,6 +1,6 @@
 ---
 name: stacks-orm
-description: Use when querying or writing Stacks models, using transactions and relationships, preserving inferred model types, or enabling native model traits. Covers @stacksjs/orm, the model runtime, and 107 built-in models.
+description: Use when querying or writing Stacks models, using transactions and relationships, preserving inferred model types, or enabling native model traits. Covers @stacksjs/orm, the model runtime, and 113 built-in models.
 license: MIT
 compatibility: Bun >= 1.3.0, TypeScript
 allowed-tools: Read Edit Write Bash Grep Glob
@@ -10,7 +10,7 @@ allowed-tools: Read Edit Write Bash Grep Glob
 
 `defineModel` produces an immediately usable query surface over
 `bun-query-builder`. Model-driven migrations change the schema; there are no
-per-model ORM classes to generate. The framework declares 107 models on disk,
+per-model ORM classes to generate. The framework declares 113 models on disk,
 but optional feature gates determine which built-ins load in a running app.
 
 ## Definitions and typed rows
@@ -25,14 +25,137 @@ import type { ModelRow, ModelCreateData } from '@stacksjs/orm'
 type WorkItemRow = ModelRow<typeof WorkItem>
 type NewWorkItem = ModelCreateData<typeof WorkItem>
 
-const item = await WorkItem.find(id)
-const open = await WorkItem.where('done', false).orderBy('id', 'desc').get()
+const item = WorkItem.find(id)
+const open = WorkItem.where('done', false).orderBy('id', 'desc').get()
 ```
 
 `find` can return no row; `findOrFail` throws `ModelNotFoundError`. Do not invent
 `UserRequest` or a runtime `UserModel` global. The ORM barrel's model proxies
 load lazily; server boot waits for model initialization. A feature-disabled
 model is not made usable merely by an ambient declaration.
+
+## Model calls answer in place
+
+A model call returns its value where it is written, on SQLite, MySQL and
+Postgres:
+
+```ts
+const user = User.where('email', 'like', '%@example.com').orderByDesc('created_at').first()
+user?.email                                   // the row is already here
+
+const total = User.count()
+if (User.where('email', email).exists()) return response.badRequest('Taken')
+for (const post of Post.where('published', true).get()) titles.push(post.title)
+```
+
+- **Every read, on every model.** `find`, `findOrFail`, `findMany`, `first`,
+  `firstOrFail`, `last`, `all`, `get`, `count`, `exists`, `pluck`, `sum`,
+  `avg`, `min`, `max`, `paginate`, `simplePaginate`, `cursorPaginate`, eager
+  loading through `with()`, and reads of encrypted attributes.
+- **`await` still works.** `await` on a value is that value, so existing code
+  and code written by habit run unchanged. The types say the same: a read is
+  typed as the row, not as a promise of it.
+- **A failure is thrown where the call stands.** `findOrFail` on a missing
+  row throws; wrap it in `try`/`catch`. `.catch()` and `.then()` do not exist
+  on a row. In a test, `expect(() => User.findOrFail(0)).toThrow()`, not
+  `await expect(...).rejects`.
+- **How.** SQLite runs a query in place. MySQL and Postgres run on Bun's
+  driver, held by a worker thread the caller waits on, so nothing else runs on
+  the calling thread while a query is in flight (the cost `bun:sqlite` always
+  had). On a Bun whose drivers can wait for a statement themselves
+  ([stacksjs/bun](https://github.com/stacksjs/bun)) there is no worker: the
+  connection stays on the calling thread. The runtime is looked at when the
+  connection opens, the rules are the same either way, and
+  `models: { transport: 'worker' }` keeps the worker. `models: { execution: 'async' }` in `config/query-builder.ts` makes MySQL and
+  Postgres calls promises again for an app that needs the event loop free
+  during queries; every call then has to be awaited.
+- **The `db` query builder too.** `db.selectFrom(...).get()` is the rows and
+  `transaction(tx => ...)` is done when it returns, on the same rule (see
+  `stacks-database`, "Values, not promises").
+- **Inside `db.transaction()`, write through `tx`, not through a model.** A
+  model call runs on its own connection. One that needs a row the open
+  transaction has locked waits for that transaction to finish, and if the
+  transaction's own callback is what is waiting for the model call, neither
+  can: it fails with `StatementTimeoutError` after `models.timeoutMs` (30
+  seconds by default, `0` for no limit). Postgres cancels the abandoned
+  statement; MySQL cannot, so there it may still be applied once the lock is
+  gone.
+- **The one model call that is a promise.** While a transaction with an
+  `async` callback is open in the process, a model call that needs a lock it
+  holds answers with a promise instead of waiting on the thread the commit
+  needs (see `stacks-database`, "Values, not promises"). Any other call is
+  still a value.
+
+### Writes: in place, with the work around them
+
+```ts
+// Lifecycle events, a search index, a broadcast: the write is still the row.
+const order = Order.create({ total: 1200 })
+order.update({ total: 1500 })
+Order.delete(order.id)
+
+// Declares `useSoftDeletes`: every write is a promise.
+const note = await Note.create({ title: 'Draft' })
+```
+
+What a model declares around its writes happens like this:
+
+| Declaration | When it runs |
+|---|---|
+| `traits.observe` | listeners are called in place, in order; the row comes back after them |
+| `traits.useSearch` | the index update starts with the write and finishes after it |
+| `traits.broadcastOn` | the broadcast starts with the write and finishes after it |
+| `set: { ... }`, `hooks: { ... }` written without `async` | in place, as part of the write |
+
+A before-listener (`saving`, `creating`, `updating`, `deleting`) cancels the
+write by returning `false` or throwing, and the write throws where it stands.
+An after-listener that is `async` runs on after the row is back. A
+before-listener that is `async` still has to be waited for, since it may
+cancel: that one write becomes a promise, and the ORM warns once per event.
+Keep before-listeners synchronous.
+
+A model's writes wait, and are typed as promises, only when its definition
+declares something a write cannot do in place:
+
+| Declaration | What the write waits for |
+|---|---|
+| `traits.useSoftDeletes` / `softDeletable` | the soft-delete transaction |
+| `traits.useAudit`, `traits.useActivityLog` | the audit or activity row |
+| a `set:` member written `async` | the setter |
+| a `hooks:` member written `async` | the hook |
+
+It is decided from the declaration, not from what happens to run: on such a
+model `create`, `createMany`, `firstOrCreate`, `updateOrCreate`, `update`,
+`save`, `delete`, `forceDelete` and a query's `delete()` are promises every
+time, and a failure is a rejection. On any other model they return the value,
+and a failure (a guarded column, a validation rule, a listener that refuses)
+throws where the call stands. `modelWritesWait(definition)` answers it at
+runtime and `ModelWritesWait<typeof Model>` in the types. Reads never wait on
+either kind.
+
+Write setters so they answer in place. A password setter uses `makeHashSync`
+from `@stacksjs/security`, as the default `User` does: it holds the thread for
+the length of the hash (about a quarter of a second for bcrypt at 12 rounds),
+and `User.create(...)` is the row. Where that pause is the worse trade, make
+the setter `async` with `makeHash` and `await` that model's writes. An
+instance write on a model with an async setter goes through `saveAsync()` /
+`updateAsync()`.
+
+Work that finishes after the write (the index update, the broadcast, an
+`async` after-listener) is logged if it fails and never fails the write. A
+server needs nothing more. A script that ends with `process.exit()` waits
+first:
+
+```ts
+import { modelWorkSettled } from '@stacksjs/orm'
+
+Product.create({ name: 'Widget' })
+await modelWorkSettled() // index updates and broadcasts are done; rejects if one failed
+process.exit(0)
+```
+
+Application seeders and tinker snippets already do this. When in doubt,
+`await` the write: it is correct on every model.
 
 ## Write behavior
 

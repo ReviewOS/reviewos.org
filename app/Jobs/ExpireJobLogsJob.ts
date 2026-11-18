@@ -1,5 +1,6 @@
 import { Job } from '@stacksjs/queue'
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 import { logRetentionDays } from '../../config/ci-logs'
 
 /**
@@ -38,12 +39,11 @@ export default new Job({
 
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString()
 
-    const removed = await db
+    // The delete answers with the number of rows it removed.
+    const removed = await rescue(() => db
       .deleteFrom('workflow_job_logs')
       .where('created_at', '<', cutoff)
-      .execute()
-      .then(result => Number((result as any)?.[0]?.numDeletedRows ?? 0))
-      .catch(() => 0)
+      .execute(), 0)
 
     return { ok: true, removed, retentionDays: days }
   },

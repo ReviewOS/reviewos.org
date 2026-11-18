@@ -20,6 +20,7 @@ import pages from '../../../config/pages'
 import { parsePagesRequest, pagesEnabled } from './host'
 import { contentTypeFor, resolveSitePath, siteDirectory, siteForDomain, siteFor } from './site'
 import type { PagesSiteRow } from './site'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a Pages request resolved to, before any file is read. */
 export interface ResolvedPagesTarget {
@@ -94,12 +95,11 @@ export async function mayReadSite(site: PagesSiteRow, userId: number | null): Pr
   if (site.visibility === 'public')
     return true
 
-  const repository = await db
+  const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'visibility', 'owner_type', 'owner_id', 'is_archived'])
     .where('id', '=', site.repository_id)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!repository)
     return false

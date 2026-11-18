@@ -103,6 +103,7 @@ export default defineModel({
     text: {
       required: false,
       fillable: true,
+      type: 'text',
       validation: {
         rule: schema.string(),
       },
@@ -197,7 +198,6 @@ export default defineModel({
       validation: {
         rule: schema.number(),
       },
-      factory: faker => faker.number.int({ min: 1, max: 8 }),
     },
 
     scheduledAt: {
@@ -322,5 +322,33 @@ export default defineModel({
         return faker.date.soon({ days: 30 }).toISOString().slice(0, 19).replace('T', ' ')
       },
     },
+  },
+
+  dashboard: {
+    columns: ['name', 'type', 'status', 'emailList', 'scheduledAt', 'sentCount'],
+    // Delivery is for email campaigns, in the states the newsletter engine
+    // takes each from. Sending is on the campaign's own page only: it reaches
+    // every subscriber on the list, so it is not an icon in a table row.
+    actions: [
+      {
+        name: 'send',
+        label: 'Send now',
+        action: 'Actions/Dashboard/Marketing/CampaignSendAction',
+        icon: 'i-hugeicons-sent',
+        confirm: 'It is queued for delivery to every active subscriber on its list.',
+        on: ['record'],
+        when: { type: 'email', status: ['draft', 'scheduled', 'paused', 'failed'] },
+      },
+      {
+        name: 'cancel',
+        label: 'Cancel delivery',
+        action: 'Actions/Dashboard/Marketing/CampaignCancelAction',
+        icon: 'i-hugeicons-cancel-circle',
+        confirm: 'Messages that have not gone out yet are not sent. Ones already sent cannot be recalled.',
+        destructive: true,
+        on: ['record'],
+        when: { type: 'email', status: ['scheduled', 'sending'] },
+      },
+    ],
   },
 } as const)

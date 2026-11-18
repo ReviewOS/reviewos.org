@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What the tests say about a pull request, and - the part nobody else does -
@@ -86,7 +87,7 @@ export async function testSummaryForPull(input: {
    * finished. Latest *within* a suite because a rerun supersedes the run it
    * repeated.
    */
-  const runs = await db
+  const runs = await rescue(() => db
     .selectFrom('test_runs')
     .innerJoin('test_suites', 'test_suites.id', '=', 'test_runs.test_suite_id')
     .select([
@@ -101,8 +102,7 @@ export async function testSummaryForPull(input: {
     .where('test_suites.repository_id', '=', input.repositoryId)
     .where('test_runs.head_sha', '=', input.headSha)
     .orderBy('test_runs.id', 'desc')
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   if (!runs.length)
     return empty
@@ -145,7 +145,7 @@ export async function testSummaryForPull(input: {
 
   const runIds = [...latest.values()].map(run => Number(run.id))
 
-  const executions = await db
+  const executions = await rescue(() => db
     .selectFrom('test_executions')
     .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
@@ -160,8 +160,7 @@ export async function testSummaryForPull(input: {
       'test_suites.slug as suite',
     ])
     .where('test_executions.test_run_id', 'in', runIds)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   const interesting = new Map<number, PullTestFinding>()
 
@@ -217,7 +216,7 @@ async function unreliableOn(testId: number, branch: string): Promise<boolean> {
   if (!branch)
     return false
 
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('test_executions')
     .innerJoin('test_runs', 'test_runs.id', '=', 'test_executions.test_run_id')
     .select([
@@ -229,8 +228,7 @@ async function unreliableOn(testId: number, branch: string): Promise<boolean> {
     .where('test_runs.branch', '=', branch)
     .orderBy('test_executions.id', 'desc')
     .limit(BRANCH_WINDOW)
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   if (!rows.length)
     return false

@@ -10,6 +10,7 @@
 // pass". Every test here is one of the ways it would be taken.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 import {
   defaultRepairPolicy,
   matchesPath,
@@ -179,7 +180,7 @@ describe('a repository\'s own policy', () => {
 
   afterAll(async () => {
     if (repositoryId)
-      await db?.deleteFrom('repositories').where('id', '=', repositoryId).execute().catch(() => null)
+      await rescue(() => db?.deleteFrom('repositories').where('id', '=', repositoryId).execute(), null)
   })
 
   test('is off when nobody has been asked', async () => {

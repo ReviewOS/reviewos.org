@@ -95,7 +95,7 @@ abstract class BaseChatDriver implements ChatDriver {
 
 ```typescript
 interface ChatMessage {
-  to: string | string[]                // recipient (channel ID, user ID, etc.)
+  to?: string | string[]               // a bot token's channel or user ID; omit for a webhook
   from?: { id?: string, name?: string, avatar?: string }
   subject?: string                      // title for rich messages
   content?: string                      // plain text content
@@ -181,8 +181,14 @@ interface SlackAttachment {
 
 ### Slack Sending Modes
 
-1. **Webhook mode**: If `config.webhookUrl` is set, sends via `POST` to webhook URL. Payload includes `text`, `username`, `mrkdwn: true`. If `message.template` exists, builds Block Kit blocks.
-2. **Bot token mode**: If `config.botToken` is set, sends via Slack API `https://slack.com/api/chat.postMessage` with `Authorization: Bearer <token>`. Returns `ts` (timestamp) as message ID.
+1. **Webhook mode**: If `config.webhookUrl` is set, sends via `POST` to webhook URL. Payload includes `text`, `username`, `mrkdwn: true`. If `message.template` exists, builds Block Kit blocks. Needs no `message.to`.
+2. **Bot token mode**: If `config.botToken` is set, sends via Slack API `https://slack.com/api/chat.postMessage` with `Authorization: Bearer <token>`, to the channel in `message.to` (required). Returns `ts` (timestamp) as message ID.
+
+`send()` treats `content` as the plain text `ChatMessage` says it is: `&`, `<`
+and `>` are escaped (`escapeSlackText`), so `<!channel>` or a disguised
+`<url|label>` in user text arrives as literal text instead of pinging the
+channel or hiding a link. Plain URLs still link. `sendWebhook(url, text)` is
+raw, for Slack markup written on purpose.
 3. Throws `Error('Slack not configured: provide webhookUrl or botToken')` if neither is set.
 
 ### Direct Webhook Function
@@ -247,8 +253,15 @@ interface DiscordMessage {
 
 ### Discord Sending Modes
 
-1. **Webhook mode**: POST to `config.webhookUrl`. Handles `204` (empty success) responses. Returns `id` from response.
-2. **Bot token mode**: POST to `https://discord.com/api/v10/channels/{channelId}/messages` with `Authorization: Bot <token>`. Uses `message.to` as the channel ID.
+1. **Webhook mode**: POST to `config.webhookUrl`. Handles `204` (empty success) responses. Returns `id` from response. Needs no `message.to`.
+2. **Bot token mode**: POST to `https://discord.com/api/v10/channels/{channelId}/messages` with `Authorization: Bot <token>`. Uses `message.to` as the channel ID (required).
+
+Every payload carries `allowed_mentions`, by default `{ parse: ['users', 'roles'] }`
+(`DEFAULT_ALLOWED_MENTIONS`): people and roles named by ID ping, `@everyone`
+and `@here` in content never do. `sendWebhook()`'s `allowedMentions` replaces
+the default, and its camelCase options are sent under Discord's names
+(`avatar_url`, `allowed_mentions`) by `discordPayload()`. With a subject or
+template the body goes in the embed only, not also as `content`.
 
 ### Embed Building
 When `message.subject` or `message.template` is set, `buildEmbed()` creates an embed with:
@@ -457,10 +470,10 @@ All three drivers implement `sendWithRetry()`:
 
 Direct send returns ChatResult, with success false for a handled provider failure;
 inspect it before persisting sent state. Awaiting a send only proves the promise
-settled. Webhook configuration does not replace ChatMessage's to/content or
-template fields. The generic notify chat channel supplies a body-only shape and
-does not normalize every structured transport failure, so use this package's
-direct API when application behavior depends on valid chat delivery.
+settled. A webhook send needs no `to`; a bot-token send needs the channel in
+`to`. notify()'s chat channel sends the body as `content` and `chatRecipient`
+as `to`, through `recipient.chatDriver` or `config.notification.chat.default`,
+and a failed send is a failed NotifyResult.
 
 Settings resolve per send after app config readiness, with explicit configure
 overrides taking precedence. Retained request/config coverage lives under
@@ -507,6 +520,45 @@ key for one attempted message; a different body with the same key returns 409.
 History is chronological, with `has_more` and a `before` message-id cursor.
 Receipts acknowledge only messages through the id actually displayed.
 `MessagingError.status` provides safe HTTP statuses for application handlers.
+
+### Attachments
+
+`send(id, body, retryKey, attachments?)` records files the application has
+already stored. The trait keeps a reference, never bytes: `file` is the
+application's own name for the upload (a disk path, a bucket key, an id), and
+`type`, `name`, `size`, `width` and `height` are optional. `name` is what the
+sender called the file (`Week 42 plan.pdf`): `file` is an unguessable stored
+name, so for a document `name` is the only thing that tells the recipient what
+they were sent. Resolving and authorizing the file stays with the application,
+so a disk, a bucket and a CDN look the same from here.
+
+```ts
+import type { DirectMessageAttachment } from '@stacksjs/chat'
+
+const photo: DirectMessageAttachment = { file: upload.key, type: 'image/jpeg', size: upload.size, width: 1200, height: 900 }
+await messenger.send(thread.id, '', retryKey, [photo])
+
+const plan: DirectMessageAttachment = { file: upload.key, type: 'application/pdf', name: upload.originalName, size: upload.size }
+await messenger.send(thread.id, '', retryKey, [plan])
+```
+
+- A photo with no caption is a message: `body` may be empty when there is at
+  least one attachment, and only then.
+- `message.attachments` is always an array, `[]` for text. Rows written before
+  the column existed read as `[]`.
+- A retry key covers the attachments too. The same key with a different file
+  is a different message and returns 409, rather than silently keeping the
+  first photo.
+- At most 10 attachments, 4000 characters once serialised. `type` and `name`
+  are 1 to 255 characters. A key the trait does not know is refused with a 422
+  that names it, rather than dropped, so the column cannot become a second
+  message body and nothing a caller sent goes missing silently.
+- The column is `chat_messages.attachments`, added by `buddy migrate` to a
+  database created before it. A database that has not migrated yet still sends
+  text.
+- Notification previews are the application's to word: `onMessageSent`
+  receives the message with its attachments, so a photo with no caption can
+  read as "Sent a photo" rather than as an empty line.
 
 For the UI, STX ships `ChatInbox`, `ChatMessage`, and `ChatUnreadBadge` in
 `@stacksjs/components`. Browser stores import `createChat` from

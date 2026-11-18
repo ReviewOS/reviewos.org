@@ -42,8 +42,9 @@ Routes to the appropriate driver based on `options.driver` (default: `'expo'`).
 
 - For **Expo**: Passes the notification directly to `expo.send()` with all fields mapped.
 - For **FCM** with single token: Calls `fcm.send()` with notification mapped to `{ to, notification: { title, body }, data, priority }`.
-- For **FCM** with multiple tokens: Calls `fcm.sendMulticast()` and returns an aggregated result with success count.
-- FCM priority mapping: `'default'` is converted to `'normal'`; `'high'` and `'normal'` pass through.
+- For **FCM** with multiple tokens: Calls `fcm.sendMulticast()` and returns an aggregated result with success count, and `data: { results }`, one per token in order, so a dead token (404 `UNREGISTERED`) can be told from a transient failure.
+- FCM priority mapping: `'default'` is converted to `'normal'`; `'high'` and `'normal'` pass through. Unset means `high`, on Android and iOS alike.
+- `data` is the same for every driver. FCM takes only strings, so a non-string value is sent as its JSON text (`{ orderId: 42 }` arrives as `"42"`).
 
 ## PushNotification Interface (index.ts)
 
@@ -73,10 +74,12 @@ interface PushResult {
 ## Types
 
 ```typescript
-type PushDriver = 'expo' | 'fcm'
+type PushDriver = 'expo' | 'fcm' | 'apns'
 
 interface SendOptions {
   driver?: PushDriver       // default: 'expo'
+  apns?: APNSConfig         // this send's own team/key/topic/sandbox; gaps come from config
+  fcm?: FCMConfig           // this send's own project + service account (complete, or ignored)
 }
 ```
 
@@ -126,12 +129,16 @@ async function send(message: ExpoPushMessage): Promise<PushResult>
 ```
 
 - Endpoint: `https://exp.host/--/api/v2/push/send`
-- Validates tokens with `isExpoPushToken()` before sending
-- Filters out invalid tokens and warns via `log.warn()`
+- Validates tokens with `isExpoPushToken()` before sending; an invalid token
+  is warned about via `log.warn()`, not sent, and counted as a failure
 - Returns early with failure if no valid tokens remain
 - Creates one payload entry per token (fans out `to` array into individual messages)
+- Sends them in requests of at most 100, one after another: Expo refuses a
+  larger request outright, so a send to 101 devices used to reach none. A
+  refused request fails its own messages and the rest still go
 - Default `sound: 'default'`, default `priority: 'high'`
-- Returns `PushResult` with `data: { tickets }` containing the full ticket array
+- Returns `PushResult` with `data: { tickets }`: one ticket per token in `to`,
+  in the same order, so each ticket can be matched to its token
 - `success` is `true` only if zero tickets have `status: 'error'`
 - `messageId` is the first ticket's `id` (if any)
 
@@ -145,13 +152,13 @@ Validates token format: matches `Expo(nent)?PushToken[...]` pattern OR alphanume
 ```typescript
 async function getReceipts(ticketIds: string[]): Promise<Record<string, ExpoPushReceipt>>
 ```
-Endpoint: `https://exp.host/--/api/v2/push/getReceipts`. Checks delivery status for previously sent notifications.
+Endpoint: `https://exp.host/--/api/v2/push/getReceipts`. Checks delivery status for previously sent notifications, asking 1000 IDs per request (Expo's limit) and merging the answers.
 
 #### sendBatch()
 ```typescript
 async function sendBatch(messages: ExpoPushMessage[], chunkSize?: number): Promise<PushResult[]>
 ```
-Sends multiple messages in chunks (default chunk size: 100, per Expo's recommendation). Processes chunks sequentially, messages within each chunk in parallel via `Promise.all`.
+Sends several messages, `chunkSize` (default 100) at a time: chunks sequentially, messages within a chunk in parallel via `Promise.all`. Each message's own tokens are split into requests of 100 by `send()`.
 
 ### Exports
 - `send`, `sendBatch`, `getReceipts`, `isExpoPushToken` functions
@@ -190,7 +197,7 @@ interface FCMMessage {
     clickAction?: string
     tag?: string
   }
-  data?: Record<string, string>         // NOTE: values must be strings for FCM
+  data?: Record<string, unknown>        // sent as strings: a non-string value as its JSON text
   priority?: 'high' | 'normal'
   ttl?: number
   collapseKey?: string
@@ -219,7 +226,7 @@ endpoint it used to fall back to is gone.
 1. Generates JWT with RS256 signing using the service account private key
 2. Exchanges JWT for OAuth2 access token at `https://oauth2.googleapis.com/token`
 3. Sends to `https://fcm.googleapis.com/v1/projects/{projectId}/messages:send`
-4. Includes Android priority settings and APNS headers (`apns-priority: 10` for high, `5` for normal)
+4. Includes Android priority settings and APNS headers (`apns-priority: 10` for high, `5` for normal); an unset priority is high on both
 5. Supports `to` (token), `topic`, or `condition` targeting
 
 **JWT generation details:**
@@ -418,8 +425,15 @@ read APNS_TEAM_ID, APNS_KEY_ID, APNS_PRIVATE_KEY, APNS_TOPIC and
 APNS_ENVIRONMENT (`production` or `sandbox`). Use a key enabled for APNs, not
 an App Store Connect or Sign in with Apple key.
 
+One server can send for several apps (a white-label app has its own bundle
+ID, and one published on another team signs with that team's key): pass
+`{ driver: 'apns', apns: { topic, teamId?, keyId?, privateKey? } }` per send.
+Fields it sets win over `configureAPNS()` and `config/services.ts`; FCM takes
+a complete `{ projectId, serviceAccount }` the same way, never mixed with the
+configured project.
+
 The driver uses HTTP/2, ES256 P-256 provider tokens, raw JOSE signatures and a
-50-minute token cache. Payloads are limited to 4096 bytes. A collapseId can
+50-minute token cache per signing identity. Payloads are limited to 4096 bytes. A collapseId can
 coalesce retries of one notification. Structured per-device results include
 Apple's status, reason and request identifier. Success means Apple accepted
 the request; it does not prove an alert appeared on a physical phone.

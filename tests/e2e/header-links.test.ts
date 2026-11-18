@@ -14,6 +14,7 @@
 // there is not one.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rescue } from '@stacksjs/error-handling'
 
 let available = false
 let port = 0
@@ -75,7 +76,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (userId) {
     const db = (globalThis as any).db
-    await db.deleteFrom('users').where('id', '=', userId).execute().catch(() => {})
+    await rescue(() => db.deleteFrom('users').where('id', '=', userId).execute(), undefined)
   }
 
   await server?.stop?.()

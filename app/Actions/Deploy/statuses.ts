@@ -15,6 +15,7 @@ import { isEnumInput } from '@stacksjs/validation'
 
 import { db } from '@stacksjs/database'
 import { notifyProgramsOnly } from '../../Notifications/emit'
+import { rescue } from '@stacksjs/error-handling'
 
 /** What a status may say. Wider than a deployment's own state, and deliberately. */
 export type StatusState = 'queued' | 'in_progress' | 'active' | 'failed' | 'inactive' | 'rolled_back'
@@ -44,7 +45,7 @@ export async function recordStatus(input: {
   const state = input.state
   if (!isEnumInput(state, STATES)) return
 
-  await db
+  await rescue(() => db
     .insertInto('deployment_statuses')
     .values({
       deployment_id: input.deploymentId,
@@ -58,8 +59,7 @@ export async function recordStatus(input: {
       restored_deployment_id: input.restoredDeploymentId ?? null,
       actor_id: input.actorId ?? null,
     })
-    .execute()
-    .catch(() => null)
+    .execute(), null)
 }
 
 /**

@@ -34,6 +34,7 @@
 import { db } from '@stacksjs/database'
 import { parseWorkflow } from './parse'
 import { settleRun } from './settle'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * How deep a chain of uploads may go.
@@ -221,7 +222,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
     added.push(id)
 
     for (const [index, step] of one.steps.entries()) {
-      await db
+      await rescue(() => db
         .insertInto('workflow_steps')
         .values({
           workflow_job_id: id,
@@ -250,8 +251,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
           continue_on_error: step.continueOnError === true,
           timeout_minutes: step.timeoutMinutes ?? null,
         })
-        .execute()
-        .catch(() => null)
+        .execute(), null)
     }
   }
 

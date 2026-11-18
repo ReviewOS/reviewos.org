@@ -20,6 +20,7 @@
 
 import process from 'node:process'
 import { db } from '@stacksjs/database'
+import { rescue } from '@stacksjs/error-handling'
 
 export interface DeclaredQueue {
   name: string
@@ -85,9 +86,9 @@ export async function planFleet(declared: DeclaredFleet, env: Record<string, str
   const changes: Change[] = []
   const drift: Change[] = []
 
-  const pools = await db.selectFrom('runner_pools').select(['id', 'name', 'slug', 'description', 'require_signed_steps']).execute().catch(() => [])
-  const queues = await db.selectFrom('runner_queues').select(['id', 'runner_pool_id', 'name', 'state']).execute().catch(() => [])
-  const assigned = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute().catch(() => [])
+  const pools = await rescue(() => db.selectFrom('runner_pools').select(['id', 'name', 'slug', 'description', 'require_signed_steps']).execute(), [])
+  const queues = await rescue(() => db.selectFrom('runner_queues').select(['id', 'runner_pool_id', 'name', 'state']).execute(), [])
+  const assigned = await rescue(() => db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute(), [])
 
   const poolBySlug = new Map(pools.map(pool => [String(pool.slug), pool]))
   const declaredSlugs = new Set<string>()
@@ -199,13 +200,13 @@ async function declaredTokenChange(wanted: DeclaredPool, env: Record<string, str
     return { kind: 'drift', what: 'token', subject: wanted.name, detail: `${variable} is not set here, so no registration token is recorded for it` }
 
   const { hashToken } = await import('../Tokens/secret')
-  const pool = await db.selectFrom('runner_pools').select(['id']).where('slug', '=', slugOf(wanted)).executeTakeFirst().catch(() => null)
+  const pool = await rescue(() => db.selectFrom('runner_pools').select(['id']).where('slug', '=', slugOf(wanted)).executeTakeFirst(), null)
   const current = pool
-    ? await db.selectFrom('runner_registration_tokens').select(['id'])
+    ? await rescue(() => db.selectFrom('runner_registration_tokens').select(['id'])
       .where('runner_pool_id', '=', Number(pool.id))
       .where('token_hash', '=', hashToken(value))
       .where('revoked_at', 'is', null)
-      .executeTakeFirst().catch(() => null)
+      .executeTakeFirst(), null)
     : null
   if (current)
     return null
@@ -239,7 +240,7 @@ async function applyDeclaredToken(wanted: DeclaredPool, poolId: number, env: Rec
 
   const queueName = wanted.registrationQueue ?? wanted.queues?.[0]?.name
   const queue = queueName
-    ? await db.selectFrom('runner_queues').select(['id']).where('runner_pool_id', '=', poolId).where('name', '=', queueName).executeTakeFirst().catch(() => null)
+    ? await rescue(() => db.selectFrom('runner_queues').select(['id']).where('runner_pool_id', '=', poolId).where('name', '=', queueName).executeTakeFirst(), null)
     : null
 
   await db.insertInto('runner_registration_tokens')
@@ -260,12 +261,11 @@ export async function applyFleet(declared: DeclaredFleet, env: Record<string, st
   for (const wanted of declared.pools ?? []) {
     const slug = slugOf(wanted)
 
-    let pool: { id: number, require_signed_steps: boolean | number } | null | undefined = await db
+    let pool: { id: number, require_signed_steps: boolean | number } | null | undefined = await rescue(() => db
       .selectFrom('runner_pools')
       .select(['id', 'require_signed_steps'])
       .where('slug', '=', slug)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (!pool) {
       const created = await db
@@ -290,13 +290,12 @@ export async function applyFleet(declared: DeclaredFleet, env: Record<string, st
     }
 
     for (const queue of wanted.queues ?? []) {
-      const existing = await db
+      const existing = await rescue(() => db
         .selectFrom('runner_queues')
         .select(['id', 'state'])
         .where('runner_pool_id', '=', Number(pool.id))
         .where('name', '=', queue.name)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       const state = queue.state ?? 'active'
 
@@ -329,13 +328,12 @@ export async function applyFleet(declared: DeclaredFleet, env: Record<string, st
     }
 
     for (const [, id] of await repositoryIds(wanted.repositories ?? [])) {
-      const existing = await db
+      const existing = await rescue(() => db
         .selectFrom('runner_pool_repositories')
         .select(['id'])
         .where('runner_pool_id', '=', Number(pool.id))
         .where('repository_id', '=', id)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       if (!existing) {
         await db
@@ -367,22 +365,21 @@ async function repositoryIds(paths: readonly string[]): Promise<Map<string, numb
      * and a lookup that only knew about one of them would silently assign
      * nothing for half the instance.
      */
-    const user = await db.selectFrom('users').select(['id']).where('handle', '=', owner.toLowerCase()).executeTakeFirst().catch(() => null)
+    const user = await rescue(() => db.selectFrom('users').select(['id']).where('handle', '=', owner.toLowerCase()).executeTakeFirst(), null)
     const organization = user
       ? null
-      : await db.selectFrom('organizations').select(['id']).where('handle', '=', owner.toLowerCase()).executeTakeFirst().catch(() => null)
+      : await rescue(() => db.selectFrom('organizations').select(['id']).where('handle', '=', owner.toLowerCase()).executeTakeFirst(), null)
 
     if (!user && !organization)
       continue
 
-    const repository = await db
+    const repository = await rescue(() => db
       .selectFrom('repositories')
       .select(['id'])
       .where('owner_type', '=', user ? 'user' : 'organization')
       .where('owner_id', '=', Number(user?.id ?? organization?.id))
       .where('name', '=', name)
-      .executeTakeFirst()
-      .catch(() => null)
+      .executeTakeFirst(), null)
 
     if (repository)
       found.set(path, Number(repository.id))

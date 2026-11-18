@@ -44,7 +44,10 @@ await search.addDocuments('products', [
 ])
 
 // Search
-const results = await search.search('products', 'widget')
+const results = await search.search('products', { q: 'widget', limit: 20, filter: { status: 'active' } })
+
+// From a model with the useSearch trait (the usual call)
+const hits = await Product.search('widget').where({ status: 'active' }).get()
 
 // List indexes
 const indexes = await search.listAllIndexes()
@@ -118,9 +121,26 @@ Environment variables: `MEILISEARCH_HOST`, `MEILISEARCH_KEY`, `SEARCH_ENGINE_DRI
 - Meilisearch requires a running Meilisearch server
 - Algolia requires API keys from your Algolia dashboard
 - Settings updates don't re-index - run `search-engine:update` after changes
+- Bulk reindex, flush and settings updates use the schema's model scope: application models override defaults, nested models are included, and framework defaults are a fallback unless explicitly enabled. Maintenance commands exit nonzero on provider errors.
+- Model reindexing uses bounded chunks. Query, projection and provider failures propagate without retrying the entire table through `all()`. Legacy adapters without chunking still send bounded projection and write batches.
+- Chunk queries order by the model's primary key, so database page plans cannot repeat or omit unchanged records during a rebuild.
 
 
 ## Readiness and driver boundaries
+
+For local Typesense use the project-scoped Pantry service: `pantry start typesense`
+and `pantry enable typesense` for auto-start. Read its assigned API port from
+`pantry services:ports`; another checkout may own 8108. Set the application's
+`TYPESENSE_PORT` to that port and pass the same `TYPESENSE_API_KEY` to Pantry and
+the app. The service binds to loopback. Do not start a second untracked server or
+share another application's data directory.
+
+Search actions initialize the normal framework globals before evaluating model
+batch projections. `search-engine:update` without a model selects all enabled
+searchable models; an unknown or non-searchable model fails. Settings listing
+without a selector follows the same native scope, including nested/package
+models. Feature-disabled framework models are omitted. CLI argument boundaries,
+including explicit empty values, are preserved across the action subprocess.
 
 `useSearchEngine()` returns a synchronous deferred proxy whose async methods
 wait for configuration and driver loading. The provider factories return promises

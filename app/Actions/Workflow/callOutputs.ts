@@ -15,6 +15,7 @@
 
 import { db } from '@stacksjs/database'
 import { interpolate } from './expression'
+import { rescue } from '@stacksjs/error-handling'
 
 /** A declared output, as the version stored it. */
 interface DeclaredOutput {
@@ -115,12 +116,11 @@ export async function resolveCallOutputs(input: {
   /** The called workflow's version, which declared the outputs. */
   versionId: number
 }): Promise<Record<string, string>> {
-  const version = await db
+  const version = await rescue(() => db
     .selectFrom('workflow_versions')
     .select(['call_outputs'])
     .where('id', '=', input.versionId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   const declared = declaredOutputs(version?.call_outputs)
 

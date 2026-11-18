@@ -1,13 +1,14 @@
-import type { UserModel } from '@stacksjs/orm'
+import type { GateUser } from '@stacksjs/auth'
 import type { RemoteHost } from './remote-commands'
 import type { TerminalAuditSink, TerminalEvent, TerminalProcess, TerminalSessionOptions } from './remote-terminal'
-import { describe, expect, it } from 'bun:test'
-import { existsSync, readdirSync } from 'node:fs'
+import { describe, expect, it, jest } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { dirname } from 'node:path'
 import { sshTerminalArgv } from './remote-commands'
 import { TerminalSessions } from './remote-terminal'
 import { createPtySpawner } from './ssh-runner'
-import { encodeTerminalEvent, terminalEventStream } from './terminal-sessions'
+import { encodeTerminalEvent, terminalEventStream, terminalSessions } from './terminal-sessions'
 
 /**
  * Interactive terminal sessions (stacksjs/stacks#960). Every rule is asserted
@@ -15,8 +16,8 @@ import { encodeTerminalEvent, terminalEventStream } from './terminal-sessions'
  * local shell standing in for ssh.
  */
 
-const alice = { id: 1, email: 'alice@example.com' } as unknown as UserModel
-const bob = { id: 2, email: 'bob@example.com' } as unknown as UserModel
+const alice = { id: 1, email: 'alice@example.com' } as unknown as GateUser
+const bob = { id: 2, email: 'bob@example.com' } as unknown as GateUser
 
 const shellHost: RemoteHost = { key: 'app', host: 'app.example.com', user: 'deploy', knownHosts: 'app.example.com ssh-ed25519 AAAA', terminal: true }
 const commandOnlyHost: RemoteHost = { key: 'db', host: 'db.example.com', user: 'deploy', knownHosts: 'db.example.com ssh-ed25519 AAAA' }
@@ -236,16 +237,28 @@ describe('a session does not outlive its purpose', () => {
   })
 
   it('input keeps it alive; the max duration ends it regardless', async () => {
-    const { manager, fakes, audit } = sessions({ idleTimeoutMs: 40, maxDurationMs: 120, detachGraceMs: 10_000 })
-    const { id } = await manager.open({ user: alice, hosts, hostKey: 'app', authorizer: allowAll, cols: 80, rows: 24 })
-    for (let i = 0; i < 4; i++) {
-      await Bun.sleep(25)
-      await manager.input(id, alice, 'x')
+    // The clock is driven, not slept on: the deadlines under test run on the
+    // same clock a sleep waits on, so under load a sleep overshot them (#2978).
+    jest.useFakeTimers()
+    try {
+      const { manager, fakes, audit } = sessions({ idleTimeoutMs: 40, maxDurationMs: 120, detachGraceMs: 10_000 })
+      const { id } = await manager.open({ user: alice, hosts, hostKey: 'app', authorizer: allowAll, cols: 80, rows: 24 })
+      for (let i = 0; i < 4; i++) {
+        jest.advanceTimersByTime(25)
+        await manager.input(id, alice, 'x')
+      }
+      const ending = take(manager.watch(id, alice), 1)
+      // 119ms in: more than twice the idle timeout, kept open by the input.
+      jest.advanceTimersByTime(19)
+      expect(fakes[0]!.killed).toBe(false)
+      jest.advanceTimersByTime(1)
+      expect(fakes[0]!.killed).toBe(true)
+      expect((await ending).map(text)).toEqual(['<max-duration>'])
+      expect(audit.log.at(-1)).toStartWith('closed max-duration')
     }
-    expect(fakes[0]!.killed).toBe(false)
-    await Bun.sleep(60)
-    expect(fakes[0]!.killed).toBe(true)
-    expect(audit.log.at(-1)).toStartWith('closed max-duration')
+    finally {
+      jest.useRealTimers()
+    }
   })
 
   it('ends when nobody attaches, and a grace period after the last viewer leaves', async () => {
@@ -271,6 +284,40 @@ describe('a session does not outlive its purpose', () => {
     await manager.close(id, alice)
     await expect(manager.close(id, alice)).rejects.toThrow('No such terminal session')
     expect(audit.log.slice(1)).toEqual(['input rm -rf /tmp/build', 'closed closed in=17 out=0'])
+  })
+
+  it('shuts down only once every process has exited, so nothing it made outlives it', async () => {
+    // The real spawner removes its temp directory when the process exits; a
+    // shutdown that returned on the kill raced the process exiting (#2978).
+    let exit!: (code: number) => void
+    const { manager } = sessions({
+      spawn: () => ({ write: () => {}, resize: () => {}, kill: () => {}, exited: new Promise<number>((resolve) => { exit = resolve }) }),
+    })
+    await manager.open({ user: alice, hosts, hostKey: 'app', authorizer: allowAll, cols: 80, rows: 24 })
+
+    const closing = manager.closeAll().then(() => 'closed')
+    expect(await Promise.race([closing, Bun.sleep(20).then(() => 'waiting')])).toBe('waiting')
+    exit(-1)
+    expect(await closing).toBe('closed')
+  })
+
+  it('is closed by the server stopping, through the router\'s shutdown hooks (#3034)', async () => {
+    const registered = (globalThis as Record<symbol, { hooks: Array<{ name: string, run: () => unknown }> }>)[Symbol.for('@stacksjs/router:shutdown-hooks')]
+    const hook = registered?.hooks.find(entry => entry.name === 'terminal sessions')
+    expect(hook).toBeDefined()
+
+    // The app's own sessions, not a copy: the hook has to reach the manager
+    // the terminal actions open sessions on.
+    const closeAll = terminalSessions.closeAll
+    let closed = 0
+    terminalSessions.closeAll = async () => { closed += 1 }
+    try {
+      await hook!.run()
+    }
+    finally {
+      terminalSessions.closeAll = closeAll
+    }
+    expect(closed).toBe(1)
   })
 })
 
@@ -304,7 +351,6 @@ describe('the PTY spawner', () => {
   })
 
   it('carries output, input and a window resize through a real PTY, and cleans up', async () => {
-    const before = readdirSync(tmpdir()).filter(name => name.startsWith('stacks-terminal-')).length
     let knownHosts = ''
     const spawn = createPtySpawner((_host, path) => {
       knownHosts = path
@@ -315,7 +361,10 @@ describe('the PTY spawner', () => {
     const process = await spawn(shellHost, { cols: 100, rows: 30 }, (bytes) => { output += new TextDecoder().decode(bytes) })
     expect(existsSync(knownHosts)).toBe(true)
 
-    await Bun.sleep(150)
+    // Resize once the shell has reported the size it started at, not after a
+    // guess at how long that takes.
+    for (let i = 0; i < 200 && !output.includes('30 100'); i++)
+      await Bun.sleep(10)
     process.resize(132, 40)
     process.write('hello\r')
     expect(await process.exited).toBe(0)
@@ -324,8 +373,9 @@ describe('the PTY spawner', () => {
     expect(output).toContain('30 100')
     expect(output).toContain('40 132')
     expect(output).toContain('got:hello')
-    expect(existsSync(knownHosts)).toBe(false)
-    expect(readdirSync(tmpdir()).filter(name => name.startsWith('stacks-terminal-')).length).toBe(before)
+    // The directory this spawn created, not a count of the shared temp
+    // directory, which other processes change underneath the test (#2978).
+    expect(existsSync(dirname(knownHosts))).toBe(false)
   })
 })
 
@@ -346,28 +396,48 @@ describe.if(Boolean(SSHD))('a terminal session over real SSH', () => {
     for (const name of ['host_key', 'client_key'])
       Bun.spawnSync(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', join(dir, name)])
     writeFileSync(join(dir, 'authorized_keys'), readFileSync(join(dir, 'client_key.pub')), { mode: 0o600 })
-    const port = 20000 + Math.floor(Math.random() * 20000)
-    writeFileSync(join(dir, 'sshd_config'), [
-      `Port ${port}`,
-      'ListenAddress 127.0.0.1',
-      `HostKey ${join(dir, 'host_key')}`,
-      `AuthorizedKeysFile ${join(dir, 'authorized_keys')}`,
-      `PidFile ${join(dir, 'sshd.pid')}`,
-      'UsePAM no',
-      'StrictModes no',
-      'PasswordAuthentication no',
-      'KbdInteractiveAuthentication no',
-      'LogLevel ERROR',
-      // The same shell whoever runs this, rather than their login shell -
-      // some report 0 for `exit 7`, which would make the exit status untestable.
-      'ForceCommand /bin/sh -i',
-    ].join('\n'))
-    const daemon = Bun.spawn([SSHD!, '-D', '-f', join(dir, 'sshd_config'), '-E', join(dir, 'sshd.log')])
-    for (let i = 0; i < 50; i++) {
-      if (Bun.spawnSync(['nc', '-z', '127.0.0.1', String(port)]).exitCode === 0)
-        break
-      await Bun.sleep(100)
+    // A port the OS says is free, rather than a random one: sshd exits when its
+    // port is taken, and a random pick in a busy CI job sometimes is. Retried
+    // if sshd exits anyway, and a daemon that never listens fails here with its
+    // own log, not later as a misleading "Connection refused".
+    let port = 0
+    let daemon: ReturnType<typeof Bun.spawn> | undefined
+    for (let attempt = 0; attempt < 3 && !daemon; attempt++) {
+      const probe = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } })
+      port = probe.port
+      probe.stop(true)
+      writeFileSync(join(dir, 'sshd_config'), [
+        `Port ${port}`,
+        'ListenAddress 127.0.0.1',
+        `HostKey ${join(dir, 'host_key')}`,
+        `AuthorizedKeysFile ${join(dir, 'authorized_keys')}`,
+        `PidFile ${join(dir, 'sshd.pid')}`,
+        'UsePAM no',
+        'StrictModes no',
+        'PasswordAuthentication no',
+        'KbdInteractiveAuthentication no',
+        'LogLevel ERROR',
+        // The same shell whoever runs this, rather than their login shell -
+        // some report 0 for `exit 7`, which would make the exit status untestable.
+        'ForceCommand /bin/sh -i',
+      ].join('\n'))
+      const started = Bun.spawn([SSHD!, '-D', '-f', join(dir, 'sshd_config'), '-E', join(dir, 'sshd.log')])
+      for (let i = 0; i < 50 && started.exitCode === null; i++) {
+        if (Bun.spawnSync(['nc', '-z', '127.0.0.1', String(port)]).exitCode === 0) {
+          daemon = started
+          break
+        }
+        await Bun.sleep(100)
+      }
+      if (!daemon)
+        started.kill()
     }
+    if (!daemon) {
+      const log = existsSync(join(dir, 'sshd.log')) ? readFileSync(join(dir, 'sshd.log'), 'utf8') : 'no sshd log'
+      rmSync(dir, { force: true, recursive: true })
+      throw new Error(`the test sshd never listened on 127.0.0.1:${port}: ${log}`)
+    }
+    const running = daemon
     const hostKey = readFileSync(join(dir, 'host_key.pub'), 'utf8').split(' ').slice(0, 2).join(' ')
     const host: RemoteHost = {
       key: 'local',
@@ -381,7 +451,7 @@ describe.if(Boolean(SSHD))('a terminal session over real SSH', () => {
     return {
       host,
       stop: () => {
-        daemon.kill()
+        running.kill()
         rmSync(dir, { force: true, recursive: true })
       },
     }

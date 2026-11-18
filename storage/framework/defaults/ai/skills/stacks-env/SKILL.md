@@ -194,6 +194,20 @@ autoLoadEnv()  // .env, .env.local, .env.<effectiveEnv>, .env.<effectiveEnv>.loc
 envPlugin()
 ```
 
+To keep a key out of a child process, withhold it rather than deleting it.
+`delete process.env.X` before a spawn does nothing useful: Bun loads `.env`
+natively in the child and `loadEnv` fills anything absent, so the child reads
+the value straight back from disk (#3028). Pass `withholdEnv(keys)` into the
+child's `env` (it sets `STACKS_ENV_WITHHOLD`). `loadEnv` then skips those keys
+in every file and removes any copy Bun loaded natively; a child that runs no
+Stacks preload calls `applyWithheldEnv()` before reading config.
+
+```typescript
+import { withholdEnv } from '@stacksjs/env'
+
+await runAction(Action.BuildIos, { env: withholdEnv(['MOBILE_URL']) })
+```
+
 ## .env Parser
 
 ```typescript
@@ -207,7 +221,7 @@ const { parsed, errors, skippedEncrypted } = parse(envContent, {
 ## Encryption (X25519 + AES-256-GCM)
 
 ```typescript
-import { aesEncrypt, aesDecrypt, generateKeypair, encryptValue, decryptValue, getPrivateKey } from '@stacksjs/env'
+import { aesEncrypt, aesDecrypt, generateKeypair, encryptValue, decryptValue, getPrivateKey, isValidPublicKey } from '@stacksjs/env'
 
 // AES-256-GCM symmetric encryption
 const encrypted = aesEncrypt(plaintext, password)
@@ -215,6 +229,7 @@ const decrypted = aesDecrypt(encrypted, password)
 
 // Versioned ephemeral-static X25519 envelope encryption
 const keypair = generateKeypair()
+const validPublicKey = isValidPublicKey(keypair.publicKey) // canonical current X25519 public metadata
 const encrypted = encryptValue(value, keypair.publicKey)
 const decrypted = decryptValue(encrypted, keypair.privateKey)
 ```
@@ -223,7 +238,7 @@ const decrypted = decryptValue(encrypted, keypair.privateKey)
 
 ```bash
 buddy env:get APP_NAME                    # get single var
-buddy env:get --all --format json         # all vars as JSON
+buddy env:get --all --format json         # every var in the file as JSON (never the process env)
 buddy env:set APP_NAME "My App"           # set var
 buddy env:encrypt                          # encrypt .env file
 buddy env:decrypt                          # decrypt .env file
@@ -232,6 +247,34 @@ buddy env:rotate                           # rotate encryption keys
 buddy env:check                            # validate env configuration
 buddy env:check --file .env.production     # check a specific environment's file
 ```
+
+`getEnv()` fails a whole-file read if any encrypted entry cannot be decrypted.
+Restore the environment's matching private key through `.env.keys` or its
+`DOTENV_PRIVATE_KEY_<ENVIRONMENT>` process secret. A request for one plaintext
+key remains readable independently. `buddy deploy` stops on an incomplete or
+unreadable environment instead of deploying a partial map.
+
+`isValidPublicKey(value: unknown): value is string` returns false for private,
+legacy, malformed, or noncanonical public metadata without throwing or exposing
+parser errors. Strict committed-env checks reject that metadata and all nonempty
+private-key assignments, including encrypted ones. Legacy decryption remains
+supported for migration through `buddy env:rotate`; non-strict scans retain
+their existing compatibility behavior.
+
+`publicKeyMatchesPrivateKey(publicKey: unknown, privateKey: unknown): boolean`
+validates a current X25519 pair without returning either key or parser errors.
+Use it with the actual private half before accepting public metadata for future
+writes. Strict `env:check` rejects mismatches, and `env:set`/`env:encrypt` refuse
+to add ciphertext under a header unrelated to an available private key. Reading
+old ciphertext and rotating legacy keys retain their existing migration policy.
+
+For CLI/file operations, use
+`resolveEnvPrivateKey({ file?: string, keysFile?: string, cwd?: string })`.
+Its order is target-scoped local key, target-scoped process key, generic local
+key, then generic process key. The keys file defaults to `.env.keys` relative to
+`cwd`. `getEnv`, encrypted writers, and strict Buddy checks share this resolver.
+The cached application-runtime `resolvePrivateKey` remains process-first so
+server/browser test configuration can intentionally override local defaults.
 
 ## Tenant isolation on a shared box
 
@@ -242,26 +285,28 @@ When several projects share one server - one owns it, the rest attach with
 They leak anyway: a tenant's secrets get pasted into the owner's env file under
 a `TENANT_` prefix while debugging a deploy, and stay. That is not just untidy.
 `buddy deploy` ships the whole env file as **every** site's `.env` (ts-cloud
-treats `site.env` as the complete file), so a stray `BUGHQ_STRIPE_SECRET_KEY` in
+treats `site.env` as the complete file), so a stray `OTHERAPP_API_KEY` in
 the owner's file lands on disk in an unrelated site.
 
-Declare who is attached, in `config/cloud.ts`'s default export:
+Keep the tenant roster private. `buddy deploy` and `buddy env:check` merge:
 
-```typescript
-const config: CloudConfig = {
-  tenants: ['bughq', 'analyticshq'],
-}
-```
+- `STACKS_CLOUD_TENANTS`, a comma or whitespace separated list of slugs. CI
+  supplies this through a protected secret, without printing it.
+- `$STACKS_PRIVATE_DIR/tenants.json`, `~/.config/stacks/tenants.json`, and the
+  gitignored `storage/cloud/tenants.json`. Each accepts a JSON array of slugs
+  or an object with a `tenants` array.
+- A `tenants` array in `config/cloud.ts`'s default wrapper, retained for private
+  forks. Public repositories use the private sources above.
 
 With that:
 
 - `buddy deploy` drops those keys before shipping, and logs what it dropped
 - `buddy env:check` lists them per tenant so they can be deleted at source
 
-Prefixes are **never** inferred. With no `tenants` declared nothing is treated
+Prefixes are **never** inferred. With no tenant roster loaded nothing is treated
 as foreign, because `STRIPE_`, `AWS_` and `MEILISEARCH_` are indistinguishable
 from a slug prefix by shape alone. Slug punctuation is ignored, so
-`analytics-hq` and `analytics_hq` both match `ANALYTICSHQ_`.
+`other-app` and `other_app` both match `OTHERAPP_`.
 
 The API is `partitionTenantEnv(values, { self, tenants })` from
 `@stacksjs/env`, plus `stripForeignTenantEnv` and `foreignTenantKeys`.
@@ -287,8 +332,8 @@ calls or raw client-side `fetch`.
 
 ## Gotchas
 - **A tenant's keys in your env file get shipped everywhere.** `buddy deploy`
-  sends the entire env file as each site's `.env`. Declare `tenants` in
-  `config/cloud.ts` so they are stripped, then delete them at source
+  sends the entire env file as each site's `.env`. Supply the private tenant
+  roster so foreign keys are stripped, then delete them at source
 - Bun natively loads `.env` - no dotenv package needed
 - The `env` proxy auto-coerces strings to booleans/numbers
 - `.env` should never be committed - use `.env.example` as template

@@ -12,7 +12,7 @@ allowed-tools: Read Edit Write Bash Grep Glob
 - Database package: `storage/framework/core/database/src/`
 - Configuration: `config/database.ts`
 - QB config: `config/query-builder.ts`
-- Migrations: `database/migrations/` (237 migration files, `.sql` format)
+- Migrations: `database/migrations/` (256 migration files, `.sql` format)
 - QB state: `.qb/`
 - ORM: `storage/framework/orm/`
 
@@ -87,11 +87,69 @@ const users = await db.selectFrom('users').where('active', '=', true).get()
 
 `initializeDbConfig(config)` can be called to update the backing config at runtime.
 
+### Values, not promises
+
+A `db` call answers where it is written, on SQLite, MySQL and Postgres:
+
+```typescript
+const users = db.selectFrom('users').where('active', '=', true).get() // the rows
+const newest = db.selectFrom('users').orderBy('created_at', 'desc').first() // the row, or undefined
+const changed = db.updateTable('users').set({ active: false }).where('id', '=', 7).execute() // 1
+
+const orderId = db.transaction((tx) => {
+  const order = tx.insertInto('orders').values({ customer_id: 7 }).returning('id').first()
+  tx.insertInto('order_lines').values({ order_id: order.id, sku: 'A-1' }).execute()
+  return order.id
+}) // committed by this line; a throw has rolled back and rethrown
+```
+
+- `await` in front of any of them still works (`await` on a value is that
+  value), so existing code is correct as it stands.
+- A failure is thrown where the call stands: `try`/`catch`, not `.catch()` or
+  `.then()`. In a test, `expect(() => db.selectFrom('missing').get()).toThrow()`,
+  not `await expect(...).rejects`.
+- A query runs where it is written. To start several and judge each on its own
+  later, hand them over unstarted: `inspect(() => db.selectFrom(...).get())`.
+- `db.unsafe(sql, params)` and `db.file(path)` build a statement. `.execute()`
+  runs it and returns its rows; awaiting the statement resolves to the same
+  rows. Nothing runs until one of the two happens.
+- A transaction callback that is `async` is waited for, and the transaction is
+  then a promise, as is the callback of `chunk()`. Write the callback without
+  `async` when everything in it is a query.
+- While a transaction with an `async` callback is open it holds its locks
+  across each `await`, and the code that commits it needs the thread. A
+  statement elsewhere in the process that needs one of those locks (or a
+  pooled connection, when they are all held) is therefore not waited for in
+  place: that one call answers with a promise, which resolves once the
+  transaction has finished. It is how `withLockedRow` and `rowToken` can
+  contend for one row. A statement that needs nothing held still answers in
+  place, and with synchronous callbacks nothing is ever held.
+- Inside a transaction callback `db.` is the transaction: a `db.selectFrom(...)`
+  there runs on the transaction's connection, as `tx.selectFrom(...)` does. A
+  model call does not (see Gotchas).
+- On SQLite there is one connection. A transaction whose callback is `async`
+  holds it until it settles, so a transaction that starts meanwhile queues
+  behind it and is a promise whatever its own callback does. With only
+  synchronous callbacks that cannot happen.
+- MySQL and Postgres run on a worker thread the caller waits on, sharing one
+  pool with the models. On [stacksjs/bun](https://github.com/stacksjs/bun),
+  whose drivers can wait for a statement themselves, the pool is on the calling
+  thread and there is no worker; nothing else differs. `models: { execution: 'async' }` in `config/query-builder.ts`
+  gives promises back for both; every call then has to be awaited.
+
 For reads which cannot tolerate replication lag, use `db.primary.selectFrom(...)`.
 It stays on the primary when automatic replica routing is enabled, and uses the
 active transaction connection inside a transaction. It does not mark the request
 as a writer or change routing for unrelated reads. Session authentication uses
 this handle so a revoked session cannot authenticate from a stale replica.
+
+For transaction-bound adapters that register non-SQL work, call
+`assertActiveTransaction()` from `@stacksjs/database/runtime` before registering
+callbacks. It performs the same native ownership checks as the `db` facade:
+no missing or closed callback owner and no parent work while a nested savepoint
+is active. `isInTransaction()` alone only reports a dispatch scope; it does not
+prove that scope can accept work. Keep application ownership checks as well,
+and route SQL through `db` so native connection guards remain in force.
 
 ## SQL Template Tag (types.ts)
 
@@ -276,7 +334,8 @@ SQLite's SQL on a Turso or `sqld` server. Configure `TURSO_DATABASE_URL`
   `stacks_migration_lock` (`acquireLibsqlMigrationLock`), since migrating hosts share no filesystem.
 - libSQL rejects SQLite's double-quoted-string fallback, so a statement naming a missing column fails
   instead of storing the column name as text. `tests/corpus-rebuild-sources.test.ts` guards the corpus.
-- Inside `transaction()`, write through the `tx` handle; model writes use their own connection.
+- Inside `transaction()`, write through the `tx` handle: a model write made from the callback is part of
+  the transaction on SQLite, PostgreSQL and MySQL (stacksjs/stacks#3269), but that is not measured on libSQL.
 
 ## config/database.ts Shape
 ```typescript
@@ -287,9 +346,7 @@ SQLite's SQL on a Turso or `sqld` server. Configure `TURSO_DATABASE_URL`
   migrationLocks: 'migration_locks',
   queryLogging: {
     // Defaults on outside production and off in production. Production also
-    // skips query hooks unless persistent history is explicitly enabled,
-    // except one onQueryError hook on PostgreSQL and MySQL that reports a
-    // pool broken by oven-sh/bun#42804.
+    // skips query hooks unless persistent history is explicitly enabled.
     enabled: env.DB_QUERY_LOGGING_ENABLED ?? !['production', 'prod'].includes(env.APP_ENV || ''),
     captureAllTraces: false, // slow and failed queries always keep traces
     // Bound values in query_logs.bindings, credentials stored as `<redacted>`
@@ -303,6 +360,7 @@ SQLite's SQL on a Turso or `sqld` server. Configure `TURSO_DATABASE_URL`
     retention: 7,        // days
     pruneFrequency: 24,  // hours
     excludedQueries: ['query_logs'],
+    logHousekeeping: false, // true also records the queue's own polling of jobs, queue_workers, queue_circuit_state
     analysis: { enabled: true, analyzeAll: false, explainPlan: true, suggestions: true }
   }
 }
@@ -356,7 +414,8 @@ are experimental with explicit service/topology limits. DynamoDB helpers are a
 separate entity API and cannot be selected as the SQL/ORM default.
 
 Turso's libsql alias shares SQLite rendering, but uses remote Hrana transport.
-Transactions must write through the tx handle; no embedded replicas or native
+Transactions write through the tx handle (model writes inside one are not
+measured on libSQL); no embedded replicas or native
 file backup are provided. Scheduler locks remain per host. Read the registry's
 provider versions and retained evidence rather than equating an available adapter
 with an unrestricted supported service.
@@ -371,6 +430,10 @@ or dialect-aware raw helpers. sql.as validates an alias; raw text remains a
 trusted-code operation. sqlDateTime/parseSqlDateTime provide the canonical
 application timestamp representation. Mixing SQLite datetime text with
 application ISO text in raw comparisons can give wrong expiry boundaries.
+parseSqlDate(value) reads a DATE column back as the YYYY-MM-DD it stores,
+whether the driver built the Date at UTC midnight (Bun's Postgres driver) or at
+the host's local midnight; toISOString().slice(0, 10) shifts the latter a day
+back east of UTC. Null for missing, invalid or impossible input.
 Source: core/database/src/types.ts and sql-helpers.ts; see stacks-query-builder
 for typed tables, raw binding, transaction handles and replica routing.
 
@@ -382,3 +445,13 @@ canonical numeric string value, so padded numeric inputs cannot reverse lock ord
 transaction handle and choose ownership filters; reads, writes and validation
 remain on that handle. This prevents opposite input order from creating a
 lock-order cycle during a transfer, merge or multi-item stock reservation.
+
+## Row leases for external operations
+
+`claimRowLease(table, ownerScope, { token, heartbeat }, ttlMs)` from
+`@stacksjs/database/runtime` claims model-owned nullable token and heartbeat
+columns atomically. It returns null when busy, or a lease with `renew()`,
+`release()`, `assertOwned()` and `commit(work)`. Renew periodically during I/O.
+Keep network work outside `commit`; commit locks and revalidates the token before
+writing one bounded batch. An expired worker cannot commit or release a successor.
+A lease's unique owner scope must include the resource binding where applicable.

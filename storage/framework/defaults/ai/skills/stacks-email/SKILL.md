@@ -47,7 +47,9 @@ so `MAIL_MAILER` must be one of `smtp`, `ses`, `sendgrid`, `mailgun`,
 ```typescript
 import { mail } from '@stacksjs/email'
 
-await mail.send({
+// Throws EmailDeliveryError when it was not delivered. The default choice:
+// a try/catch around it means what it looks like.
+await mail.sendOrFail({
   from: { name: 'App', address: 'noreply@app.com' },
   to: 'user@example.com',
   subject: 'Welcome',
@@ -55,19 +57,21 @@ await mail.send({
   text: 'Hello!'
 })
 
-// Use this when later state depends on successful provider delivery.
-await mail.sendOrFail({
-  to: 'user@example.com',
-  subject: 'Your invitation',
-  text: 'Open the invitation link.'
-})
+// send() does NOT throw on a failed delivery; it resolves with success: false.
+// For callers that aggregate outcomes, and they must check it.
+const result = await mail.send({ to: 'user@example.com', subject: 'Digest', text: '...' })
+if (!result.success)
+  failed.push(result.message)
 
 // Switch driver
 const sendgridMail = mail.use('sendgrid')
 await sendgridMail.send(message)
 ```
 
-`mail.send()` always returns an `EmailResult`. Provider rejection is represented
+`mail.send()` always returns an `EmailResult`, typed as `EmailSent | EmailFailed`,
+and `sendOrFail()` resolves with `EmailSent`. Never wrap `send()` in `try`/`catch`
+and count the absence of an exception as delivered: a newsletter was recorded as
+sent while its SMTP host was unreachable that way (#2930). Provider rejection is represented
 as `{ success: false, message, provider }`, which is useful for campaign jobs
 that aggregate individual outcomes. It may still throw for invalid framework
 configuration. `mail.sendOrFail()` returns the same successful result and throws
@@ -240,6 +244,27 @@ abstract class BaseEmailDriver {
 }
 ```
 
+### A mailbox from config, in one deploy
+
+Declare the address the app sends from and let the deploy make it:
+
+```typescript
+{
+  from: { name: 'Votescape', address: 'hello@votescape.org' },
+  domain: 'votescape.org',
+  mailboxes: ['hello'],
+  server: { enabled: true, generatePasswords: true },
+}
+```
+
+`buddy deploy` generates `MAIL_PASSWORD_HELLO` before the environment ships (saved encrypted to the environment file, never printed in CI), creates `hello@votescape.org` on the mail server with it, and publishes the mail DNS below. The SMTP driver signs in as `from.address` with that password, and with no `MAIL_HOST` set it uses `mail.<domain>` on port 587 with STARTTLS in production and staging (`ownMailHost` in `core/email/src/drivers/smtp.ts`); elsewhere the default stays loopback. Set `MAIL_MAILER=smtp` to send through the mailbox when the app is also connected to CommsHQ, which otherwise carries its mail.
+
+### Mail through CommsHQ, and a service that relays
+
+An app connected with `buddy hq:connect commshq` sends all of its mail through CommsHQ in production and staging: CommsHQ's addresses are ones mailbox providers already know, it keeps one suppression list, and it limits and screens what goes out. `services.commshq.mail: false` in `config/services.ts` keeps the app's own mailer while staying connected, and `MAIL_MAILER` overrides either for one deployment (`resolveDefaultMailDriver` in `core/email/src/drivers/commshq.ts`).
+
+A service that sends for other domains sets `email.server.relay` (`true` for `from.address`, or a mailbox name such as `'no-reply'`). Its deploy names that mailbox in the mail server's `SMTP_RELAY_ACCOUNTS`. The mail server refuses any author but the signed-in account, except that a relay account may send a message already signed with a DKIM key the author's domain publishes. The service signs each customer's mail with that customer's key (`dkim` on the message); nothing else is trusted.
+
 ### Mail DNS a deploy publishes
 
 With `server.enabled`, `buddy deploy` reconciles the mail domain's DNS through whichever configured provider holds the zone: MX, SPF, DKIM at the selector the server signs under, DMARC (`server.dmarc`), `mail.<domain>`, and the Gmail Postmaster Tools verification TXT when `server.postmaster.google` is set. Writes are surgical: only records the deploy owns are replaced, so other apex TXT (Search Console, other verifications) survive.
@@ -247,6 +272,17 @@ With `server.enabled`, `buddy deploy` reconciles the mail domain's DNS through w
 Postmaster Tools is the only view of why Gmail files mail as spam when SPF, DKIM and DMARC all pass. Its value is issued per Google account and cannot be generated: add the domain at https://postmaster.google.com, copy the TXT value, set `server.postmaster.google`, deploy, then press Verify in Postmaster Tools. Until it is set the deploy prints where to get it; `postmaster: false` silences that.
 
 When no configured provider can write the zone (no credentials for the provider its nameservers name, e.g. a Cloudflare zone with no `CLOUDFLARE_API_TOKEN`), nothing is published, on this deploy or any later one. The deploy warns with the exact fix (`buddy env:set CLOUDFLARE_API_TOKEN <value> -f .env.production`) and the records to add by hand. `buddy doctor` reports the same without deploying: "Mail DNS provider" (which provider the nameservers name, and whether its keys are in `.env.production`, by name only), "Mail DNS records" (MX, SPF, DKIM at `mail._domainkey`, DMARC in public DNS, each exactly once, the DMARC policy against config, SPF against the MX host's address) and "Postmaster Tools". Code: `core/buddy/src/mail-dns-health.ts`, `core/buddy/src/dns-credentials.ts`.
+
+## Notification email templates
+
+`notify()` and `notificationEmailMessage()` accept
+`emailTemplate: { name: 'workout-reminder', variables: { workouts } }`.
+The named STX template receives the normal subject, paragraphs, locale, action
+and unsubscribe frame alongside the supplied variables. Frame values take
+precedence so template data cannot replace the recipient's opt-out links or
+language. Keep the notification `body` complete, including per-item links: it
+is still the plain-text part and rendering fallback. Persist template data
+with queued notifications so a retry renders the same content.
 
 ## Application Mail Example
 

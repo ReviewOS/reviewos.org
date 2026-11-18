@@ -198,10 +198,12 @@ zScore([1, 2, 3, 4], 3)           // 0.447...
 percentile([1, 2, 3, 4, 5], 50)   // 3       -- interpolated percentile
 percentile([1, 2, 3, 4], 25)      // 1.75    -- linear interpolation
 // Note: takes percentile value (0-100), uses linear interpolation
+// Throws for an empty array (like median) and a RangeError outside 0-100
 
 interquartileRange([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 // Q3 median - Q1 median
-// Splits array at midpoint, computes median of each half
+// Sorts, splits at the midpoint, computes the median of each half
+// One number gives 0; an empty array throws
 
 covariance([1, 2, 3, 4], [1, 2, 3, 4])     // 1.25  -- positive correlation
 covariance([1, 2, 3, 4], [4, 3, 2, 1])     // -1.25 -- negative correlation
@@ -267,9 +269,11 @@ These standalone functions are also available through the root `arr` namespace:
 - `groupBy`, `keyBy`, `countBy` use selector functions and return typed records.
   Repeated keyBy keys overwrite earlier entries; groupBy accumulates them.
 - `sortBy(array, ...selectors)` copies before sorting, supports multiple keys,
-  and accepts `{ by, order: 'desc' }` selectors.
+  and accepts `{ by, order: 'desc' }` selectors. Each selector runs once per element;
+  cached keys preserve stable ties.
 - `sumBy`, `meanBy`, `minBy`, `maxBy` aggregate selected values. `meanBy` returns
   undefined on an empty input; extrema return the selected element, not its value.
+  Extrema retain infinite endpoints and ignore NaN candidates; ties keep the first.
 - `zip`, `zipWith` stop at the shorter input; `unzip` splits pairs.
 - `difference` keeps first-input duplicates that are not excluded;
   `intersection` and `union` deduplicate by Set identity.
@@ -277,6 +281,12 @@ These standalone functions are also available through the root `arr` namespace:
   undefined, preserving false, zero and empty strings.
 - `splitAt` supports negative indexes; `splitWhen` starts the second half at
   the first match; `times` requires a non-negative integer count.
+
+`take`, `takeLast`, `drop` and `dropLast` truncate fractional counts toward zero,
+clamp negatives/NaN to zero and treat Infinity as the entire array. Population
+variance, standard deviation, covariance and z-scores use scaled centered arithmetic
+for finite inputs. Standard deviation stays finite when only its square is outside
+the number range; unrepresentable final results keep IEEE number behavior.
 
 Read `core/arrays/src/transform.ts` and `tests/transform.test.ts` for precise
 empty-input and selector behavior. These pure helpers are preferable to a new

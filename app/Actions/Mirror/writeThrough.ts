@@ -32,6 +32,7 @@ import { db } from '@stacksjs/database'
 import { isTrue } from '../Support/sql'
 import { decrypt } from '@stacksjs/security'
 import { GitHubClient } from './github-client'
+import { rescue } from '@stacksjs/error-handling'
 
 /** A credential, resolved and opened, for one write. */
 export interface ForgeCredential {
@@ -207,22 +208,20 @@ export async function postReviewUpstream(input: {
   const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '')
 
   if (!answer.ok) {
-    await db
+    await rescue(() => db
       .updateTable('forge_credentials')
       .set({ last_error: answer.message.slice(0, 500) })
       .where('id', '=', credential.id)
-      .execute()
-      .catch(() => undefined)
+      .execute(), undefined)
 
     return { ok: false, reason: 'upstream-refused', status: answer.status, message: answer.message }
   }
 
-  await db
+  await rescue(() => db
     .updateTable('forge_credentials')
     .set({ last_used_at: now, last_error: null })
     .where('id', '=', credential.id)
-    .execute()
-    .catch(() => undefined)
+    .execute(), undefined)
 
   return {
     ok: true,

@@ -5,6 +5,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { isTrue } from '../Support/sql'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * One workflow, its versions, and what a version actually says.
@@ -111,23 +112,21 @@ export default new Action({
       : null
 
     const jobs = chosen
-      ? await db
+      ? await rescue(() => db
         .selectFrom('workflow_version_jobs')
         .select(['id', 'job_id', 'name', 'position', 'needs', 'runs_on', 'kind', 'settings', 'env', 'permissions', 'matrix', 'timeout_minutes', 'condition'])
         .where('workflow_version_id', '=', Number(chosen.id))
         .orderBy('position')
-        .execute()
-        .catch(() => [])
+        .execute(), [])
       : []
 
     const steps = jobs.length > 0
-      ? await db
+      ? await rescue(() => db
         .selectFrom('workflow_version_steps')
         .select(['workflow_version_job_id', 'position', 'name', 'command', 'uses', 'step_id', 'condition', 'continue_on_error', 'timeout_minutes'])
         .where('workflow_version_job_id', 'in', jobs.map(job => Number(job.id)))
         .orderBy('position')
-        .execute()
-        .catch(() => [])
+        .execute(), [])
       : []
 
     const byJob = new Map<number, any[]>()

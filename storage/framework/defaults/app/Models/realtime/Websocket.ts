@@ -33,7 +33,7 @@ export default defineModel({
       validation: {
         rule: schema.enum(['disconnection', 'error', 'success']),
         message: {
-          in: 'Type must be one of: disconnection, error, success',
+          enum: 'Type must be one of: disconnection, error, success',
         },
       },
       factory: faker => faker.helpers.arrayElement(['success', 'success', 'success', 'disconnection', 'error']),
@@ -72,9 +72,12 @@ export default defineModel({
       order: 4,
       fillable: true,
       validation: {
-        rule: schema.number(),
+        // A Unix timestamp in milliseconds, so a bigint column: `number()`
+        // generated a 32-bit integer that Date.now() overflows on PostgreSQL
+        // and MySQL (stacksjs/stacks#2996).
+        rule: schema.unix(),
         message: {
-          date: 'Time must be a valid timestamp',
+          unix: 'Time must be a valid timestamp',
         },
       },
       factory: faker => faker.date.recent().getTime(),

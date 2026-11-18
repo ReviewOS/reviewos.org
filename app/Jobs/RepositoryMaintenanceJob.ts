@@ -8,6 +8,7 @@ import { ownerHandleFor } from '../Actions/Repo/owner'
 import { DELETED_DIRECTORY } from '../Actions/Repo/settings'
 import { expiredRetirements, needsPacking, packArguments, RETENTION_DAYS } from '../Actions/Repo/retention'
 import { measure, recordSize } from '../Actions/Repo/size'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Keep the repositories on disk in a state worth cloning, and let go of the
@@ -60,11 +61,10 @@ export default new Job({
  * `count-objects` is cheaper and answers the question this job is asking.
  */
 async function packRepositories(dryRun: boolean): Promise<{ examined: number, packed: number }> {
-  const rows = await db
+  const rows = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'disk_path', 'owner_type', 'owner_id', 'name'])
-    .execute()
-    .catch(() => [])
+    .execute(), [])
 
   let examined = 0
   let packed = 0

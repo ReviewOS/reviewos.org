@@ -16,6 +16,7 @@
  * unauthenticated.
  */
 
+import { feature } from '@stacksjs/config'
 import { isLocalDeployment } from '@stacksjs/env'
 import { route } from '@stacksjs/router'
 
@@ -54,9 +55,13 @@ function authenticatedGuard(r: any): any {
 }
 
 route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
+  guard(route.get('/sidebar-order', 'Actions/Dashboard/Settings/SidebarOrderShowAction'))
+  guard(route.put('/sidebar-order', 'Actions/Dashboard/Settings/SidebarOrderUpdateAction'))
   guard(route.get('/home', 'Actions/Dashboard/DashboardHomeAction'))
   guard(route.get('/stats', 'Actions/Dashboard/DashboardStatsAction'))
   guard(route.get('/activity', 'Actions/Dashboard/DashboardActivityAction'))
+  guard(route.get('/search-engine', 'Actions/Dashboard/Search/SearchEngineIndexAction'))
+  guard(route.get('/jobs/definitions', 'Actions/Dashboard/Jobs/JobDefinitionsAction'))
   guard(route.get('/search', 'Actions/Dashboard/Search/GlobalSearchAction'))
   guard(route.get('/requests', 'Actions/Dashboard/Infrastructure/RequestIndexAction'))
   guard(route.get('/cloud', 'Actions/Dashboard/Cloud/CloudIndexAction'))
@@ -103,70 +108,97 @@ route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
   guard(route.post('/library/functions', 'Actions/Dashboard/Library/CreateFunction'))
   guard(route.get('/library/components', 'Actions/Dashboard/Library/GetComponents'))
   guard(route.post('/library/components', 'Actions/Dashboard/Library/CreateComponent'))
-  guard(route.get('/commerce/waitlist-products', 'Actions/Dashboard/Commerce/ProductWaitlistIndexAction'))
-  guard(route.post('/commerce/waitlist-products', 'Actions/Commerce/WaitlistProductStoreAction'))
-  guard(route.patch('/commerce/waitlist-products/{id}', 'Actions/Commerce/WaitlistProductUpdateAction'))
-  guard(route.delete('/commerce/waitlist-products/{id}', 'Actions/Commerce/WaitlistProductDestroyAction'))
-  guard(route.get('/commerce/waitlist-restaurants', 'Actions/Dashboard/Commerce/RestaurantWaitlistIndexAction'))
-  guard(route.post('/commerce/waitlist-restaurants', 'Actions/Commerce/WaitlistRestaurantStoreAction'))
-  guard(route.patch('/commerce/waitlist-restaurants/{id}', 'Actions/Commerce/WaitlistRestaurantUpdateAction'))
-  guard(route.delete('/commerce/waitlist-restaurants/{id}', 'Actions/Commerce/WaitlistRestaurantDestroyAction'))
-  guard(route.get('/commerce/reviews', 'Actions/Dashboard/Commerce/ReviewIndexAction'))
-  guard(route.patch('/commerce/reviews/{id}', 'Actions/Commerce/ReviewUpdateAction'))
-  guard(route.delete('/commerce/reviews/{id}', 'Actions/Commerce/ReviewDestroyAction'))
-  guard(route.get('/commerce/coupons', 'Actions/Dashboard/Commerce/CommerceCouponsAction'))
-  guard(route.post('/commerce/coupons', 'Actions/Commerce/CouponStoreAction'))
-  guard(route.patch('/commerce/coupons/{id}', 'Actions/Commerce/CouponUpdateAction'))
-  guard(route.delete('/commerce/coupons/{id}', 'Actions/Commerce/CouponDestroyAction'))
-  guard(route.get('/commerce/gift-cards', 'Actions/Dashboard/Commerce/CommerceGiftCardsAction'))
-  guard(route.post('/commerce/gift-cards', 'Actions/Commerce/GiftCardStoreAction'))
-  guard(route.patch('/commerce/gift-cards/{id}', 'Actions/Commerce/GiftCardUpdateAction'))
-  guard(route.delete('/commerce/gift-cards/{id}', 'Actions/Commerce/GiftCardDestroyAction'))
-  guard(route.get('/commerce/categories', 'Actions/Dashboard/Commerce/CommerceCategoriesAction'))
-  guard(route.post('/commerce/categories', 'Actions/Commerce/Product/ProductCategoryStoreAction'))
-  guard(route.patch('/commerce/categories/{id}', 'Actions/Commerce/Product/ProductCategoryUpdateAction'))
-  guard(route.delete('/commerce/categories/{id}', 'Actions/Commerce/Product/ProductCategoryDestroyAction'))
-  guard(route.get('/commerce/customers', 'Actions/Dashboard/Commerce/CommerceCustomersAction'))
-  guard(route.post('/commerce/customers', 'Actions/Commerce/CustomerStoreAction'))
-  guard(route.patch('/commerce/customers/{id}', 'Actions/Commerce/CustomerUpdateAction'))
-  guard(route.delete('/commerce/customers/{id}', 'Actions/Commerce/CustomerDestroyAction'))
-  guard(route.get('/commerce/orders', 'Actions/Dashboard/Commerce/CommerceOrdersAction'))
-  guard(route.post('/commerce/orders', 'Actions/Commerce/OrderStoreAction'))
-  guard(route.patch('/commerce/orders/{id}', 'Actions/Commerce/OrderUpdateAction'))
-  guard(route.delete('/commerce/orders/{id}', 'Actions/Commerce/OrderDestroyAction'))
-  guard(route.get('/commerce/pos', 'Actions/Dashboard/Commerce/CommercePosAction'))
-  guard(route.post('/commerce/pos/checkout', 'Actions/Dashboard/Commerce/CommercePosCheckoutAction'))
-  guard(route.get('/commerce/products', 'Actions/Dashboard/Commerce/CommerceProductsAction'))
-  guard(route.get('/commerce/products/{id}', 'Actions/Dashboard/Commerce/CommerceProductDetailAction'))
-  guard(route.post('/commerce/products', 'Actions/Commerce/Product/ProductStoreAction'))
-  guard(route.patch('/commerce/products/{id}', 'Actions/Commerce/Product/ProductUpdateAction'))
-  guard(route.delete('/commerce/products/{id}', 'Actions/Commerce/Product/ProductDestroyAction'))
-  guard(route.get('/commerce/manufacturers', 'Actions/Dashboard/Commerce/ManufacturerIndexAction'))
-  guard(route.post('/commerce/manufacturers', 'Actions/Commerce/Product/ManufacturerStoreAction'))
-  guard(route.patch('/commerce/manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerUpdateAction'))
-  guard(route.delete('/commerce/manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerDestroyAction'))
-  guard(route.get('/commerce/units', 'Actions/Dashboard/Commerce/ProductUnitIndexAction'))
-  guard(route.post('/commerce/units', 'Actions/Commerce/Product/ProductUnitStoreAction'))
-  guard(route.patch('/commerce/units/{id}', 'Actions/Commerce/Product/ProductUnitUpdateAction'))
-  guard(route.delete('/commerce/units/{id}', 'Actions/Commerce/Product/ProductUnitDestroyAction'))
-  guard(route.patch('/commerce/units/{id}/default', 'Actions/Dashboard/Commerce/ProductUnitDefaultAction'))
-  guard(route.get('/commerce/taxes', 'Actions/Dashboard/Commerce/CommerceTaxesAction'))
-  guard(route.post('/commerce/taxes', 'Actions/Commerce/TaxRateStoreAction'))
-  guard(route.patch('/commerce/taxes/{id}', 'Actions/Commerce/TaxRateUpdateAction'))
-  guard(route.delete('/commerce/taxes/{id}', 'Actions/Commerce/TaxRateDestroyAction'))
-  guard(route.patch('/commerce/taxes/{id}/default', 'Actions/Dashboard/Commerce/TaxRateDefaultAction'))
-  guard(route.get('/commerce/variants', 'Actions/Dashboard/Commerce/ProductVariantIndexAction'))
-  guard(route.post('/commerce/variants', 'Actions/Commerce/Product/ProductVariantStoreAction'))
-  guard(route.patch('/commerce/variants/{id}', 'Actions/Commerce/Product/ProductVariantUpdateAction'))
-  guard(route.delete('/commerce/variants/{id}', 'Actions/Commerce/Product/ProductVariantDestroyAction'))
-  guard(route.get('/commerce/payments', 'Actions/Dashboard/Commerce/CommercePaymentsAction'))
-  guard(route.post('/commerce/payments/{id}/refund', 'Actions/Dashboard/Commerce/PaymentRefundAction'))
-  guard(route.get('/commerce/print-devices', 'Actions/Dashboard/Commerce/CommercePrintDevicesAction'))
-  guard(route.post('/commerce/print-devices', 'Actions/Commerce/PrintDeviceStoreAction'))
-  guard(route.patch('/commerce/print-devices/{id}', 'Actions/Commerce/PrintDeviceUpdateAction'))
-  guard(route.delete('/commerce/print-devices/{id}', 'Actions/Commerce/PrintDeviceDestroyAction'))
-  guard(route.get('/commerce/print-logs', 'Actions/Dashboard/Commerce/CommercePrintLogsAction'))
-  guard(route.delete('/commerce/print-logs/{id}', 'Actions/Commerce/ReceiptDestroyAction'))
+  if (feature('commerce')) {
+    // The products and customers the waitlist dialogs offer, searched (commerce-choices.ts).
+    guard(route.get('/commerce/product-choices', 'Actions/Dashboard/Commerce/CommerceProductChoicesAction'))
+    guard(route.get('/commerce/customer-choices', 'Actions/Dashboard/Commerce/CommerceCustomerChoicesAction'))
+    guard(route.get('/commerce/waitlist-products', 'Actions/Dashboard/Commerce/ProductWaitlistIndexAction'))
+    guard(route.post('/commerce/waitlist-products', 'Actions/Commerce/WaitlistProductStoreAction'))
+    guard(route.patch('/commerce/waitlist-products/{id}', 'Actions/Commerce/WaitlistProductUpdateAction'))
+    guard(route.delete('/commerce/waitlist-products/{id}', 'Actions/Commerce/WaitlistProductDestroyAction'))
+    guard(route.get('/commerce/waitlist-restaurants', 'Actions/Dashboard/Commerce/RestaurantWaitlistIndexAction'))
+    guard(route.post('/commerce/waitlist-restaurants', 'Actions/Commerce/WaitlistRestaurantStoreAction'))
+    guard(route.patch('/commerce/waitlist-restaurants/{id}', 'Actions/Commerce/WaitlistRestaurantUpdateAction'))
+    guard(route.delete('/commerce/waitlist-restaurants/{id}', 'Actions/Commerce/WaitlistRestaurantDestroyAction'))
+    guard(route.get('/commerce/reviews', 'Actions/Dashboard/Commerce/ReviewIndexAction'))
+    guard(route.patch('/commerce/reviews/{id}', 'Actions/Commerce/ReviewUpdateAction'))
+    guard(route.delete('/commerce/reviews/{id}', 'Actions/Commerce/ReviewDestroyAction'))
+    guard(route.get('/commerce/coupons', 'Actions/Dashboard/Commerce/CommerceCouponsAction'))
+    guard(route.get('/commerce/coupons/export', 'Actions/Dashboard/Commerce/CommerceCouponsExportAction'))
+    guard(route.post('/commerce/coupons', 'Actions/Commerce/CouponStoreAction'))
+    guard(route.patch('/commerce/coupons/{id}', 'Actions/Commerce/CouponUpdateAction'))
+    guard(route.delete('/commerce/coupons/{id}', 'Actions/Commerce/CouponDestroyAction'))
+    // Automatic and code discounts (buy X get Y, volume tiers, free shipping),
+    // written through the discount engine so a saved rule always prices.
+    guard(route.get('/commerce/discounts', 'Actions/Dashboard/Commerce/CommerceDiscountsAction'))
+    guard(route.post('/commerce/discounts', 'Actions/Dashboard/Commerce/CommerceDiscountStoreAction'))
+    guard(route.patch('/commerce/discounts/{id}', 'Actions/Dashboard/Commerce/CommerceDiscountUpdateAction'))
+    guard(route.delete('/commerce/discounts/{id}', 'Actions/Dashboard/Commerce/CommerceDiscountDestroyAction'))
+    // Post-purchase offers with their funnel, and one offer's latest responses.
+    guard(route.get('/commerce/upsells', 'Actions/Dashboard/Commerce/CommerceUpsellsAction'))
+    guard(route.get('/commerce/upsells/{id}', 'Actions/Dashboard/Commerce/CommerceUpsellDetailAction'))
+    guard(route.post('/commerce/upsells', 'Actions/Dashboard/Commerce/CommerceUpsellStoreAction'))
+    guard(route.patch('/commerce/upsells/{id}', 'Actions/Dashboard/Commerce/CommerceUpsellUpdateAction'))
+    guard(route.delete('/commerce/upsells/{id}', 'Actions/Dashboard/Commerce/CommerceUpsellDestroyAction'))
+    guard(route.get('/commerce/gift-cards', 'Actions/Dashboard/Commerce/CommerceGiftCardsAction'))
+    guard(route.get('/commerce/gift-cards/export', 'Actions/Dashboard/Commerce/CommerceGiftCardsExportAction'))
+    guard(route.post('/commerce/gift-cards', 'Actions/Commerce/GiftCardStoreAction'))
+    guard(route.patch('/commerce/gift-cards/{id}', 'Actions/Commerce/GiftCardUpdateAction'))
+    guard(route.delete('/commerce/gift-cards/{id}', 'Actions/Commerce/GiftCardDestroyAction'))
+    guard(route.get('/commerce/categories', 'Actions/Dashboard/Commerce/CommerceCategoriesAction'))
+    guard(route.post('/commerce/categories', 'Actions/Commerce/Product/ProductCategoryStoreAction'))
+    guard(route.patch('/commerce/categories/{id}', 'Actions/Commerce/Product/ProductCategoryUpdateAction'))
+    guard(route.delete('/commerce/categories/{id}', 'Actions/Commerce/Product/ProductCategoryDestroyAction'))
+    guard(route.get('/commerce/customers', 'Actions/Dashboard/Commerce/CommerceCustomersAction'))
+    guard(route.get('/commerce/customers/export', 'Actions/Dashboard/Commerce/CommerceCustomersExportAction'))
+    guard(route.post('/commerce/customers', 'Actions/Commerce/CustomerStoreAction'))
+    guard(route.patch('/commerce/customers/{id}', 'Actions/Commerce/CustomerUpdateAction'))
+    guard(route.delete('/commerce/customers/{id}', 'Actions/Commerce/CustomerDestroyAction'))
+    guard(route.get('/commerce/orders', 'Actions/Dashboard/Commerce/CommerceOrdersAction'))
+    guard(route.get('/commerce/orders/export', 'Actions/Dashboard/Commerce/CommerceOrdersExportAction'))
+    guard(route.get('/commerce/orders/customers', 'Actions/Dashboard/Commerce/CommerceOrderCustomersAction'))
+    guard(route.post('/commerce/orders', 'Actions/Commerce/OrderStoreAction'))
+    guard(route.patch('/commerce/orders/{id}', 'Actions/Commerce/OrderUpdateAction'))
+    guard(route.delete('/commerce/orders/{id}', 'Actions/Commerce/OrderDestroyAction'))
+    guard(route.get('/commerce/pos', 'Actions/Dashboard/Commerce/CommercePosAction'))
+    guard(route.get('/commerce/pos/products', 'Actions/Dashboard/Commerce/CommercePosProductsAction'))
+    guard(route.post('/commerce/pos/checkout', 'Actions/Dashboard/Commerce/CommercePosCheckoutAction'))
+    guard(route.get('/commerce/products', 'Actions/Dashboard/Commerce/CommerceProductsAction'))
+    // Before `{id}`, so "export" is never read as a product id.
+    guard(route.get('/commerce/products/export', 'Actions/Dashboard/Commerce/CommerceProductsExportAction'))
+    guard(route.get('/commerce/products/{id}', 'Actions/Dashboard/Commerce/CommerceProductDetailAction'))
+    guard(route.post('/commerce/products', 'Actions/Commerce/Product/ProductStoreAction'))
+    guard(route.patch('/commerce/products/{id}', 'Actions/Commerce/Product/ProductUpdateAction'))
+    guard(route.delete('/commerce/products/{id}', 'Actions/Commerce/Product/ProductDestroyAction'))
+    guard(route.get('/commerce/manufacturers', 'Actions/Dashboard/Commerce/ManufacturerIndexAction'))
+    guard(route.post('/commerce/manufacturers', 'Actions/Commerce/Product/ManufacturerStoreAction'))
+    guard(route.patch('/commerce/manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerUpdateAction'))
+    guard(route.delete('/commerce/manufacturers/{id}', 'Actions/Commerce/Product/ManufacturerDestroyAction'))
+    guard(route.get('/commerce/units', 'Actions/Dashboard/Commerce/ProductUnitIndexAction'))
+    guard(route.post('/commerce/units', 'Actions/Commerce/Product/ProductUnitStoreAction'))
+    guard(route.patch('/commerce/units/{id}', 'Actions/Commerce/Product/ProductUnitUpdateAction'))
+    guard(route.delete('/commerce/units/{id}', 'Actions/Commerce/Product/ProductUnitDestroyAction'))
+    guard(route.patch('/commerce/units/{id}/default', 'Actions/Dashboard/Commerce/ProductUnitDefaultAction'))
+    guard(route.get('/commerce/taxes', 'Actions/Dashboard/Commerce/CommerceTaxesAction'))
+    guard(route.post('/commerce/taxes', 'Actions/Commerce/TaxRateStoreAction'))
+    guard(route.patch('/commerce/taxes/{id}', 'Actions/Commerce/TaxRateUpdateAction'))
+    guard(route.delete('/commerce/taxes/{id}', 'Actions/Commerce/TaxRateDestroyAction'))
+    guard(route.patch('/commerce/taxes/{id}/default', 'Actions/Dashboard/Commerce/TaxRateDefaultAction'))
+    guard(route.get('/commerce/variants', 'Actions/Dashboard/Commerce/ProductVariantIndexAction'))
+    guard(route.post('/commerce/variants', 'Actions/Commerce/Product/ProductVariantStoreAction'))
+    guard(route.patch('/commerce/variants/{id}', 'Actions/Commerce/Product/ProductVariantUpdateAction'))
+    guard(route.delete('/commerce/variants/{id}', 'Actions/Commerce/Product/ProductVariantDestroyAction'))
+    guard(route.get('/commerce/payments', 'Actions/Dashboard/Commerce/CommercePaymentsAction'))
+    guard(route.get('/commerce/payments/export', 'Actions/Dashboard/Commerce/CommercePaymentsExportAction'))
+    guard(route.post('/commerce/payments/{id}/refund', 'Actions/Dashboard/Commerce/PaymentRefundAction'))
+    guard(route.get('/commerce/print-devices', 'Actions/Dashboard/Commerce/CommercePrintDevicesAction'))
+    guard(route.post('/commerce/print-devices', 'Actions/Commerce/PrintDeviceStoreAction'))
+    guard(route.patch('/commerce/print-devices/{id}', 'Actions/Commerce/PrintDeviceUpdateAction'))
+    guard(route.delete('/commerce/print-devices/{id}', 'Actions/Commerce/PrintDeviceDestroyAction'))
+    guard(route.get('/commerce/print-logs', 'Actions/Dashboard/Commerce/CommercePrintLogsAction'))
+    guard(route.get('/commerce/print-logs/export', 'Actions/Dashboard/Commerce/CommercePrintLogsExportAction'))
+    guard(route.delete('/commerce/print-logs/{id}', 'Actions/Commerce/ReceiptDestroyAction'))
+  }
   guard(route.get('/deployments', 'Actions/Dashboard/Deployments/GetDeployments'))
   guard(route.post('/deployments', 'Actions/Dashboard/Deployments/CreateDeployment'))
   guard(route.post('/deployments/preview', 'Actions/Dashboard/Deployments/PreviewDeployment'))
@@ -201,6 +233,9 @@ route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
   guard(route.get('/operations/audit', 'Actions/Dashboard/Operations/AuditIndexAction'))
   guard(route.get('/data/activity', 'Actions/Dashboard/Data/ActivityIndexAction'))
   guard(route.get('/data/users', 'Actions/Dashboard/Data/UserIndexAction'))
+  // Adding a user: the account is created and its holder is mailed a link to
+  // choose their password, since no form can supply one.
+  guard(route.post('/users/invitations', 'Actions/Dashboard/Users/UserInviteAction'))
   guard(route.get('/data/teams', 'Actions/Dashboard/Data/TeamIndexAction'))
   guard(route.get('/data/subscribers', 'Actions/Dashboard/Data/SubscriberIndexAction'))
   guard(route.get('/teams/{id}/people', 'Actions/Dashboard/Teams/TeamPeopleIndexAction'))
@@ -221,34 +256,37 @@ route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
   //
   // Guarded for the same reason as the blog routes below: the writes mutate the
   // database and the reads expose unpublished drafts and unmoderated comments.
-  guard(route.get('/content/overview', 'Actions/Dashboard/Content/ContentDashboardAction'))
-  guard(route.get('/posts', 'Actions/Dashboard/Content/PostIndexAction'))
-  guard(route.post('/posts', 'Actions/Dashboard/Content/PostStoreAction'))
-  guard(route.patch('/posts/{id}', 'Actions/Dashboard/Content/PostUpdateAction'))
-  guard(route.delete('/posts/{id}', 'Actions/Dashboard/Content/PostDestroyAction'))
+  if (feature('cms')) {
+    guard(route.get('/content/overview', 'Actions/Dashboard/Content/ContentDashboardAction'))
+    guard(route.get('/posts', 'Actions/Dashboard/Content/PostIndexAction'))
+    guard(route.post('/posts', 'Actions/Dashboard/Content/PostStoreAction'))
+    guard(route.get('/posts/{id}', 'Actions/Dashboard/Content/PostShowAction'))
+    guard(route.patch('/posts/{id}', 'Actions/Dashboard/Content/PostUpdateAction'))
+    guard(route.delete('/posts/{id}', 'Actions/Dashboard/Content/PostDestroyAction'))
 
-  guard(route.get('/authors', 'Actions/Dashboard/Content/AuthorIndexAction'))
-  guard(route.post('/authors', 'Actions/Dashboard/Content/AuthorStoreAction'))
-  guard(route.patch('/authors/{id}', 'Actions/Dashboard/Content/AuthorUpdateAction'))
-  guard(route.delete('/authors/{id}', 'Actions/Dashboard/Content/AuthorDestroyAction'))
+    guard(route.get('/authors', 'Actions/Dashboard/Content/AuthorIndexAction'))
+    guard(route.post('/authors', 'Actions/Dashboard/Content/AuthorStoreAction'))
+    guard(route.patch('/authors/{id}', 'Actions/Dashboard/Content/AuthorUpdateAction'))
+    guard(route.delete('/authors/{id}', 'Actions/Dashboard/Content/AuthorDestroyAction'))
 
-  guard(route.get('/categories', 'Actions/Dashboard/Content/CategoryIndexAction'))
-  guard(route.post('/categories', 'Actions/Dashboard/Content/CategoryStoreAction'))
-  guard(route.delete('/categories/{id}', 'Actions/Dashboard/Content/CategoryDestroyAction'))
+    guard(route.get('/categories', 'Actions/Dashboard/Content/CategoryIndexAction'))
+    guard(route.post('/categories', 'Actions/Dashboard/Content/CategoryStoreAction'))
+    guard(route.delete('/categories/{id}', 'Actions/Dashboard/Content/CategoryDestroyAction'))
 
-  guard(route.get('/tags', 'Actions/Dashboard/Content/TagIndexAction'))
-  guard(route.post('/tags', 'Actions/Dashboard/Content/TagStoreAction'))
-  guard(route.delete('/tags/{id}', 'Actions/Dashboard/Content/TagDestroyAction'))
+    guard(route.get('/tags', 'Actions/Dashboard/Content/TagIndexAction'))
+    guard(route.post('/tags', 'Actions/Dashboard/Content/TagStoreAction'))
+    guard(route.delete('/tags/{id}', 'Actions/Dashboard/Content/TagDestroyAction'))
 
-  guard(route.get('/pages', 'Actions/Dashboard/Content/PageIndexAction'))
-  guard(route.post('/pages', 'Actions/Dashboard/Content/PageStoreAction'))
-  guard(route.patch('/pages/{id}', 'Actions/Dashboard/Content/PageUpdateAction'))
-  guard(route.delete('/pages/{id}', 'Actions/Dashboard/Content/PageDestroyAction'))
+    guard(route.get('/pages', 'Actions/Dashboard/Content/PageIndexAction'))
+    guard(route.post('/pages', 'Actions/Dashboard/Content/PageStoreAction'))
+    guard(route.patch('/pages/{id}', 'Actions/Dashboard/Content/PageUpdateAction'))
+    guard(route.delete('/pages/{id}', 'Actions/Dashboard/Content/PageDestroyAction'))
 
-  // No store route: comments arrive from readers, the dashboard only moderates.
-  guard(route.get('/comments', 'Actions/Dashboard/Content/CommentIndexAction'))
-  guard(route.patch('/comments/{id}', 'Actions/Dashboard/Content/CommentUpdateAction'))
-  guard(route.delete('/comments/{id}', 'Actions/Dashboard/Content/CommentDestroyAction'))
+    // No store route: comments arrive from readers, the dashboard only moderates.
+    guard(route.get('/comments', 'Actions/Dashboard/Content/CommentIndexAction'))
+    guard(route.patch('/comments/{id}', 'Actions/Dashboard/Content/CommentUpdateAction'))
+    guard(route.delete('/comments/{id}', 'Actions/Dashboard/Content/CommentDestroyAction'))
+  }
 
   guard(route.get('/files', 'Actions/Dashboard/Content/FileIndexAction'))
   guard(route.post('/files/directories', 'Actions/Dashboard/Content/FileDirectoryStoreAction'))
@@ -392,79 +430,84 @@ route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
   // Commerce dashboard stats. Same Action that backs the auth'd
   // `/api/commerce/dashboard`, projected through the local-friendly dashboard
   // guard so production totals are never protected by client-side role checks.
-  guard(route.get('/commerce/stats', 'Actions/Dashboard/Commerce/CommerceDashboardAction'))
+  if (feature('commerce')) {
+    guard(route.get('/commerce/stats', 'Actions/Dashboard/Commerce/CommerceDashboardAction'))
 
-  // Delivery operations overview. Guarded because route and courier data is
-  // operational information even though the underlying models expose their
-  // own generated useApi endpoints.
-  guard(route.get('/commerce/delivery', 'Actions/Dashboard/Commerce/CommerceDeliveryAction'))
+    // Delivery operations overview. Guarded because route and courier data is
+    // operational information even though the underlying models expose their
+    // own generated useApi endpoints.
+    guard(route.get('/commerce/delivery', 'Actions/Dashboard/Commerce/CommerceDeliveryAction'))
 
-  // Dashboard-local aliases for the model-backed delivery resources. These
-  // reuse the same commerce Actions as the authenticated public API while the
-  // local guard keeps `buddy dev --dashboard` usable without a login session.
-  guard(route.get('/commerce/shipping-methods', 'Actions/Dashboard/Commerce/ShippingMethodIndexAction'))
-  guard(route.get('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodShowAction'))
-  guard(route.post('/commerce/shipping-methods', 'Actions/Commerce/Shipping/ShippingMethodStoreAction'))
-  guard(route.patch('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodUpdateAction'))
-  guard(route.delete('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodDestroyAction'))
+    // Dashboard-local aliases for the model-backed delivery resources. These
+    // reuse the same commerce Actions as the authenticated public API while the
+    // local guard keeps `buddy dev --dashboard` usable without a login session.
+    guard(route.get('/commerce/shipping-methods', 'Actions/Dashboard/Commerce/ShippingMethodIndexAction'))
+    guard(route.get('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodShowAction'))
+    guard(route.post('/commerce/shipping-methods', 'Actions/Commerce/Shipping/ShippingMethodStoreAction'))
+    guard(route.patch('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodUpdateAction'))
+    guard(route.delete('/commerce/shipping-methods/{id}', 'Actions/Commerce/Shipping/ShippingMethodDestroyAction'))
 
-  guard(route.get('/commerce/shipping-rates', 'Actions/Dashboard/Commerce/ShippingRateIndexAction'))
-  guard(route.get('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateShowAction'))
-  guard(route.post('/commerce/shipping-rates', 'Actions/Commerce/Shipping/ShippingRateStoreAction'))
-  guard(route.patch('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateUpdateAction'))
-  guard(route.delete('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateDestroyAction'))
+    guard(route.get('/commerce/shipping-rates', 'Actions/Dashboard/Commerce/ShippingRateIndexAction'))
+    guard(route.get('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateShowAction'))
+    guard(route.post('/commerce/shipping-rates', 'Actions/Commerce/Shipping/ShippingRateStoreAction'))
+    guard(route.patch('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateUpdateAction'))
+    guard(route.delete('/commerce/shipping-rates/{id}', 'Actions/Commerce/Shipping/ShippingRateDestroyAction'))
 
-  guard(route.get('/commerce/shipping-zones', 'Actions/Dashboard/Commerce/ShippingZoneIndexAction'))
-  guard(route.get('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneShowAction'))
-  guard(route.post('/commerce/shipping-zones', 'Actions/Commerce/Shipping/ShippingZoneStoreAction'))
-  guard(route.patch('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneUpdateAction'))
-  guard(route.delete('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneDestroyAction'))
+    guard(route.get('/commerce/shipping-zones', 'Actions/Dashboard/Commerce/ShippingZoneIndexAction'))
+    guard(route.get('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneShowAction'))
+    guard(route.post('/commerce/shipping-zones', 'Actions/Commerce/Shipping/ShippingZoneStoreAction'))
+    guard(route.patch('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneUpdateAction'))
+    guard(route.delete('/commerce/shipping-zones/{id}', 'Actions/Commerce/Shipping/ShippingZoneDestroyAction'))
 
-  guard(route.get('/commerce/delivery-routes', 'Actions/Dashboard/Commerce/DeliveryRouteIndexAction'))
-  guard(route.get('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteShowAction'))
-  guard(route.post('/commerce/delivery-routes', 'Actions/Commerce/Shipping/DeliveryRouteStoreAction'))
-  guard(route.patch('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteUpdateAction'))
-  guard(route.delete('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteDestroyAction'))
+    guard(route.get('/commerce/delivery-routes', 'Actions/Dashboard/Commerce/DeliveryRouteIndexAction'))
+    guard(route.get('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteShowAction'))
+    guard(route.post('/commerce/delivery-routes', 'Actions/Commerce/Shipping/DeliveryRouteStoreAction'))
+    guard(route.patch('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteUpdateAction'))
+    guard(route.delete('/commerce/delivery-routes/{id}', 'Actions/Commerce/Shipping/DeliveryRouteDestroyAction'))
 
-  guard(route.get('/commerce/couriers', 'Actions/Dashboard/Commerce/CourierIndexAction'))
-  guard(route.get('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierShowAction'))
-  guard(route.post('/commerce/couriers', 'Actions/Commerce/Shipping/CourierStoreAction'))
-  guard(route.patch('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierUpdateAction'))
-  guard(route.delete('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierDestroyAction'))
+    guard(route.get('/commerce/couriers', 'Actions/Dashboard/Commerce/CourierIndexAction'))
+    guard(route.get('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierShowAction'))
+    guard(route.post('/commerce/couriers', 'Actions/Commerce/Shipping/CourierStoreAction'))
+    guard(route.patch('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierUpdateAction'))
+    guard(route.delete('/commerce/couriers/{id}', 'Actions/Commerce/Shipping/CourierDestroyAction'))
 
-  guard(route.get('/commerce/digital-deliveries', 'Actions/Dashboard/Commerce/DigitalDeliveryIndexAction'))
-  guard(route.get('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryShowAction'))
-  guard(route.post('/commerce/digital-deliveries', 'Actions/Commerce/Shipping/DigitalDeliveryStoreAction'))
-  guard(route.patch('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryUpdateAction'))
-  guard(route.delete('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryDestroyAction'))
+    guard(route.get('/commerce/digital-deliveries', 'Actions/Dashboard/Commerce/DigitalDeliveryIndexAction'))
+    guard(route.get('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryShowAction'))
+    guard(route.post('/commerce/digital-deliveries', 'Actions/Commerce/Shipping/DigitalDeliveryStoreAction'))
+    guard(route.patch('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryUpdateAction'))
+    guard(route.delete('/commerce/digital-deliveries/{id}', 'Actions/Commerce/Shipping/DigitalDeliveryDestroyAction'))
 
-  guard(route.get('/commerce/license-keys', 'Actions/Dashboard/Commerce/LicenseKeyIndexAction'))
-  guard(route.get('/commerce/license-key-options', 'Actions/Dashboard/Commerce/LicenseKeyOptionsAction'))
-  guard(route.get('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyShowAction'))
-  guard(route.post('/commerce/license-keys', 'Actions/Commerce/Shipping/LicenseKeyStoreAction'))
-  guard(route.patch('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyUpdateAction'))
-  guard(route.delete('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyDestroyAction'))
+    guard(route.get('/commerce/license-keys', 'Actions/Dashboard/Commerce/LicenseKeyIndexAction'))
+    guard(route.get('/commerce/license-key-options', 'Actions/Dashboard/Commerce/LicenseKeyOptionsAction'))
+    guard(route.get('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyShowAction'))
+    guard(route.post('/commerce/license-keys', 'Actions/Commerce/Shipping/LicenseKeyStoreAction'))
+    guard(route.patch('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyUpdateAction'))
+    guard(route.delete('/commerce/license-keys/{id}', 'Actions/Commerce/Shipping/LicenseKeyDestroyAction'))
+  }
 
-  guard(route.get('/marketing/lists', 'Actions/Dashboard/Marketing/ListIndexAction'))
-  guard(route.post('/marketing/lists', 'Actions/Dashboard/Marketing/ListStoreAction'))
-  guard(route.patch('/marketing/lists/{id}', 'Actions/Dashboard/Marketing/ListUpdateAction'))
-  guard(route.delete('/marketing/lists/{id}', 'Actions/Dashboard/Marketing/ListDestroyAction'))
-  guard(route.get('/marketing/campaigns', 'Actions/Dashboard/Marketing/CampaignIndexAction'))
-  guard(route.post('/marketing/campaigns', 'Actions/Dashboard/Marketing/CampaignStoreAction'))
-  guard(route.patch('/marketing/campaigns/{id}', 'Actions/Dashboard/Marketing/CampaignUpdateAction'))
-  guard(route.delete('/marketing/campaigns/{id}', 'Actions/Dashboard/Marketing/CampaignDestroyAction'))
-  guard(route.post('/marketing/campaigns/{id}/send', 'Actions/Dashboard/Marketing/CampaignSendAction'))
-  guard(route.post('/marketing/campaigns/{id}/schedule', 'Actions/Dashboard/Marketing/CampaignScheduleAction'))
-  guard(route.post('/marketing/campaigns/{id}/cancel', 'Actions/Dashboard/Marketing/CampaignCancelAction'))
-  // Abandoned carts: the audience a shop already has, and the campaign that
-  // goes after it. The campaign it writes is an ordinary Campaign row, so it
-  // shows up on /marketing/campaigns and sends through the same pipeline.
-  guard(route.get('/marketing/abandoned-carts', 'Actions/Dashboard/Marketing/AbandonedCartIndexAction'))
-  guard(route.post('/marketing/abandoned-carts/campaign', 'Actions/Dashboard/Marketing/AbandonedCartCampaignAction'))
-  guard(route.get('/marketing/social-posts', 'Actions/Dashboard/Marketing/SocialPostIndexAction'))
-  guard(route.post('/marketing/social-posts', 'Actions/Dashboard/Marketing/SocialPostStoreAction'))
-  guard(route.patch('/marketing/social-posts/{id}', 'Actions/Dashboard/Marketing/SocialPostUpdateAction'))
-  guard(route.delete('/marketing/social-posts/{id}', 'Actions/Dashboard/Marketing/SocialPostDestroyAction'))
+  if (feature('marketing')) {
+    guard(route.get('/marketing/lists', 'Actions/Dashboard/Marketing/ListIndexAction'))
+    guard(route.post('/marketing/lists', 'Actions/Dashboard/Marketing/ListStoreAction'))
+    guard(route.patch('/marketing/lists/{id}', 'Actions/Dashboard/Marketing/ListUpdateAction'))
+    guard(route.delete('/marketing/lists/{id}', 'Actions/Dashboard/Marketing/ListDestroyAction'))
+    guard(route.get('/marketing/campaigns', 'Actions/Dashboard/Marketing/CampaignIndexAction'))
+    guard(route.post('/marketing/campaigns', 'Actions/Dashboard/Marketing/CampaignStoreAction'))
+    guard(route.patch('/marketing/campaigns/{id}', 'Actions/Dashboard/Marketing/CampaignUpdateAction'))
+    guard(route.delete('/marketing/campaigns/{id}', 'Actions/Dashboard/Marketing/CampaignDestroyAction'))
+    guard(route.post('/marketing/campaigns/{id}/send', 'Actions/Dashboard/Marketing/CampaignSendAction'))
+    guard(route.post('/marketing/campaigns/{id}/schedule', 'Actions/Dashboard/Marketing/CampaignScheduleAction'))
+    guard(route.post('/marketing/campaigns/{id}/cancel', 'Actions/Dashboard/Marketing/CampaignCancelAction'))
+    // Abandoned carts: the audience a shop already has, and the campaign that
+    // goes after it. The campaign it writes is an ordinary Campaign row, so it
+    // shows up on /marketing/campaigns and sends through the same pipeline.
+    if (feature('commerce'))
+      guard(route.get('/marketing/abandoned-carts', 'Actions/Dashboard/Marketing/AbandonedCartIndexAction'))
+    guard(route.post('/marketing/abandoned-carts/campaign', 'Actions/Dashboard/Marketing/AbandonedCartCampaignAction'))
+    guard(route.get('/marketing/social-posts', 'Actions/Dashboard/Marketing/SocialPostIndexAction'))
+    guard(route.post('/marketing/social-posts', 'Actions/Dashboard/Marketing/SocialPostStoreAction'))
+    guard(route.patch('/marketing/social-posts/{id}', 'Actions/Dashboard/Marketing/SocialPostUpdateAction'))
+    guard(route.delete('/marketing/social-posts/{id}', 'Actions/Dashboard/Marketing/SocialPostDestroyAction'))
+  }
 
   guard(route.get('/notification-deliveries', 'Actions/Dashboard/Notifications/NotificationDeliveryIndexAction'))
   guard(route.get('/notification-deliveries/overview', 'Actions/Dashboard/Notifications/NotificationDeliveryOverviewAction'))
@@ -481,13 +524,30 @@ route.group({ prefix: '/api/dashboard', apiResponse: true }, () => {
   // server-side. ORM path first, raw SQLite fallback if no model file
   // matches the slug.
   guard(route.get('/models/{slug}', 'Actions/Dashboard/Models/ModelShowAction'))
+  // A model's records by name, for choosing one in a form: the picker behind
+  // every `belongsTo` field. Light on purpose, since it answers each keystroke.
+  guard(route.get('/models/{slug}/options', 'Actions/Dashboard/Models/ModelOptionsAction'))
+  // The records that point at one record: a team's members, a user's teams.
+  // From the model's own `hasMany` and `hasOne`, for the panels of its page.
+  guard(route.get('/models/{slug}/{id}/related', 'Actions/Dashboard/Models/ModelRelatedAction'))
 
   // Row writes from the same page. Guarded like every other mutating
   // dashboard endpoint; models with no ORM file stay read-only, which the
   // actions enforce rather than the route.
   guard(route.post('/models/{slug}', 'Actions/Dashboard/Models/ModelStoreAction'))
   guard(route.patch('/models/{slug}/{id}', 'Actions/Dashboard/Models/ModelUpdateAction'))
+  // A record and its related rows, all or nothing (stacksjs/stacks#3315).
+  guard(route.patch('/models/{slug}/{id}/save', 'Actions/Dashboard/Models/ModelSaveAction'))
   guard(route.delete('/models/{slug}/{id}', 'Actions/Dashboard/Models/ModelDestroyAction'))
+  // The actions a model lists under `dashboard.actions`, run on one record:
+  // "Mark as shipped". The parameters other than `id` are named so that an
+  // action validating a `slug` or a `name` of its own does not read these.
+  guard(route.post('/models/{dashboardModel}/{id}/actions/{dashboardAction}', 'Actions/Dashboard/Models/ModelActionRunAction'))
+  // The file chosen for a field a model asks for as one (`input: 'upload'`):
+  // stored, and its address answered for the form to hold. And how a field's
+  // Markdown reads, for the preview beside its editor. Neither writes a record.
+  guard(route.post('/models/{slug}/uploads', 'Actions/Dashboard/Models/ModelUploadAction'))
+  guard(route.post('/markdown', 'Actions/Dashboard/Models/ModelMarkdownAction'))
 
   // Error monitoring - the same native Error model aggregation exposed by
   // the token-authenticated `/api/monitoring` routes, projected through the

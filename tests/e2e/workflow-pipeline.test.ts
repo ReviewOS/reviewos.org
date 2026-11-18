@@ -15,6 +15,7 @@ import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { fakeRunner } from '../helpers/fakeRunner'
 import type { FakeRunner } from '../helpers/fakeRunner'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { rescue } from '@stacksjs/error-handling'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -142,9 +143,9 @@ afterAll(async () => {
     await runner?.remove()
 
     if (created.repositoryId)
-      await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute(), undefined)
     if (created.ownerId)
-      await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => {})
+      await rescue(() => db.deleteFrom('users').where('id', '=', created.ownerId).execute(), undefined)
   }
   catch { /* the next run uses fresh names */ }
 })

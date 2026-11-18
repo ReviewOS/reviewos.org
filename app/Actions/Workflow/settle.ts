@@ -34,6 +34,7 @@ import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 import { isNotFalse, isTrue, rowsChanged } from '../Support/sql'
 import { announceActionRequiredFor } from './announce'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * What a job cancelled by a sibling is told, on its own row.
@@ -166,23 +167,21 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
  * every settle is never.
  */
 async function repositoryOfRun(runId: number): Promise<number> {
-  const run = await db
+  const run = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['repository_id'])
     .where('id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return Number(run?.repository_id ?? 0)
 }
 
 async function awaitingApproval(runId: number): Promise<boolean> {
-  const run = await db
+  const run = await rescue(() => db
     .selectFrom('workflow_runs')
     .select(['approval_state'])
     .where('id', '=', runId)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return String(run?.approval_state ?? 'not-required') === 'required'
 }
@@ -681,12 +680,11 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
         await publishRun(runId).catch(() => null)
       }
 
-      const finished = await db
+      const finished = await rescue(() => db
         .selectFrom('workflow_runs')
         .select(['repository_id', 'concurrency_group'])
         .where('id', '=', runId)
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
 
       if (finished?.concurrency_group) {
         const released = await releaseGroup(Number(finished.repository_id), String(finished.concurrency_group))
@@ -946,13 +944,12 @@ async function checksStateOf(repositoryId: number, headSha: string, ref: string)
    */
   const branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref
 
-  const protection = await db
+  const protection = await rescue(() => db
     .selectFrom('protected_branches')
     .select(['required_checks'])
     .where('repository_id', '=', repositoryId)
     .where('pattern', '=', branch)
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   let required: string[] = []
 

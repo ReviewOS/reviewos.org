@@ -9,6 +9,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import pages from '../../../config/pages'
 import { ensureSite, siteFor } from './site'
 import { refuse, succeed } from '../Support/forge'
+import { rescue } from '@stacksjs/error-handling'
 
 /**
  * Reading and changing a repository's published site.
@@ -104,12 +105,11 @@ export default new Action({
         // Refused rather than overwritten. A domain answered by two
         // repositories is a hijack, and the second one to claim it must not
         // silently take the first one's traffic.
-        const taken = await db
+        const taken = await rescue(() => db
           .selectFrom('pages_sites')
           .select(['repository_id'])
           .where('domain', '=', domain)
-          .executeTakeFirst()
-          .catch(() => null)
+          .executeTakeFirst(), null)
 
         if (taken && Number(taken.repository_id) !== repositoryId)
           return refuse(request, 'Another repository already publishes at that domain.', 409)
@@ -119,12 +119,11 @@ export default new Action({
     }
 
     if (Object.keys(changes).length > 0) {
-      await db
+      await rescue(() => db
         .updateTable('pages_sites')
         .set(changes as any)
         .where('id', '=', site.id)
-        .execute()
-        .catch(() => null)
+        .execute(), null)
 
       /*
        * Audited, because this is a disclosure decision.
@@ -158,12 +157,11 @@ export default new Action({
 async function ownerHandleOf(repository: any): Promise<string> {
   const table = String(repository.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const row = await db
+  const row = await rescue(() => db
     .selectFrom(table as any)
     .select(['handle'])
     .where('id', '=', Number(repository.owner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   return String((row as any)?.handle ?? '')
 }

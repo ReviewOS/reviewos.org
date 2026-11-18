@@ -14,6 +14,7 @@ import { db } from '@stacksjs/database'
 import type { RunnerFacts } from './protocol'
 import { runnerJson } from './gate'
 import { leaseIsLive, splitLabels } from './protocol'
+import { rescue } from '@stacksjs/error-handling'
 
 /** SHA-256, the same way registration wrote it. */
 export function hashToken(token: string): string {
@@ -219,12 +220,11 @@ export async function jobCredentialRefusal(request: RequestInstance, now: Date =
   if (!token)
     return unknown
 
-  const job: any = await db
+  const job: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'runner_id', 'state', 'lease_expires_at', 'condition_reason'])
     .where('job_token_hash', '=', hashToken(token))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!job?.runner_id)
     return unknown
@@ -237,12 +237,11 @@ export async function jobCredentialRefusal(request: RequestInstance, now: Date =
     let reason = own
 
     if (!reason) {
-      const run: any = await db
+      const run: any = await rescue(() => db
         .selectFrom('workflow_runs')
         .select(['conclusion_reason'])
         .where('id', '=', Number(job.workflow_run_id))
-        .executeTakeFirst()
-        .catch(() => null)
+        .executeTakeFirst(), null)
       reason = String(run?.conclusion_reason ?? '').trim() || 'Its run was cancelled.'
     }
 
@@ -260,12 +259,11 @@ export async function jobCredentialRefusal(request: RequestInstance, now: Date =
     }
   }
 
-  const runner: any = await db
+  const runner: any = await rescue(() => db
     .selectFrom('runners')
     .select(['state'])
     .where('id', '=', Number(job.runner_id))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (String(runner?.state ?? '') !== 'active')
     return { status: 409, error: 'This runner was disabled while it held the job.', fix: stop }
@@ -298,13 +296,12 @@ export async function jobMayRead(token: string, repositoryId: number, now: Date 
   if (!token)
     return false
 
-  const job: any = await db
+  const job: any = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.runner_id as runner_id', 'workflow_jobs.state as state', 'workflow_jobs.lease_expires_at as lease_expires_at', 'workflow_runs.repository_id as repository_id'])
     .where('workflow_jobs.job_token_hash', '=', hashToken(token))
-    .executeTakeFirst()
-    .catch(() => null)
+    .executeTakeFirst(), null)
 
   if (!job?.runner_id || Number(job.repository_id) !== repositoryId)
     return false

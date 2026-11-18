@@ -9,6 +9,7 @@ export const emails = {
   'notification': '../../../resources/emails/notification.stx',
   'subscription-confirmation': '../../../resources/emails/subscription-confirmation.stx',
   'email-verification': '@stacksjs/defaults/resources/emails/email-verification.stx',
+  'license': '@stacksjs/defaults/resources/emails/license.stx',
   'password-changed': '@stacksjs/defaults/resources/emails/password-changed.stx',
   'password-reset': '@stacksjs/defaults/resources/emails/password-reset.stx',
   'team-invitation': '@stacksjs/defaults/resources/emails/team-invitation.stx',

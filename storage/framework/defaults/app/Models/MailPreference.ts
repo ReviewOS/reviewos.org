@@ -215,4 +215,12 @@ export default defineModel({
       },
     },
   },
+
+  dashboard: {
+    columns: ['mailbox', 'accountName', 'theme', 'language', 'displayDensity'],
+    // Prose, asked for in a box with room for it.
+    fields: {
+      vacationMessage: { input: 'longtext' },
+    },
+  },
 } as const)
