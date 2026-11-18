@@ -3578,6 +3578,11 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       traffic, fetching an advanced origin with only the job lease, cross-repository
       refusal and lease expiry. https://github.com/ReviewOS/reviewos.org/issues/18
 
+- [x] Count macOS reclaimable storage using Foundation's capacity for important
+      usage before holding a requested build. Keep the configured floor and check
+      both workspace and temporary volumes. Bound the system probe and fall back
+      to physical free space on failure. Runner HTTP admission regressions cover
+      exact limits, malformed/unavailable measurements, Linux and a full temp volume.
 - [x] Explain occupied runner capacity from live running/cancelling leases and
       distinguish whole-run admission waits from runner availability. Share the
       fleet snapshot between the run page and API, including queue and tag

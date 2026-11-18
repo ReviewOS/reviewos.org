@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { statfsSync } from 'node:fs'
 import { availableParallelism, loadavg, platform, tmpdir } from 'node:os'
 
@@ -13,6 +14,33 @@ export interface RunnerCapacityOptions {
 export interface RunnerCapacity {
   acceptWork: boolean
   reason: string
+}
+
+// Foundation includes storage macOS can reclaim for an explicitly requested
+// operation. statfs alone excludes it and can hold an APFS build host forever.
+// The standard system interpreter avoids requiring Xcode or a helper install.
+const macosCapacityScript = `function run(argv) {
+  ObjC.import('Foundation');
+  const result = Ref();
+  const error = Ref();
+  const url = $.NSURL.fileURLWithPath(argv[0]);
+  if (!url.getResourceValueForKeyError(result, $.NSURLVolumeAvailableCapacityForImportantUsageKey, error))
+    throw Error('Cannot read volume capacity');
+  const value = ObjC.unwrap(result[0]);
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw Error('Invalid volume capacity');
+  return String(value);
+}`
+
+function macosAvailableCapacity(path: string): bigint | undefined {
+  try {
+    const output = execFileSync('/usr/bin/osascript', ['-l', 'JavaScript', '-e', macosCapacityScript, '--', path], {
+      encoding: 'utf8', timeout: 2_000, maxBuffer: 4096, stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+    if (/^\d+$/.test(output))
+      return BigInt(output)
+  }
+  catch { /* An unavailable OS measurement falls back to physical capacity. */ }
 }
 
 function hostLoadCapacity(options: RunnerCapacityOptions): RunnerCapacity {
@@ -61,10 +89,15 @@ export function runnerCapacity(options: RunnerCapacityOptions): RunnerCapacity {
     try {
       // bavail excludes blocks reserved for other users.
       const space = statfsSync(path, { bigint: true })
-      const available = space.bavail * space.bsize
+      let available = space.bavail * space.bsize
       const minimum = BigInt(minimumMb) * 1024n * 1024n
       if (space.bsize <= 0n)
         return { acceptWork: false, reason: `Cannot verify available workspace disk space at ${path}` }
+      if (available < minimum && platform() === 'darwin') {
+        const important = macosAvailableCapacity(path)
+        if (important !== undefined && important > available)
+          available = important
+      }
       if (available < minimum)
         return { acceptWork: false, reason: `Insufficient workspace disk space at ${path}: ${available / 1048576n} MiB available, ${minimumMb} MiB required` }
     }

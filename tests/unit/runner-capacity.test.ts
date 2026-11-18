@@ -8,6 +8,24 @@ import { join } from 'node:path'
 import { runOnce, takeStopRequest } from '../../app/Actions/Runner/localExecutor'
 import { negotiate } from '../../app/Actions/Runner/protocol'
 
+test('macOS admission includes OS-reclaimable capacity for requested builds without lowering the floor', async () => {
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, '../fixtures/runner-macos-capacity.fixture.ts')], {
+    stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(10_000),
+  })
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
+  ])
+  if (code !== 0) throw new Error(stderr)
+  const physicalHold = { accept_work: false, hold_reason: expect.stringContaining('21504 MiB available, 24576 MiB required') }
+  expect(JSON.parse(stdout.trim().split('\n').at(-1)!)).toEqual([
+    {}, {},
+    { accept_work: false, hold_reason: expect.stringContaining('23552 MiB available, 24576 MiB required') },
+    physicalHold, physicalHold, physicalHold, physicalHold, physicalHold, physicalHold,
+    { accept_work: false, hold_reason: expect.stringContaining(`at ${tmpdir()}: 21504 MiB available, 24576 MiB required`) },
+    physicalHold, {}, {},
+  ])
+}, 15_000)
+
 test('host load holds job admission while stop requests and recovery remain live', async () => {
   const child = Bun.spawn([process.execPath, join(import.meta.dir, '../fixtures/runner-host-load.fixture.ts')], {
     stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(10_000),
