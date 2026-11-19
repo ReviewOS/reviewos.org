@@ -3637,3 +3637,10 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       digest across retries and never extract partial bytes. Real executor and
       HTTP-stream tests retain bounded failure, authorization refusal, integrity
       rejection, cleanup and job-token isolation.
+
+- [x] Preserve declared diagnostic artifacts before concluding unexpected runner
+      failures, once per attempt and only while the lease remains valid. Bound
+      process-table and environment inspection, retain error causes, and keep
+      uncertain process ownership in the recovery ledger. Real executor/HTTP
+      tests cover early failures, failures after collection, hung OS probes and
+      unrelated processes that must remain alive.

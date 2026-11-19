@@ -99,7 +99,7 @@ export function listProcesses(): ProcessRow[] {
   const rows = new Map<number, ProcessRow>()
 
   try {
-    const result = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore' })
+    const result = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
     if (result.exitCode !== 0) throw new Error('Process enumeration failed')
     const table = result.stdout.toString()
 
@@ -110,8 +110,8 @@ export function listProcesses(): ProcessRow[] {
         rows.set(Number(match[1]), { pid: Number(match[1]), pgid: Number(match[2]), name: match[3]!.trim(), environment: null })
     }
   }
-  catch {
-    throw new Error('The runner could not enumerate processes safely')
+  catch (cause) {
+    throw new Error('The runner could not enumerate processes safely', { cause })
   }
 
   if (process.platform === 'linux') {
@@ -132,7 +132,9 @@ export function listProcesses(): ProcessRow[] {
      * mentions the variable cannot match a different job's id.
      */
     try {
-      const table = Bun.spawnSync(['ps', '-A', '-E', '-ww', '-o', 'pid=,command='], { stdout: 'pipe', stderr: 'ignore' }).stdout.toString()
+      const result = Bun.spawnSync(['ps', '-A', '-E', '-ww', '-o', 'pid=,command='], { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
+      if (result.exitCode !== 0) throw new Error('Process environment inspection failed')
+      const table = result.stdout.toString()
 
       for (const line of table.split('\n')) {
         const match = /^\s*(\d+)\s+(.*)$/.exec(line)
@@ -142,8 +144,10 @@ export function listProcesses(): ProcessRow[] {
           row.environment = match![2]!.replace(/ (?=[A-Z_][A-Z0-9_]*=)/g, '\n')
       }
     }
-    catch {
-      // Without environments the process groups still find what a step left.
+    catch (cause) {
+      // A daemon may have left its recorded process group. Without the full
+      // scan, its absence is unproven and the attempt must remain recoverable.
+      throw new Error('The runner could not inspect process environments safely', { cause })
     }
   }
 

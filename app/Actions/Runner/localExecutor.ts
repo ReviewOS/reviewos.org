@@ -628,6 +628,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   }
 
   let sequence = 1
+  let artifactsAttempted = false
 
   /*
    * Every byte a step prints goes through the command reader before it goes
@@ -1829,6 +1830,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         failed = outcome.reason
     }
 
+    artifactsAttempted = true
     await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send, signal: lease.signal })
 
     /*
@@ -1964,10 +1966,26 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * the sweep that reclaims it cannot know whether the work happened. Saying
      * "this failed, here is why" is both honest and terminal.
      */
+    // A runner exception can precede normal artifact collection, for example
+    // when the OS cannot enumerate a finished step's process group. Preserve
+    // its declared diagnostic files while this lease still owns the job.
+    // Never repeat a collection already attempted or upload after lease loss.
+    if (!lease.signal.aborted && !artifactsAttempted) {
+      artifactsAttempted = true
+      try {
+        await flush()
+        await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send, signal: lease.signal })
+        await flush()
+      }
+      catch {
+        // Evidence collection must not replace the original runner failure.
+        say(`job ${job.id}: declared failure artifacts could not be collected`)
+      }
+    }
+
     const failure = lease.signal.aborted ? lease.signal.reason : error
     const reason = failure instanceof Error ? failure.message : String(failure)
     const state = lease.signal.aborted ? 'cancelled' : 'failed'
-
     stopPulse()
 
     /*
