@@ -472,6 +472,19 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         gap: 7px;
       }
 
+      /* A control that is disabled *because* it is working.
+         `.btn:disabled` is the more specific selector, so without this the
+         ring would show at the greyed-out opacity under a `not-allowed`
+         cursor, which tells somebody they may not press it when what is true
+         is that it is already going. Only the buttons outside a form need
+         this: there `disabled` is the one guard against a second press, while
+         `form-busy.js` never disables a submitter, for the reason measured at
+         the top of that file. */
+      .btn:disabled.is-busy, .btn[aria-disabled='true'].is-busy {
+        opacity: 0.75;
+        cursor: progress;
+      }
+
       @keyframes busy-spin {
         to { transform: rotate(360deg); }
       }

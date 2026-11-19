@@ -447,11 +447,28 @@ const dayBoxes = [
                 </p>
 
                 <div class="push-actions">
+                  {{--
+                    The only three buttons on this page that are not a form
+                    submit, so `form-busy.js` never sees them: it works off the
+                    submit event and these do their work in a click handler.
+                    Nothing navigates afterwards either, so there is no fresh
+                    render coming to say anything. They carry it themselves: the
+                    ring every other working control in this product wears, and
+                    `aria-busy` for anybody who cannot see a ring.
+
+                    `:disabled` is what actually refuses the second press. The
+                    ring is what stops the greyed-out button reading as "you may
+                    not press this" instead of "this is already going" - see
+                    `.btn:disabled.is-busy` in the layout, which is the rule that
+                    makes those two look different.
+                  --}}
                   <button
                     type="button"
                     class="btn btn-primary"
                     x-show="!push.subscribed"
                     :disabled="busy"
+                    :class="{ 'is-busy': busy }"
+                    :aria-busy="busy"
                     @click="busy = true; push = await enablePush('{{ pushKey }}'); busy = false">Turn on for this browser</button>
 
                   <button
@@ -459,6 +476,8 @@ const dayBoxes = [
                     class="btn"
                     x-show="push.subscribed"
                     :disabled="busy"
+                    :class="{ 'is-busy': busy }"
+                    :aria-busy="busy"
                     @click="busy = true; push = await disablePush(); busy = false">Turn off for this browser</button>
 
                   {{--
@@ -473,6 +492,8 @@ const dayBoxes = [
                     class="btn"
                     x-show="push.subscribed"
                     :disabled="busy"
+                    :class="{ 'is-busy': busy }"
+                    :aria-busy="busy"
                     @click="busy = true; note = await testPush(); busy = false">Send a test</button>
                 </div>
 

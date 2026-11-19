@@ -1169,3 +1169,38 @@ Each one is committed and pushed in the repository named.
       topics sentence names the normalised list and the rejected topic, and the eighteen preference
       selects still do nothing on change - they have a Save button, and `change` is not a submit
       anywhere it was not asked for. The database was read back for all of it.
+
+- [x] **The four buttons that do their work outside a form now say so too.** `form-busy.js` covers
+      ninety-two posting forms and a hundred-odd submit buttons from one listener on the document,
+      and it works off the `submit` event - so a control that does its work in a click handler is
+      invisible to it, and no navigation is coming to replace the page either. Three push controls
+      in `settings/notifications.stx` and the preview in `WikiEditor.stx` set `:disabled` and
+      nothing else, which only greys the button out: that reads as "you may not press this" when
+      what is true is "this is already going", and "Turn on for this browser" is the slowest button
+      on its page, a browser permission prompt plus a round trip.
+
+      They carry the ring now, and `aria-busy` with it. `.btn:disabled.is-busy` in the layout is
+      what makes a working control look different from a refused one: `.btn:disabled` is the more
+      specific selector, so without that rule the spinner showed at the greyed-out opacity under a
+      `not-allowed` cursor. Proven in the page by deleting the rule from the live stylesheet and
+      reading the computed style either side - 0.75 and `progress` with it, 0.55 and `not-allowed`
+      without.
+
+      **Two things reasoned from the runtime source were wrong, and a browser said so.** stx's
+      `x-element.ts` assigns `elem.className = value` for a string `:class` binding, which would
+      drop `btn btn-primary` the moment the expression flipped, and its generic attribute branch
+      writes a bound `true` out as `aria-busy=""`, which is not a value that attribute has. Both
+      are real code and neither runs here: plain elements are bound by another implementation that
+      keeps the original classes and writes booleans out as words, while `x-element` binds custom
+      elements, of which this product has none. A throwaway probe view carrying both spellings on
+      both binding paths - an `x-data` scope and `state()` signals - showed the merge and the
+      `aria-busy="true"`, so the defensive ternary came back out and the comment justifying it went
+      with it. The lesson is cheaper than the hour: the page answers this in two minutes.
+
+      `tests/unit/busy-outside-a-form.test.ts` holds the pairing. A button disabled because it is
+      working carries the ring; a ring carries `aria-busy`; a click handler that awaits carries
+      `:disabled`, because the second press is refused at a submit event that never fires here. Its
+      first spelling of "because it is working" was `\b(?:busy|loading)\b`, which has no word
+      boundary inside `wikiPreviewLoading` and so quietly exempted the one button in the other file.
+      That surfaced by reverting each fix and watching the test go red, which is also why there is
+      a count assertion in there now.
