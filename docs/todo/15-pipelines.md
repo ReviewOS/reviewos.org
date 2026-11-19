@@ -3605,6 +3605,11 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       workspace; deeper and full-history requests still require their fetch.
       Real executor tests cover an unavailable origin and dirty source files.
 
+- [x] Retain the verified bootstrap source in a local reference so later origin
+      fetches negotiate from known history, including detached full-history
+      checkouts. Real Git/HTTP coverage advances the origin, verifies `have`
+      negotiation and leaves the qualified checkout unchanged.
+
 - [x] Journal action-step conclusions, timings and outputs before the next step,
       including native adapters. Preserve always/failure cleanup after action
       failures and journal anonymous skipped steps. Derive action server/API URLs from the controller
