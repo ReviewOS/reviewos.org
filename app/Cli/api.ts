@@ -12,6 +12,7 @@
  */
 
 import process from 'node:process'
+import { setTimeout as delay } from 'node:timers/promises'
 import { HOSTED_INSTANCE, otherForge } from './context'
 
 /** What every call answers with. Nothing here throws for a 4xx. */
@@ -80,6 +81,12 @@ export function signedOut(connection: Connection, environment: Record<string, st
   }
 }
 
+function disconnected(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const failure = error as { code?: unknown, cause?: { code?: unknown } }
+  return ['ECONNRESET', 'EPIPE', 'ConnectionClosed'].includes(String(failure.code ?? failure.cause?.code ?? ''))
+}
+
 export async function call<T = any>(
   connection: Connection,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -116,40 +123,57 @@ export async function call<T = any>(
 
   let answer: Response | undefined
   let text: string
-  try {
-    answer = await fetch(url, {
-      method,
-      headers,
-      redirect: 'error',
-      signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
-      body: input.body === undefined ? undefined : JSON.stringify(input.body),
-    })
-    // Fetch resolves at the headers. A reset or the same request deadline can
-    // still interrupt the body; a partial answer is never a successful call.
-    text = await answer.text()
-  }
-  catch (error) {
-    if (answer) {
+  // One deadline covers all attempts and their backoff. A disconnect before
+  // headers may retry a read, never a mutation or an interrupted response.
+  const signal = input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      answer = await fetch(url, {
+        method,
+        headers,
+        redirect: 'error',
+        signal,
+        body: input.body === undefined ? undefined : JSON.stringify(input.body),
+      })
+      // Fetch resolves at the headers. A reset or the same request deadline can
+      // still interrupt the body; a partial answer is never a successful call.
+      text = await answer.text()
+      break
+    }
+    catch (error) {
+      if (!answer && method === 'GET' && attempt < 2 && !signal.aborted && disconnected(error)) {
+        try {
+          await delay(250 * (attempt + 1), undefined, { signal })
+          continue
+        }
+        catch {
+          // Cancellation ends the read without sending another request.
+        }
+      }
+      if (answer) {
+        return {
+          ok: false,
+          status: 0,
+          code: 'response_interrupted',
+          message: `The response from ${connection.instance} was interrupted before it finished.`,
+          fix: method === 'GET'
+            ? 'Try the command again when the connection is available.'
+            : 'The request may already have been applied. Check its state before repeating it.',
+        }
+      }
+      /*
+       * A connection failure is reported as one rather than as a status. "fetch
+       * failed" with no context is the error people paste into an issue; the URL
+       * is the thing that makes it obvious the instance name is wrong.
+       */
       return {
         ok: false,
         status: 0,
-        code: 'response_interrupted',
-        message: `The response from ${connection.instance} was interrupted before it finished.`,
+        message: `Could not reach ${connection.instance}: ${error instanceof Error ? error.message : String(error)}`,
         fix: method === 'GET'
-          ? 'Try the command again when the connection is available.'
+          ? 'Check the remote, or set REVIEWOS_URL.'
           : 'The request may already have been applied. Check its state before repeating it.',
       }
-    }
-    /*
-     * A connection failure is reported as one rather than as a status. "fetch
-     * failed" with no context is the error people paste into an issue; the URL
-     * is the thing that makes it obvious the instance name is wrong.
-     */
-    return {
-      ok: false,
-      status: 0,
-      message: `Could not reach ${connection.instance}: ${error instanceof Error ? error.message : String(error)}`,
-      fix: 'Check the remote, or set REVIEWOS_URL.',
     }
   }
 

@@ -3644,3 +3644,9 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       uncertain process ownership in the recovery ledger. Real executor/HTTP
       tests cover early failures, failures after collection, hung OS probes and
       unrelated processes that must remain alive.
+
+- [x] Recover CLI reads after a connection resets before response headers, with
+      at most three attempts inside the original request deadline. Cancellation
+      stops pending retries; mutations and interrupted response bodies are never
+      replayed. Real HTTP tests cover recovery, exhaustion, cancellation and a
+      dispatch applied before its reply was lost.

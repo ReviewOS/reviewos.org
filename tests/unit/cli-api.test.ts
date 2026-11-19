@@ -6,6 +6,119 @@ import { createServer } from 'node:http'
 import { apiCommand, readApiBody } from '../../app/Cli/api-command'
 import { call } from '../../app/Cli/api'
 
+// Existing public CLI/HTTP seam: observe real requests and replies. This
+// exercises transport recovery, not availability of the hosted instance.
+test('a connection reset before GET headers does not stop reading a queued workflow', async () => {
+  const requests: Array<{ url: string | undefined, authorization: string | undefined }> = []
+  const data = { workflow_run: { number: 108, state: 'queued' } }
+  const server = createServer((request, response) => {
+    request.resume()
+    requests.push({ url: request.url, authorization: request.headers.authorization })
+    if (requests.length === 1) {
+      setTimeout(() => request.socket.destroy(), 10)
+      return
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(data))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const instance = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  try {
+    expect(await call({ instance, token: 'synthetic-token' }, 'GET', '/api/repos/workflow-runs/show', { query: { number: 108 } }))
+      .toEqual({ ok: true, status: 200, data })
+    expect(requests).toEqual(Array.from({ length: 2 }, () => ({ url: '/api/repos/workflow-runs/show?number=108', authorization: 'Bearer synthetic-token' })))
+  }
+  finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+      server.closeAllConnections()
+    })
+  }
+})
+
+test('a dispatch applied before its connection resets is not replayed and reports the uncertain result', async () => {
+  const applied: unknown[] = []
+  const server = createServer((request, response) => {
+    const chunks: Uint8Array[] = []
+    request.on('data', chunk => chunks.push(chunk))
+    request.on('end', () => {
+      applied.push(JSON.parse(Buffer.concat(chunks).toString()))
+      response.destroy()
+    })
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const instance = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  try {
+    const body = { workflow: 'ci.yml', ref: 'main' }
+    const answer = await call({ instance, token: 'synthetic-token' }, 'POST', '/api/repos/workflows/dispatch', { body })
+    expect(answer.ok).toBe(false)
+    if (answer.ok) throw new Error('The lost reply does not confirm the mutation')
+    expect(answer.status).toBe(0)
+    expect(answer.fix).toContain('may already have been applied')
+    expect(applied).toEqual([body])
+  }
+  finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+      server.closeAllConnections()
+    })
+  }
+})
+
+test('repeated connection resets stop after three read attempts', async () => {
+  let requests = 0
+  const server = createServer((request, response) => {
+    request.resume()
+    requests++
+    response.destroy()
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const instance = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  try {
+    const answer = await call({ instance, token: 'synthetic-token' }, 'GET', '/api/probe')
+    expect(answer.ok).toBe(false)
+    expect(answer.status).toBe(0)
+    expect(requests).toBe(3)
+  }
+  finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+      server.closeAllConnections()
+    })
+  }
+})
+
+test('cancelling a disconnected read stops its pending retry', async () => {
+  let requests = 0
+  const cancellation = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const server = createServer((request, response) => {
+    request.resume()
+    requests++
+    if (requests === 1) {
+      response.destroy()
+      timer = setTimeout(() => cancellation.abort(), 50)
+      return
+    }
+    response.end('{"unexpectedRetry":true}')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const instance = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  try {
+    const answer = await call({ instance, token: 'synthetic-token' }, 'GET', '/api/probe', { signal: cancellation.signal })
+    expect(answer.ok).toBe(false)
+    expect(cancellation.signal.aborted).toBe(true)
+    expect(requests).toBe(1)
+  }
+  finally {
+    clearTimeout(timer)
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+      server.closeAllConnections()
+    })
+  }
+})
+
 for (const method of ['GET', 'POST'] as const) {
   test(`an interrupted ${method} response reports the incomplete answer without repeating the request`, async () => {
     let requests = 0
