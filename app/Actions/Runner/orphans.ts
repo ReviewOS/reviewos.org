@@ -77,7 +77,7 @@ export function recordGroup(trackingId: string | undefined, pgid: number | undef
  * this job's - so a group with nobody left in it is dropped rather than
  * remembered until the job ends.
  */
-export function pruneGroup(trackingId: string | undefined, pgid: number | undefined, rows: readonly ProcessRow[] = listProcesses()): void {
+export function pruneGroup(trackingId: string | undefined, pgid: number | undefined, rows: readonly ProcessRow[] = listProcesses({ environment: false })): void {
   if (!trackingId || !pgid)
     return
 
@@ -95,7 +95,7 @@ export interface ProcessRow {
 }
 
 /** Every process on the machine this user can see, with what this module needs to know. */
-export function listProcesses(): ProcessRow[] {
+export function listProcesses(options: { environment?: boolean } = {}): ProcessRow[] {
   const rows = new Map<number, ProcessRow>()
 
   try {
@@ -113,6 +113,11 @@ export function listProcesses(): ProcessRow[] {
   catch (cause) {
     throw new Error('The runner could not enumerate processes safely', { cause })
   }
+
+  // Group membership is fully described by PID/PGID. Reading every process's
+  // environment after each command adds an unrelated failure boundary; only
+  // orphan discovery needs the tracking marker of escaped daemons.
+  if (options.environment === false) return [...rows.values()]
 
   if (process.platform === 'linux') {
     for (const row of rows.values()) {

@@ -3650,3 +3650,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       stops pending retries; mutations and interrupted response bodies are never
       replayed. Real HTTP tests cover recovery, exhaustion, cancellation and a
       dispatch applied before its reply was lost.
+
+- [x] Prune finished step groups using only the bounded PID/PGID table, without
+      inspecting unrelated process environments. Full orphan and escaped-daemon
+      discovery still requires environment inspection and fails closed when that
+      inspection is unavailable. A real process-command regression covers both.
