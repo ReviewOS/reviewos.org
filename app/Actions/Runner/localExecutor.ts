@@ -3057,6 +3057,8 @@ export async function provideTools(workspace: string, say: (line: string) => Pro
 
     if (Array.isArray(answer?.dependencies) && answer.dependencies.length > 0)
       await say(`Using ${answer.dependencies.join(', ')}\n`)
+    else if (Array.isArray(answer?.dependencies))
+      await say(`${toolchainFailure(out, 'Pantry resolved no tools from the dependency file')}\n`)
 
     await say('::endgroup::\n')
 
@@ -3092,6 +3094,7 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
   const run = job?.run ?? {}
   const ref = String(run.ref ?? '')
   const username = process.env.USER || process.env.LOGNAME || userInfo().username
+  const temp = join(workspace, '.reviewos-runner', 'temp')
 
   const shared: Record<string, string> = {
     WORKSPACE: workspace,
@@ -3156,8 +3159,20 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     RUNNER_ARCH: runnerArch(),
     RUNNER_NAME: String(job?.runner_name ?? 'local'),
     RUNNER_ENVIRONMENT: 'self-hosted',
-    RUNNER_TEMP: join(workspace, '.reviewos-runner', 'temp'),
+    RUNNER_TEMP: temp,
     RUNNER_TOOL_CACHE: join(workspace, '.reviewos-runner', 'tools'),
+  }
+
+  // The event file is set after checkout creates the temp directory. Earlier
+  // hooks run before then and the clone must start with an empty workspace.
+  if (job?.event_path) {
+    if (process.platform === 'win32') {
+      environment.TEMP = temp
+      environment.TMP = temp
+    }
+    else {
+      environment.TMPDIR = temp
+    }
   }
 
   /*

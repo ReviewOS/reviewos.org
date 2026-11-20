@@ -76,6 +76,13 @@ jobs:
         run: echo "hello from the runner"
       - name: Read the checkout
         run: cat marker.txt
+      - name: Create a temporary file with the system defaults
+        run: |
+          scratch="$(mktemp -t reviewos-test.XXXXXX)"
+          case "\$scratch" in
+            "\$RUNNER_TEMP"/*) echo "temporary file is inside the workspace" ;;
+            *) exit 1 ;;
+          esac
       - name: Pass something on
         run: |
           echo "BUILT=yes" >> "\$GITHUB_ENV"
@@ -441,6 +448,7 @@ describe('the local runner', () => {
      * the product looks broken rather than incomplete.
      */
     expect(text).toContain('this came from the repository')
+    expect(text).toContain('temporary file is inside the workspace')
   }, 60_000)
 
   /*

@@ -118,6 +118,12 @@ space after the claim. The operator must provide sustained real headroom. A held
 runner continues safe terminal-workspace recovery and control polls, logs its
 hold at most once per minute, and resumes ordinary claims when capacity returns.
 
+After checkout, local jobs default to `RUNNER_TEMP` through `TMPDIR` on Unix
+and `TEMP` and `TMP` on Windows. Tools that use their platform's temporary
+directory then write inside the workspace, so those files are removed when
+ReviewOS removes the workspace. Workflow and step environment settings can
+override the defaults.
+
 Set `REVIEWOS_RUNNER_MAX_LOAD_PER_CPU` to hold admission when the one-minute
 host load divided by available logical CPUs exceeds that value. For example,
 `1.5` allows a load of at most 6 on four available CPUs. Zero, the default,

@@ -118,6 +118,17 @@ describe('the default environment', () => {
     expect(environment.GITHUB_ACTOR).toBe('ada')
   })
 
+  test('ordinary tools use runner temp after checkout creates it', () => {
+    const variables = process.platform === 'win32' ? ['TEMP', 'TMP'] : ['TMPDIR']
+    const before = environmentFor({ ...job, event_path: undefined }, '/w')
+    const after = environmentFor({ ...job, event_path: '/w/.reviewos-runner/event.json' }, '/w')
+
+    for (const variable of variables) {
+      expect(before[variable]).toBeUndefined()
+      expect(after[variable]).toBe(after.RUNNER_TEMP!)
+    }
+  })
+
   test('and none of the control plane\'s own environment comes with it', () => {
     // The variables this process holds include the database credentials, and a
     // runner that passed its own environment through would be a way to read
