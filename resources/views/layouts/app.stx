@@ -485,6 +485,40 @@ const appearance = { storageKey: 'reviewos:diff', appearance: { key: 'syntaxThem
         cursor: progress;
       }
 
+      /* The diff's own status line, while it is working.
+         Keyed on the tone attribute rather than given `.is-busy`, for two
+         reasons. It has to be going before any script runs: `files.stx` ships
+         `data-tone="working"` in the HTML, and the wait this covers is git
+         computing the diff, which the note on `FIRST_BATCH_MS` in
+         `diffviewer.ts` measured at 7.5 seconds on `v6.0...v7.0`. A class the
+         viewer adds would arrive after its module loads, which was never the
+         part of the wait that hurt. And `.is-busy` is built for a control, so
+         it carries `pointer-events: none` and a `progress` cursor with it,
+         neither of which belongs on a sentence.
+         Everything after the first record is capped at half a second by
+         `FIRST_BATCH_MS`, so this is for the window before it, where the page
+         would otherwise sit still under a muted line that reads exactly the
+         same whether git is working or has died. */
+      [data-diff-status][data-tone='working'] {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* Sized in `em` so it tracks the status line's own text rather than the
+         13px the buttons use. */
+      [data-diff-status][data-tone='working']::before {
+        content: '';
+        flex: none;
+        width: 0.85em;
+        height: 0.85em;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        opacity: 0.85;
+        animation: busy-spin 0.6s linear infinite;
+      }
+
       @keyframes busy-spin {
         to { transform: rotate(360deg); }
       }

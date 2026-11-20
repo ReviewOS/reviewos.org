@@ -1204,3 +1204,31 @@ Each one is committed and pushed in the repository named.
       boundary inside `wikiPreviewLoading` and so quietly exempted the one button in the other file.
       That surfaced by reverting each fix and watching the test go red, which is also why there is
       a count assertion in there now.
+
+- [x] **And the diff says it is working, before any script runs.** The ring now reaches the one wait
+      in this product measured in seconds rather than milliseconds. Everything after the diff's
+      first record is capped at half a second by `FIRST_BATCH_MS`, deliberately and with the
+      reasoning written down, but the window *before* that record is git computing the diff: the
+      note on that same constant records git needing 7.5 seconds on `v6.0...v7.0`. For all of it the
+      page showed a muted `Loading the diff…` in the metadata row with no treatment at all.
+      `DiffViewerStyles.stx` styles `error` and `warn` and left `working` as plain text, so a
+      seven-second wait looked exactly like a finished page that happened to say so.
+
+      Keyed on `[data-diff-status][data-tone='working']` rather than handed `.is-busy`, for two
+      reasons that both matter. `files.stx` ships `data-tone="working"` in its own markup, so an
+      attribute rule is already going at first paint, while a class the viewer adds would arrive
+      only once its module had loaded, which was never the part of the wait that hurt. And
+      `.is-busy` is built for a control: it carries `pointer-events: none` and a `progress` cursor
+      with it, neither of which belongs on a sentence.
+
+      Two things checked rather than assumed. The rule was added to the reduced-motion block first
+      and then taken back out, because the layout already carries a global
+      `* { animation: none !important }` under `prefers-reduced-motion: reduce` that covers every
+      animation on the page. The existing `.is-busy::before` line in that block is redundant for the
+      same reason and was left alone rather than quietly tidied. And the status line was measured
+      either side in a browser: 107px without the ring, 125px with it, `scrollWidth` equal to
+      `clientWidth` both times, so nothing is clipped and the other items in that row do not move.
+
+      `tests/unit/diff-status-working.test.ts` holds both halves, because neither is any use alone.
+      The view has to ship the tone, the layout has to give that tone a ring, and no terminal tone
+      may have one: a ring on `done` is a page claiming to still be working after it has stopped.
