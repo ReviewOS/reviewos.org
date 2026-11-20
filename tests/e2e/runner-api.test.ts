@@ -245,11 +245,14 @@ describe('claiming over HTTP', () => {
       return
 
     const runId = await freshRun('b'.repeat(40))
+    await db.updateTable('workflow_jobs').set({ attempt: 2 }).where('workflow_run_id', '=', runId).execute()
 
     const answer = await call('/runner/claim', {})
 
     expect(answer.status).toBe(200)
     expect(answer.body.job?.key).toBe('build')
+    expect(answer.body.job?.attempt).toBe(2)
+    expect(answer.body.job?.run?.attempt).toBe(1)
     expect(answer.body.job?.run?.id).toBe(runId)
     expect(answer.body.job?.repository).toBe(created.name)
     expect(answer.body.job?.lease_expires_at).toBeTruthy()

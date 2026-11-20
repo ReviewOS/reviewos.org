@@ -349,6 +349,14 @@ same name with *different* content is a 409: silently replacing an artifact
 somebody may already have downloaded leaves two people holding different files
 under one name and no way to tell.
 
+For a job that may rebuild on a lease retry, include
+`${{ reviewos.job_attempt }}` in its upload and download names. This is the
+authenticated producing job's attempt, independently of
+`${{ github.run_attempt }}`. The claim response carries it as `job.attempt`.
+For example, `simulator-${{ github.run_id }}-${{ github.run_attempt }}-${{ reviewos.job_attempt }}`
+retains both attempts without replacing earlier bytes. A later job must use the
+producer's declared artifact name or upload output rather than its own attempt.
+
 Automatic `artifact-paths` collection prefixes each name with its producing
 `job-<id>-`, so matrix copies retain separate logs. This prefix is reserved:
 another job’s credential cannot publish there. Long collected paths retain a

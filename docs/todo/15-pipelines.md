@@ -3655,3 +3655,9 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       inspecting unrelated process environments. Full orphan and escaped-daemon
       discovery still requires environment inspection and fails closed when that
       inspection is unavailable. A real process-command regression covers both.
+
+- [x] Carry the authenticated job attempt in claims and expose
+      `reviewos.job_attempt` independently of the workflow attempt, so rebuilt
+      artifacts can retain distinct immutable names after a lease retry. Real
+      runner execution uploads and downloads both attempts and preserves the
+      original bytes.

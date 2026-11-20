@@ -380,7 +380,7 @@ export default new Action({
     const jobRow = await db
       .selectFrom('workflow_jobs')
       .select([
-        'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'started_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id',
+        'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'started_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id', 'attempt',
         // `strategy.fail-fast` and `strategy.max-parallel`, which were copied
         // onto the run and read by the graph and by nothing a workflow could see.
         'fail_fast', 'max_parallel',
@@ -727,6 +727,7 @@ export default new Action({
       job: {
         id: claimed.jobId,
         key: claimed.jobKey,
+        attempt: Number(jobRow?.attempt ?? 1),
         lease_expires_at: claimed.leaseExpiresAt,
         // Returned once, here, and never readable again: the column holds a
         // hash. Everything the runner does about this job is authenticated

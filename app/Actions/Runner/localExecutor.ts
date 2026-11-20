@@ -2295,7 +2295,9 @@ function expressionContext(
 
   return {
     github,
-    reviewos: github,
+    // A lease retry does not rerun the whole workflow. Keep GitHub's run
+    // attempt stable and expose the independent producer attempt explicitly.
+    reviewos: { ...github, job_attempt: Number(job?.attempt ?? 1) },
     job: { status: state.status, services: job?.services_context ?? {} },
     steps: state.steps,
     needs: job?.needs ?? {},
