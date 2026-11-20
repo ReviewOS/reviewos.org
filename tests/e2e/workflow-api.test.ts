@@ -241,6 +241,13 @@ describe('listing runs', () => {
     if (!available)
       return
 
+    // Postgres returns Date objects. String(Date) sorts weekday names rather
+    // than time, which repeated Friday's newer run after Thursday's cursor.
+    for (const [number, createdAt] of [[1, '2026-11-16T10:00:00.000Z'], [2, '2026-11-19T10:00:00.000Z'], [3, '2026-11-20T10:00:00.000Z']] as const) {
+      await db.updateTable('workflow_runs').set({ created_at: createdAt })
+        .where('repository_id', '=', created.repositoryId).where('number', '=', number).execute()
+    }
+
     const first = await api(`/api/repos/workflow-runs?owner=${created.handle}&repo=${created.name}&per_page=2`)
     expect(first.body.workflow_runs.length).toBe(2)
     expect(first.body.next).not.toBeNull()
@@ -253,6 +260,13 @@ describe('listing runs', () => {
 
     const numbers = [...first.body.workflow_runs, ...second.body.workflow_runs].map((run: any) => run.number)
     expect(numbers).toEqual([3, 2, 1])
+
+    // Old weekday cursors discarded milliseconds. Refuse their ambiguous
+    // position with a restart instruction rather than silently losing rows.
+    const legacy = Buffer.from(`Thu Nov 19 2026 10:00:00 GMT+0000 (Coordinated Universal Time)\u0000${first.body.workflow_runs[1].id}`).toString('base64url')
+    const outdated = await api(`/api/repos/workflow-runs?owner=${created.handle}&repo=${created.name}&cursor=${encodeURIComponent(legacy)}`)
+    expect(outdated.status).toBe(422)
+    expect(JSON.stringify(outdated.body)).toContain('first page')
   })
 })
 

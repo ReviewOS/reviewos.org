@@ -3661,3 +3661,8 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       artifacts can retain distinct immutable names after a lease retry. Real
       runner execution uploads and downloads both attempts and preserves the
       original bytes.
+
+- [x] Use precise UTC timestamp positions for workflow and run pagination,
+      independent of a database driver's Date formatting. Reject obsolete
+      weekday cursors with a refresh instruction. A real PostgreSQL API
+      regression spans different weekdays and checks complete, unique pages.

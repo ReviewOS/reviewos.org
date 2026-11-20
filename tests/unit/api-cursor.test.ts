@@ -17,12 +17,29 @@ import { describe, expect, it } from 'bun:test'
 import {
   DEFAULT_PAGE_SIZE,
   decodeCursor,
+  decodeTimestampCursor,
   encodeCursor,
   isAfter,
   MAX_PAGE_SIZE,
   pageSize,
+  timestampPosition,
   toPage,
 } from '../../app/Api/cursor'
+
+describe('timestamp positions', () => {
+  it('preserves milliseconds and normalizes driver Date objects to UTC', () => {
+    expect(timestampPosition(new Date('2026-11-20T10:00:00.789Z'), 42)).toEqual({ value: '2026-11-20T10:00:00.789Z', id: 42 })
+    expect(timestampPosition('2026-11-20T11:00:00.789+01:00', 42)).toEqual({ value: '2026-11-20T10:00:00.789Z', id: 42 })
+    expect(() => timestampPosition('not a timestamp', 42)).toThrow('valid cursor timestamp')
+  })
+
+  it('round-trips exact timestamps and rejects obsolete or invalid positions', () => {
+    const position = { value: '2026-11-20T10:00:00.789Z', id: 42 }
+    expect(decodeTimestampCursor(encodeCursor(position))).toEqual(position)
+    for (const value of ['Fri Nov 20 2026 10:00:00 GMT+0000 (Coordinated Universal Time)', '2026-02-30T10:00:00.000Z', '2026-11-20T10:00:00Z', 'not a timestamp'])
+      expect(decodeTimestampCursor(encodeCursor({ value, id: 42 }))).toBeNull()
+  })
+})
 
 describe('encoding', () => {
   it('round-trips a position', () => {

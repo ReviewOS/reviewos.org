@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { decodeCursor, isAfter, pageSize, toPage } from '../../Api/cursor'
+import { decodeTimestampCursor, isAfter, pageSize, timestampPosition, toPage } from '../../Api/cursor'
 import { apiError } from '../../Api/errors'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
@@ -68,12 +68,12 @@ export default new Action({
     }
 
     const size = pageSize(request.get('per_page'))
-    const after = decodeCursor(request.get('cursor'))
+    const after = decodeTimestampCursor(request.get('cursor'))
 
     if (request.get('cursor') && !after) {
-      return apiError('invalid_field', 'That cursor is not one we issued', {
+      return apiError('invalid_field', 'That cursor is invalid or no longer supported', {
         field: 'cursor',
-        fix: 'Drop it and read the first page, or use the `next` value from a previous response.',
+        fix: 'Read the first page again and continue with its `next` value.',
       })
     }
 
@@ -104,13 +104,10 @@ export default new Action({
     // definitions of "after" is how a cursor skips a row in one endpoint and
     // repeats it in another, and it reads as a database problem.
     const ordered = rows.filter(row =>
-      isAfter({ value: String(row.created_at ?? ''), id: Number(row.id) }, after, 'desc'),
+      isAfter(timestampPosition(row.created_at, Number(row.id)), after, 'desc'),
     )
 
-    const page = toPage(ordered, size, row => ({
-      value: String(row.created_at ?? ''),
-      id: Number(row.id),
-    }))
+    const page = toPage(ordered, size, row => timestampPosition(row.created_at, Number(row.id)))
 
     /*
      * The newest version of each, in one query rather than one per workflow.
