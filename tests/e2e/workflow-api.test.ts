@@ -243,7 +243,8 @@ describe('listing runs', () => {
 
     // Postgres returns Date objects. String(Date) sorts weekday names rather
     // than time, which repeated Friday's newer run after Thursday's cursor.
-    for (const [number, createdAt] of [[1, '2026-11-16T10:00:00.000Z'], [2, '2026-11-19T10:00:00.000Z'], [3, '2026-11-20T10:00:00.000Z']] as const) {
+    // SQL timestamp literals are accepted by both MySQL DATETIME and Postgres.
+    for (const [number, createdAt] of [[1, '2026-11-16 10:00:00.000'], [2, '2026-11-19 10:00:00.000'], [3, '2026-11-20 10:00:00.000']] as const) {
       await db.updateTable('workflow_runs').set({ created_at: createdAt })
         .where('repository_id', '=', created.repositoryId).where('number', '=', number).execute()
     }
