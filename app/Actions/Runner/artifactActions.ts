@@ -41,34 +41,20 @@ async function bounded(response: Response, limit: number): Promise<Uint8Array> {
 function interruptedTransfer(error: unknown): boolean {
   return error instanceof TypeError || ['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT', 'ConnectionClosed', 'ERR_STREAM_PREMATURE_CLOSE', 'UND_ERR_SOCKET'].includes(String((error as { code?: unknown })?.code ?? ''))
 }
-/** The fetch endpoint only reads an immutable archive. Retry its whole bounded
- * body, not an upload or extraction. fetchWithBudget ends at response headers. */
-async function downloadArchive(controller: string, headers: Record<string, string>, name: string, signal: AbortSignal): Promise<{ expected: string, bytes: Uint8Array }> {
-  let expected: string | null = null
+const TRANSIENT_ARTIFACT_STATUS = new Set([408, 429, 500, 502, 503, 504])
+
+/** Keep retries within one lease and cover an interrupted body as well as headers. */
+async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSignal, request: () => Promise<Response>, read: (response: Response) => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     signal.throwIfAborted()
     let delay = 200 * 2 ** attempt
     try {
-      const response = await fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal,
-        headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-      if (!response.ok) {
-        delay = retryAfterMilliseconds(response.headers.get('retry-after')) ?? delay
-        await response.body?.cancel().catch(() => {})
-        if (attempt < 2 && [408, 429, 500, 502, 503, 504].includes(response.status)) {
-          await pause(delay, undefined, { signal })
-          continue
-        }
-        fail(`Artifact download returned HTTP ${response.status}`)
-      }
-      const received = response.headers.get('X-Artifact-Digest')
-      if (!received || !/^[a-f0-9]{64}$/.test(received) || (expected && received !== expected)) {
-        await response.body?.cancel().catch(() => {})
-        fail('Artifact download digest mismatch')
-      }
-      expected = received
-      const bytes = await bounded(response, MAX_ARTIFACT_BYTES)
-      if (digest(bytes) !== expected) fail('Artifact download digest mismatch')
-      return { expected, bytes }
+      const response = await request()
+      if (response.ok) return await read(response)
+      delay = retryAfterMilliseconds(response.headers.get('retry-after')) ?? delay
+      await response.body?.cancel().catch(() => {})
+      if (attempt === 2 || !TRANSIENT_ARTIFACT_STATUS.has(response.status))
+        fail(`Artifact ${kind} returned HTTP ${response.status}`)
     }
     catch (error) {
       signal.throwIfAborted()
@@ -76,7 +62,24 @@ async function downloadArchive(controller: string, headers: Record<string, strin
     }
     await pause(delay, undefined, { signal })
   }
-  return fail('Artifact download attempts exhausted')
+  return fail(`Artifact ${kind} attempts exhausted`)
+}
+
+/** The fetch endpoint only reads an immutable archive. */
+async function downloadArchive(controller: string, headers: Record<string, string>, name: string, signal: AbortSignal): Promise<{ expected: string, bytes: Uint8Array }> {
+  let expected: string | null = null
+  return transferArtifact('download', signal, () => fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal,
+    headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }), async (response) => {
+    const received = response.headers.get('X-Artifact-Digest')
+    if (!received || !/^[a-f0-9]{64}$/.test(received) || (expected && received !== expected)) {
+      await response.body?.cancel().catch(() => {})
+      fail('Artifact download digest mismatch')
+    }
+    expected = received
+    const bytes = await bounded(response, MAX_ARTIFACT_BYTES)
+    if (digest(bytes) !== expected) fail('Artifact download digest mismatch')
+    return { expected, bytes }
+  })
 }
 function checkedDirectory(workspace: string, path: string): string {
   if (!safePath(path)) return fail('Artifact destination must stay inside the workspace')
@@ -148,10 +151,11 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
       if (raw.length > MAX_ARTIFACT_BYTES) fail('Artifact archive exceeds the byte limit')
       const bytes = gzipSync(raw, { level: compression })
       if (bytes.length > MAX_ARTIFACT_BYTES) fail('Artifact archive exceeds the byte limit')
-      const response = await fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal,
-        headers: { ...headers, 'Content-Type': 'application/gzip', 'X-Artifact-Name': name, 'X-Artifact-Retention-Days': String(retention) }, body: bytes })
-      if (!response.ok) { await response.body?.cancel(); fail(`Artifact upload returned HTTP ${response.status}`) }
-      const receipt = JSON.parse(Buffer.from(await bounded(response, 65536)).toString('utf8'))
+      // The server retains one immutable artifact per run/name/content. The
+      // same bytes can safely be replayed if it stored them before the reply broke.
+      const receipt = await transferArtifact('upload', signal, () => fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal,
+        headers: { ...headers, 'Content-Type': 'application/gzip', 'X-Artifact-Name': name, 'X-Artifact-Retention-Days': String(retention) }, body: bytes }),
+      async response => JSON.parse(Buffer.from(await bounded(response, 65536)).toString('utf8')))
       if (!Number.isSafeInteger(receipt.id) || receipt.id <= 0 || receipt.name !== name || receipt.digest !== digest(bytes) || receipt.size_bytes !== bytes.length)
         fail('Artifact upload receipt changed its identity or digest')
       if (input.output) appendFileSync(input.output, `artifact-id=${receipt.id}\nartifact-digest=${receipt.digest}\n`)
