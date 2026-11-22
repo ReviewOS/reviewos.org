@@ -7,6 +7,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { failImpossibleJobs } from '../../app/Actions/Workflow/impossible'
+import { failureSummaries } from '../../resources/functions/runDiagnostics'
 import { fakeRunner } from '../helpers/fakeRunner'
 import type { FakeRunner } from '../helpers/fakeRunner'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
@@ -152,6 +153,39 @@ describe('a label no runner carries', () => {
     // ones that could take this have ubuntu-latest" is half an answer.
     expect(states.mac.reason).toContain('macos-14')
     expect(states.mac.reason.length).toBeGreaterThan(40)
+  }, 120_000)
+
+  test('records the failure as the job\'s error, so the run\'s failures and `reviewos logs` say it', async () => {
+    if (!available)
+      return
+
+    // zig-anti-virus #3: the macos-latest combination ended `failed` with
+    // `error` null and no output. The reason went to `condition_reason`, which
+    // neither the failures list nor the CLI reads, so both said nothing.
+    const runId = await agedRun()
+    await failImpossibleJobs()
+
+    const jobs: any[] = await db.selectFrom('workflow_jobs')
+      .select(['id', 'job_id', 'name', 'state', 'error', 'attempt'])
+      .where('workflow_run_id', '=', runId)
+      .execute()
+    const mac = jobs.find(job => job.job_id === 'mac')
+
+    expect(mac.state).toBe('failed')
+    expect(String(mac.error)).toContain('No runner with labels [macos-14] picked this job up within 1 hour')
+
+    const steps: any[] = await db.selectFrom('workflow_steps')
+      .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'exit_code', 'error'])
+      .where('workflow_job_id', '=', Number(mac.id))
+      .execute()
+    const [failure] = failureSummaries(jobs, steps, [])
+
+    expect(failure.name).toBe('mac')
+    expect(failure.error).toContain('No runner with labels [macos-14] picked this job up within 1 hour')
+
+    // And the run says which job it ended on, for a reader of the run alone.
+    const run: any = await db.selectFrom('workflow_runs').select(['state', 'conclusion_reason']).where('id', '=', runId).executeTakeFirst()
+    expect(String(run.conclusion_reason)).toContain('No runner with labels [macos-14]')
   }, 120_000)
 
   test('and leaves the job a machine could take alone', async () => {

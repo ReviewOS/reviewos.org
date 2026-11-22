@@ -4,6 +4,8 @@ import { rowsChanged as changed } from '../Actions/Support/sql'
 import { settleRun } from '../Actions/Workflow/settle'
 import { announceRunIfMoved } from '../Actions/Workflow/announce'
 import { claimableSince } from '../Actions/Runner/claim'
+import { unclaimedError } from '../Actions/Workflow/impossible'
+import { splitLabels } from '../Actions/Runner/protocol'
 import { leaseIsReclaimable } from '../Actions/Runner/protocol'
 import { queueTimeoutHours } from '../../config/ci-quotas'
 import { reclaimedByCloud } from '../Actions/Runner/Autoscale/reclaimed'
@@ -316,7 +318,7 @@ async function cancelUnclaimedJobs(now: Date): Promise<number> {
   const waiting = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-    .select(['workflow_jobs.id as id', 'workflow_jobs.workflow_run_id as run_id'])
+    .select(['workflow_jobs.id as id', 'workflow_jobs.workflow_run_id as run_id', 'workflow_jobs.runs_on as runs_on'])
     .where('workflow_jobs.state', '=', 'queued')
     .where('workflow_runs.state', 'in', ['queued', 'running'])
     .whereRaw(raw(`(${claimableSince(cutoff)})`))
@@ -336,6 +338,8 @@ async function cancelUnclaimedJobs(now: Date): Promise<number> {
         state: 'cancelled',
         finished_at: now.toISOString(),
         condition_reason: `No runner took this job within ${limit}. Check that a runner with matching labels is online and not held for other work.`,
+        // And as its error, which the failures list and `reviewos logs` read.
+        error: `${unclaimedError(splitLabels(String(job.runs_on ?? '')), limit)} Check that a runner with matching labels is online and not held for other work.`,
       })
       .where('id', '=', Number(job.id))
       // A claim that won between the read and the write keeps its job.

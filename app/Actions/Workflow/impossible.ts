@@ -57,6 +57,34 @@ const IMPOSSIBLE = ['no-labels', 'none-reach', 'no-tags']
 /** How long a job waits before "nothing can run this" is believed. */
 const GRACE_MS = 60 * 60 * 1000
 
+/**
+ * The error a job that no runner took ends with, naming its labels and the
+ * wait it was given.
+ *
+ * Written to `error` rather than only to `condition_reason`, because `error`
+ * is what the run's failures list, its job headers and `reviewos logs` read.
+ * A job this sweep or the queue timeout ended used to carry its reason only in
+ * `condition_reason`, so a run that waited an hour for a machine nobody owns
+ * ended `failed` with nothing anywhere saying why (zig-anti-virus #3).
+ */
+export function unclaimedError(labels: readonly string[], within: string): string {
+  const named = labels.length > 0 ? ` with labels [${labels.join(', ')}]` : ''
+
+  return `No runner${named} picked this job up within ${within}.`
+}
+
+/** A wait in milliseconds, as a person says it: `1 hour`, `90 minutes`, `24 hours`. */
+export function waitFor(ms: number): string {
+  const minutes = Math.round(ms / 60_000)
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60
+    return `${hours} hour${hours === 1 ? '' : 's'}`
+  }
+
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`
+}
+
 export interface ImpossibleOutcome {
   /** How many jobs were failed for asking for something nothing has. */
   failed: number
@@ -80,6 +108,8 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
     .select([
       'workflow_jobs.id as id',
+      'workflow_jobs.job_id as job_id',
+      'workflow_jobs.name as name',
       'workflow_jobs.state as state',
       'workflow_jobs.runs_on as runs_on',
       'workflow_jobs.settings as settings',
@@ -105,10 +135,11 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
   const touched = new Set<number>()
 
   for (const job of waiting as any[]) {
+    const labels = splitLabels(job.runs_on)
     const verdict = explainWaiting({
       id: Number(job.id),
       state: String(job.state),
-      runsOn: splitLabels(job.runs_on),
+      runsOn: labels,
       agents: agentsOf(job.settings),
       repositoryId: Number(job.repository_id),
       ownerId: Number(job.owner_id ?? 0),
@@ -119,11 +150,16 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
     if (!IMPOSSIBLE.includes(verdict.kind))
       continue
 
+    // What the failures list and `reviewos logs` show: which labels waited,
+    // for how long, and why nothing could take them.
+    const error = `${unclaimedError(labels, waitFor(GRACE_MS))} ${verdict.summary}`.slice(0, 1000)
+
     const changed = await rescue(() => db
       .updateTable('workflow_jobs')
       .set({
         state: 'failed',
         finished_at: now.toISOString(),
+        error,
         // The summary and the fix together, because the first says what is
         // wrong and only the second says what to do about it.
         condition_reason: `${verdict.summary} ${verdict.fix}`.slice(0, 1000),
@@ -140,6 +176,15 @@ export async function failImpossibleJobs(now: Date = new Date()): Promise<Imposs
 
     outcome.failed += 1
     touched.add(Number(job.run_id))
+
+    // Said on the run too, when nothing else has been, so the run's own page
+    // names the job it ended on - as a job that ran out of time does.
+    await rescue(() => db
+      .updateTable('workflow_runs')
+      .set({ conclusion_reason: `Job \`${String(job.name || job.job_id)}\`: ${error}`.slice(0, 1000) })
+      .where('id', '=', Number(job.run_id))
+      .whereNull('conclusion_reason')
+      .execute(), null)
   }
 
   /*

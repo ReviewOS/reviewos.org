@@ -46,7 +46,7 @@ async function freshRun(headSha: string): Promise<number> {
 async function buildJob(runId: number): Promise<any> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'state', 'runner_id', 'lease_expires_at', 'attempt', 'lost_runners', 'condition_reason'])
+    .select(['id', 'state', 'runner_id', 'lease_expires_at', 'attempt', 'lost_runners', 'condition_reason', 'error'])
     .where('workflow_run_id', '=', runId)
     .where('job_id', '=', 'build')
     .executeTakeFirst()
@@ -575,6 +575,9 @@ describe('a job no runner ever takes', () => {
     const after = await buildJob(runId)
     expect(after.state).toBe('cancelled')
     expect(String(after.condition_reason)).toContain('No runner took this job within 24 hours')
+    // And as its error, which is what the run page and `reviewos logs` show.
+    expect(String(after.error)).toContain('No runner with labels [')
+    expect(String(after.error)).toContain('picked this job up within 24 hours')
 
     // The run is terminal, so its concurrency group is free and the status it
     // reports upstream stops being pending.

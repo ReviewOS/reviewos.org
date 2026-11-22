@@ -2524,3 +2524,4 @@ failed evidence into success.
 
 - [x] Start JavaScript actions with the runner's own Bun rather than the `bun` first on PATH: a pantry shell launcher run by dash dropped inputs whose names are not shell identifiers (`INPUT_USE-CACHE`), so mlugg/setup-zig failed on a required input it had been given.
 - [x] Accept an absolute `actions/upload-artifact` path that lands in the workspace or the job's runner temporary directory (`${{ runner.temp }}/report.txt`), as Actions does; anything else is still refused.
+- [x] Record why a job no runner took ended, as the job's `error`: the impossible-job sweep and the queue timeout wrote their reason only to `condition_reason`, which neither the run's failures list nor `reviewos logs` reads, so the job ended `failed` or `cancelled` with nothing saying why. Now `No runner with labels [macos-latest] picked this job up within 1 hour.` and the explanation, and the run's conclusion names the job.
