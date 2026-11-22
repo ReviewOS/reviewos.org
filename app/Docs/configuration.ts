@@ -53,6 +53,11 @@ export interface EnvEntry {
  * runner. Declaring them would mean an operator setting the shell's `HOME` in a
  * web application's configuration file, which is a worse idea than the missing
  * line this list exists to allow.
+ *
+ * `BUN_BE_BUN` is the runner telling the Bun it is compiled from to run an
+ * action's script, set on that one child and removed again before the action
+ * reads its environment. A value in `.env` would turn the server into a bare
+ * Bun interpreter.
  */
 export const GIT_SET = new Set([
   'GIT_DIR',
@@ -65,6 +70,7 @@ export const GIT_SET = new Set([
   'LANG',
   'USER',
   'LOGNAME',
+  'BUN_BE_BUN',
 ])
 
 const GROUP_TITLES: Record<string, string> = {

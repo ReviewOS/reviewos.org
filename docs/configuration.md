@@ -1764,6 +1764,7 @@ Git hands these to a hook on every push, per repository. A value for one of them
 would be wrong for every repository but the one it was copied from, and the failure is a push
 writing objects into somebody else's directory.
 
+- `BUN_BE_BUN`
 - `GIT_ALTERNATE_OBJECT_DIRECTORIES`
 - `GIT_DIR`
 - `GIT_OBJECT_DIRECTORY`
