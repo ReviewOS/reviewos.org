@@ -148,7 +148,9 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
 
     // Fetch one commit by default, while honoring an explicit full-history
     // request for steps that need ancestry, tags or deployment verification.
-    commands.push(`git fetch --quiet${fetchDepth > 0 ? ` --depth ${fetchDepth}` : ''} origin ${shellQuote(input.sha)}`)
+    // Fetching by object ID does not follow the release tags in a fresh checkout.
+    const history = fetchDepth > 0 ? `--depth ${fetchDepth}` : '--tags'
+    commands.push(`git fetch --quiet ${history} origin ${shellQuote(input.sha)}`)
     // Git negotiates from refs, not a detached HEAD or FETCH_HEAD. Without a
     // retained source ref, a later freshness fetch asks for the whole pack
     // again even when bootstrap already downloaded its complete history.

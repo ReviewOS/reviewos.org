@@ -1609,6 +1609,9 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       assembled inside the executor, because a checkout is a shell command built from user input and
       quoting tested by running builds is quoting nobody tested.
 
+      Full-history fetches on remote runners include annotated tags so release verification can
+      resolve the tag for the checked-out commit.
+
       **A depth on this instance's own machine clones through `file://`**: git ignores `--depth` on
       a local-path clone, hardlinks the whole object store, and prints a warning most people never
       read - so a workflow that asked for a shallow clone would silently get ten years of history.

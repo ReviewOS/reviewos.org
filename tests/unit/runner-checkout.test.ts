@@ -52,6 +52,7 @@ describe('the default', () => {
 
     // The history belongs to the instance, not to this machine.
     expect(plan.commands.join(' ')).toContain('--depth 1')
+    expect(plan.commands.join(' ')).not.toContain('--tags')
     expect(plan.commands.at(-1)).toBe('git checkout --quiet FETCH_HEAD')
     expect(plan.summary).toBe('depth 1')
   })
@@ -80,7 +81,7 @@ describe('depth', () => {
   })
 
   for (const onHost of [false, true]) {
-    test(`depth zero retains real ancestors on ${onHost ? 'a populated local workspace' : 'a remote runner'}`, () => {
+    test(`depth zero retains ancestry and annotated tags on ${onHost ? 'a populated local workspace' : 'a remote runner'}`, () => {
       const directory = mkdtempSync(join(tmpdir(), 'reviewos-checkout-history-'))
       const source = join(directory, 'source')
       const bare = join(directory, 'origin.git')
@@ -108,6 +109,7 @@ describe('depth', () => {
           if (index === 0) oldest = run(['git', 'rev-parse', 'HEAD'], source)
         }
         const sha = run(['git', 'rev-parse', 'HEAD'], source)
+        run(['git', 'tag', '--annotate', 'v1.0.0-build.45', '--message', 'Release fixture', sha], source)
         run(['git', 'clone', '--quiet', '--bare', source, bare], directory)
         writeFileSync(join(workspace, 'hook-cache.txt'), 'preserve me\n')
         const plan = checkoutPlan({
@@ -117,6 +119,7 @@ describe('depth', () => {
         run(['sh', '-c', plan.commands.join(' && ')], workspace)
         expect(run(['git', 'rev-parse', '--is-shallow-repository'], workspace)).toBe('false')
         expect(run(['git', 'rev-list', '--count', 'HEAD'], workspace)).toBe('3')
+        expect(run(['git', 'rev-parse', 'refs/tags/v1.0.0-build.45^{commit}'], workspace)).toBe(sha)
         run(['git', 'merge-base', '--is-ancestor', oldest, 'HEAD'], workspace)
         expect(readFileSync(join(workspace, 'hook-cache.txt'), 'utf8')).toBe('preserve me\n')
         expect(plan.summary).toBe('full history')
