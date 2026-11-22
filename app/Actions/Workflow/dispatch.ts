@@ -31,7 +31,7 @@ import { adjustmentFor } from './matrix'
 import type { ConcurrencyContext } from './concurrency'
 import { cancelsInProgress, fillGroup, resolveGroup } from './concurrency'
 import { readRunnerMap, translateRunsOn, workflowAllowed } from '../Mirror/runnerMap'
-import type { RunnerMap } from '../Mirror/runnerMap'
+import type { RunnerMap, Translation } from '../Mirror/runnerMap'
 import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
@@ -1649,11 +1649,7 @@ async function createJobs(
        * is, and waited for one until its timeout. Filled here, per
        * combination, the way the concurrency group above already was.
        */
-      const labels = splitStoredLabels(job.runs_on)
-        .map(label => label.includes('${{') ? fillGroup(label, withMatrix(context ?? EMPTY_CONTEXT, values)).trim() : label)
-        .filter(label => label.length > 0)
-      const image = containerOf(job.settings)
-      const placed = translateRunsOn(labels, hosted.map, image?.includes('${{') ? fillGroup(image, withMatrix(context ?? EMPTY_CONTEXT, values)) : image)
+      const placed = placeJob({ runsOn: job.runs_on, settings: job.settings, values, context, map: hosted.map })
 
       const runs = decision.run && paths.run && skipped.run && branch.run && adjustedSkip.run && placed.run
       const why = !decision.run
@@ -2251,11 +2247,40 @@ function containerOf(settings: unknown): string | null {
 }
 
 /**
+ * Where one job runs: its `runs-on` with this combination's values filled in,
+ * translated onto this instance's runners by a CI mirror's map - or the reason
+ * it does not run here at all.
+ *
+ * One function for both places a job is placed, the dispatch that creates it
+ * and the re-run that puts it back in the queue. A re-run that copied the last
+ * attempt's labels instead re-queued the combination its mirror skips under
+ * the hosted label nothing here answers to (zig-anti-virus #3), and kept the
+ * translation of a map that has since changed.
+ */
+export function placeJob(input: {
+  /** The definition's `runs-on`, one label per line, expressions unfilled. */
+  runsOn: unknown
+  /** The definition's settings, for the job-level `container:`. */
+  settings: unknown
+  values: Record<string, unknown> | null
+  context?: ConcurrencyContext | null
+  map: RunnerMap
+}): Translation {
+  const scope = withMatrix(input.context ?? EMPTY_CONTEXT, input.values)
+  const labels = splitStoredLabels(input.runsOn)
+    .map(label => label.includes('${{') ? fillGroup(label, scope).trim() : label)
+    .filter(label => label.length > 0)
+  const image = containerOf(input.settings)
+
+  return translateRunsOn(labels, input.map, image?.includes('${{') ? fillGroup(image, scope) : image)
+}
+
+/**
  * A CI mirror's runner translation and job priority (`runners:` and
  * `priority:` in `mirrors.yml`). An empty map and priority 0 for a repository
  * that is not a CI mirror, and for a mirror that declared neither.
  */
-async function hostedRunnersOf(client: Executor, repositoryId: number): Promise<{ map: RunnerMap, priority: number }> {
+export async function hostedRunnersOf(client: Executor, repositoryId: number): Promise<{ map: RunnerMap, priority: number }> {
   const none = { map: new Map() as RunnerMap, priority: 0 }
 
   if (!repositoryId)

@@ -18,6 +18,8 @@ import { db } from '@stacksjs/database'
 import type { RecordedStep, ReuseDecision } from './reuse'
 import { recordedOutputs, reusePlan, signatureOf, skipThrough } from './reuse'
 import { settleRun } from './settle'
+import { hostedRunnersOf, placeJob } from './dispatch'
+import type { Translation } from '../Mirror/runnerMap'
 import { rescue } from '@stacksjs/error-handling'
 
 /**
@@ -252,7 +254,7 @@ export async function rerunRun(input: {
 
   const run = await db
     .selectFrom('workflow_runs')
-    .select(['id', 'state', 'attempt'])
+    .select(['id', 'state', 'attempt', 'repository_id', 'workflow_version_id', 'event', 'event_ref', 'head_sha'])
     .where('id', '=', input.runId)
     .executeTakeFirst()
 
@@ -271,7 +273,7 @@ export async function rerunRun(input: {
 
   const jobs = await db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'needs', 'kind', 'attempt'])
+    .select(['id', 'job_id', 'state', 'needs', 'kind', 'attempt', 'runs_on', 'settings', 'matrix_values'])
     .where('workflow_run_id', '=', input.runId)
     .execute()
 
@@ -326,7 +328,24 @@ export async function rerunRun(input: {
     restart = { jobId: Number(target.id), skip: plan.skip, reason: plan.reason }
   }
 
+  /*
+   * Where each job runs this time, placed the way dispatch placed it.
+   *
+   * A CI mirror's `runners:` map decides it, and the map as it stands now: a
+   * combination the map skips stays skipped with its reason rather than going
+   * back in the queue under a hosted label nothing here answers to, and the
+   * rest are translated afresh from the workflow's own labels, not from the
+   * last attempt's translation of a map that may since have changed.
+   */
+  const placements = await placementsFor(run, chosen)
+  let requeued = 0
+
   for (const job of chosen) {
+    const placed = placements.get(Number(job.id)) ?? null
+    const skipped = placed !== null && !placed.run
+    if (!skipped)
+      requeued += 1
+
     /*
      * The job's steps go back to pending, and until now they did not.
      *
@@ -341,7 +360,8 @@ export async function rerunRun(input: {
     await db
       .updateTable('workflow_jobs')
       .set({
-        state: resetState(job),
+        state: skipped ? 'skipped' : resetState(job),
+        ...(placed && placed.runsOn.length > 0 ? { runs_on: placed.runsOn.join('\n') } : {}),
         // Where this attempt starts, which is the beginning unless somebody
         // asked otherwise and `reusePlan` agreed.
         resume_from_step: skip > 0 ? skip : null,
@@ -372,7 +392,7 @@ export async function rerunRun(input: {
          */
         approved_at: null,
         approved_by_id: null,
-        queued_at: resetState(job) === 'queued' ? now.toISOString() : null,
+        queued_at: !skipped && resetState(job) === 'queued' ? now.toISOString() : null,
         started_at: null,
           execution_ms: null,
           execution_started_at: null,
@@ -381,7 +401,7 @@ export async function rerunRun(input: {
         finished_at: null,
         outputs: null,
         error: null,
-        condition_reason: null,
+        condition_reason: skipped ? placed.reason : null,
       })
       .where('id', '=', job.id)
       .execute()
@@ -400,9 +420,67 @@ export async function rerunRun(input: {
   return {
     ok: true,
     attempt,
-    jobs: chosen.length,
+    jobs: requeued,
     reused: restart?.skip ?? 0,
     reason: restart?.reason ?? '',
+  }
+}
+
+/**
+ * Each chosen job's placement, keyed by its id, for a run whose repository is
+ * a CI mirror with a `runners:` map. Empty otherwise, which leaves every job's
+ * labels as dispatch stored them.
+ *
+ * The labels come from the job's definition in the run's workflow version,
+ * because the row holds the last translation rather than what the workflow
+ * asked for. A job with no definition there - one a called workflow or another
+ * job produced - is placed from its own row, which still skips a hosted label
+ * the map has turned off.
+ */
+async function placementsFor(run: any, jobs: readonly any[]): Promise<Map<number, Translation>> {
+  const placements = new Map<number, Translation>()
+  const hosted = await hostedRunnersOf(db, Number(run.repository_id ?? 0))
+
+  if (hosted.map.size === 0)
+    return placements
+
+  const definitions = await db
+    .selectFrom('workflow_version_jobs')
+    .select(['job_id', 'runs_on', 'settings'])
+    .where('workflow_version_id', '=', Number(run.workflow_version_id))
+    .execute()
+  const byKey = new Map((definitions as any[]).map(row => [String(row.job_id), row]))
+  const context = {
+    workflow: '',
+    eventName: String(run.event ?? ''),
+    ref: String(run.event_ref ?? ''),
+    sha: String(run.head_sha ?? ''),
+  }
+
+  for (const job of jobs) {
+    const definition = byKey.get(String(job.job_id))
+
+    placements.set(Number(job.id), placeJob({
+      runsOn: definition ? definition.runs_on : job.runs_on,
+      settings: definition ? definition.settings : job.settings,
+      values: matrixOf(job.matrix_values),
+      context,
+      map: hosted.map,
+    }))
+  }
+
+  return placements
+}
+
+/** A job's stored matrix combination, or null for a job outside a matrix. */
+function matrixOf(stored: unknown): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(String(stored ?? 'null'))
+
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  }
+  catch {
+    return null
   }
 }
 

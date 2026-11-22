@@ -1364,7 +1364,9 @@ said on the mirror:
 A label mapped to a list is replaced by it; a label mapped to `false` skips the
 jobs asking for it, saying why on the run, so the verdict reported upstream is
 about the jobs that ran here rather than `pending` forever. A label the map does
-not mention passes through. On a mirror with `runners:`, a job-level
+not mention passes through. A re-run places its jobs again against the map as
+it stands then, so a skipped job stays skipped and a changed mapping takes
+effect on the next attempt. On a mirror with `runners:`, a job-level
 `container:` is skipped the same way, since this instance runs no job
 containers. `priority:` is the queue priority the mirror's jobs carry; a
 negative one still runs within the starvation window. `intermediate:` is the

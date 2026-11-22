@@ -403,3 +403,5 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Declare framework mirror CI so native macOS source evidence runs on its repository-scoped Mac runner and can be verified through public workflow metadata before SDK publication.
 
 - [x] Run a CI mirror's GitHub-hosted jobs on this instance's runners: `runners:` in `mirrors.yml` translates `ubuntu-latest` and friends onto local labels and skips, with the reason, the labels and job containers no machine here runs; `priority:` queues the mirror behind the instance's own work, `intermediate:` runs only its newest commit per branch, and `workflows:` says which of its workflows its events start. First used for zig-utils/zig-anti-virus while GitHub Actions is disabled for it.
+
+- [x] Re-run a CI mirror's jobs through the same `runners:` placement dispatch uses: a combination the map skips stays skipped with its reason instead of returning to the queue under a hosted label nothing here answers to (zig-utils/zig-anti-virus #3, `macos-latest` re-queued by `reviewos rerun --all`), and the rest are translated afresh from the workflow's own labels against the map as it stands.

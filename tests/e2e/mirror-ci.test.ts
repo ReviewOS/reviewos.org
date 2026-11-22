@@ -333,6 +333,108 @@ jobs:
     await sync(created.ci.mirrorId)
   })
 
+  test('a re-run keeps a skipped combination skipped, and translates the rest from the current map', async () => {
+    if (!available)
+      return
+
+    // zig-anti-virus #3: `reviewos rerun 3 --all` put the macos-latest
+    // combination its map skips back in the queue as `macos-latest`, where it
+    // waited for a machine nobody owns until the sweep failed it.
+    const FORMATS = `name: Differential
+on:
+  push:
+jobs:
+  formats:
+    runs-on: \${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - run: zig build test
+`
+
+    await db.updateTable('repository_mirrors')
+      .set({ runner_labels: 'macos-latest=\nubuntu-latest=self-hosted,linux-x64' })
+      .where('id', '=', created.ci.mirrorId)
+      .execute()
+
+    const head = await commitUpstream('.github/workflows/differential.yml', FORMATS)
+
+    try {
+      await sync(created.ci.mirrorId)
+
+      const run: any = await db.selectFrom('workflow_runs')
+        .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+        .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+        .select(['workflow_runs.id as id'])
+        .where('workflow_runs.repository_id', '=', created.ci.repositoryId)
+        .where('workflow_runs.head_sha', '=', head)
+        .where('workflows.path', '=', '.github/workflows/differential.yml')
+        .executeTakeFirst()
+      const runId = Number(run.id)
+
+      const jobsOf = async (): Promise<Map<string, any>> => new Map((await db.selectFrom('workflow_jobs')
+        .select(['matrix_values', 'state', 'runs_on', 'condition_reason', 'attempt'])
+        .where('workflow_run_id', '=', runId)
+        .execute()).map((job: any) => [String(JSON.parse(String(job.matrix_values)).os), job]))
+
+      // Finished, the way attempt 1 finished before the re-run.
+      const finish = async (): Promise<void> => {
+        await db.updateTable('workflow_jobs').set({ state: 'succeeded', finished_at: new Date().toISOString() })
+          .where('workflow_run_id', '=', runId).where('state', '=', 'queued').execute()
+        await db.updateTable('workflow_runs').set({ state: 'succeeded', finished_at: new Date().toISOString() }).where('id', '=', runId).execute()
+      }
+
+      expect((await jobsOf()).get('macos-latest')).toMatchObject({ state: 'skipped' })
+      await finish()
+
+      const { rerunRun } = await import('../../app/Actions/Workflow/rerun')
+      const first = await rerunRun({ runId, scope: 'all' })
+      expect(first.ok).toBe(true)
+
+      let jobs = await jobsOf()
+      expect(jobs.get('macos-latest')).toMatchObject({ state: 'skipped', runs_on: 'macos-latest' })
+      expect(String(jobs.get('macos-latest').condition_reason)).toContain('`macos-latest`')
+      expect(jobs.get('ubuntu-latest')).toMatchObject({ state: 'queued', runs_on: 'self-hosted\nlinux-x64' })
+
+      // The map changed between attempts: the labels follow it, from the
+      // workflow's own `ubuntu-latest` rather than from the last attempt's answer.
+      await db.updateTable('repository_mirrors')
+        .set({ runner_labels: 'macos-latest=\nubuntu-latest=self-hosted,owned-linux' })
+        .where('id', '=', created.ci.mirrorId)
+        .execute()
+      await finish()
+      await rerunRun({ runId, scope: 'all' })
+
+      jobs = await jobsOf()
+      expect(jobs.get('ubuntu-latest')).toMatchObject({ state: 'queued', runs_on: 'self-hosted\nowned-linux' })
+      expect(jobs.get('macos-latest')).toMatchObject({ state: 'skipped' })
+
+      // And a label mapped away since is skipped on the next attempt, with why.
+      await db.updateTable('repository_mirrors')
+        .set({ runner_labels: 'macos-latest=\nubuntu-latest=' })
+        .where('id', '=', created.ci.mirrorId)
+        .execute()
+      await finish()
+      await rerunRun({ runId, scope: 'all' })
+
+      jobs = await jobsOf()
+      expect(jobs.get('ubuntu-latest')).toMatchObject({ state: 'skipped', runs_on: 'ubuntu-latest' })
+      expect(String(jobs.get('ubuntu-latest').condition_reason)).toContain('`ubuntu-latest`')
+    }
+    finally {
+      await db.updateTable('repository_mirrors').set({ runner_labels: null }).where('id', '=', created.ci.mirrorId).execute()
+
+      // Upstream back to the one workflow the tests below expect it to hold.
+      await git(created.work, 'checkout', 'main')
+      await git(created.work, 'pull', created.upstream, 'main')
+      await git(created.work, 'rm', '-q', '.github/workflows/differential.yml')
+      await git(created.work, 'commit', '-m', 'remove the differential workflow')
+      await git(created.work, 'push', created.upstream, 'main')
+      await sync(created.ci.mirrorId)
+    }
+  })
+
   test('and with `intermediate: skip`, a newer commit replaces the run still waiting for a runner', async () => {
     if (!available)
       return
