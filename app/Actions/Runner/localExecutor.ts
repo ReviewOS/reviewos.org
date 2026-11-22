@@ -747,7 +747,8 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   /** Hand up whatever has finished since the last time, and renew the lease. */
   let heartbeatFailing = false
   const handUpResults = async (): Promise<void> => {
-    const pending = timings.slice(sentThrough)
+    const through = timings.length
+    const pending = timings.slice(sentThrough, through)
     lease.heartbeatStarted()
     const answer: { held: boolean, recorded: number, refusal?: string, status?: number } = await beat(options.baseUrl, jobToken, pending)
       .catch(error => ({ held: false, recorded: 0, refusal: error instanceof Error ? error.message : String(error) }))
@@ -778,10 +779,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * Only counted as sent when the answer came back. A lost answer means
      * sending them again, which the control plane is built to accept: every
      * field is stated rather than accumulated, so a second write of the same
-     * result is the same row.
+     * result is the same row. A step can finish while a scheduled heartbeat
+     * is in flight, so its reply only acknowledges that request's snapshot.
      */
     if (answer.held) {
-      sentThrough = timings.length
+      sentThrough = Math.max(sentThrough, through)
     }
   }
 

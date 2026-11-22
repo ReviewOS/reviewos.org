@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runOnce } from '../../app/Actions/Runner/localExecutor'
@@ -87,6 +87,60 @@ test('a late heartbeat cannot reactivate a concluded lease', async () => {
   await Bun.sleep(30)
   expect(lease.signal.aborted).toBe(false)
 })
+
+test('a delayed heartbeat cannot acknowledge a step that finished after it was sent', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-pending-step-'))
+  const ready = join(root, 'first-running')
+  const finishFirst = join(root, 'finish-first')
+  const finishSecond = join(root, 'finish-second')
+  const previous = Promise.withResolvers<Response>()
+  let scheduledHeartbeat = false
+  let rejectedFirstReport = false
+  const subsequentReports: number[][] = []
+
+  const server = Bun.serve({ port: 0, async fetch(request) {
+    const path = new URL(request.url).pathname
+    if (path === '/api/runner/claim') return Response.json({ job: {
+      id: 9157, token: 'pending-step-token', key: 'pending-step', checkout: { skip: true },
+      repository_full_name: 'acme/widgets',
+      run: { id: 1, number: 1, event: 'push', ref: 'refs/heads/main', head_sha: 'abc' },
+      steps: [
+        { run: `touch '${ready}'; until test -f '${finishFirst}'; do sleep 0.05; done` },
+        { run: `until test -f '${finishSecond}'; do sleep 0.05; done` },
+      ],
+    } })
+    if (path === '/api/runner/heartbeat') {
+      const body = await request.json() as { steps?: { position: number }[] }
+      const positions = body.steps?.map(step => step.position) ?? []
+      if (existsSync(ready) && !scheduledHeartbeat && positions.length === 0) {
+        scheduledHeartbeat = true
+        writeFileSync(finishFirst, '')
+        return await previous.promise
+      }
+      if (positions.length > 0 && !rejectedFirstReport) {
+        rejectedFirstReport = true
+        previous.resolve(Response.json({ steps_recorded: 0 }))
+        setTimeout(() => writeFileSync(finishSecond, ''), 200)
+        return Response.json({ error: 'Connection temporarily unavailable' }, { status: 503 })
+      }
+      if (positions.length > 0) subsequentReports.push(positions)
+      return Response.json({ steps_recorded: positions.length })
+    }
+    return Response.json({ ok: true })
+  } })
+
+  try {
+    const outcome = await runOnce({ baseUrl: `http://127.0.0.1:${server.port}`, token: 'runner', workspaceRoot: root, tools: false })
+    expect(outcome?.state).toBe('succeeded')
+    expect(scheduledHeartbeat && rejectedFirstReport).toBe(true)
+    expect(subsequentReports).toContainEqual([0, 1])
+  }
+  finally {
+    previous.resolve(Response.json({ steps_recorded: 0 }))
+    server.stop(true)
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 45_000)
 
 test('an initially revoked lease executes no repository commands', async () => {
   const root = mkdtempSync(join(tmpdir(), 'reviewos-initial-refusal-'))
