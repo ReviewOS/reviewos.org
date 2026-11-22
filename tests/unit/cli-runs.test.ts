@@ -7,7 +7,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import process from 'node:process'
-import { describeJobs, describeRun, jobsToRead, lastLines, listRuns, parseInputs, resolveTarget, runLogs, runUrl, runWorkflow, watchRun } from '../../app/Cli/runs'
+import { cancelWorkflowRun, describeJobs, describeRun, jobsToRead, lastLines, listRuns, parseInputs, rerunWorkflowRun, resolveTarget, runLogs, runUrl, runWorkflow, syncMirror, watchRun } from '../../app/Cli/runs'
 
 let server: ReturnType<typeof Bun.serve>
 let instance = ''
@@ -53,6 +53,9 @@ beforeAll(() => {
         const state = showStates.shift() ?? 'succeeded'
         return Response.json({ workflow_run: { number: Number(url.searchParams.get('number')), state, jobs: [{ job_id: 'publish', state: state === 'queued' ? 'queued' : state, waiting: state === 'queued' ? { kind: 'busy', summary: 'every matching runner is busy' } : null }] } })
       }
+
+      if (url.pathname === '/api/repos/workflow-runs/rerun' || url.pathname === '/api/repos/workflow-runs/cancel' || url.pathname === '/api/mirrors/sync')
+        return Response.json({ ok: true })
 
       if (url.pathname === '/api/repos/workflow-runs')
         return Response.json({ workflow_runs: [{ number: 7, state: 'running', event: 'push', ref: 'refs/heads/main', head_sha: '806d0644460901ca', reason: null }], next: null })
@@ -218,5 +221,47 @@ describe('reading a run\'s output', () => {
     expect(lastLines('a\nb\nc\n')).toBe('a\nb\nc')
     expect(lastLines('a\nb', 5)).toBe('a\nb')
     expect(lastLines('', 3)).toBe('')
+  })
+})
+
+describe('trying a commit again, stopping a run, and fetching a mirror now', () => {
+  it('re-runs the failed jobs by default and every job with --all', async () => {
+    seen.length = 0
+    expect(await rerunWorkflowRun('4242', target())).toBe(0)
+    expect(await rerunWorkflowRun('4242', { ...target(), all: true })).toBe(0)
+
+    const bodies = seen.filter(one => one.path === '/api/repos/workflow-runs/rerun').map(one => one.body)
+    expect(bodies).toEqual([
+      { owner: 'stacks', repo: 'hq.training', number: 4242, scope: 'failed' },
+      { owner: 'stacks', repo: 'hq.training', number: 4242, scope: 'all' },
+    ])
+  })
+
+  it('cancels with a reason', async () => {
+    seen.length = 0
+    expect(await cancelWorkflowRun('7', { ...target(), reason: 'superseded' })).toBe(0)
+    expect(seen.at(-1)).toMatchObject({ method: 'POST', path: '/api/repos/workflow-runs/cancel', body: { owner: 'stacks', repo: 'hq.training', number: 7, reason: 'superseded' } })
+  })
+
+  it('asks the mirror to fetch its upstream', async () => {
+    seen.length = 0
+    expect(await syncMirror(target())).toBe(0)
+    expect(seen.at(-1)).toMatchObject({ method: 'POST', path: '/api/mirrors/sync', body: { owner: 'stacks', repo: 'hq.training' } })
+  })
+
+  it('lists only one commit\'s runs with --sha', async () => {
+    const printed: string[] = []
+    const log = console.log
+    console.log = (line: string) => { printed.push(line) }
+    try {
+      await listRuns({ ...target(), sha: '806d06' })
+      await listRuns({ ...target(), sha: 'ffff' })
+    }
+    finally {
+      console.log = log
+    }
+
+    expect(printed[0]).toContain('#7')
+    expect(printed[1]).toBe('No runs.')
   })
 })

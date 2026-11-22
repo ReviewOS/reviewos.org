@@ -647,3 +647,5 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
     a token before storing it.
 
 - [x] Reject known public forges locally before a CLI API call connects or attaches credentials. The wrong-instance diagnostic works offline; its regression uses an already-aborted signal instead of depending on GitHub latency.
+
+- [x] `reviewos rerun`, `reviewos cancel`, `reviewos sync` and `reviewos runs --sha`, so an agent can try a commit's CI again, stop a run, start a mirror's CI as soon as a commit lands upstream, and find the run for one commit, from a terminal.

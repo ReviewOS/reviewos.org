@@ -55,6 +55,14 @@ export interface ListRunsOptions extends TargetOptions {
   state?: string
   branch?: string
   limit?: number
+  /** Only runs of this commit: a full sha or any prefix of one. */
+  sha?: string
+}
+
+export interface RerunOptions extends WatchOptions {
+  /** Every job, where the default is the ones that failed or were cancelled. */
+  all?: boolean
+  watch?: boolean
 }
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
@@ -360,7 +368,9 @@ export async function listRuns(options: ListRunsOptions = {}): Promise<number> {
   if (!listed.ok)
     return report(listed)
 
-  const rows: any[] = listed.data?.workflow_runs ?? []
+  const sha = String(options.sha ?? '').trim().toLowerCase()
+  const rows: any[] = (listed.data?.workflow_runs ?? [])
+    .filter((row: any) => !sha || String(row.head_sha ?? '').toLowerCase().startsWith(sha))
 
   if (rows.length === 0) {
     console.log('No runs.')
@@ -373,6 +383,75 @@ export async function listRuns(options: ListRunsOptions = {}): Promise<number> {
     const ref = String(row.ref ?? '').replace(/^refs\/(heads|tags)\//, '')
     console.log(`#${String(row.number).padEnd(6)} ${String(row.state).padEnd(10)} ${String(row.event).padEnd(18)} ${ref}${sha ? `  ${sha}` : ''}${row.reason ? `  ${row.reason}` : ''}`)
   }
+
+  return 0
+}
+
+/**
+ * Run a finished run's jobs again: the failed and cancelled ones, or `--all`.
+ *
+ * The way to try a commit's CI again without a new commit - the case a mirror
+ * has whenever a runner lost a job, since its workflow cannot be dispatched by
+ * a person unless the upstream file says `workflow_dispatch`.
+ */
+export async function rerunWorkflowRun(number: string, options: RerunOptions = {}): Promise<number> {
+  const connected = await connect(options)
+  if (typeof connected === 'number')
+    return connected
+
+  const { target, connection } = connected
+  const rerun = await call(connection, 'POST', '/api/repos/workflow-runs/rerun', {
+    body: { owner: target.owner, repo: target.repository, number: Number(number), scope: options.all ? 'all' : 'failed' },
+  })
+
+  if (!rerun.ok)
+    return report(rerun)
+
+  console.log(`Re-running #${number}${options.all ? '' : ' (its failed and cancelled jobs)'}: ${runUrl(target, number)}`)
+
+  return options.watch ? await watchRun(String(number), options) : 0
+}
+
+/** Stop a run: its queued jobs end at once, and its running ones are asked to stop. */
+export async function cancelWorkflowRun(number: string, options: TargetOptions & { reason?: string } = {}): Promise<number> {
+  const connected = await connect(options)
+  if (typeof connected === 'number')
+    return connected
+
+  const { target, connection } = connected
+  const cancelled = await call(connection, 'POST', '/api/repos/workflow-runs/cancel', {
+    body: { owner: target.owner, repo: target.repository, number: Number(number), reason: options.reason ?? 'Cancelled from the reviewos CLI' },
+  })
+
+  if (!cancelled.ok)
+    return report(cancelled)
+
+  console.log(`Cancelled #${number}: ${runUrl(target, number)}`)
+
+  return 0
+}
+
+/**
+ * Fetch a mirror's upstream now, instead of at its next sweep.
+ *
+ * Every ref the fetch moves runs the mirror's workflows when it is a CI
+ * mirror, so this is how a commit just pushed upstream starts CI here within
+ * seconds rather than at the sweep.
+ */
+export async function syncMirror(options: TargetOptions = {}): Promise<number> {
+  const connected = await connect(options)
+  if (typeof connected === 'number')
+    return connected
+
+  const { target, connection } = connected
+  const synced = await call(connection, 'POST', '/api/mirrors/sync', {
+    body: { owner: target.owner, repo: target.repository },
+  })
+
+  if (!synced.ok)
+    return report(synced)
+
+  console.log(`Asked ${target.owner}/${target.repository} to fetch its upstream; \`reviewos runs\` shows what it starts.`)
 
   return 0
 }

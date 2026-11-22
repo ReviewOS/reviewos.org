@@ -34,7 +34,7 @@ import {
   whoami,
 } from '../app/Cli/commands'
 import { apiCommand, readApiBody } from '../app/Cli/api-command'
-import { listRuns, runLogs, runWorkflow, watchRun } from '../app/Cli/runs'
+import { cancelWorkflowRun, listRuns, rerunWorkflowRun, runLogs, runWorkflow, syncMirror, watchRun } from '../app/Cli/runs'
 
 const USAGE = `reviewos - the review surface, from a terminal
 
@@ -54,7 +54,10 @@ const USAGE = `reviewos - the review surface, from a terminal
   reviewos run <workflow> [--ref <ref>] [--input key=value]... [--watch]
   reviewos watch <run-number>
   reviewos logs <run-number> [--job <name>] [--all] [--tail <lines>] [--attempt <n>]
-  reviewos runs [--state <state>] [--branch <branch>] [--limit <n>]
+  reviewos runs [--state <state>] [--branch <branch>] [--sha <commit>] [--limit <n>]
+  reviewos rerun <run-number> [--all] [--watch]
+  reviewos cancel <run-number> [--reason <text>]
+  reviewos sync
 
   --repo <owner/name> names the repository on the instance, for a mirror's
   checkout whose remote is its upstream. REVIEWOS_REPOSITORY does the same.
@@ -227,9 +230,42 @@ async function main(): Promise<number> {
         state: typeof flags.state === 'string' ? flags.state : undefined,
         branch: typeof flags.branch === 'string' ? flags.branch : undefined,
         limit: typeof flags.limit === 'string' ? Number(flags.limit) : undefined,
+        sha: typeof flags.sha === 'string' ? flags.sha : undefined,
         repo: typeof flags.repo === 'string' ? flags.repo : undefined,
         instance,
       })
+
+    case 'rerun': {
+      if (!second) {
+        console.error('Which run? `reviewos rerun 3631`')
+
+        return 1
+      }
+
+      return await rerunWorkflowRun(String(second), {
+        all: Boolean(flags.all),
+        watch: Boolean(flags.watch),
+        repo: typeof flags.repo === 'string' ? flags.repo : undefined,
+        instance,
+      })
+    }
+
+    case 'cancel': {
+      if (!second) {
+        console.error('Which run? `reviewos cancel 3631`')
+
+        return 1
+      }
+
+      return await cancelWorkflowRun(String(second), {
+        reason: typeof flags.reason === 'string' ? flags.reason : undefined,
+        repo: typeof flags.repo === 'string' ? flags.repo : undefined,
+        instance,
+      })
+    }
+
+    case 'sync':
+      return await syncMirror({ repo: typeof flags.repo === 'string' ? flags.repo : undefined, instance })
 
     default:
       console.error(`Unknown command: ${command}`)
