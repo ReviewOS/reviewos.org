@@ -3694,13 +3694,26 @@ async function runJavaScript(
   // dependencies are installed or implicitly load its dotenv credentials.
   const runtime = mkdtempSync(join(tmpdir(), 'reviewos-action-runtime-'))
   const config = join(runtime, 'bunfig.toml')
-  writeFileSync(config, 'preload = []\n')
+  const preload = join(runtime, 'preload.js')
+  /*
+   * This runner's own Bun, not whatever `bun` is first on PATH.
+   *
+   * A pantry install puts a POSIX shell launcher there, and on Linux `/bin/sh`
+   * is dash, which drops every environment variable whose name is not a shell
+   * identifier before it execs the real binary - and the toolkit reads an input
+   * named `use-cache` from `INPUT_USE-CACHE`. So mlugg/setup-zig failed on its
+   * required `use-cache` input, given and then thrown away on the way in. The
+   * runner is a compiled Bun, which runs a script when `BUN_BE_BUN` is set; the
+   * preload removes it again, so nothing the action starts inherits it.
+   */
+  writeFileSync(preload, 'delete process.env.BUN_BE_BUN\n')
+  writeFileSync(config, `preload = [${JSON.stringify(preload)}]\n`)
   try {
     const result = await runStep({
       signal,
-      argv: ['bun', `--config=${config}`, '--no-env-file', entry],
+      argv: [process.execPath, `--config=${config}`, '--no-env-file', entry],
       cwd: workspace,
-      environment,
+      environment: { ...environment, BUN_BE_BUN: '1' },
       onOutput,
     })
 

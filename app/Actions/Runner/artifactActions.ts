@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { setTimeout as pause } from 'node:timers/promises'
 import { retryAfterMilliseconds } from '@stacksjs/http'
@@ -19,6 +19,38 @@ const MAX_FILES = 200
 function fail(reason: string): never { throw Error(reason) }
 function safePath(value: string): boolean {
   return !!value && !isAbsolute(value) && !value.includes('\\') && !value.includes('\0') && !value.split('/').some(part => !part || part === '..' || part === '.' || part === '.git' || part === '.reviewos-runner')
+}
+/**
+ * Where an upload pattern is read from, and the pattern relative to it.
+ *
+ * Workspace-relative is the shape this adapter was written for. An absolute
+ * path is what Actions also accepts - `path: ${{ runner.temp }}/report.txt` is
+ * how a job uploads something it deliberately kept out of the checkout - and
+ * it is allowed when it lands in the workspace or in this job's runner
+ * temporary directory, which is the only place outside the checkout a job is
+ * meant to write. Anything else is refused as before.
+ */
+function uploadBase(workspace: string, pattern: string): { base: string, pattern: string } {
+  if (!isAbsolute(pattern))
+    return { base: realpathSync(workspace), pattern }
+
+  const temp = join(workspace, '.reviewos-runner', 'temp')
+  for (const candidate of [temp, workspace]) {
+    if (!existsSync(candidate))
+      continue
+    const base = realpathSync(candidate)
+    const absolute = resolve(pattern)
+    const real = existsSync(absolute) ? realpathSync(absolute) : absolute
+    for (const inside of [real, absolute]) {
+      if (inside === base || inside.startsWith(`${base}${sep}`)) {
+        const rest = relative(base, inside).split(sep).join('/')
+        if (rest)
+          return { base, pattern: rest }
+      }
+    }
+  }
+
+  return fail('Artifact paths must be in the workspace or the runner\'s temporary directory')
 }
 function digest(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
 async function bounded(response: Response, limit: number): Promise<Uint8Array> {
@@ -112,21 +144,25 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
       const retention = Number(values['retention-days'] ?? 7), compression = Number(values['compression-level'] ?? 6)
       if (!Number.isInteger(retention) || retention < 1 || retention > 90 || !Number.isInteger(compression) || compression < 0 || compression > 9)
         fail('Artifact retention or compression is outside its supported range')
-      const root = realpathSync(input.workspace)
+      // Files by absolute path, and each pattern's fixed prefix as an absolute
+      // directory: the archive is rooted at their deepest common directory, as
+      // Actions roots it, whichever base each pattern was read from.
       const files = new Set<string>(), roots: string[][] = []
-      for (const pattern of String(values.path ?? '').split('\n').map(one => one.trim()).filter(Boolean)) {
-        if (!safePath(pattern) || pattern.startsWith('!')) fail('Artifact paths must be workspace-relative positive patterns')
+      for (const written of String(values.path ?? '').split('\n').map(one => one.trim()).filter(Boolean)) {
+        if (written.startsWith('!')) fail('Artifact paths must be positive patterns')
+        const { base, pattern } = uploadBase(input.workspace, written)
+        if (!safePath(pattern)) fail('Artifact paths must be workspace-relative positive patterns')
         const parts = pattern.split('/'), dynamic = parts.findIndex(part => /[*?\[\]{}]/.test(part))
-        const directory = existsSync(resolve(root, pattern)) && lstatSync(resolve(root, pattern)).isDirectory()
+        const directory = existsSync(resolve(base, pattern)) && lstatSync(resolve(base, pattern)).isDirectory()
         const prefix = directory ? pattern : dynamic < 0 ? dirname(pattern) : parts.slice(0, dynamic).join('/')
-        roots.push(prefix === '.' || !prefix ? [] : prefix.split('/'))
+        roots.push([...base.split(sep).filter(Boolean), ...(prefix === '.' || !prefix ? [] : prefix.split('/'))])
         const glob = directory ? `${pattern}/**/*` : pattern
-        for await (const file of new Bun.Glob(glob).scan({ cwd: root, onlyFiles: false, dot: false, followSymlinks: false })) {
+        for await (const file of new Bun.Glob(glob).scan({ cwd: base, onlyFiles: false, dot: false, followSymlinks: false })) {
           if (!safePath(file) || file.split('/').some(part => part.startsWith('.'))) fail('Artifact contains a hidden or unsafe path')
-          const full = resolve(root, file), info = lstatSync(full)
+          const full = resolve(base, file), info = lstatSync(full)
           if (info.isDirectory()) continue
-          if (!info.isFile() || info.isSymbolicLink() || !realpathSync(full).startsWith(`${root}/`)) fail('Artifact contains a link outside the workspace')
-          files.add(file)
+          if (!info.isFile() || info.isSymbolicLink() || !realpathSync(full).startsWith(`${base}${sep}`)) fail('Artifact contains a link outside the workspace')
+          files.add(full)
           if (files.size > MAX_FILES) fail(`Artifact exceeds the ${MAX_FILES}-file limit`)
         }
       }
@@ -137,13 +173,14 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
         while (length < common.length && common[length] === parts[length]) length++
         common = common.slice(0, length)
       }
+      const archiveRoot = `${sep}${common.join(sep)}`
       const entries: Record<string, Uint8Array> = {}
       let size = 0
-      for (const file of [...files].sort()) {
-        const full = resolve(root, file), info = lstatSync(full)
+      for (const full of [...files].sort()) {
+        const info = lstatSync(full)
         size += info.size
         if (size > MAX_ARTIFACT_BYTES) fail('Artifact exceeds the byte limit')
-        const entry = relative(resolve(root, ...common), full)
+        const entry = relative(archiveRoot, full).split(sep).join('/')
         if (!safePath(entry)) fail('Artifact entry leaves its archive root')
         entries[entry] = readFileSync(full)
       }

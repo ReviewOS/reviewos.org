@@ -2521,3 +2521,6 @@ failed evidence into success.
       supervisor completion remain unproven; no rollout is accepted from it.
 
 - [x] Retry interrupted remote Git fetches for the exact requested commit, including full-history fetches in the native `actions/checkout` adapter, at most three attempts, without replaying checkout initialization, reset or clean. Authentication failures and unavailable objects stop immediately. Real HTTP pack truncation regressions cover recovery, permanent failure and HTTP 403. The original job timeout and transfer diagnostics remain in effect.
+
+- [x] Start JavaScript actions with the runner's own Bun rather than the `bun` first on PATH: a pantry shell launcher run by dash dropped inputs whose names are not shell identifiers (`INPUT_USE-CACHE`), so mlugg/setup-zig failed on a required input it had been given.
+- [x] Accept an absolute `actions/upload-artifact` path that lands in the workspace or the job's runner temporary directory (`${{ runner.temp }}/report.txt`), as Actions does; anything else is still refused.
