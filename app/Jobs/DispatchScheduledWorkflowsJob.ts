@@ -45,7 +45,19 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
   let swept = 0
   let created = 0
 
+  // A CI mirror's `workflows:` allowlist, read once per repository. A nightly
+  // the mirror did not list stays upstream's to run (and anybody's by hand).
+  const { mirrorWorkflowPaths } = await import('../Actions/Workflow/dispatch')
+  const { workflowAllowed } = await import('../Actions/Mirror/runnerMap')
+  const allowlists = new Map<number, string | null>()
+
   for (const workflow of workflows) {
+    const repositoryId = Number(workflow.repository_id)
+    if (!allowlists.has(repositoryId))
+      allowlists.set(repositoryId, await mirrorWorkflowPaths(repositoryId))
+    if (!workflowAllowed(allowlists.get(repositoryId), String(workflow.path ?? '')))
+      continue
+
     const version = await db
       .selectFrom('workflow_versions')
       .select(['id', 'schedules', 'source_sha', 'concurrency_group', 'cancel_in_progress'])

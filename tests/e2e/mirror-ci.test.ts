@@ -260,6 +260,121 @@ describe('a mirror that runs its workflows', () => {
   })
 })
 
+describe('a mirror that says which runners stand in for its hosted labels', () => {
+  const MATRIX = `name: Matrix
+on:
+  push:
+jobs:
+  test:
+    name: Test (\${{ matrix.os }})
+    runs-on: \${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - run: zig build test
+  distro:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - run: dnf install -y git
+  mine:
+    runs-on: [self-hosted, gpu]
+    steps:
+      - run: nvidia-smi
+`
+
+  test('fills the matrix into runs-on, translates it, and skips what nothing here runs', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('repository_mirrors')
+      .set({ runner_labels: 'ubuntu-latest=self-hosted,linux-x64\nwindows-latest=', job_priority: -5 })
+      .where('id', '=', created.ci.mirrorId)
+      .execute()
+
+    const head = await commitUpstream('.github/workflows/matrix.yml', MATRIX)
+    await sync(created.ci.mirrorId)
+
+    // Both workflows ran on this push; their jobs together.
+    const jobs: any[] = await db.selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_jobs.name as name', 'workflow_jobs.state as state', 'workflow_jobs.runs_on as runs_on', 'workflow_jobs.condition_reason as condition_reason', 'workflow_jobs.priority as priority'])
+      .where('workflow_runs.repository_id', '=', created.ci.repositoryId)
+      .where('workflow_runs.head_sha', '=', head)
+      .execute()
+    const byName = new Map(jobs.map(job => [String(job.name), job]))
+
+    // The repository's other workflow is translated the same way.
+    expect(byName.get('test')).toMatchObject({ state: 'queued', runs_on: 'self-hosted\nlinux-x64' })
+
+    // `${{ matrix.os }}` used to be stored as written, and asked for a runner
+    // labelled with the expression - which no machine ever is.
+    expect(byName.get('Test (ubuntu-latest)')).toMatchObject({ state: 'queued', runs_on: 'self-hosted\nlinux-x64' })
+    expect(Number(byName.get('Test (ubuntu-latest)').priority)).toBe(-5)
+
+    expect(byName.get('Test (windows-latest)')).toMatchObject({ state: 'skipped' })
+    expect(String(byName.get('Test (windows-latest)').condition_reason)).toContain('`windows-latest`')
+
+    expect(byName.get('distro')).toMatchObject({ state: 'skipped' })
+    expect(String(byName.get('distro').condition_reason)).toContain('container: fedora:latest')
+
+    // A label the map does not mention means what it meant.
+    expect(byName.get('mine')).toMatchObject({ state: 'queued', runs_on: 'self-hosted\ngpu' })
+
+    await db.updateTable('repository_mirrors').set({ runner_labels: null, job_priority: 0 }).where('id', '=', created.ci.mirrorId).execute()
+
+    // Upstream back to the one workflow the tests below expect it to hold.
+    await git(created.work, 'checkout', 'main')
+    await git(created.work, 'pull', created.upstream, 'main')
+    await git(created.work, 'rm', '-q', '.github/workflows/matrix.yml')
+    await git(created.work, 'commit', '-m', 'remove the matrix workflow')
+    await git(created.work, 'push', created.upstream, 'main')
+    await sync(created.ci.mirrorId)
+  })
+
+  test('and with `intermediate: skip`, a newer commit replaces the run still waiting for a runner', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('repository_mirrors').set({ intermediate: 'skip' }).where('id', '=', created.ci.mirrorId).execute()
+
+    const first = await commitUpstream('src/one.ts', 'export const one = 1\n')
+    await sync(created.ci.mirrorId)
+    const second = await commitUpstream('src/two.ts', 'export const two = 2\n')
+    await sync(created.ci.mirrorId)
+
+    const runs: any[] = await db.selectFrom('workflow_runs')
+      .select(['head_sha', 'state', 'concurrency_group'])
+      .where('repository_id', '=', created.ci.repositoryId)
+      .where('head_sha', 'in', [first, second])
+      .execute()
+    const of = (sha: string) => runs.find(run => run.head_sha === sha)
+
+    // Grouped per workflow and ref, although the workflow declares no group.
+    expect(String(of(second).concurrency_group)).toBe('mirror:.github/workflows/ci.yml:refs/heads/main')
+    expect(of(first).state).toBe('cancelled')
+    expect(of(second).state).toBe('queued')
+
+    await db.updateTable('repository_mirrors').set({ intermediate: null }).where('id', '=', created.ci.mirrorId).execute()
+  })
+
+  test('and with `workflows:`, its events start only the workflows it lists', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('repository_mirrors').set({ workflow_paths: 'nightly.yml' }).where('id', '=', created.ci.mirrorId).execute()
+
+    const head = await commitUpstream('src/three.ts', 'export const three = 3\n')
+    await sync(created.ci.mirrorId)
+
+    const runs = await runsOf(created.ci.repositoryId)
+    expect(runs.some(run => run.head_sha === head)).toBe(false)
+
+    await db.updateTable('repository_mirrors').set({ workflow_paths: null }).where('id', '=', created.ci.mirrorId).execute()
+  })
+})
+
 describe('a mirror that does not', () => {
   test('fetches the same commits and registers nothing', async () => {
     if (!available)

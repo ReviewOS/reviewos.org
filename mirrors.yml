@@ -84,6 +84,41 @@ mirrors:
     ci: true
     interval: 60
 
+  # zig-anti-virus, whose CI runs here while GitHub Actions is disabled for the
+  # repository upstream. Its workflows stay GitHub's (`.github/workflows`, read
+  # as they stand, so they keep working there when Actions returns), and
+  # `runners:` says what their GitHub-hosted labels mean here: the Linux jobs
+  # run on the owned Linux executor this repository shares with HQ and LSU
+  # (fleet.yml), and the labels no machine here answers for are skipped with
+  # the reason instead of waiting forever. Priority -5 lets HQ's and LSU's
+  # deploys go first; the starvation rule still runs these within half an hour.
+  # One executor runs these jobs one after another, where GitHub gave every
+  # push machines of its own, so `intermediate: skip` runs the newest commit
+  # per branch: a run already started finishes, and the waiting ones a newer
+  # commit replaces are dropped. `workflows:` keeps the nightly fuzz (27 jobs of
+  # up to two hours) on GitHub; it and the prefilter benchmark can still be
+  # started here by hand.
+  # The account credential reports each workflow's verdict back to the commit
+  # as "ReviewOS / CI" and "ReviewOS / Differential".
+  - remote: zig-utils/zig-anti-virus
+    owner: zig-utils
+    credential: github_account
+    ci: true
+    interval: 60
+    priority: -5
+    intermediate: skip
+    workflows:
+      - .github/workflows/ci.yml
+      - .github/workflows/differential.yml
+    runners:
+      ubuntu-latest: [self-hosted, lsu-linux]
+      ubuntu-24.04: [self-hosted, lsu-linux]
+      # No arm64 Linux, no Windows, and the one Mac executor keeps its disk for
+      # HQ's native work: these run only on GitHub.
+      ubuntu-24.04-arm: false
+      macos-latest: false
+      windows-latest: false
+
   # `ReviewOS/.github` is deliberately absent: there is no such repository
   # upstream, and a declared mirror of a repository that does not exist is a
   # sweep that fails every fifteen minutes until it disables itself. This

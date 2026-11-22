@@ -2159,6 +2159,10 @@ declare module '@stacksjs/database' {
       metadata_error: string
       metadata_failure_count: number
       run_workflows: boolean
+      runner_labels: string | null
+      job_priority: number
+      intermediate: "run" | "skip" | "cancel" | null
+      workflow_paths: string | null
     }
     requests: {
       // columns

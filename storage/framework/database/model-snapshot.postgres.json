@@ -8203,6 +8203,45 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "runner_labels",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "job_priority",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "intermediate",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "run",
+              "skip",
+              "cancel"
+            ],
+            "enumTypeName": "repository_mirrors_intermediate_type"
+          },
+          {
+            "name": "workflow_paths",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -16295,7 +16334,7 @@
       }
     ]
   },
-  "hash": "44df7225b689c3031ac181ba17d8fd4284ea49d78208c2c932cace2f3004b053",
+  "hash": "1907ad509c0cf86231206d7f36e99237a0dddad04bbb098acbe610f592c835ee",
   "dialect": "postgres",
-  "updatedAt": "2026-11-14T17:52:15.710Z"
+  "updatedAt": "2026-11-22T17:58:15.454Z"
 }

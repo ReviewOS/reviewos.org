@@ -288,5 +288,86 @@ export default defineModel({
       validation: { rule: schema.boolean() },
       factory: () => false,
     },
+
+    /**
+     * What a CI mirror's hosted runner labels mean on this instance.
+     *
+     * An upstream on GitHub writes `runs-on: ubuntu-latest` and
+     * `windows-latest`, which name GitHub's machines. Nothing here answers to
+     * them unless an operator says which of this instance's runners stands in
+     * for which, and the file upstream cannot say it: GitHub refuses a
+     * workflow carrying this forge's `reviewos:` key. So the translation lives
+     * on the mirror, declared in `mirrors.yml` (`runners:`), one line per
+     * label: `ubuntu-latest=self-hosted,lsu-linux` replaces the label with
+     * those, and `windows-latest=` with nothing after it says no machine here
+     * runs it, which skips that job with the reason rather than leaving it
+     * queued forever. Lines rather than JSON for the same reason a runner's
+     * `tags` are lines. See `app/Actions/Mirror/runnerMap.ts`.
+     */
+    runner_labels: {
+      order: 22,
+      fillable: true,
+      nullable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
+    /**
+     * The queue priority a CI mirror's jobs carry when they asked for none.
+     *
+     * A mirror usually shares runners with this instance's own repositories,
+     * whose deploys somebody is waiting for; a negative number lets those go
+     * first and still runs the mirror's jobs once they have waited the
+     * starvation window (`STARVATION_MINUTES` in `app/Actions/Runner/claim.ts`).
+     */
+    job_priority: {
+      order: 23,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    /**
+     * What a CI mirror does with a commit that lands while an earlier one is
+     * still waiting for a runner: `skip` lets the started run finish and drops
+     * the waiting ones, `cancel` stops the started one too. Null leaves the
+     * workflows as they are written.
+     *
+     * The workflow-level `reviewos.intermediate:` says the same thing, and an
+     * upstream on GitHub cannot write it. Without it, a busy upstream on
+     * runners this instance shares queues one full run per commit - on GitHub
+     * every push gets machines of its own; here they wait in line behind each
+     * other and in front of everybody else. Applied only to a workflow that
+     * declares no `concurrency:` of its own, grouped per workflow and ref.
+     */
+    intermediate: {
+      order: 24,
+      fillable: true,
+      nullable: true,
+      validation: { rule: schema.enum(['run', 'skip', 'cancel']) },
+      factory: () => null,
+    },
+
+    /**
+     * Which of a CI mirror's workflows its events start here, one path per
+     * line (`.github/workflows/ci.yml`). Null starts all of them.
+     *
+     * An upstream's workflows were sized for the machines its own forge hands
+     * out, and some of them are not CI at all: a nightly fuzz that is
+     * twenty-seven two-hour jobs is free on GitHub and a day and a half of a
+     * shared runner here. The rest stay registered and can still be started by
+     * hand (`workflow_dispatch`); only pushes, schedules and the other events
+     * pass them by. An allowlist rather than a denylist, so a workflow the
+     * upstream adds later does not start spending this instance's runners
+     * until somebody has said it should.
+     */
+    workflow_paths: {
+      order: 25,
+      fillable: true,
+      nullable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
   },
 })

@@ -97,6 +97,13 @@ export interface WorkflowJob {
    * have to re-parse the document to find out.
    */
   services: WorkflowService[]
+  /**
+   * `container:` on the job: the image every step was written to run inside,
+   * or null. Recorded rather than honoured - this instance runs no job
+   * containers - so that dispatch can say so on the job instead of handing its
+   * steps to a host whose environment is not the image's.
+   */
+  container: string | null
   /** `reviewos.skip:` - the reason this job is off, or null. */
   skip: string | null
   /** `reviewos.soft-fail:` - a failure that is reported and does not fail the run. */
@@ -2472,6 +2479,19 @@ export function servicesFrom(value: unknown): WorkflowService[] {
   return services
 }
 
+/**
+ * `container:` as the image it names, in either of Actions' two shapes: the
+ * bare string, or a mapping with `image:`. Null when there is no image.
+ */
+export function containerFrom(value: unknown): string | null {
+  if (typeof value === 'string')
+    return value.trim() || null
+
+  const image = asRecord(value)?.image
+
+  return typeof image === 'string' && image.trim() ? image.trim() : null
+}
+
 export function defaultsFrom(value: unknown): { shell: string | null, workingDirectory: string | null } {
   const run = asRecord(asRecord(value)?.run)
 
@@ -2799,6 +2819,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       environment: environmentFrom(body.environment),
       services: servicesFrom(body.services),
+      container: containerFrom(body.container),
       skip: extension.skip,
       softFail: extension.softFail,
       branches: extension.branches,

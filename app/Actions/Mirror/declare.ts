@@ -21,6 +21,8 @@
  * be "nothing happened".
  */
 
+import type { RunnerMap } from './runnerMap'
+import { declaredRunnerMap, readRunnerMap, storeRunnerMap, storeWorkflowPaths } from './runnerMap'
 import { db } from '@stacksjs/database'
 import { addMirror, parseRemote } from '../../Commands/MirrorAdd'
 import { isTrue } from '../Support/sql'
@@ -44,6 +46,18 @@ export interface DeclaredMirror {
   credential?: string
   /** Private here, whatever the upstream says. */
   private?: boolean
+  /**
+   * What the upstream's hosted runner labels mean here (`runner_labels`): a
+   * label to the labels standing in for it, or `false` for one no machine here
+   * runs. See `runnerMap.ts`.
+   */
+  runners?: RunnerMap
+  /** The queue priority this mirror's jobs carry when they ask for none (`job_priority`). */
+  priority?: number
+  /** What a newer commit does to this mirror's waiting runs (`intermediate`): `run`, `skip` or `cancel`. */
+  intermediate?: 'run' | 'skip' | 'cancel'
+  /** The workflows its events start here (`workflow_paths`); the rest only by hand. */
+  workflows?: string[]
 }
 
 export interface DeclaredMirrors {
@@ -93,6 +107,10 @@ export function readDeclaration(source: string): { mirrors: DeclaredMirrors, err
         ci: row.ci === undefined ? undefined : Boolean(row.ci),
         credential: row.credential ? String(row.credential) : undefined,
         private: row.private === undefined ? undefined : Boolean(row.private),
+        runners: declaredRunnerMap(row.runners) ?? undefined,
+        priority: row.priority === undefined || !Number.isFinite(Number(row.priority)) ? undefined : Math.trunc(Number(row.priority)),
+        intermediate: ['run', 'skip', 'cancel'].includes(String(row.intermediate)) ? String(row.intermediate) as 'run' | 'skip' | 'cancel' : undefined,
+        workflows: Array.isArray(row.workflows) ? row.workflows.map(String) : undefined,
       }
     }).filter(row => row.remote && row.owner)
 
@@ -210,6 +228,14 @@ export async function applyMirrors(declared: DeclaredMirrors): Promise<MirrorPla
       ci: mirror.ci ?? false,
       private: mirror.private ?? false,
     })
+
+    // `addMirror` knows nothing of runner labels or priority; the row it just
+    // wrote takes them the same way an existing one does.
+    if (mirror.runners !== undefined || mirror.priority !== undefined || mirror.intermediate !== undefined || mirror.workflows !== undefined) {
+      const created = (await readExisting()).get(local.toLowerCase())
+      if (created)
+        await settleSettings(created, mirror)
+    }
   }
 
   return plan
@@ -227,6 +253,14 @@ export interface ExistingMirror {
   visibility: string
   /** Seconds between sweeps. */
   intervalSeconds: number
+  /** `runner_labels` as stored, or empty. */
+  runnerLabels?: string
+  /** `job_priority`. */
+  jobPriority?: number
+  /** `intermediate`, or empty. */
+  intermediate?: string
+  /** `workflow_paths` as stored, or empty. */
+  workflowPaths?: string
 }
 
 /**
@@ -238,7 +272,7 @@ export interface ExistingMirror {
  * publish a repository, because that is not a decision a file applied on
  * every deploy should be able to make.
  */
-export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runWorkflows' | 'credentialRef' | 'visibility'> & Partial<Pick<ExistingMirror, 'intervalSeconds'>>, declared: DeclaredMirror): string[] {
+export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runWorkflows' | 'credentialRef' | 'visibility'> & Partial<Pick<ExistingMirror, 'intervalSeconds' | 'runnerLabels' | 'jobPriority' | 'intermediate' | 'workflowPaths'>>, declared: DeclaredMirror): string[] {
   const drift: string[] = []
 
   if (declared.ci !== undefined && declared.ci !== current.runWorkflows)
@@ -255,7 +289,32 @@ export function settingsDrift(local: string, current: Pick<ExistingMirror, 'runW
   if (interval !== null && current.intervalSeconds !== undefined && interval !== current.intervalSeconds)
     drift.push(`sweep ${local} every ${interval}s (it is swept every ${current.intervalSeconds}s)`)
 
+  const labels = declaredLabels(declared)
+  if (labels !== null && labels !== storeRunnerMap(readRunnerMap(current.runnerLabels)))
+    drift.push(labels ? `run ${local}'s hosted labels as ${labels.split('\n').join('; ')}` : `stop translating ${local}'s runner labels`)
+
+  if (declared.priority !== undefined && declared.priority !== Number(current.jobPriority ?? 0))
+    drift.push(`queue ${local}'s jobs at priority ${declared.priority}`)
+
+  if (declared.intermediate !== undefined && declared.intermediate !== String(current.intermediate ?? ''))
+    drift.push(`${declared.intermediate} ${local}'s intermediate runs`)
+
+  if (declared.workflows !== undefined && (storeWorkflowPaths(declared.workflows) ?? '') !== String(current.workflowPaths ?? ''))
+    drift.push(`start only ${storeWorkflowPaths(declared.workflows)?.split('\n').join(', ') ?? 'every workflow'} from ${local}'s events`)
+
   return drift
+}
+
+/**
+ * The stored form of a line's `runners:`, `''` for an empty map, or null when
+ * the line has no opinion - so a file that predates the key cannot clear a
+ * translation somebody set by hand.
+ */
+function declaredLabels(declared: Pick<DeclaredMirror, 'runners'>): string | null {
+  if (declared.runners === undefined)
+    return null
+
+  return storeRunnerMap(declared.runners) ?? ''
 }
 
 /**
@@ -292,6 +351,19 @@ async function settleSettings(current: ExistingMirror, declared: DeclaredMirror)
   if (interval !== null && interval !== current.intervalSeconds)
     mirror.interval_seconds = interval
 
+  const labels = declaredLabels(declared)
+  if (labels !== null && labels !== storeRunnerMap(readRunnerMap(current.runnerLabels)))
+    mirror.runner_labels = labels || null
+
+  if (declared.priority !== undefined && declared.priority !== Number(current.jobPriority ?? 0))
+    mirror.job_priority = declared.priority
+
+  if (declared.intermediate !== undefined && declared.intermediate !== String(current.intermediate ?? ''))
+    mirror.intermediate = declared.intermediate
+
+  if (declared.workflows !== undefined && (storeWorkflowPaths(declared.workflows) ?? '') !== String(current.workflowPaths ?? ''))
+    mirror.workflow_paths = storeWorkflowPaths(declared.workflows)
+
   if (Object.keys(mirror).length > 0) {
     await db
       .updateTable('repository_mirrors')
@@ -327,6 +399,10 @@ async function readExisting(): Promise<Map<string, ExistingMirror>> {
       'repository_mirrors.run_workflows as run_workflows',
       'repository_mirrors.credential_ref as credential_ref',
       'repository_mirrors.interval_seconds as interval_seconds',
+      'repository_mirrors.runner_labels as runner_labels',
+      'repository_mirrors.job_priority as job_priority',
+      'repository_mirrors.intermediate as intermediate',
+      'repository_mirrors.workflow_paths as workflow_paths',
     ])
     .execute(), [])
 
@@ -350,6 +426,10 @@ async function readExisting(): Promise<Map<string, ExistingMirror>> {
       credentialRef: String(row.credential_ref ?? ''),
       visibility: String(row.visibility ?? ''),
       intervalSeconds: Number(row.interval_seconds ?? 0),
+      runnerLabels: String(row.runner_labels ?? ''),
+      jobPriority: Number(row.job_priority ?? 0),
+      intermediate: String(row.intermediate ?? ''),
+      workflowPaths: String(row.workflow_paths ?? ''),
     })
   }
 

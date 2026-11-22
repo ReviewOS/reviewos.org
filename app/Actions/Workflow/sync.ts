@@ -64,7 +64,7 @@ function settingsWith(
   settings: Record<string, unknown>,
   environment: string | null,
   services: readonly unknown[] = [],
-  attributes: { skip?: string | null, softFail?: unknown, branches?: readonly string[] } = {},
+  attributes: { skip?: string | null, softFail?: unknown, branches?: readonly string[], container?: string | null } = {},
 ): string | null {
   const merged = {
     ...settings,
@@ -79,6 +79,9 @@ function settingsWith(
     // settings forward, and a runner reads what the file asked for rather than
     // going back to the definition it may no longer match.
     ...(services.length > 0 ? { services } : {}),
+    // And the job's container image, which this instance does not run: kept
+    // so dispatch can say so on the job (`app/Actions/Mirror/runnerMap.ts`).
+    ...(attributes.container ? { container: attributes.container } : {}),
   }
 
   return Object.keys(merged).length > 0 ? JSON.stringify(merged) : null
@@ -367,6 +370,7 @@ async function insertVersion(
           skip: job.skip,
           softFail: job.softFail,
           branches: job.branches,
+          container: job.container,
         }),
         group_label: job.group,
         priority: job.priority,

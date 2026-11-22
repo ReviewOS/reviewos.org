@@ -401,3 +401,5 @@ the idempotence the checklist asks for rather than an assertion about it.
 - [x] Boot application event listeners in the account discovery command so transfers performed by a local operator reach the audit log, as they already do from a worker or HTTP request.
 
 - [x] Declare framework mirror CI so native macOS source evidence runs on its repository-scoped Mac runner and can be verified through public workflow metadata before SDK publication.
+
+- [x] Run a CI mirror's GitHub-hosted jobs on this instance's runners: `runners:` in `mirrors.yml` translates `ubuntu-latest` and friends onto local labels and skips, with the reason, the labels and job containers no machine here runs; `priority:` queues the mirror behind the instance's own work, `intermediate:` runs only its newest commit per branch, and `workflows:` says which of its workflows its events start. First used for zig-utils/zig-anti-virus while GitHub Actions is disabled for it.

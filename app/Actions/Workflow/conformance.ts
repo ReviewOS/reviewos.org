@@ -84,7 +84,7 @@ export const CONFORMANCE: ConformanceEntry[] = [
   { key: 'run-name', level: 'workflow', status: 'unimplemented', behaviour: 'Accepted and not yet used; runs are named for their workflow.' },
 
   // --------------------------------------------------------------------- job
-  { key: 'jobs.<id>.runs-on', level: 'job', status: 'supported', behaviour: 'Matched against a runner\'s labels, as a string, a list, or a `group`/`labels` mapping.' },
+  { key: 'jobs.<id>.runs-on', level: 'job', status: 'supported', behaviour: 'Matched against a runner\'s labels, as a string, a list, or a `group`/`labels` mapping, with `${{ matrix.* }}` filled in per combination. A CI mirror can translate its upstream\'s GitHub-hosted labels onto this instance\'s runners (`runners:` in `mirrors.yml`).' },
   { key: 'jobs.<id>.needs', level: 'job', status: 'supported', behaviour: 'Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. A matrix is every combination of it: `needs: build` waits for all of them and is held back by any one that failed.' },
   { key: 'jobs.<id>.if', level: 'job', status: 'supported', behaviour: 'Evaluated when the run is created; a job whose condition is false is `skipped` with the reason recorded.' },
   { key: 'jobs.<id>.strategy.matrix', level: 'job', status: 'supported', behaviour: 'Expanded at parse time, including `include` and `exclude`; each combination is its own job.' },

@@ -29,7 +29,9 @@ import type { Combination, MatrixAdjustment } from './matrix'
 import { isOrchestratorJob } from './program'
 import { adjustmentFor } from './matrix'
 import type { ConcurrencyContext } from './concurrency'
-import { cancelsInProgress, resolveGroup } from './concurrency'
+import { cancelsInProgress, fillGroup, resolveGroup } from './concurrency'
+import { readRunnerMap, translateRunsOn, workflowAllowed } from '../Mirror/runnerMap'
+import type { RunnerMap } from '../Mirror/runnerMap'
 import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
@@ -144,7 +146,28 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
   const own = await ownVersions(repositoryId)
   const owners = await ownerVersionsFor(repositoryId, VERSION_COLUMNS)
 
-  return [...own, ...owners]
+  /*
+   * A CI mirror's `workflows:`: the upstream's workflows its events start here.
+   * The others stay registered, and `workflow_dispatch` - which does not come
+   * through here - still starts them by hand.
+   */
+  const allowed = await mirrorWorkflowPaths(repositoryId)
+  const started = allowed ? own.filter(row => workflowAllowed(allowed, String(row.workflow_path ?? ''))) : own
+
+  return [...started, ...owners]
+}
+
+/** A CI mirror's workflow allowlist as stored, or null when every workflow runs. */
+export async function mirrorWorkflowPaths(repositoryId: number): Promise<string | null> {
+  const mirror: any = await rescue(() => db
+    .selectFrom('repository_mirrors')
+    .select(['run_workflows', 'workflow_paths'])
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst(), null)
+
+  const stored = String(mirror?.workflow_paths ?? '').trim()
+
+  return mirror && isTrue(mirror.run_workflows) && stored ? stored : null
 }
 
 /** The versions of the workflows this repository carries itself. */
@@ -1360,8 +1383,21 @@ async function createRunWithGraph(input: {
      * the cast is here, once, where the transaction is opened.
      */
     const tx = handle as unknown as Executor
-    const group = String(input.values.concurrency_group ?? '').trim()
     const repositoryId = Number(input.values.repository_id)
+
+    /*
+     * A CI mirror's `intermediate:`, for a workflow that declared no group.
+     *
+     * The upstream's file cannot say `reviewos.intermediate`, and on runners
+     * this instance shares, a busy upstream otherwise queues one full run per
+     * commit. So the mirror says it, and its runs are grouped per workflow and
+     * ref - the group a person would have written - with the mirror's policy.
+     * A workflow with a `concurrency:` of its own keeps it, untouched.
+     */
+    const policy = String(input.values.concurrency_group ?? '').trim() ? null : await mirrorIntermediate(tx, repositoryId)
+    if (policy)
+      input.values.concurrency_group = await mirrorGroup(tx, input.versionId, String(input.values.event_ref ?? ''))
+    const group = String(input.values.concurrency_group ?? '').trim()
 
     // Allocate numbers and admit groups under one repository lock, including
     // when no earlier run exists. Reading the number before waiting for this
@@ -1392,7 +1428,7 @@ async function createRunWithGraph(input: {
         sha: String(input.values.head_sha ?? ''),
       }
       const cancelInProgress = cancelsInProgress(version.cancel_in_progress, String(version.cancel_in_progress_expression ?? ''), context)
-      const intermediate = String(version.intermediate ?? 'run')
+      const intermediate = policy ?? String(version.intermediate ?? 'run')
       superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate, Number(runNumber))
       await holdForGroup(tx, { repositoryId, runId, group, cancelInProgress, intermediate })
     }
@@ -1477,6 +1513,14 @@ async function createJobs(
    * for the same reason: it is a property of the dispatch, not of a row.
    */
   const sourcePath = await sourcePathOf(client, versionId)
+
+  /*
+   * A CI mirror's translation of its upstream's hosted runner labels, and the
+   * priority its jobs wait at. Read once, like the two above: both are facts
+   * about the repository, not about any one job. Empty for everything that is
+   * not a CI mirror, which changes nothing below.
+   */
+  const hosted = await hostedRunnersOf(client, repositoryId)
 
   /*
    * What the *whole called workflow* waits for.
@@ -1595,14 +1639,30 @@ async function createJobs(
       const adjusted = values ? adjustmentFor(values as Combination, attributes.adjustments) : null
       const adjustedSkip = skipDecision(adjusted?.skip ?? null)
 
-      const runs = decision.run && paths.run && skipped.run && branch.run && adjustedSkip.run
+      /*
+       * `runs-on`, with this combination's values in it, and then translated
+       * onto this instance's runners when the repository is a CI mirror.
+       *
+       * `runs-on: ${{ matrix.os }}` is how every cross-platform matrix is
+       * written, and the labels used to be stored exactly as written - so the
+       * job asked for a runner labelled `${{ matrix.os }}`, which no machine
+       * is, and waited for one until its timeout. Filled here, per
+       * combination, the way the concurrency group above already was.
+       */
+      const labels = splitStoredLabels(job.runs_on)
+        .map(label => label.includes('${{') ? fillGroup(label, withMatrix(context ?? EMPTY_CONTEXT, values)).trim() : label)
+        .filter(label => label.length > 0)
+      const image = containerOf(job.settings)
+      const placed = translateRunsOn(labels, hosted.map, image?.includes('${{') ? fillGroup(image, withMatrix(context ?? EMPTY_CONTEXT, values)) : image)
+
+      const runs = decision.run && paths.run && skipped.run && branch.run && adjustedSkip.run && placed.run
       const why = !decision.run
         ? decision.reason
         : !paths.run
             ? paths.reason
             : !skipped.run
                 ? skipped.reason
-                : !branch.run ? branch.reason : adjustedSkip.reason
+                : !branch.run ? branch.reason : !adjustedSkip.run ? adjustedSkip.reason : placed.reason
 
       /*
        * And one row per parallel copy of each of those.
@@ -1649,7 +1709,7 @@ async function createJobs(
             // endpoint takes, and a person reading a run is not indexing an
             // array.
             name: shardName(
-              callName(prefix, values ? `${job.name ?? job.job_id} (${labelFor(values)})` : (job.name ?? job.job_id)),
+              callName(prefix, combinationName(String(job.name ?? job.job_id), values, context)),
               copy,
               copies,
             ),
@@ -1671,7 +1731,7 @@ async function createJobs(
                   : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
             finished_at: plugins.ok ? null : new Date().toISOString(),
             needs,
-            runs_on: job.runs_on,
+            runs_on: placed.runsOn.length > 0 ? placed.runsOn.join('\n') : job.runs_on,
             matrix_values: values ? JSON.stringify(values) : null,
             /*
              * Copied onto the run, like `needs` and `condition` above.
@@ -1706,7 +1766,9 @@ async function createJobs(
             orchestrator: isOrchestratorJob(String(job.job_id), sourcePath),
             settings: plugins.ok ? plugins.settings : (job.settings ?? null),
             group_label: job.group_label ?? null,
-            priority: Number(job.priority ?? 0),
+            // A CI mirror's own priority stands in for one the job could not
+            // ask for: its workflow lives upstream, where `reviewos:` is refused.
+            priority: Number(job.priority ?? 0) || hosted.priority,
           })
           .returning(['id'])
           .executeTakeFirst()
@@ -2117,6 +2179,105 @@ function labelFor(values: Record<string, unknown>): string {
   return Object.values(values)
     .map(value => (value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value)))
     .join(', ')
+}
+
+/**
+ * A matrix job's name, the way Actions writes it.
+ *
+ * A `name:` that reads the matrix - `Test (${{ matrix.os }})` - is filled in
+ * with this combination's values, and only a name that does not is given the
+ * values in brackets after it. Before this, the first kind was shown with the
+ * expression still in it and the values appended anyway:
+ * `Test (${{ matrix.os }}) (ubuntu-latest)`.
+ */
+export function combinationName(name: string, values: Record<string, unknown> | null, context?: ConcurrencyContext): string {
+  if (!values)
+    return name
+
+  if (name.includes('${{')) {
+    const filled = fillGroup(name, withMatrix(context ?? EMPTY_CONTEXT, values))
+    if (!filled.includes('${{'))
+      return filled
+  }
+
+  return `${name} (${labelFor(values)})`
+}
+
+/** A CI mirror's `intermediate` policy, or null when it has none (or is not a CI mirror). */
+async function mirrorIntermediate(client: Executor, repositoryId: number): Promise<string | null> {
+  if (!repositoryId)
+    return null
+
+  const mirror: any = await client
+    .selectFrom('repository_mirrors')
+    .select(['run_workflows', 'intermediate'])
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst()
+
+  const policy = String(mirror?.intermediate ?? '')
+
+  return mirror && isTrue(mirror.run_workflows) && ['run', 'skip', 'cancel'].includes(policy) && policy !== 'run' ? policy : null
+}
+
+/** The group a mirror's policy puts a run in: its workflow's path and its ref. */
+async function mirrorGroup(client: Executor, versionId: number, ref: string): Promise<string> {
+  const version: any = await client
+    .selectFrom('workflow_versions')
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .select(['workflows.path as path'])
+    .where('workflow_versions.id', '=', versionId)
+    .executeTakeFirst()
+
+  return `mirror:${String(version?.path ?? versionId)}:${ref}`.slice(0, 500)
+}
+
+/** What `fillGroup` is given when a dispatch has no event context: the matrix alone. */
+const EMPTY_CONTEXT: ConcurrencyContext = { workflow: '', eventName: '', ref: '', sha: '' }
+
+/** A stored `runs-on`, one label per line. */
+function splitStoredLabels(stored: unknown): string[] {
+  return String(stored ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+}
+
+/** The job-level `container:` image a definition recorded in its settings, or null. */
+function containerOf(settings: unknown): string | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+    return typeof parsed?.container === 'string' && parsed.container ? parsed.container : null
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * A CI mirror's runner translation and job priority (`runners:` and
+ * `priority:` in `mirrors.yml`). An empty map and priority 0 for a repository
+ * that is not a CI mirror, and for a mirror that declared neither.
+ */
+async function hostedRunnersOf(client: Executor, repositoryId: number): Promise<{ map: RunnerMap, priority: number }> {
+  const none = { map: new Map() as RunnerMap, priority: 0 }
+
+  if (!repositoryId)
+    return none
+
+  // Not rescued: inside the run's transaction a swallowed failure would only
+  // trade this error for Postgres' "current transaction is aborted" later.
+  const mirror: any = await client
+    .selectFrom('repository_mirrors')
+    .select(['run_workflows', 'runner_labels', 'job_priority'])
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst()
+
+  if (!mirror || !isTrue(mirror.run_workflows))
+    return none
+
+  const priority = Number(mirror.job_priority ?? 0)
+
+  return {
+    map: readRunnerMap(mirror.runner_labels),
+    priority: Number.isFinite(priority) ? Math.trunc(priority) : 0,
+  }
 }
 
 /**

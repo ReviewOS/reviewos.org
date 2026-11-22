@@ -25,12 +25,17 @@ pools:
   # The explicit allowlist preserves private repository isolation. Labels choose
   # the operating system; one runner process per host keeps native work serial.
   # No additional machine or paid hosted runner is provisioned by this pool.
+  #
+  # zig-anti-virus joins it while GitHub Actions is disabled for that public
+  # repository: its mirror (mirrors.yml) maps `ubuntu-latest` onto this pool's
+  # Linux executor and queues at a lower priority than HQ and LSU.
   - name: HQ and LSU owned
     slug: hq-lsu-owned
-    description: existing owned Linux and macOS executors for HQ and LSU
+    description: existing owned Linux and macOS executors for HQ, LSU and zig-anti-virus
     queues:
       - name: owned-release
     repositories:
       - stacks/hq.training
       - stacks/lastsoulultra
+      - zig-utils/zig-anti-virus
     registration_token_env: REVIEWOS_OWNED_RELEASE_REGISTRATION_TOKEN

@@ -8363,6 +8363,45 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "runner_labels",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "job_priority",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "intermediate",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "run",
+              "skip",
+              "cancel"
+            ],
+            "enumTypeName": "repository_mirrors_intermediate_type"
+          },
+          {
+            "name": "workflow_paths",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -16295,7 +16334,7 @@
       }
     ]
   },
-  "hash": "1d2c8c0eaa3083226316461122f9316c22df2522687c5f03bf9e3553a1d7d777",
+  "hash": "27deb6ea42152ddd74ee5f5bd4ad898ae5ba5192443b063cfdbd369aac8de5ce",
   "dialect": "mysql",
-  "updatedAt": "2026-11-14T17:52:29.312Z"
+  "updatedAt": "2026-11-22T17:58:15.207Z"
 }

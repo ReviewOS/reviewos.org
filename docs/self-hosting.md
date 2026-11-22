@@ -1341,6 +1341,43 @@ That is what lets the people pushing upstream see the verdict, and a branch
 protection rule there require it. A fine-grained token needs **Contents: read**
 and **Commit statuses: read and write** on the repository.
 
+#### Where an upstream's GitHub-hosted jobs run
+
+A workflow written for GitHub names GitHub's machines - `runs-on: ubuntu-latest`,
+`${{ matrix.os }}` over `macos-latest` and `windows-latest` - and nothing here
+answers to those unless you say what stands in for them. The upstream file cannot
+say it: GitHub refuses a workflow carrying this forge's `reviewos:` key. So it is
+said on the mirror:
+
+```yaml
+  - remote: acme/widgets
+    owner: acme
+    ci: true
+    priority: -5            # queue behind this instance's own work
+    intermediate: skip      # the newest commit per branch, not one run each
+    workflows: [ci.yml]     # what its events start; the rest only by hand
+    runners:
+      ubuntu-latest: [self-hosted, linux-x64]
+      windows-latest: false # no machine here: skipped, with the reason
+```
+
+A label mapped to a list is replaced by it; a label mapped to `false` skips the
+jobs asking for it, saying why on the run, so the verdict reported upstream is
+about the jobs that ran here rather than `pending` forever. A label the map does
+not mention passes through. On a mirror with `runners:`, a job-level
+`container:` is skipped the same way, since this instance runs no job
+containers. `priority:` is the queue priority the mirror's jobs carry; a
+negative one still runs within the starvation window. `intermediate:` is the
+workflow-level `reviewos.intermediate` an upstream cannot write: with `skip`, a
+newer commit drops the runs still waiting and lets a started one finish, which
+keeps a busy upstream from queueing a full run per commit on shared runners. It
+groups runs per workflow and ref, and only for a workflow that declares no
+`concurrency:` of its own. `workflows:` lists the workflows the mirror's pushes,
+schedules and other events start here, by path or file name; the others stay
+registered and run only when somebody dispatches them, so a nightly sized for
+GitHub's machines does not spend a day of yours. Leaving any of these keys out
+of the file leaves the mirror's current value alone.
+
 The sync interval decides how soon CI starts. A webhook from the upstream
 (`POST /api/mirrors/webhook`, signed with the secret `mirror:add` prints) makes
 it immediate; without one, `interval: 60` is the shortest the sweep allows.
