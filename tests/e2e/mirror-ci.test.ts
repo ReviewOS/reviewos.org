@@ -461,6 +461,101 @@ jobs:
     await db.updateTable('repository_mirrors').set({ intermediate: null }).where('id', '=', created.ci.mirrorId).execute()
   })
 
+  test('and with `intermediate: skip`, a run on an older commit never drops one on a newer commit', async () => {
+    if (!available)
+      return
+
+    // zig-anti-virus #18: a schedule run on a stale commit (3d46a79) arrived
+    // while push run #16 on the branch head (277b359) waited behind a running
+    // run, and `skip` cancelled #16 "because a newer commit arrived" - the
+    // newer *run* was on the older commit.
+    await db.updateTable('repository_mirrors').set({ intermediate: 'skip' }).where('id', '=', created.ci.mirrorId).execute()
+
+    try {
+      const older = await commitUpstream('src/four.ts', 'export const four = 4\n')
+      await sync(created.ci.mirrorId)
+      const ahead = await commitUpstream('src/five.ts', 'export const five = 5\n')
+      await sync(created.ci.mirrorId)
+
+      const runOn = async (sha: string, event = 'push'): Promise<any> => db.selectFrom('workflow_runs')
+        .select(['id', 'state', 'head_sha', 'concurrency_group'])
+        .where('repository_id', '=', created.ci.repositoryId)
+        .where('head_sha', '=', sha)
+        .where('event', '=', event)
+        .orderBy('id', 'desc')
+        .executeTakeFirst()
+      const stateOf = async (id: number): Promise<string> => String((await db.selectFrom('workflow_runs').select(['state']).where('id', '=', id).executeTakeFirst()).state)
+
+      // The run on `ahead` has started, so the next push waits behind it.
+      const running = await runOn(ahead)
+      await db.updateTable('workflow_runs').set({ state: 'running', started_at: new Date().toISOString() }).where('id', '=', Number(running.id)).execute()
+
+      const newest = await commitUpstream('src/six.ts', 'export const six = 6\n')
+      await sync(created.ci.mirrorId)
+      const waiting = await runOn(newest)
+      expect(waiting.state).toBe('waiting')
+
+      const version: any = await db.selectFrom('workflow_versions')
+        .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+        .select(['workflow_versions.id as id'])
+        .where('workflows.repository_id', '=', created.ci.repositoryId)
+        .where('workflows.path', '=', '.github/workflows/ci.yml')
+        .orderBy('workflow_versions.id', 'desc')
+        .executeTakeFirst()
+      const { releaseGroup, startRun } = await import('../../app/Actions/Workflow/dispatch')
+      const { withRedeliveryKey } = await import('../../app/Actions/Workflow/redelivery')
+      const scheduled = (sha: string): Promise<number> => startRun({
+        values: withRedeliveryKey({
+          workflow_version_id: Number(version.id),
+          repository_id: created.ci.repositoryId,
+          state: 'queued',
+          event: 'schedule',
+          event_ref: 'refs/heads/main',
+          head_sha: sha,
+          definition_sha: sha,
+          trusted: true,
+          actor_id: null,
+          concurrency_group: null,
+          started_at: null,
+        }),
+        versionId: Number(version.id),
+      })
+
+      // A run on an older commit arrives: the newer one keeps its place.
+      const stale = await scheduled(older)
+      expect(await stateOf(Number(waiting.id))).toBe('waiting')
+      expect(await stateOf(stale)).toBe('waiting')
+
+      // And one on the same commit is not a newer commit either.
+      const same = await scheduled(newest)
+      expect(await stateOf(Number(waiting.id))).toBe('waiting')
+
+      // When the running one finishes, the newest commit goes next and the
+      // stale run is dropped - not the other way round, as it was by run id.
+      await db.updateTable('workflow_runs').set({ state: 'succeeded', finished_at: new Date().toISOString() }).where('id', '=', Number(running.id)).execute()
+      const released = await releaseGroup(created.ci.repositoryId, String(waiting.concurrency_group))
+
+      expect([Number(waiting.id), same]).toContain(Number(released))
+      expect(await stateOf(Number(released))).toBe('queued')
+      expect(await stateOf(stale)).toBe('cancelled')
+
+      // A genuinely newer commit still replaces the waiting run, as before.
+      const later = await commitUpstream('src/seven.ts', 'export const seven = 7\n')
+      await db.updateTable('workflow_runs').set({ state: 'running', started_at: new Date().toISOString() }).where('id', '=', Number(released)).execute()
+      await sync(created.ci.mirrorId)
+      const replacing = await runOn(later)
+      expect(replacing.state).toBe('waiting')
+      const latest = await commitUpstream('src/eight.ts', 'export const eight = 8\n')
+      await sync(created.ci.mirrorId)
+      expect(await stateOf(Number(replacing.id))).toBe('cancelled')
+      expect((await runOn(latest)).state).toBe('waiting')
+      await db.updateTable('workflow_runs').set({ state: 'succeeded', finished_at: new Date().toISOString() }).where('id', '=', Number(released)).execute()
+    }
+    finally {
+      await db.updateTable('repository_mirrors').set({ intermediate: null }).where('id', '=', created.ci.mirrorId).execute()
+    }
+  })
+
   test('and with `workflows:`, its events start only the workflows it lists', async () => {
     if (!available)
       return

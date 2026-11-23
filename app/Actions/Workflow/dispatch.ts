@@ -32,6 +32,7 @@ import type { ConcurrencyContext } from './concurrency'
 import { cancelsInProgress, fillGroup, resolveGroup } from './concurrency'
 import { readRunnerMap, translateRunsOn, workflowAllowed } from '../Mirror/runnerMap'
 import type { RunnerMap, Translation } from '../Mirror/runnerMap'
+import { compareCommits, lazyGitDir } from './commitOrder'
 import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
@@ -872,10 +873,13 @@ async function supersede(
   cancelInProgress: boolean,
   intermediate: string = 'run',
   runNumber: number | null = null,
+  headSha: string = '',
 ): Promise<SupersededRun[]> {
   const moved: SupersededRun[] = []
   if (!group)
     return moved
+
+  const gitDir = lazyGitDir(client, repositoryId)
 
   /*
    * `skip` and `cancel` differ in one thing: whether a build that has already
@@ -891,7 +895,7 @@ async function supersede(
   if (intermediate === 'skip') {
     const waiting = await client
       .selectFrom('workflow_runs')
-      .select(['id', 'state'])
+      .select(['id', 'state', 'head_sha'])
       .where('repository_id', '=', repositoryId)
       .where('concurrency_group', '=', group)
       // Dispatch callbacks can finish out of order. An older callback must
@@ -905,6 +909,21 @@ async function supersede(
       .execute()
 
     for (const run of waiting) {
+      /*
+       * Only for a newer *commit*, which a newer run is not always.
+       *
+       * A schedule or a manual dispatch can start a run on a commit the branch
+       * has moved past, and by run id alone it read as the newer one:
+       * zig-anti-virus's scheduled #18 on a stale commit cancelled push #16 on
+       * the branch head. So the waiting run goes only when this one's commit
+       * descends from it, or at least is not one it already contains: the
+       * same commit or an older one keeps it. Where git cannot place the two
+       * (a commit not on this node) the old rule stands.
+       */
+      const order = await compareCommits(await gitDir(), headSha, run.head_sha)
+      if (order === 'same' || order === 'older')
+        continue
+
       const cancelled = await client
         .updateTable('workflow_runs')
         .set({
@@ -937,7 +956,7 @@ async function supersede(
   }
 
   if (!cancelInProgress && intermediate !== 'cancel')
-    return await supersedePending(client, { repositoryId, newerThan: runId, group, by: runNumber })
+    return await supersedePending(client, { repositoryId, newerThan: runId, group, by: runNumber, sha: headSha })
 
   const live = await client
     .selectFrom('workflow_runs')
@@ -1032,20 +1051,35 @@ async function supersedePending(client: Executor, input: {
   newerThan: number
   group: string
   by: number | null
+  /** The replacing run's commit. A waiting run on a strictly newer one is kept. */
+  sha?: string
+  /**
+   * Every other waiting run rather than only the older ones by id: the release
+   * picks the newest *commit* to go next, which need not be the newest run.
+   */
+  everyOther?: boolean
 }): Promise<SupersededRun[]> {
   const moved: SupersededRun[] = []
-  const pending = await client
+  let query = client
     .selectFrom('workflow_runs')
-    .select(['id', 'state'])
+    .select(['id', 'state', 'head_sha'])
     .where('repository_id', '=', input.repositoryId)
     .where('concurrency_group', '=', input.group)
-    .where('id', '<', input.newerThan)
+  query = input.everyOther ? query.where('id', '!=', input.newerThan) : query.where('id', '<', input.newerThan)
+  const pending = await query
     .where('state', '=', 'waiting')
     .where('approval_state', 'in', GROUP_PENDING_APPROVALS)
     .execute()
 
+  const gitDir = lazyGitDir(client, input.repositoryId)
   const now = new Date().toISOString()
   for (const run of pending) {
+    // A run on an older commit never replaces one on a newer commit, whatever
+    // order they arrived in. Anything else is replaced as before, the same
+    // commit included: a group keeps one pending run, as Actions does.
+    if (input.sha !== undefined && await compareCommits(await gitDir(), input.sha, run.head_sha) === 'older')
+      continue
+
     const cancelled = await client
       .updateTable('workflow_runs')
       .set({ state: 'cancelled', finished_at: now, conclusion_reason: supersededReason(input.group, input.by) })
@@ -1264,15 +1298,22 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
    * ever lets a second one through. Releasing the oldest of those would run
    * a commit the newest one already contains.
    */
-  const held = await rescue(() => db
+  const candidates = await rescue(() => db
     .selectFrom('workflow_runs')
-    .select(['id', 'number'])
+    .select(['id', 'number', 'head_sha'])
     .where('repository_id', '=', repositoryId)
     .where('concurrency_group', '=', group)
     .where('state', '=', 'waiting')
     .where('approval_state', 'in', GROUP_PENDING_APPROVALS)
     .orderBy('id', 'desc')
-    .executeTakeFirst(), null)
+    .execute(), [] as any[])
+
+  /*
+   * "The newest" by commit, then by run: a run created last on a commit
+   * another waiting run already contains is not the one to release. A stale
+   * scheduled run arriving after a push used to win this and cancel the push.
+   */
+  const held = await newestCommit(repositoryId, candidates as any[])
 
   if (held) {
     const moved = await supersedePending(db, {
@@ -1280,6 +1321,8 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
       newerThan: Number(held.id),
       group,
       by: Number(held.number),
+      sha: String(held.head_sha ?? ''),
+      everyOther: true,
     }).catch(() => [] as SupersededRun[])
     await finishSuperseded(repositoryId, moved)
   }
@@ -1306,6 +1349,34 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
     .execute()
 
   return Number(next.id)
+}
+
+/**
+ * Of runs listed newest first, the first whose commit no other one descends
+ * from. Without history to go on - one run, commits git cannot place - that
+ * is simply the newest run, as before.
+ */
+async function newestCommit(repositoryId: number, runs: any[]): Promise<any | null> {
+  if (runs.length <= 1)
+    return runs[0] ?? null
+
+  const gitDir = lazyGitDir(db, repositoryId)
+
+  for (const run of runs) {
+    let contained = false
+
+    for (const other of runs) {
+      if (other !== run && await compareCommits(await gitDir(), run.head_sha, other.head_sha) === 'older') {
+        contained = true
+        break
+      }
+    }
+
+    if (!contained)
+      return run
+  }
+
+  return runs[0]
 }
 
 /** Postgres says 23505 for a unique violation; drivers wrap it differently. */
@@ -1429,7 +1500,7 @@ async function createRunWithGraph(input: {
       }
       const cancelInProgress = cancelsInProgress(version.cancel_in_progress, String(version.cancel_in_progress_expression ?? ''), context)
       const intermediate = policy ?? String(version.intermediate ?? 'run')
-      superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate, Number(runNumber))
+      superseded = await supersede(tx, repositoryId, runId, group, cancelInProgress, intermediate, Number(runNumber), String(input.values.head_sha ?? ''))
       await holdForGroup(tx, { repositoryId, runId, group, cancelInProgress, intermediate })
     }
 
