@@ -286,7 +286,7 @@ export async function claimNextJob(
    * Both the ceiling and the fairness need it, and asking per candidate would
    * turn one query into fifty on the hottest path this instance has.
    */
-  const load = await fleetLoad()
+  const load = await fleetLoad(runner.labels)
 
   // One query for the candidates either way: the fair pass reorders what came
   // back rather than asking for it twice.

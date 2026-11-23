@@ -7,7 +7,7 @@
 // everyone except the team that owns the busy repository.
 
 import { describe, expect, test } from 'bun:test'
-import { fairOrder, withinQuota } from '../../app/Actions/Runner/quota'
+import { fairOrder, loadOf, withinQuota } from '../../app/Actions/Runner/quota'
 import { DEFAULT_QUEUE_TIMEOUT_HOURS, fairQueueing, maxRunningPerOwner, maxRunningPerRepository, queueTimeoutHours } from '../../config/ci-quotas'
 
 function load(byRepository: Record<number, number>, byOwner: Record<number, number> = {}) {
@@ -94,6 +94,35 @@ describe('fair queueing', () => {
     // Repository 7 is holding eighty; 8 is holding none. The one-job build goes
     // first, which is the whole point.
     expect(fairOrder(rows, load({ 7: 80, 8: 0 })).map(one => one.id)).toEqual([3, 1, 2])
+  })
+
+  test('counts only the machines the asking runner stands for', () => {
+    /*
+     * Repository 7 runs its tests on the Mac and its lint on Linux. Its Mac
+     * job is running; nothing of its own is on Linux. Repository 8 has nothing
+     * running anywhere. To the Linux runner the two hold the same - none - so
+     * the queue's own order stands and 7's older lint goes first. Counted
+     * across the whole fleet, 7 "held a machine" and waited behind 8 for as
+     * long as its Mac stayed busy.
+     */
+    const running = [{ repository_id: 7, owner_id: 1, runs_on: 'self-hosted\nmacos-arm64\nmobile' }]
+    const queued = [
+      { id: 1, repository_id: 7 },
+      { id: 2, repository_id: 8 },
+    ]
+    const linux = ['self-hosted', 'linux-x64', 'owned-linux']
+    const mac = ['self-hosted', 'macos-arm64', 'mobile']
+
+    expect(fairOrder(queued, loadOf(running, linux)).map(one => one.id)).toEqual([1, 2])
+    // The Mac itself still sees what 7 holds of it, and offers 8 first.
+    expect(fairOrder(queued, loadOf(running, mac)).map(one => one.id)).toEqual([2, 1])
+    // A job a runner could have taken counts, whichever machine took it.
+    expect(loadOf([{ repository_id: 7, owner_id: 1, runs_on: 'self-hosted' }], linux).byRepositoryHere?.get(7)).toBe(1)
+    // The ceilings are about the whole fleet and keep counting everything.
+    expect(loadOf(running, linux).byRepository.get(7)).toBe(1)
+    expect(loadOf(running, linux).byOwner.get(1)).toBe(1)
+    // Nobody said which runner is asking: the whole fleet, as before.
+    expect(fairOrder(queued, loadOf(running)).map(one => one.id)).toEqual([2, 1])
   })
 
   test('and leaves a repository\'s own order exactly as the queue gave it', () => {

@@ -25,11 +25,19 @@
 import { db } from '@stacksjs/database'
 import { maxRunningPerOwner, maxRunningPerRepository } from '../../../config/ci-quotas'
 import { rescue } from '@stacksjs/error-handling'
+import { splitLabels } from './protocol'
 
 /** How many jobs each repository and owner is holding right now. */
 export interface FleetLoad {
   byRepository: Map<number, number>
   byOwner: Map<number, number>
+  /**
+   * What each repository holds *of the machines the asking runner stands for*:
+   * its running jobs that this runner could have taken itself. Fairness reads
+   * this one. Absent when nobody said which runner is asking, and fairness
+   * then falls back to the whole fleet.
+   */
+  byRepositoryHere?: Map<number, number>
 }
 
 /**
@@ -39,7 +47,7 @@ export interface FleetLoad {
  * fifty rows, and asking the database per row would turn one query into fifty
  * on the hottest path this instance has.
  */
-export async function fleetLoad(): Promise<FleetLoad> {
+export async function fleetLoad(runnerLabels?: readonly string[]): Promise<FleetLoad> {
   const rows = await rescue(() => db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
@@ -47,23 +55,48 @@ export async function fleetLoad(): Promise<FleetLoad> {
     .select([
       'workflow_runs.repository_id as repository_id',
       'repositories.owner_id as owner_id',
+      'workflow_jobs.runs_on as runs_on',
     ])
     .where('workflow_jobs.state', '=', 'running')
     .limit(5000)
     .execute(), [])
 
+  return loadOf(rows as any[], runnerLabels)
+}
+
+/**
+ * Count the running jobs, whole-fleet and for the asking runner's own kind.
+ *
+ * A job counts "here" when the asking runner carries every label the job
+ * asked for, which is the same test that decides whether the runner may take
+ * a job at all. So a repository's build on the macOS runner is not a machine
+ * it holds as far as the Linux runner is concerned.
+ *
+ * It used to be one count for the whole fleet. A repository whose test jobs
+ * ran on a Mac was then "holding a machine" every time the only Linux runner
+ * asked, and went behind every repository with anything queued: its lint,
+ * typecheck and deploy sat queued for hours beside an idle-for-them runner
+ * while that Mac stayed busy, which on a project with a steady Mac backlog is
+ * always (hq.training, 2026-11-23: three one-minute jobs waited six hours).
+ */
+export function loadOf(rows: readonly { repository_id?: unknown, owner_id?: unknown, runs_on?: unknown }[], runnerLabels?: readonly string[]): FleetLoad {
   const byRepository = new Map<number, number>()
   const byOwner = new Map<number, number>()
+  const byRepositoryHere = runnerLabels ? new Map<number, number>() : undefined
+  const carried = new Set(runnerLabels ?? [])
 
-  for (const row of rows as any[]) {
+  for (const row of rows) {
     const repository = Number(row.repository_id)
     const owner = Number(row.owner_id)
 
     byRepository.set(repository, (byRepository.get(repository) ?? 0) + 1)
     byOwner.set(owner, (byOwner.get(owner) ?? 0) + 1)
+
+    if (byRepositoryHere && splitLabels(row.runs_on == null ? '' : String(row.runs_on)).every(label => carried.has(label)))
+      byRepositoryHere.set(repository, (byRepositoryHere.get(repository) ?? 0) + 1)
   }
 
-  return { byRepository, byOwner }
+  return { byRepository, byOwner, ...(byRepositoryHere ? { byRepositoryHere } : {}) }
 }
 
 /**
@@ -94,6 +127,11 @@ export function withinQuota(load: FleetLoad, job: { repositoryId: number, ownerI
 /**
  * Reorder candidates so a repository holding fewer machines goes first.
  *
+ * "Machines" are the ones this runner stands for (`byRepositoryHere`), when
+ * the load was read for a runner: what a repository holds elsewhere in the
+ * fleet, on machines this runner could never replace, is not a reason to keep
+ * this one from it.
+ *
  * **Stable within a repository**, which is the part that makes this safe: the
  * candidates arrive in priority order with age breaking the tie, and this only
  * moves whole repositories relative to each other. A repository's own jobs keep
@@ -102,7 +140,7 @@ export function withinQuota(load: FleetLoad, job: { repositoryId: number, ownerI
  */
 export function fairOrder<T extends { repository_id?: unknown }>(rows: readonly T[], load: FleetLoad): T[] {
   return [...rows]
-    .map((row, index) => ({ row, index, held: load.byRepository.get(Number((row as any).repository_id)) ?? 0 }))
+    .map((row, index) => ({ row, index, held: (load.byRepositoryHere ?? load.byRepository).get(Number((row as any).repository_id)) ?? 0 }))
     .sort((left, right) => (left.held - right.held) || (left.index - right.index))
     .map(one => one.row)
 }
