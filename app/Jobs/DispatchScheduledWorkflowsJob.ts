@@ -1,6 +1,11 @@
 import { parseCron } from '@stacksjs/cron'
 import { db } from '@stacksjs/database'
+import { servablePathFor } from '../Actions/Git/access'
+import { resolveDispatchRef } from '../Actions/Git/dispatchRef'
+import { ownerHandleFor } from '../Actions/Repo/owner'
+import { discoverWorkflows } from '../Actions/Workflow/discover'
 import { withRedeliveryKey } from '../Actions/Workflow/redelivery'
+import { digestOf } from '../Actions/Workflow/sync'
 
 /**
  * `on: schedule`, which was stored on every version and read by nothing.
@@ -50,6 +55,7 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
   const { mirrorWorkflowPaths } = await import('../Actions/Workflow/dispatch')
   const { workflowAllowed } = await import('../Actions/Mirror/runnerMap')
   const allowlists = new Map<number, string | null>()
+  const targets = new Map<number, Awaited<ReturnType<typeof scheduledTarget>>>()
 
   for (const workflow of workflows) {
     const repositoryId = Number(workflow.repository_id)
@@ -60,7 +66,7 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
 
     const version = await db
       .selectFrom('workflow_versions')
-      .select(['id', 'schedules', 'source_sha', 'concurrency_group', 'cancel_in_progress'])
+      .select(['id', 'schedules', 'source_sha', 'content_digest', 'concurrency_group', 'cancel_in_progress'])
       .where('workflow_id', '=', Number(workflow.id))
       .orderBy('id', 'desc')
       .limit(1)
@@ -95,6 +101,14 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
     if (!isDue(expressions, floor, now))
       continue
 
+    if (!targets.has(repositoryId))
+      targets.set(repositoryId, await scheduledTarget(repositoryId))
+    const target = targets.get(repositoryId)
+    // The Git ref can move before the push listener refreshes its definitions.
+    // Leave this occurrence available until the registered workflow matches.
+    if (!target || target.digests.get(String(workflow.path)) !== version.content_digest)
+      continue
+
     /*
      * Claim the minute before doing the work.
      *
@@ -107,7 +121,7 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
     if (!claimed)
       continue
 
-    const made = await createScheduledRun(workflow, version)
+    const made = await createScheduledRun(workflow, version, target)
 
     if (made)
       created++
@@ -175,26 +189,31 @@ async function stamp(workflowId: number, expected: unknown, now: Date): Promise<
   return Number(rows ?? 0) > 0
 }
 
-/**
- * One scheduled run, on the default branch.
- *
- * Schedules run the default branch's workflow against the default branch, the
- * way Actions does: a cron on a feature branch would be a job nobody is
- * watching, started by a definition nobody reviewed.
- */
-async function createScheduledRun(workflow: any, version: any): Promise<boolean> {
+async function scheduledTarget(repositoryId: number) {
   const repository = await db
     .selectFrom('repositories')
-    .select(['id', 'default_branch'])
-    .where('id', '=', Number(workflow.repository_id))
+    .select(['name', 'owner_type', 'owner_id', 'default_branch'])
+    .where('id', '=', repositoryId)
     .executeTakeFirst()
 
   if (!repository)
-    return false
+    return null
 
-  const ref = `refs/heads/${repository.default_branch || 'main'}`
-  const sha = String(version.source_sha ?? '')
+  const owner = await ownerHandleFor(repository)
+  const gitDir = owner && await servablePathFor(owner, String(repository.name))
+  if (!gitDir)
+    return null
 
+  const target = await resolveDispatchRef(gitDir, `refs/heads/${repository.default_branch || 'main'}`)
+  if (!target.ok)
+    return null
+
+  const files = await discoverWorkflows(gitDir, target.sha)
+  return { ref: target.ref, sha: target.sha, digests: new Map(files.map(file => [file.path, digestOf(file.source)])) }
+}
+
+/** The branch head supplies the checkout; the registered version supplies the job graph. */
+async function createScheduledRun(workflow: any, version: any, { ref, sha }: { ref: string, sha: string }): Promise<boolean> {
   const { resolveGroup } = await import('../Actions/Workflow/concurrency')
   const { startRun } = await import('../Actions/Workflow/dispatch')
 
@@ -209,12 +228,12 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
     await startRun({
       values: withRedeliveryKey({
         workflow_version_id: Number(version.id),
-        repository_id: Number(repository.id),
+        repository_id: Number(workflow.repository_id),
         state: 'queued',
         event: 'schedule',
         event_ref: ref,
         head_sha: sha,
-        definition_sha: sha,
+        definition_sha: String(version.source_sha),
         // The repository's own definition on its own default branch: there is
         // no untrusted tree in this path, and nobody typed anything.
         trusted: true,

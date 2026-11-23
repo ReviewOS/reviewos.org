@@ -690,6 +690,11 @@ run is inspected.
       folded into it. It is the same event with the opposite trust - the workflow comes from the
       base branch and runs with the base repository's secrets against a fork's code - and that is
       the one fact the fork policy in [the threat model](../ci-threat-model.md) needs.
+- [x] Resolve the default-branch head when scheduling an unchanged workflow.
+      Keep its registered definition SHA for provenance. Leave the scheduled
+      occurrence available when the Git workflow and the registered version
+      differ so the push listener can finish indexing the new definition.
+
 - [x] Triggers for push, pull request, tag, schedule, manual/API dispatch, and repository events,
       each with repository, ref, and path filters
 

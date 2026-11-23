@@ -12,8 +12,21 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { isTrue } from '../../app/Actions/Support/sql'
 import { rescue } from '@stacksjs/error-handling'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
+import { workflowRepository } from '../helpers/workflowRepository'
 
-const created = { ownerId: 0, repositoryId: 0, workflowId: 0, versionId: 0, handle: '', name: '' }
+const created = { ownerId: 0, repositoryId: 0, workflowId: 0, versionId: 0, handle: '', name: '', gitDir: '', definition: '', head: '' }
+const workflowPath = '.github/workflows/nightly.yml'
+const workflowSource = `name: Nightly
+on:
+  schedule:
+    - cron: '* * * * *'
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo Nightly
+`
 
 let available = false
 let db: any = null
@@ -25,7 +38,7 @@ function unique(prefix: string): string {
 async function runsHere(): Promise<any[]> {
   return db
     .selectFrom('workflow_runs')
-    .select(['id', 'event', 'event_ref', 'head_sha', 'trusted', 'state'])
+    .select(['id', 'event', 'event_ref', 'head_sha', 'definition_sha', 'trusted', 'state'])
     .where('repository_id', '=', created.repositoryId)
     .orderBy('id')
     .execute()
@@ -54,6 +67,19 @@ beforeAll(async () => {
     created.ownerId = Number(owner?.id)
 
     created.name = unique('repo')
+    const fixture = await workflowRepository(created.handle, created.name, { [workflowPath]: workflowSource })
+    created.gitDir = fixture.path
+    created.definition = fixture.sha
+    const { createCommit } = await import('../../app/Actions/Git/write')
+    const updated = await createCommit(fixture.path, {
+      branch: 'main', parentSha: fixture.sha, expectedBranchSha: fixture.sha,
+      message: 'Update app without changing CI',
+      author: { name: 'Workflow fixture', email: 'workflow@example.test' },
+      files: { 'README.md': 'Current app source\n' },
+    })
+    if (!updated.ok)
+      throw new Error('The fixture default branch did not advance')
+    created.head = updated.sha
     const repository: any = await db.insertInto('repositories')
       .values({
         owner_type: 'user',
@@ -71,7 +97,7 @@ beforeAll(async () => {
         owner_type: 'user',
         owner_id: created.ownerId,
         repository_id: created.repositoryId,
-        path: '.github/workflows/nightly.yml',
+        path: workflowPath,
         name: 'Nightly',
         state: 'active',
       })
@@ -81,9 +107,9 @@ beforeAll(async () => {
     const version: any = await db.insertInto('workflow_versions')
       .values({
         workflow_id: created.workflowId,
-        source_sha: 'a'.repeat(40),
-        source_path: '.github/workflows/nightly.yml',
-        content_digest: unique('digest'),
+        source_sha: created.definition,
+        source_path: workflowPath,
+        content_digest: new Bun.CryptoHasher('sha256').update(workflowSource).digest('hex'),
         // Every minute, so a test does not have to wait for 03:00.
         schedules: '* * * * *',
       })
@@ -107,6 +133,10 @@ beforeAll(async () => {
 }, 120_000)
 
 afterAll(async () => {
+  if (created.gitDir) {
+    removeRepositoryDirectory(created.gitDir)
+    removeRepositoryOwnerDirectory(created.gitDir)
+  }
   if (!db || !created.repositoryId)
     return
 
@@ -155,6 +185,8 @@ describe('the schedule sweep', () => {
     // The default branch, the way Actions does it: a cron on a feature branch
     // would be a job nobody is watching, from a definition nobody reviewed.
     expect(runs[0].event_ref).toBe('refs/heads/main')
+    expect(runs[0].head_sha).toBe(created.head)
+    expect(runs[0].definition_sha).toBe(created.definition)
     // The repository's own definition on its own branch, and nobody typed
     // anything: there is no untrusted tree in this path.
     expect(isTrue(runs[0].trusted)).toBe(true)
@@ -257,6 +289,31 @@ describe('the schedule sweep', () => {
     expect((await runsHere()).length).toBe(before)
 
     await db.updateTable('workflows').set({ state: 'active' } as any).where('id', '=', created.workflowId).execute()
+  })
+
+  test('leaves the due occurrence available while Git has a newer definition than the registered workflow', async () => {
+    if (!available)
+      return
+
+    const { createCommit } = await import('../../app/Actions/Git/write')
+    const { sweepSchedules } = await import('../../app/Jobs/DispatchScheduledWorkflowsJob')
+    const updated = await createCommit(created.gitDir, {
+      branch: 'main', parentSha: created.head, expectedBranchSha: created.head,
+      message: 'Change the schedule while the index is catching up',
+      author: { name: 'Workflow fixture', email: 'workflow@example.test' },
+      files: { [workflowPath]: workflowSource.replace('echo Nightly', 'echo Updated') },
+    })
+    expect(updated.ok).toBe(true)
+    const before = (await runsHere()).length
+    const previous = new Date(Math.floor(Date.now() / 1000) * 1000 - 5 * 60_000)
+    await lastSweptAt(previous)
+    const result = await sweepSchedules()
+
+    expect(result.created).toBe(0)
+    expect(await runsHere()).toHaveLength(before)
+    const workflow = await db.selectFrom('workflows').select(['last_scheduled_at'])
+      .where('id', '=', created.workflowId).executeTakeFirst()
+    expect(new Date(workflow?.last_scheduled_at).getTime()).toBe(previous.getTime())
   })
 })
 
