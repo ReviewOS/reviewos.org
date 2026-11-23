@@ -7,7 +7,7 @@
 // it lands in the workspace or this job's runner temporary directory, and only
 // then.
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test'
 import { gunzipSync } from 'node:zlib'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,6 +19,7 @@ let root = ''
 let workspace = ''
 let server: ReturnType<typeof Bun.serve>
 let uploaded: Uint8Array = new Uint8Array()
+let responseDelay = 0
 
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'reviewos-artifact-absolute-'))
@@ -31,6 +32,7 @@ beforeAll(() => {
   server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
     uploaded = new Uint8Array(await request.arrayBuffer())
     const digest = createHash('sha256').update(uploaded).digest('hex')
+    if (responseDelay) await Bun.sleep(responseDelay)
     return Response.json({ id: 1, name: request.headers.get('x-artifact-name'), digest, size_bytes: uploaded.length }, { status: 201 })
   } })
 })
@@ -40,8 +42,8 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true })
 })
 
-async function upload(path: string) {
-  return await artifactAction({ kind: 'upload', values: { name: 'evidence', path }, workspace, baseUrl: `http://127.0.0.1:${server.port}`, token: 't', output: '' })
+async function upload(path: string, signal?: AbortSignal) {
+  return await artifactAction({ kind: 'upload', values: { name: 'evidence', path }, workspace, baseUrl: `http://127.0.0.1:${server.port}`, token: 't', output: '', signal })
 }
 
 async function entries(): Promise<string[]> {
@@ -73,4 +75,29 @@ describe('an absolute upload path', () => {
   test('and a relative path still cannot reach into the runner\'s own directory', async () => {
     expect((await upload('.reviewos-runner/temp/recorded.diff')).ok).toBe(false)
   })
+})
+
+test('a valid named upload can finish while its job is still active', async () => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal)
+  const shortenedLegacyDeadline = spyOn(AbortSignal, 'timeout').mockImplementation(ms => timeout(ms === 300_000 ? 30 : ms))
+  responseDelay = 120
+  try {
+    const outcome = await upload('zig-out/bench.json', new AbortController().signal)
+    expect(outcome.ok, outcome.reason).toBe(true)
+    expect(await entries()).toEqual(['bench.json'])
+  }
+  finally {
+    responseDelay = 0
+    shortenedLegacyDeadline.mockRestore()
+  }
+})
+
+test('cancelling the job still aborts a named upload', async () => {
+  responseDelay = 120
+  try {
+    await expect(upload('zig-out/bench.json', AbortSignal.timeout(30))).rejects.toThrow()
+  }
+  finally {
+    responseDelay = 0
+  }
 })

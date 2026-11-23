@@ -16,6 +16,7 @@ interface ArtifactActionInput {
   signal?: AbortSignal
 }
 const MAX_FILES = 200
+const ARTIFACT_IDLE_TIMEOUT_MS = 300_000
 function fail(reason: string): never { throw Error(reason) }
 function safePath(value: string): boolean {
   return !!value && !isAbsolute(value) && !value.includes('\\') && !value.includes('\0') && !value.split('/').some(part => !part || part === '..' || part === '.' || part === '.git' || part === '.reviewos-runner')
@@ -100,7 +101,7 @@ async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSig
 /** The fetch endpoint only reads an immutable archive. */
 async function downloadArchive(controller: string, headers: Record<string, string>, name: string, signal: AbortSignal): Promise<{ expected: string, bytes: Uint8Array }> {
   let expected: string | null = null
-  return transferArtifact('download', signal, () => fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal,
+  return transferArtifact('download', signal, () => fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal, timeout: ARTIFACT_IDLE_TIMEOUT_MS,
     headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }), async (response) => {
     const received = response.headers.get('X-Artifact-Digest')
     if (!received || !/^[a-f0-9]{64}$/.test(received) || (expected && received !== expected)) {
@@ -135,7 +136,9 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
     if (!/^[\w.-]{1,200}$/.test(name)) fail('Artifact name must use letters, numbers, dots, hyphens or underscores')
     const controller = new URL(input.baseUrl).origin
     const headers = { 'Authorization': `Bearer ${input.token}`, 'X-Runner-Protocol': '1' }
-    const signal = input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(300_000)]) : AbortSignal.timeout(300_000)
+    // The job lease bounds the action. The socket timeout separately catches
+    // a stalled connection without cutting off an archive still transferring.
+    const signal = input.signal ?? AbortSignal.timeout(ARTIFACT_IDLE_TIMEOUT_MS)
     if (input.kind === 'upload') {
       if (String(values.overwrite ?? false) !== 'false' || String(values['include-hidden-files'] ?? false) !== 'false')
         fail('Native artifacts are immutable and exclude hidden files')
@@ -190,7 +193,7 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
       if (bytes.length > MAX_ARTIFACT_BYTES) fail('Artifact archive exceeds the byte limit')
       // The server retains one immutable artifact per run/name/content. The
       // same bytes can safely be replayed if it stored them before the reply broke.
-      const receipt = await transferArtifact('upload', signal, () => fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal,
+      const receipt = await transferArtifact('upload', signal, () => fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal, timeout: ARTIFACT_IDLE_TIMEOUT_MS,
         headers: { ...headers, 'Content-Type': 'application/gzip', 'X-Artifact-Name': name, 'X-Artifact-Retention-Days': String(retention) }, body: bytes }),
       async response => JSON.parse(Buffer.from(await bounded(response, 65536)).toString('utf8')))
       if (!Number.isSafeInteger(receipt.id) || receipt.id <= 0 || receipt.name !== name || receipt.digest !== digest(bytes) || receipt.size_bytes !== bytes.length)
