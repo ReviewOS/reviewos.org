@@ -86,7 +86,7 @@
     "@stacksjs/search-engine": "0.75.628",
     "@stacksjs/server": "0.75.628",
     "@stacksjs/stx": "0.2.913",
-    "@stacksjs/ts-cloud": "0.16.153",
+    "@stacksjs/ts-cloud": "0.16.154",
     "@stacksjs/ts-ssh": "^0.1.1",
     "@ts-charts/scale": "0.2.7",
     "@ts-charts/shape": "0.2.7",
@@ -124,10 +124,10 @@
     "stx-router": "0.2.913",
     "bun-plugin-stx": "0.2.913",
     "@stacksjs/components": "0.2.913",
-    "@stacksjs/ts-cloud": "0.16.153",
+    "@stacksjs/ts-cloud": "0.16.154",
     "@stacksjs/buddy": "0.75.628",
-    "@ts-cloud/core": "0.16.153",
-    "@ts-cloud/aws-types": "0.16.153",
+    "@ts-cloud/core": "0.16.154",
+    "@ts-cloud/aws-types": "0.16.154",
     "@stacksjs/desktop": "0.2.913",
     "@stacksjs/sanitizer": "0.2.913"
   }
