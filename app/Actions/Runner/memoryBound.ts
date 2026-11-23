@@ -37,13 +37,22 @@
 
 import process from 'node:process'
 
-/** What a step's scope is given: its limit, and whether swap is held to zero too. */
+/** What a step's scope is given: its limit, whether swap is held to zero too, and the systemd-run that makes it. */
 export interface MemoryScope {
   memoryMb: number
   swap: boolean
+  /**
+   * `systemd-run` as an absolute path, found on the runner's own PATH.
+   *
+   * Never the bare name: the step is spawned with the job's environment, and a
+   * bare argv[0] is resolved through *that* PATH. A job whose `env:` set PATH
+   * to its own directory failed every step with nothing to run, and a job could
+   * have put an executable of its own called `systemd-run` there instead.
+   */
+  binary: string
 }
 
-const SCOPE = ['systemd-run', '--user', '--scope', '--quiet', '--collect']
+const SCOPE = ['--user', '--scope', '--quiet', '--collect']
 
 /** The variables `systemd-run --user` finds the user manager by. */
 const MANAGER_VARIABLES = ['XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS']
@@ -54,6 +63,7 @@ export function boundedArgv(argv: readonly string[], scope: MemoryScope | null):
     return [...argv]
 
   return [
+    scope.binary,
     ...SCOPE,
     `--property=MemoryMax=${scope.memoryMb}M`,
     ...(scope.swap ? ['--property=MemorySwapMax=0'] : []),
@@ -82,11 +92,18 @@ export function scopeEnvironment(
   return merged
 }
 
+/** `systemd-run` on the runner's PATH, as an absolute path, or null. */
+export function scopeBinary(path: string | undefined = process.env.PATH): string | null {
+  const found = Bun.which('systemd-run', { PATH: path ?? '' })
+
+  return found && found.startsWith('/') ? found : null
+}
+
 /** The probe: a 64 MiB scope that prints the `memory.max` the kernel gave it. */
-export function probeCommand(swap: boolean): string[] {
+export function probeCommand(swap: boolean, binary: string): string[] {
   return boundedArgv(
     ['/bin/sh', '-c', 'cat "/sys/fs/cgroup$(sed -n \'s/^0:://p\' /proc/self/cgroup)/memory.max"'],
-    { memoryMb: 64, swap },
+    { memoryMb: 64, swap, binary },
   )
 }
 
@@ -95,7 +112,7 @@ export function readProbe(result: { code: number, stdout: string }): boolean {
   return result.code === 0 && result.stdout.trim() === String(64 * 1_048_576)
 }
 
-let probed: Promise<{ swap: boolean } | null> | null = null
+let probed: Promise<{ swap: boolean, binary: string } | null> | null = null
 
 /**
  * The scope to run a step in, for a step allowed `memoryMb`, or null when this
@@ -108,15 +125,17 @@ export async function memoryScope(memoryMb: number): Promise<MemoryScope | null>
   probed ??= probe()
   const support = await probed
 
-  return support ? { memoryMb, swap: support.swap } : null
+  return support ? { memoryMb, swap: support.swap, binary: support.binary } : null
 }
 
-async function probe(): Promise<{ swap: boolean } | null> {
+async function probe(): Promise<{ swap: boolean, binary: string } | null> {
+  const binary = scopeBinary()
+
   // With swap held to zero first, which makes the bound strict; then without,
   // for a kernel booted without swap accounting.
   for (const swap of [true, false]) {
-    if (readProbe(await run(probeCommand(swap))))
-      return { swap }
+    if (binary && readProbe(await run(probeCommand(swap, binary))))
+      return { swap, binary }
   }
 
   console.warn('[runner] steps run without a memory bound: no systemd user scope here enforces MemoryMax (needs systemd with the memory controller delegated to the user manager).')

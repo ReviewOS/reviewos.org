@@ -6,36 +6,64 @@
 // executor with "setrlimit() failed". A cgroup's `memory.max` counts the pages
 // a job really holds, which is the thing that takes a box down.
 
-import { describe, expect, test } from 'bun:test'
-import { boundedArgv, probeCommand, readProbe, scopeEnvironment } from '../../app/Actions/Runner/memoryBound'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { boundedArgv, probeCommand, readProbe, scopeBinary, scopeEnvironment } from '../../app/Actions/Runner/memoryBound'
+
+const SYSTEMD_RUN = '/usr/bin/systemd-run'
+const fixtures: string[] = []
+afterEach(() => fixtures.splice(0).forEach(path => rmSync(path, { recursive: true, force: true })))
 
 describe('the scope a step runs in', () => {
   test('is a transient systemd user scope with MemoryMax, in front of the step', () => {
-    expect(boundedArgv(['/bin/sh', '-c', 'make'], { memoryMb: 4096, swap: true })).toEqual([
-      'systemd-run', '--user', '--scope', '--quiet', '--collect',
+    expect(boundedArgv(['/bin/sh', '-c', 'make'], { memoryMb: 4096, swap: true, binary: SYSTEMD_RUN })).toEqual([
+      SYSTEMD_RUN, '--user', '--scope', '--quiet', '--collect',
       '--property=MemoryMax=4096M', '--property=MemorySwapMax=0',
       '--', '/bin/sh', '-c', 'make',
     ])
   })
 
   test('without the swap line where the kernel does not account swap', () => {
-    expect(boundedArgv(['make'], { memoryMb: 4096, swap: false })).toEqual([
-      'systemd-run', '--user', '--scope', '--quiet', '--collect',
+    expect(boundedArgv(['make'], { memoryMb: 4096, swap: false, binary: SYSTEMD_RUN })).toEqual([
+      SYSTEMD_RUN, '--user', '--scope', '--quiet', '--collect',
       '--property=MemoryMax=4096M', '--', 'make',
     ])
   })
 
   test('and nothing at all when there is no bound to apply', () => {
     expect(boundedArgv(['make'], null)).toEqual(['make'])
-    expect(boundedArgv(['make'], { memoryMb: 0, swap: true })).toEqual(['make'])
+    expect(boundedArgv(['make'], { memoryMb: 0, swap: true, binary: SYSTEMD_RUN })).toEqual(['make'])
+  })
+
+  test('names systemd-run by the absolute path the runner found, never by the job\'s PATH', () => {
+    // The step is spawned with the job's environment, and Bun resolves a bare
+    // argv[0] through that environment's PATH. A job that set `env: PATH:` to
+    // its own directory (runner-toolchain-environment.test.ts does) made every
+    // step fail to start - and could have put its own `systemd-run` there.
+    const argv = boundedArgv(['make'], { memoryMb: 4096, swap: true, binary: SYSTEMD_RUN })
+
+    expect(argv[0]).toBe(SYSTEMD_RUN)
+    expect(argv[0].startsWith('/')).toBe(true)
   })
 })
 
 describe('the probe', () => {
-  test('asks a scope for the limit the kernel actually holds', () => {
-    const argv = probeCommand(true)
+  test('finds systemd-run on the runner\'s own PATH, as an absolute path', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'reviewos-scope-binary-'))
+    fixtures.push(directory)
+    writeFileSync(join(directory, 'systemd-run'), '#!/bin/sh\nexit 0\n')
+    chmodSync(join(directory, 'systemd-run'), 0o755)
 
-    expect(argv.slice(0, 5)).toEqual(['systemd-run', '--user', '--scope', '--quiet', '--collect'])
+    expect(scopeBinary(directory)).toBe(join(directory, 'systemd-run'))
+    expect(scopeBinary(join(directory, 'missing'))).toBeNull()
+  })
+
+  test('asks a scope for the limit the kernel actually holds', () => {
+    const argv = probeCommand(true, SYSTEMD_RUN)
+
+    expect(argv.slice(0, 5)).toEqual([SYSTEMD_RUN, '--user', '--scope', '--quiet', '--collect'])
     expect(argv).toContain('--property=MemoryMax=64M')
     expect(argv.join(' ')).toContain('memory.max')
   })
