@@ -1,4 +1,4 @@
-// Variables across the four levels, against the real tables and the real page.
+// Variables across the three levels, against the real tables and the real page.
 //
 // The unit tests hold the precedence. This holds the two things only a database
 // and a rendered page can be wrong about: that a run is handed the value the
@@ -98,16 +98,11 @@ afterAll(async () => {
 })
 
 describe('what a run is handed', () => {
-  test('the repository beats the owner, and the workflow file beats both', async () => {
+  test('the repository beats the owner', async () => {
     if (!available)
       return
 
     expect((await variablesFor(created.repositoryId)).REGISTRY).toBe('ghcr.io/repository')
-
-    // The workflow's own `env:` is the fourth level, and it is in the file
-    // rather than a table precisely because it is the most specific thing
-    // anybody said about the value.
-    expect((await variablesFor(created.repositoryId, { REGISTRY: 'localhost:5000' })).REGISTRY).toBe('localhost:5000')
   }, 120_000)
 
   test('an instance variable reaches a repository that set nothing', async () => {
@@ -170,7 +165,7 @@ describe('the settings screen', () => {
     const rendered = (await answer.text()).replace(/<[^>]+>/g, ' ').replace(/&#39;/g, '\'').replace(/\s+/g, ' ')
 
     // A page that shows the value and not its origin leaves somebody guessing
-    // which of four places to edit.
+    // which of three places to edit.
     expect(rendered).toContain('REGISTRY = ghcr.io/repository')
     expect(rendered).toContain('set at the repository level')
     expect(rendered).toContain('overriding owner')

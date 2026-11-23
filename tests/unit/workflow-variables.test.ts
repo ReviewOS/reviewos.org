@@ -1,7 +1,8 @@
-// Variables at four levels, and the question the feature exists to answer.
+// Variables at three levels, and the question the feature exists to answer.
 //
-// Four places can set `REGISTRY`: the instance, the owner, the repository, and
-// the workflow file. The precedence itself is the boring part - narrowest wins,
+// Three places can set `REGISTRY`: the instance, the owner, and the
+// repository. A workflow file's `env:` is not a fourth - it feeds `env`, never
+// `vars` (#30). The precedence itself is the boring part - narrowest wins,
 // which is what everybody expects. What people cannot do elsewhere is find out
 // *which* level answered, and a value that is wrong at a level nobody is
 // looking at is an afternoon.
@@ -13,33 +14,32 @@ const AT_EVERY_LEVEL = [
   { key: 'REGISTRY', value: 'docker.io', scope: 'instance' as const, from: 'this instance' },
   { key: 'REGISTRY', value: 'ghcr.io/acme', scope: 'owner' as const, from: 'acme' },
   { key: 'REGISTRY', value: 'ghcr.io/acme/widgets', scope: 'repository' as const, from: 'widgets' },
-  { key: 'REGISTRY', value: 'localhost:5000', scope: 'workflow' as const, from: 'the workflow file' },
 ]
 
 describe('precedence', () => {
   test('narrowest wins, and the order is written down rather than implied', () => {
-    expect(PRECEDENCE.workflow).toBeGreaterThan(PRECEDENCE.repository)
+    expect(Object.keys(PRECEDENCE).sort()).toEqual(['instance', 'owner', 'repository'])
     expect(PRECEDENCE.repository).toBeGreaterThan(PRECEDENCE.owner)
     expect(PRECEDENCE.owner).toBeGreaterThan(PRECEDENCE.instance)
   })
 
-  test('the workflow file beats everything', () => {
+  test('the repository beats everything', () => {
     const [registry] = resolveVariables(AT_EVERY_LEVEL)
 
-    expect(registry!.value).toBe('localhost:5000')
-    expect(registry!.scope).toBe('workflow')
+    expect(registry!.value).toBe('ghcr.io/acme/widgets')
+    expect(registry!.scope).toBe('repository')
   })
 
   test('and the answer carries what it beat, widest last', () => {
     /*
      * The sentence that ends the argument about why a deploy went to the wrong
-     * region. "It is localhost:5000" is not enough; "and the repository's
-     * ghcr.io/acme/widgets is underneath it" is.
+     * region. "It is ghcr.io/acme/widgets" is not enough; "and the owner's
+     * ghcr.io/acme is underneath it" is.
      */
     const [registry] = resolveVariables(AT_EVERY_LEVEL)
 
-    expect(registry!.shadowed.map(one => one.scope)).toEqual(['repository', 'owner', 'instance'])
-    expect(registry!.shadowed[0]!.value).toBe('ghcr.io/acme/widgets')
+    expect(registry!.shadowed.map(one => one.scope)).toEqual(['owner', 'instance'])
+    expect(registry!.shadowed[0]!.value).toBe('ghcr.io/acme')
   })
 
   test('the input order does not decide the answer', () => {

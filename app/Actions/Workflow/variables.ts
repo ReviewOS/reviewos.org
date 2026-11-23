@@ -2,37 +2,43 @@ import { db } from '@stacksjs/database'
 import { rescue } from '@stacksjs/error-handling'
 
 /**
- * Variables at four levels, and the answer to "where did this value come
+ * Variables at three levels, and the answer to "where did this value come
  * from?"
  *
- * Four places can set `REGISTRY`: the instance, the owner, the repository, and
- * the workflow file. That is not complexity for its own sake - an operator sets
- * a proxy once, an organization sets its registry, a repository overrides for
- * one project, and a workflow overrides for one run - but it means a value can
- * be *wrong in a place nobody is looking*, and the afternoon that costs is why
- * the resolution says where every value came from rather than only what it is.
+ * Three places can set `REGISTRY`: the instance, the owner, and the
+ * repository. That is not complexity for its own sake - an operator sets a
+ * proxy once, an organization sets its registry, and a repository overrides for
+ * one project - but it means a value can be *wrong in a place nobody is
+ * looking*, and the afternoon that costs is why the resolution says where every
+ * value came from rather than only what it is.
  *
- * **Narrowest wins.** The workflow file beats the repository, which beats the
- * owner, which beats the instance. The rule is the one every configuration
- * system uses and the one people already expect; what they do not expect is
- * being unable to find out which level answered, so that is the part this
- * module is built around.
+ * **Narrowest wins.** The repository beats the owner, which beats the
+ * instance. The rule is the one every configuration system uses and the one
+ * people already expect; what they do not expect is being unable to find out
+ * which level answered, so that is the part this module is built around.
+ *
+ * **A workflow file's `env:` is not a level.** It was, once, sitting above the
+ * repository, and that is how `env: { IDENTITY: ${{ vars.IDENTITY }} }` -
+ * the ordinary way to hand a variable to a step - defined `vars.IDENTITY` as
+ * its own unresolved text: unset, the step was told to sign as the literal
+ * expression, and set, the instance's value was shadowed by it (#30). On
+ * Actions `env:` feeds the `env` context and never `vars`, and the runner
+ * already gives every step the workflow's and the job's `env:`, so the level
+ * bought nothing a workflow could not already say.
  *
  * These are **variables, not secrets.** They are readable by anybody who can
  * read the repository, they appear in logs, and they are handed to every job -
- * including one from a fork. Anything that must not be is a secret, and there
- * is no secret store here yet, which the documentation says plainly rather than
- * leaving somebody to guess from the absence.
+ * including one from a fork. Anything that must not be is a secret, which has
+ * its own store (`secrets.ts`) rather than a flag on this one.
  */
 
-export type VariableScope = 'instance' | 'owner' | 'repository' | 'workflow'
+export type VariableScope = 'instance' | 'owner' | 'repository'
 
 /** How much a level beats the one below it. Narrowest wins. */
 export const PRECEDENCE: Record<VariableScope, number> = {
   instance: 0,
   owner: 1,
   repository: 2,
-  workflow: 3,
 }
 
 export interface VariableSetting {
@@ -100,7 +106,7 @@ export function resolveVariables(settings: readonly VariableSetting[]): Resolved
 }
 
 /** Every level's settings for one repository, in one query per level. */
-export async function settingsFor(repositoryId: number, workflowEnv: Record<string, string> = {}): Promise<VariableSetting[]> {
+export async function settingsFor(repositoryId: number): Promise<VariableSetting[]> {
   const repository = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'name', 'owner_type', 'owner_id'])
@@ -139,22 +145,12 @@ export async function settingsFor(repositoryId: number, workflowEnv: Record<stri
       settings.push({ key: String(row.key), value: String(row.value ?? ''), scope: 'repository', from: String(repository.name) })
   }
 
-  /*
-   * The workflow's own `env:`, at the top of the order.
-   *
-   * It is in the file rather than in a table, and that is exactly why it wins:
-   * a value written next to the job it applies to is the most specific
-   * statement anybody made about it.
-   */
-  for (const [key, value] of Object.entries(workflowEnv))
-    settings.push({ key, value: String(value ?? ''), scope: 'workflow', from: 'the workflow file' })
-
   return settings
 }
 
 /** What a run sees: the resolved values, flattened for the expression context. */
-export async function variablesFor(repositoryId: number, workflowEnv: Record<string, string> = {}): Promise<Record<string, string>> {
-  const resolved = resolveVariables(await settingsFor(repositoryId, workflowEnv))
+export async function variablesFor(repositoryId: number): Promise<Record<string, string>> {
+  const resolved = resolveVariables(await settingsFor(repositoryId))
 
   return Object.fromEntries(resolved.map(one => [one.key, one.value]))
 }

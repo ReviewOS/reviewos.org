@@ -9,14 +9,13 @@ import { resolveVariables, settingsFor } from './variables'
 import { refuse, succeed } from '../Support/forge'
 
 /**
- * Variables at four levels, and where each effective value came from.
+ * Variables at three levels, and where each effective value came from.
  *
- * The listing is the reason this exists. Four places can set `REGISTRY` - the
- * instance, the owner, the repository, and the workflow file - and a value can
- * be wrong in a place nobody is looking. "It is `us-east-1`" is not the answer
- * somebody needs at that point; "it is `us-east-1`, set by the organization,
- * and this repository's `eu-west-1` is *not* winning because the workflow file
- * sets it too" is.
+ * The listing is the reason this exists. Three places can set `REGISTRY` - the
+ * instance, the owner, and the repository - and a value can be wrong in a place
+ * nobody is looking. "It is `us-east-1`" is not the answer somebody needs at
+ * that point; "it is `us-east-1`, set by the organization, and this
+ * repository's `eu-west-1` is underneath it" is.
  *
  * **Variables, not secrets.** They are readable by anybody who can read the
  * repository, they appear in logs, and they go to every job including a fork's.
@@ -80,18 +79,13 @@ export default new Action({
 
     if (operation === 'list') {
       /*
-       * The workflow level is deliberately absent from a listing.
-       *
-       * It is per workflow *file*, so there is no single answer for a
-       * repository - and showing one file's `env:` here would say a value is
-       * overridden for every run when it is overridden for one workflow.
+       * What a run is handed, exactly. A workflow file's `env:` is not a level
+       * (`variables.ts` says why), so nothing in a file can make a run see a
+       * different `vars` than this listing shows.
        */
       const resolved = resolveVariables(await settingsFor(repositoryId))
 
-      return succeed(request, {
-        variables: resolved,
-        note: 'A workflow file\'s `env:` beats all of these, per workflow.',
-      }, '')
+      return succeed(request, { variables: resolved }, '')
     }
 
     const key = String(request.get('key') ?? '').trim()

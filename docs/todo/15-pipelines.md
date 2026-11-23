@@ -771,8 +771,8 @@ written down here so it does not get relitigated:
       **Nine of the twelve are readable now**: `github` (with `actor`, `workflow`, `head_ref`,
       `base_ref`, `ref_name`, `ref_type`, `run_id`, `run_number`, `run_attempt`, `repository_owner`,
       `server_url`, `api_url`, `event` and `event_path`), plus `env`, `job`, `steps`, `needs`,
-      `matrix`, `inputs`, `runner`, and now `vars` - resolved across instance, owner, repository and
-      the workflow file at claim time, so the runner merges nothing. `reviewos` is the same object
+      `matrix`, `inputs`, `runner`, and now `vars` - resolved across instance, owner and repository
+      at claim time, so the runner merges nothing. `reviewos` is the same object
       under this forge's own name.
 
       `secrets` is populated now too: encrypted at rest, chosen per job at the claim, withheld from a
@@ -1894,9 +1894,11 @@ output, which covers the common case and nothing else.
 - [x] Environment variables and settings at instance, owner, repository, and workflow level, with a
       documented precedence order and a screen that shows where a value came from
 
-      Narrowest wins - the workflow file's `env:`, then the repository, then the owner, then the
-      instance - and that half is what everybody expects. **The screen is the feature.** Four
-      places can set `REGISTRY`, so a value can be wrong at a level nobody is looking at, and "it
+      Narrowest wins - the repository, then the owner, then the instance - and that half is what
+      everybody expects. The workflow level is the file's `env:`, which sets `env` and every step's
+      environment and, since #30, nothing in `vars` (the line below).
+
+      **The screen is the feature.** Three places can set `REGISTRY`, so a value can be wrong at a level nobody is looking at, and "it
       is us-east-1" is not the answer somebody needs at that point: the listing says which level
       answered and what it overrode, widest last.
 
@@ -1912,6 +1914,15 @@ output, which covers the common case and nothing else.
       has. And they are **variables, not secrets**: readable by anybody who can read the
       repository, in the logs, handed to a fork's job. There is no secret store yet and the docs
       say so rather than approximating one with a `secret: true` column on a plain-text table.
+- [x] An unset `${{ vars.X }}` is empty, and a job's `env:` never shadows a variable (#30)
+
+      The claim folded the job's `env:` into `vars` as a fourth, narrowest level. So the ordinary
+      `env: { IDENTITY: ${{ vars.IDENTITY }} }` defined `vars.IDENTITY` as that very text: unset,
+      Postline's release handed codesign the literal expression; set, the repository's value was
+      shadowed by it. On Actions `env:` never feeds `vars`, and the runner already gives every
+      step the workflow's and the job's `env:`, so the level is gone rather than patched.
+      `tests/e2e/runner-job-clone.test.ts` claims a real job and fails on the old fold with
+      `"${{ vars.IDENTITY }}"`.
 - [x] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a
       template change does not retroactively alter a finished run
 

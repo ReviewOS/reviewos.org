@@ -1,10 +1,9 @@
 # Variables
 
-Values a workflow reads as `${{ vars.NAME }}`, set at four levels:
+Values a workflow reads as `${{ vars.NAME }}`, set at three levels:
 
 | Level | Set where | Beats |
 |---|---|---|
-| workflow | `env:` in the workflow file | everything |
 | repository | Settings → Variables | the owner and the instance |
 | owner | the owner's variables | the instance |
 | instance | an administrator | nothing |
@@ -33,9 +32,19 @@ curl -sX POST https://reviewos.example/api/repos/variables \
        "scope":"repository","key":"REGISTRY","value":"ghcr.io/acme/widgets"}'
 ```
 
-`scope` is `repository`, `owner`, or `instance`. The workflow level has no row:
-it is `env:` in the file, and it lives where it is read - a value written beside
-the job it applies to is the most specific statement anybody made about it.
+`scope` is `repository`, `owner`, or `instance`.
+
+A workflow file's `env:` is not a level. It sets the `env` context and the
+environment of every step, the way it does on Actions, and leaves `vars` alone.
+So the usual way to hand a variable to a step works whether or not it is set:
+
+```yaml
+env:
+  SIGNING_IDENTITY: ${{ vars.SIGNING_IDENTITY }}
+```
+
+Set, the step sees the value. Unset, it sees an empty string, as it would on
+Actions.
 
 Setting a value that something narrower already overrides says so in the answer,
 because otherwise it looks like it worked and the question comes back three days

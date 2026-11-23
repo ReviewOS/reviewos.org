@@ -866,9 +866,13 @@ export default new Action({
          */
         checkout: checkoutOfJob(jobRow?.settings),
         /*
-         * `vars`, resolved across the four levels at claim time.
+         * `vars`, resolved across the instance, the owner and the repository
+         * at claim time - and nothing from the workflow file. The job's `env:`
+         * goes out as `env` above; folded in here too it defined
+         * `vars.X` as the text `${{ vars.X }}` whenever a job wrote the
+         * ordinary `X: ${{ vars.X }}` (#30).
          *
-         * Resolved here rather than sent as four sets for the runner to merge:
+         * Resolved here rather than sent as three sets for the runner to merge:
          * a precedence rule implemented twice is a precedence rule that
          * disagrees with itself, and the screen that says where a value came
          * from reads the same resolution this does.
@@ -877,7 +881,7 @@ export default new Action({
          * they are in the logs, and there is no secret store here to confuse
          * them with.
          */
-        vars: await variablesFor(claimed.repositoryId, readJson(definitionJob?.env) as Record<string, string> ?? {}),
+        vars: await variablesFor(claimed.repositoryId),
         /*
          * `secrets`, decided here and nowhere else.
          *

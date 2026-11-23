@@ -153,7 +153,7 @@ beforeAll(async () => {
       ownerType: 'user',
       ownerId: created.ownerId,
       path: '.github/workflows/ci.yml',
-      source: 'name: CI\non: push\nenv:\n  BUN_VERSION: 1.4.2\n  LEVEL: workflow\njobs:\n  build:\n    runs-on: ubuntu-latest\n    env:\n      LEVEL: job\n    steps:\n      - run: build\n',
+      source: 'name: CI\non: push\nenv:\n  BUN_VERSION: 1.4.2\n  LEVEL: workflow\njobs:\n  build:\n    runs-on: ubuntu-latest\n    env:\n      LEVEL: job\n      IDENTITY: ${{ vars.IDENTITY }}\n    steps:\n      - run: build\n',
       sha: 'a'.repeat(40),
     })
 
@@ -197,8 +197,32 @@ describe('the job a claim hands a runner', () => {
 
     // Neither level reached a step before: the claim sent each step's env alone.
     const job = await claimJob(created.mine.id)
-    expect(job?.env).toEqual({ BUN_VERSION: '1.4.2', LEVEL: 'job' })
+    expect(job?.env).toEqual({ BUN_VERSION: '1.4.2', LEVEL: 'job', IDENTITY: '${{ vars.IDENTITY }}' })
   })
+
+  /*
+   * #30. The job's `env:` was folded into `vars` as a fourth level, so
+   * `IDENTITY: ${{ vars.IDENTITY }}` defined `vars.IDENTITY` as that text:
+   * unset, the runner substituted the expression into itself and a step saw
+   * it literally; set, the repository's value was shadowed by it.
+   */
+  test('hands over `vars` from the tables alone, never the job\'s own env', async () => {
+    if (!available)
+      return
+
+    const unset = await claimJob(created.mine.id)
+    expect(unset?.vars?.IDENTITY).toBeUndefined()
+
+    await db.insertInto('workflow_variables').values({ scope_type: 'repository', scope_id: created.mine.id, key: 'IDENTITY', value: 'Developer ID' } as any).execute()
+
+    try {
+      const set = await claimJob(created.mine.id)
+      expect(set?.vars?.IDENTITY).toBe('Developer ID')
+    }
+    finally {
+      await db.deleteFrom('workflow_variables').where('scope_type', '=', 'repository').where('scope_id', '=', created.mine.id).execute()
+    }
+  }, 120_000)
 })
 
 describe('a busy job', () => {

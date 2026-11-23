@@ -47,13 +47,14 @@ afterAll(() => {
   rmSync(workspaceRoot, { recursive: true, force: true })
 })
 
-async function runJob(id: number, env: Record<string, string>, steps: Array<{ run: string, env?: Record<string, string> }>) {
+async function runJob(id: number, env: Record<string, string>, steps: Array<{ run: string, env?: Record<string, string> }>, vars: Record<string, string> = {}) {
   next = {
     id,
     token: `job-token-${id}`,
     key: 'env',
     checkout: { skip: true },
     env,
+    vars,
     steps: steps.map((step, index) => ({ name: `step ${index + 1}`, ...step })),
     run: { id: 1, number: 1, event: 'push', ref: 'refs/heads/main', head_sha: 'abc' },
     repository_full_name: 'acme/widgets',
@@ -88,5 +89,30 @@ describe('a job\'s env', () => {
     expect(outcome?.state).toBe('succeeded')
     expect(readFileSync(join(workspaceRoot, 'job-9102', 'ref.txt'), 'utf8')).toBe('refs/heads/main')
     expect(readFileSync(join(workspaceRoot, 'job-9102', 'name.txt'), 'utf8')).toBe('widgets')
+  })
+
+  /*
+   * #30, Postline's release: `DESKTOP_SIGNING_IDENTITY: ${{ vars.DESKTOP_SIGNING_IDENTITY }}`
+   * in a job's `env:` reached codesign as that literal text. The claim used to
+   * fold the job's `env:` into `vars` as a fourth level, so the variable was
+   * defined as its own expression. `vars` is what the claim resolved from the
+   * tables and nothing else, and these are the two answers a step gets.
+   */
+  test('an unset variable is empty, not its own expression', async () => {
+    const outcome = await runJob(9103, { IDENTITY: '${{ vars.IDENTITY }}' }, [
+      { run: 'printf "[%s][%s]" "$IDENTITY" "${{ vars.IDENTITY }}" > identity.txt' },
+    ])
+
+    expect(outcome?.state).toBe('succeeded')
+    expect(readFileSync(join(workspaceRoot, 'job-9103', 'identity.txt'), 'utf8')).toBe('[][]')
+  })
+
+  test('and a set one is its value', async () => {
+    const outcome = await runJob(9104, { IDENTITY: '${{ vars.IDENTITY }}' }, [
+      { run: 'printf "%s" "$IDENTITY" > identity.txt' },
+    ], { IDENTITY: 'Developer ID Application: Acme' })
+
+    expect(outcome?.state).toBe('succeeded')
+    expect(readFileSync(join(workspaceRoot, 'job-9104', 'identity.txt'), 'utf8')).toBe('Developer ID Application: Acme')
   })
 })
