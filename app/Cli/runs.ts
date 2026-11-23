@@ -66,6 +66,8 @@ export interface RerunOptions extends WatchOptions {
 }
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
+const TEMPORARY_WATCH_ERRORS = new Set([0, 408, 429, 500, 502, 503, 504])
+const WATCH_RETRIES = 4
 
 /**
  * Which repository a command acts on.
@@ -210,14 +212,27 @@ export async function watchRun(number: string, options: WatchOptions = {}): Prom
   const deadline = Date.now() + (options.timeoutMs ?? 60 * 60_000)
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)))
   let said = ''
+  let retries = 0
 
   while (true) {
     const shown = await call(connection, 'GET', '/api/repos/workflow-runs/show', {
       query: { owner: target.owner, repo: target.repository, number },
     })
 
-    if (!shown.ok)
-      return report(shown)
+    if (!shown.ok) {
+      const remaining = deadline - Date.now()
+      if (!TEMPORARY_WATCH_ERRORS.has(shown.status) || retries >= WATCH_RETRIES || remaining <= 0)
+        return report(shown)
+
+      if (retries === 0)
+        console.warn(`Could not check ReviewOS run #${number}. Retrying.`)
+
+      const delay = Math.min(interval * 2 ** retries, 30_000, remaining)
+      retries++
+      await sleep(delay)
+      continue
+    }
+    retries = 0
 
     const run = shown.data?.workflow_run ?? {}
     const state = String(run.state ?? 'unknown')

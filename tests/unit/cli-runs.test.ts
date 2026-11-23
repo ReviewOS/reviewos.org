@@ -12,7 +12,7 @@ import { cancelWorkflowRun, describeJobs, describeRun, jobsToRead, lastLines, li
 let server: ReturnType<typeof Bun.serve>
 let instance = ''
 const seen: { method: string, path: string, query: Record<string, string>, body: any, auth: string | null }[] = []
-let showStates: string[] = []
+let showStates: Array<string | number> = []
 
 beforeAll(() => {
   server = Bun.serve({
@@ -51,6 +51,8 @@ beforeAll(() => {
 
       if (url.pathname === '/api/repos/workflow-runs/show') {
         const state = showStates.shift() ?? 'succeeded'
+        if (typeof state === 'number')
+          return Response.json({ error: 'Instance unavailable' }, { status: state })
         return Response.json({ workflow_run: { number: Number(url.searchParams.get('number')), state, jobs: [{ job_id: 'publish', state: state === 'queued' ? 'queued' : state, waiting: state === 'queued' ? { kind: 'busy', summary: 'every matching runner is busy' } : null }] } })
       }
 
@@ -122,6 +124,41 @@ describe('running a workflow', () => {
 })
 
 describe('watching a run', () => {
+  it('recovers from a refused connection and a temporary gateway failure', async () => {
+    const unavailable = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response() })
+    const port = unavailable.port
+    await unavailable.stop(true)
+    let restored: ReturnType<typeof Bun.serve> | undefined
+    let attempts = 0
+
+    try {
+      expect(await watchRun('9', {
+        ...target(),
+        instance: `http://127.0.0.1:${port}`,
+        intervalMs: 0,
+        async sleep() {
+          restored ??= Bun.serve({ hostname: '127.0.0.1', port, fetch: () => ++attempts === 1
+            ? Response.json({ error: 'Gateway unavailable' }, { status: 502 })
+            : Response.json({ workflow_run: { state: 'succeeded' } }) })
+        },
+      })).toBe(0)
+      expect(attempts).toBe(2)
+    }
+    finally {
+      await restored?.stop(true)
+    }
+  })
+
+  it('stops after bounded retries and reports non-transient errors immediately', async () => {
+    const delays: number[] = []
+    showStates = [503, 503, 503, 503, 503, 'succeeded']
+    expect(await watchRun('9', { ...target(), intervalMs: 100, sleep: async ms => { delays.push(ms) } })).toBe(1)
+    expect(delays).toEqual([100, 200, 400, 800])
+
+    showStates = [403, 'succeeded']
+    expect(await watchRun('9', { ...target(), sleep: async () => { throw new Error('A 403 must not be retried') } })).toBe(1)
+  })
+
   it('exits 1 for a failed run, so a script can chain on it', async () => {
     showStates = ['running', 'failed']
     expect(await watchRun('9', { ...target(), intervalMs: 0, sleep: async () => {} })).toBe(1)
