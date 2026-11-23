@@ -145,6 +145,10 @@ export async function installBinary(
     `mv ${target}.next ${target}`,
   ].join(' && '))
   console.log(`  installed runner ${local.slice(0, 12)} (was ${remote.slice(0, 12) || 'none'})`)
+  // Each update keeps the binary it replaced, for a quick way back. Two are
+  // enough for that; one per update for a month was over a gigabyte on a
+  // runner whose disk its jobs need.
+  await ssh.exec(host, `ls -1t ${target}.before-* 2>/dev/null | tail -n +3 | while IFS= read -r old; do rm -f -- "$old"; done`)
 
   if (restart === 'signal') {
     // Only the runner handles draining; its active job children must keep running.
