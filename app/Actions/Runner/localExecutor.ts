@@ -57,6 +57,7 @@ import { HEARTBEAT_MS, RunnerLease } from './lease'
 import { deliveryDeadlineMs } from './delivery'
 import { AttemptLedger, reapAbandonedAttempts } from './attempts'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
+import { boundedArgv, memoryScope, scopeEnvironment } from './memoryBound'
 import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
 import { keepResumedSteps } from './resume'
@@ -3921,13 +3922,20 @@ async function runStep(input: {
    */
   const limits = limitsFrom()
 
-  const argv = input.argv
+  /*
+   * And the memory it may hold, as a cgroup limit around the step rather than
+   * a ulimit inside it (`memoryBound.ts`): a scope the kernel kills a runaway
+   * job inside, leaving the box its memory. Null where nothing enforces one.
+   */
+  const scope = await memoryScope(limits.memoryMb)
+
+  const argv = boundedArgv(input.argv
     ? limitedArgv(input.argv, limits)
-    : ['/bin/sh', '-c', limitedCommand(String(input.command ?? ''), limits)]
+    : ['/bin/sh', '-c', limitedCommand(String(input.command ?? ''), limits)], scope)
 
   const child = Bun.spawn(argv, {
     cwd: input.cwd,
-    env: input.environment,
+    env: scope ? scopeEnvironment(input.environment) : input.environment,
     stdout: 'pipe',
     stderr: 'pipe',
     // No stdin. A step that waits for input on a runner nobody is watching is

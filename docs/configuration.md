@@ -1064,7 +1064,7 @@ can never leave is not a ceiling.
 
 ### `CI_STEP_MEMORY_MB`
 
-Default: `2097152`, and the line is commented out.
+Default: unset.
 
 Ceilings a step cannot raise, applied before its first instruction.
 
@@ -1073,16 +1073,24 @@ sandbox that would change that is gated by docs/ci-security-review.md. What
 these stop is the ordinary accident: a loop that writes a forty-gigabyte
 file, a build that spins a core forever. Generous on purpose, because a limit
 that trips on ordinary work is one an operator removes.
-Despite the legacy name, this ceiling is virtual address space in MiB
-(`RLIMIT_AS`), not RSS or physical RAM. The finite default is 2 TiB.
-Chrome's sandbox reserves about 1 TiB plus guard regions; the former 8 GiB
-default stopped startup. Reserving addresses does not allocate that much RAM.
-See [V8's sandbox documentation](https://v8.dev/blog/sandbox).
 
-Explicit values remain honored, including smaller caps and 0 to disable this
-ceiling. An existing explicit 8 GiB cap can still prevent Chrome from starting.
-macOS ignores this address-space limit. Resident-memory accounting and isolation
-require separate OS controls; this setting does not provide them.
+`CI_STEP_MEMORY_MB` is the memory a step's processes may hold, in MiB: the
+cgroup `memory.max` of a transient systemd user scope each step runs in, so
+the kernel kills a runaway job inside its scope and the box keeps the rest.
+Default: 80% of the machine's memory. 0 turns it off. Linux with systemd
+only; elsewhere, or where the user manager has no memory controller, steps
+run unbounded and the runner logs why once.
+
+`CI_STEP_ADDRESS_SPACE_MB` is virtual address space (`ulimit -v`, RLIMIT_AS),
+off by default and not a memory limit. It breaks ThreadSanitizer,
+AddressSanitizer, Go and JIT runtimes, which reserve far more address space
+than they use; set it only where no job needs them.
+
+Read by `app/Actions/Runner/limits.ts`.
+
+### `CI_STEP_ADDRESS_SPACE_MB`
+
+Default: `0`, and the line is commented out.
 
 Read by `app/Actions/Runner/limits.ts`.
 

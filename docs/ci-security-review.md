@@ -102,11 +102,14 @@ writes a forty-gigabyte file, and it does nothing whatsoever about an attacker. 
 off by default because they count something wider than one step - `RLIMIT_NPROC` is per user, and
 CPU seconds are not wall time.
 
-The address-space default is a finite 2 TiB so modern runtime sandboxes can reserve
-their virtual arenas. This is `RLIMIT_AS`, not resident-memory accounting: it does
-not restrict a job to 2 TiB of physical RAM, reserve that much RAM for it, or provide
-a cgroup memory boundary. Explicit operator caps still apply unchanged. File,
-process and CPU ceilings are separate and retain their existing settings.
+Memory is bounded with a cgroup, not a ulimit: on Linux each step runs in a
+transient systemd user scope with `MemoryMax` (80% of the machine by default,
+`CI_STEP_MEMORY_MB`), so the kernel kills a runaway job inside its own scope and the
+host keeps the rest. Where no user manager enforces it, steps run unbounded and the
+runner says so once. There is no address-space (`RLIMIT_AS`) ceiling by default: it
+bounded no resident memory and broke ThreadSanitizer, AddressSanitizer, Go and JIT
+runtimes, which reserve far more address space than they use. `CI_STEP_ADDRESS_SPACE_MB`
+opts back into one. File, process and CPU ceilings are separate and unchanged.
 
 **What does not exist on the host path**, and must not be read as existing:
 

@@ -1,3 +1,6 @@
+import { totalmem } from 'node:os'
+import process from 'node:process'
+
 /**
  * Ceilings a step cannot raise, applied before its first instruction.
  *
@@ -32,11 +35,38 @@
  * capped it. Each is written `|| true`, because a runner that refuses to start a
  * build over a limit it could not apply is a runner nobody keeps installed - and
  * the limit that did apply is still applied.
+ *
+ * ## Memory is not a ulimit
+ *
+ * The memory ceiling used to be `ulimit -v`, RLIMIT_AS: virtual address space,
+ * not memory. It bounded nothing a job actually holds, and it broke every
+ * program that reserves a large range up front without touching it -
+ * ThreadSanitizer re-execs itself after raising RLIMIT_AS to unlimited, and a
+ * lowered hard limit refuses that ("ThreadSanitizer setrlimit() failed",
+ * zig-anti-virus on the owned Linux executor); AddressSanitizer, Go's runtime,
+ * V8's sandbox and other JITs reserve terabytes the same way. Raising the
+ * number for each of them in turn is a ceiling that grows until it means
+ * nothing, which is where the 2 TiB default had got to.
+ *
+ * So memory is bounded where the kernel counts it: a cgroup's `memory.max`,
+ * around each step (`memoryBound.ts`). An address-space cap is still available,
+ * opted into with `CI_STEP_ADDRESS_SPACE_MB`, for an operator who knows no job
+ * on the machine needs a sanitizer.
  */
 
 /** What a step may not exceed. Zero anywhere means "no ceiling from us". */
 export interface StepLimits {
-  /** Address space, in megabytes. Ignored on macOS, which accepts it and does nothing. */
+  /**
+   * Virtual address space (`ulimit -v`, RLIMIT_AS), in megabytes. Off unless an
+   * operator opts in: it breaks sanitizers and runtimes that reserve large
+   * ranges, and it bounds no memory. Ignored on macOS.
+   */
+  addressSpaceMb: number
+  /**
+   * Memory the step's processes may hold, in megabytes: the cgroup
+   * `memory.max` they run under on Linux (`memoryBound.ts`). Not a ulimit, so
+   * it never appears in the prelude.
+   */
   memoryMb: number
   /**
    * Processes, which is the one that must be opted into.
@@ -62,12 +92,18 @@ export interface StepLimits {
  * The defaults, which are generous on purpose: a limit that trips on ordinary
  * work is one an operator removes, and a removed limit protects nothing.
  */
-export function limitsFrom(env: Record<string, string | undefined> = process.env): StepLimits {
+export function limitsFrom(
+  env: Record<string, string | undefined> = process.env,
+  totalMemoryBytes: number = totalmem(),
+): StepLimits {
   return {
-    // Chrome reserves a roughly 1 TiB sandbox plus guard regions. Keep a finite
-    // 2 TiB virtual-address budget; an 8 GiB ceiling crashes ordinary startup.
-    // This is not an RSS/RAM limit. Explicit operator caps still take precedence.
-    memoryMb: positive(env.CI_STEP_MEMORY_MB, 2_097_152),
+    // Off: see the note on the field and at the top of this file.
+    addressSpaceMb: positive(env.CI_STEP_ADDRESS_SPACE_MB, 0),
+    // Four fifths of the machine, so a job that runs away is killed by the
+    // kernel inside its own cgroup while the runner, the forge and whatever
+    // else shares the box keep the rest. `CI_STEP_MEMORY_MB` overrides it, and
+    // 0 turns it off.
+    memoryMb: positive(env.CI_STEP_MEMORY_MB, Math.floor((totalMemoryBytes * 0.8) / 1_048_576)),
     // Off by default: see the note on the field. A per-user ceiling applied to
     // a build counts everything else the user is doing.
     processes: positive(env.CI_STEP_PROCESSES, 0),
@@ -124,8 +160,8 @@ export function limitPrelude(limits: StepLimits): string {
   // macOS ships bash 3 as /bin/sh, whose file blocks are 1024 bytes.
   // Linux /bin/sh uses POSIX 512-byte blocks. Address-space units are KiB.
   const fileBlocksPerMb = process.platform === 'darwin' ? 1024 : 2048
-  if (limits.memoryMb > 0)
-    lines.push(`ulimit -v ${limits.memoryMb * 1024} 2>/dev/null || true`)
+  if (limits.addressSpaceMb > 0)
+    lines.push(`ulimit -v ${limits.addressSpaceMb * 1024} 2>/dev/null || true`)
 
   if (limits.processes > 0)
     lines.push(`ulimit -u ${limits.processes} 2>/dev/null || true`)

@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { limitPrelude, limitedArgv, limitedCommand, limitsFrom } from '../../app/Actions/Runner/limits'
 
-const none = { memoryMb: 0, processes: 0, fileSizeMb: 0, cpuSeconds: 0 }
+const none = { addressSpaceMb: 0, memoryMb: 0, processes: 0, fileSizeMb: 0, cpuSeconds: 0 }
 const fixtures: string[] = []
 function fixture(): string {
   const directory = mkdtempSync(join(tmpdir(), 'reviewos-step-limits-'))
@@ -27,16 +27,31 @@ afterEach(() => fixtures.splice(0).forEach(directory => rmSync(directory, { recu
 
 describe('the settings', () => {
   test('are generous by default, because a limit that trips on ordinary work is one an operator removes', () => {
-    const limits = limitsFrom({})
+    const limits = limitsFrom({}, 16 * 1024 ** 3)
 
-    expect(limits.memoryMb).toBe(2_097_152)
     expect(limits.fileSizeMb).toBe(32768)
   })
 
-  test('keeps explicit virtual-address caps, including an explicit opt-out', () => {
-    expect(limitsFrom({ CI_STEP_MEMORY_MB: '8192' }).memoryMb).toBe(8192)
-    expect(limitsFrom({ CI_STEP_MEMORY_MB: '2048' }).memoryMb).toBe(2048)
-    expect(limitsFrom({ CI_STEP_MEMORY_MB: '0' }).memoryMb).toBe(0)
+  test('caps no address space by default, because sanitizers and runtimes reserve far more than they use', () => {
+    // zig-anti-virus's ThreadSanitizer step failed on the owned Linux executor:
+    // "Program is run with limited virtual address space ... setrlimit() failed".
+    // ASan, TSan, Go and JITs reserve huge ranges they never touch, so an
+    // RLIMIT_AS ceiling breaks them without bounding memory at all.
+    expect(limitsFrom({}).addressSpaceMb).toBe(0)
+    expect(limitPrelude(limitsFrom({}))).not.toContain('ulimit -v')
+  })
+
+  test('keeps an address-space cap only as an explicit opt-in', () => {
+    expect(limitsFrom({ CI_STEP_ADDRESS_SPACE_MB: '8192' }).addressSpaceMb).toBe(8192)
+    expect(limitPrelude({ ...none, addressSpaceMb: 8192 })).toContain(`ulimit -v ${8192 * 1024}`)
+  })
+
+  test('bounds memory instead: 80% of the machine by default, as a cgroup limit rather than a ulimit', () => {
+    expect(limitsFrom({}, 16 * 1024 ** 3).memoryMb).toBe(13107)
+    expect(limitsFrom({ CI_STEP_MEMORY_MB: '8192' }, 16 * 1024 ** 3).memoryMb).toBe(8192)
+    expect(limitsFrom({ CI_STEP_MEMORY_MB: '0' }, 16 * 1024 ** 3).memoryMb).toBe(0)
+    // Memory is never a ulimit: it is applied around the step (`memoryBound.ts`).
+    expect(limitPrelude({ ...none, memoryMb: 8192 })).toBe('')
   })
 
   test('and the process ceiling is off, because it counts the whole user rather than the step', () => {
