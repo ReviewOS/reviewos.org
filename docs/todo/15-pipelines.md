@@ -1569,6 +1569,13 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 - [x] Skip empty artifact files before upload and report the skip in the job log; retain every nonempty file through controller throttling (real runner HTTP regression).
 - [x] Retry an interrupted named artifact upload with identical archive bytes and verify its duplicate receipt before downloading; leave immutable name conflicts intact.
 - [x] Let named artifact transfers finish while the job lease is active. Time out an idle socket and honour job cancellation.
+
+      The idle timeout first shipped as `timeout:` on `fetch`, which Bun does not take: a type
+      error on main and nothing at runtime. A download now carries a deadline that moves with
+      every chunk (`idleWatch`), so a stalled one fails as stalled and is retried, while a slow
+      one that keeps moving finishes (`tests/unit/runner-artifact-idle.test.ts`). An upload has
+      no idle timeout: Bun reports no progress on a buffered request body, so the job lease
+      bounds it.
 - [x] Retry the exact Git commit when an HTTP response closes before delivering the advertised bytes.
 - [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
 

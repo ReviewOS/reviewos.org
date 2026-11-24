@@ -54,7 +54,7 @@ function uploadBase(workspace: string, pattern: string): { base: string, pattern
   return fail('Artifact paths must be in the workspace or the runner\'s temporary directory')
 }
 function digest(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex') }
-async function bounded(response: Response, limit: number): Promise<Uint8Array> {
+async function bounded(response: Response, limit: number, progress: () => void = () => {}): Promise<Uint8Array> {
   const reader = response.body?.getReader()
   if (!reader) return fail('Artifact response has no body')
   const chunks: Uint8Array[] = []
@@ -63,6 +63,7 @@ async function bounded(response: Response, limit: number): Promise<Uint8Array> {
     for (;;) {
       const { value, done } = await reader.read()
       if (done) break
+      progress()
       size += value.length
       if (size > limit) { await reader.cancel(); fail('Artifact exceeds the byte limit') }
       chunks.push(value)
@@ -76,14 +77,37 @@ function interruptedTransfer(error: unknown): boolean {
 }
 const TRANSIENT_ARTIFACT_STATUS = new Set([408, 429, 500, 502, 503, 504])
 
+/**
+ * A deadline that moves while bytes do.
+ *
+ * Bun's `fetch` takes no idle timeout - a `timeout:` in its options is
+ * ignored, which is how one shipped here as a type error that did nothing -
+ * so the idle half is this: a controller that aborts after `ms` without
+ * progress, reset by `progress()`. It aborts with an `ETIMEDOUT` error, which
+ * `interruptedTransfer` already treats as a broken connection worth one more
+ * attempt.
+ */
+function idleWatch(parent: AbortSignal, ms: number): { signal: AbortSignal, progress: () => void, stop: () => void } {
+  const idle = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const progress = (): void => {
+    clearTimeout(timer)
+    timer = setTimeout(() => idle.abort(Object.assign(new Error(`Artifact transfer stalled: nothing moved for ${Math.round(ms / 1000)}s`), { code: 'ETIMEDOUT' })), ms)
+  }
+  progress()
+  return { signal: AbortSignal.any([parent, idle.signal]), progress, stop: () => clearTimeout(timer) }
+}
+
 /** Keep retries within one lease and cover an interrupted body as well as headers. */
-async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSignal, request: () => Promise<Response>, read: (response: Response) => Promise<T>): Promise<T> {
+async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSignal, request: (signal: AbortSignal) => Promise<Response>, read: (response: Response, progress: () => void) => Promise<T>, idleMs?: number): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     signal.throwIfAborted()
     let delay = 200 * 2 ** attempt
+    const watch = idleMs ? idleWatch(signal, idleMs) : null
     try {
-      const response = await request()
-      if (response.ok) return await read(response)
+      const response = await request(watch?.signal ?? signal)
+      watch?.progress()
+      if (response.ok) return await read(response, watch?.progress ?? (() => {}))
       delay = retryAfterMilliseconds(response.headers.get('retry-after')) ?? delay
       await response.body?.cancel().catch(() => {})
       if (attempt === 2 || !TRANSIENT_ARTIFACT_STATUS.has(response.status))
@@ -93,6 +117,9 @@ async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSig
       signal.throwIfAborted()
       if (attempt === 2 || !interruptedTransfer(error)) throw error
     }
+    finally {
+      watch?.stop()
+    }
     await pause(delay, undefined, { signal })
   }
   return fail(`Artifact ${kind} attempts exhausted`)
@@ -101,18 +128,18 @@ async function transferArtifact<T>(kind: 'upload' | 'download', signal: AbortSig
 /** The fetch endpoint only reads an immutable archive. */
 async function downloadArchive(controller: string, headers: Record<string, string>, name: string, signal: AbortSignal): Promise<{ expected: string, bytes: Uint8Array }> {
   let expected: string | null = null
-  return transferArtifact('download', signal, () => fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal, timeout: ARTIFACT_IDLE_TIMEOUT_MS,
-    headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }), async (response) => {
+  return transferArtifact('download', signal, attempt => fetch(`${controller}/api/runner/artifacts/fetch`, { method: 'POST', redirect: 'error', signal: attempt,
+    headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }), async (response, progress) => {
     const received = response.headers.get('X-Artifact-Digest')
     if (!received || !/^[a-f0-9]{64}$/.test(received) || (expected && received !== expected)) {
       await response.body?.cancel().catch(() => {})
       fail('Artifact download digest mismatch')
     }
     expected = received
-    const bytes = await bounded(response, MAX_ARTIFACT_BYTES)
+    const bytes = await bounded(response, MAX_ARTIFACT_BYTES, progress)
     if (digest(bytes) !== expected) fail('Artifact download digest mismatch')
     return { expected, bytes }
-  })
+  }, ARTIFACT_IDLE_TIMEOUT_MS)
 }
 function checkedDirectory(workspace: string, path: string): string {
   if (!safePath(path)) return fail('Artifact destination must stay inside the workspace')
@@ -136,8 +163,9 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
     if (!/^[\w.-]{1,200}$/.test(name)) fail('Artifact name must use letters, numbers, dots, hyphens or underscores')
     const controller = new URL(input.baseUrl).origin
     const headers = { 'Authorization': `Bearer ${input.token}`, 'X-Runner-Protocol': '1' }
-    // The job lease bounds the action. The socket timeout separately catches
-    // a stalled connection without cutting off an archive still transferring.
+    // The job lease bounds the action. A download also stops when nothing has
+    // moved for ARTIFACT_IDLE_TIMEOUT_MS (`idleWatch`), so a stalled
+    // connection fails without cutting off an archive still transferring.
     const signal = input.signal ?? AbortSignal.timeout(ARTIFACT_IDLE_TIMEOUT_MS)
     if (input.kind === 'upload') {
       if (String(values.overwrite ?? false) !== 'false' || String(values['include-hidden-files'] ?? false) !== 'false')
@@ -193,7 +221,10 @@ export async function artifactAction(input: ArtifactActionInput): Promise<{ ok: 
       if (bytes.length > MAX_ARTIFACT_BYTES) fail('Artifact archive exceeds the byte limit')
       // The server retains one immutable artifact per run/name/content. The
       // same bytes can safely be replayed if it stored them before the reply broke.
-      const receipt = await transferArtifact('upload', signal, () => fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal, timeout: ARTIFACT_IDLE_TIMEOUT_MS,
+      // No idle watch: Bun reports no progress on a buffered request body, so a
+      // deadline here would cut off a large archive still sending - the bug
+      // this transfer was changed for. The job lease bounds it instead.
+      const receipt = await transferArtifact('upload', signal, attempt => fetch(`${controller}/api/runner/artifacts`, { method: 'POST', redirect: 'error', signal: attempt,
         headers: { ...headers, 'Content-Type': 'application/gzip', 'X-Artifact-Name': name, 'X-Artifact-Retention-Days': String(retention) }, body: bytes }),
       async response => JSON.parse(Buffer.from(await bounded(response, 65536)).toString('utf8')))
       if (!Number.isSafeInteger(receipt.id) || receipt.id <= 0 || receipt.name !== name || receipt.digest !== digest(bytes) || receipt.size_bytes !== bytes.length)
