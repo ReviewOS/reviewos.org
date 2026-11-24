@@ -1369,7 +1369,9 @@ it stands then, so a skipped job stays skipped and a changed mapping takes
 effect on the next attempt. On a mirror with `runners:`, a job-level
 `container:` is skipped the same way, since this instance runs no job
 containers. `priority:` is the queue priority the mirror's jobs carry; a
-negative one still runs within the starvation window. `intermediate:` is the
+negative one still runs within the starvation window, and every job gains 10
+for each hour it waits (up to 80), so no priority waits behind fresh work for
+more than its difference divided by ten, in hours. `intermediate:` is the
 workflow-level `reviewos.intermediate` an upstream cannot write: with `skip`, a
 newer commit drops the runs still waiting and lets a started one finish, which
 keeps a busy upstream from queueing a full run per commit on shared runners. It

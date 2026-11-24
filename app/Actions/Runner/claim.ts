@@ -166,8 +166,9 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
      * leaves first, and among branch jobs the order is still first in, first
      * out.
      *
-     * And a job that asked to go last does not go last forever: see
-     * `effectivePriority`.
+     * And no job waits behind fresh work forever: every job gains priority
+     * while it waits, and one that asked to go last starts from 0 after the
+     * starvation window. See `effectivePriority`.
      */
     .orderByRaw(raw(effectivePriority(now)))
     .orderByRaw(raw(defaultBranchFirst(undefined, now)))
@@ -187,19 +188,48 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
 export const STARVATION_MINUTES = 30
 
 /**
- * `ORDER BY` term: the job's priority, except that a job that asked to go last
- * and has been claimable for longer than `STARVATION_MINUTES` competes at 0 -
- * where age decides, and it is the oldest. A job that asked for *more* than 0
- * still goes first.
+ * Every waiting job gains `AGING_BOOST` priority for each `AGING_MINUTES` it
+ * has been claimable, for at most `AGING_STEPS` steps.
+ *
+ * Lifting only negative priorities left the rest to starve the same way one
+ * level up. HQ's weekly screen capture (priority 5, then 10) waited a whole day
+ * on a shared Mac runner while every push queued fresh priority-10 native
+ * checks and priority-20 deploy jobs ahead of it (2026-11-23). With aging, a
+ * job that waited an hour stands level with work that asked for 10 more, and
+ * age decides between them: a deploy still jumps a fresh queue, but nothing
+ * waits behind fresh work for more than (difference / 10) hours.
+ */
+export const AGING_MINUTES = 60
+export const AGING_BOOST = 10
+export const AGING_STEPS = 8
+
+export interface AgingOptions { starvationMinutes?: number, agingMinutes?: number, boost?: number, steps?: number }
+
+/**
+ * `ORDER BY` term: the job's priority, raised by how long it has waited.
+ *
+ * - A job that asked to go last (below 0) competes at 0 once it has been
+ *   claimable for `STARVATION_MINUTES`.
+ * - Every job then gains `AGING_BOOST` per `AGING_MINUTES` of waiting, counted
+ *   from 0 for a negative one, up to `AGING_STEPS` steps.
  *
  * Claimable since `queued_at`, or `created_at` for a job queued when its run
- * was made. Each is compared with a cutoff in its own column's format (an ISO
- * string, a `YYYY-MM-DD HH:MM:SS` UTC timestamp), which every dialect orders
- * the same way. The cutoffs come from a Date, never from input.
+ * was made; see `claimableSince`. The cutoffs come from a Date, never from
+ * input, and the steps are literal CASE branches, so no dialect needs date
+ * arithmetic.
  */
-export function effectivePriority(now: Date = new Date(), minutes: number = STARVATION_MINUTES): string {
-  const waited = claimableSince(new Date(now.getTime() - minutes * 60_000))
-  return `CASE WHEN workflow_jobs.priority < 0 AND (${waited}) THEN 0 ELSE workflow_jobs.priority END DESC`
+export function effectivePriority(now: Date = new Date(), options: AgingOptions | number = {}): string {
+  const { starvationMinutes = STARVATION_MINUTES, agingMinutes = AGING_MINUTES, boost = AGING_BOOST, steps = AGING_STEPS } = typeof options === 'number' ? { starvationMinutes: options } : options
+  const waited = (minutes: number) => claimableSince(new Date(now.getTime() - minutes * 60_000))
+  const floor = 'CASE WHEN workflow_jobs.priority < 0 THEN 0 ELSE workflow_jobs.priority END'
+  const aged: string[] = []
+  // Longest wait first: CASE takes the first branch that matches.
+  for (let step = steps; step >= 1; step--) {
+    // A step shorter than the starvation window must not lift a negative job early.
+    const early = step * agingMinutes < starvationMinutes
+    aged.push(`WHEN ${early ? 'workflow_jobs.priority >= 0 AND ' : ''}(${waited(step * agingMinutes)}) THEN ${floor} + ${step * boost}`)
+  }
+  return `CASE ${aged.join(' ')}${aged.length ? ' ' : ''}WHEN workflow_jobs.priority < 0 AND (${waited(starvationMinutes)}) THEN 0 ELSE workflow_jobs.priority END DESC`
 }
 
 /**

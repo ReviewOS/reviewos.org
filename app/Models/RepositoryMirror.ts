@@ -318,7 +318,8 @@ export default defineModel({
      * A mirror usually shares runners with this instance's own repositories,
      * whose deploys somebody is waiting for; a negative number lets those go
      * first and still runs the mirror's jobs once they have waited the
-     * starvation window (`STARVATION_MINUTES` in `app/Actions/Runner/claim.ts`).
+     * starvation window, after which they age like every other job
+     * (`effectivePriority` in `app/Actions/Runner/claim.ts`).
      */
     job_priority: {
       order: 23,

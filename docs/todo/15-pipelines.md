@@ -1475,6 +1475,9 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       The ceiling stays underneath as the default, so nothing hangs forever whatever the file says.
 - [x] Bound the default-branch preference by the starvation window, so older
       eligible tag and feature jobs can run ahead of fresh equal-priority main work.
+- [x] Age every waiting job, not only negative priorities: +10 per hour claimable, up to +80,
+      so a priority-10 job stands level with a fresh priority-20 deploy after an hour and age
+      decides (HQ's weekly screen capture waited a day behind fresh pushes, 2026-11-23).
 - [x] `priority`, so a deploy jumps a queue full of pull request checks
 
       `reviewos: { priority: 10 }`, read by the claim on every poll - which is why it is a column
