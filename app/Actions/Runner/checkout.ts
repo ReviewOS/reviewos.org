@@ -84,7 +84,7 @@ export async function retryGitTransfer<T extends { ok: boolean, errors?: string 
   for (let attempt = 2; attempt <= 3 && !result.ok; attempt++) {
     const errors = result.errors ?? ''
     if (/authentication failed|\b(?:401|403)\b|could not read Username|not our ref|unadvertised object/i.test(errors)
-      || !/early EOF|unexpected disconnect|RPC failed|connection (?:reset|timed out)|could not resolve host|HTTP (?:502|503|504)/i.test(errors)) break
+      || !/early EOF|unexpected disconnect|transfer closed with outstanding read data remaining|RPC failed|connection (?:reset|timed out)|could not resolve host|HTTP (?:502|503|504)/i.test(errors)) break
     await onRetry(`The Git transfer was interrupted; retrying the same commit (attempt ${attempt} of 3).\n`)
     await Bun.sleep(750 * (attempt - 1))
     signal?.throwIfAborted()

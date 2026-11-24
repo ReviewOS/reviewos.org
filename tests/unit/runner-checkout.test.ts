@@ -11,10 +11,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-import { checkoutPlan, shellQuote } from '../../app/Actions/Runner/checkout'
+import { checkoutPlan, retryGitTransfer, shellQuote } from '../../app/Actions/Runner/checkout'
 
 const BARE = '/srv/reviewos/repos/acme/api.git'
 const SHA = 'a'.repeat(40)
+
+test('retries the same checkout after Git reports a prematurely closed HTTP response', async () => {
+  let attempts = 0
+  const notices: string[] = []
+  const result = await retryGitTransfer(async () => {
+    attempts++
+    return attempts === 1
+      ? { ok: false, errors: 'fatal: unable to access remote: transfer closed with outstanding read data remaining' }
+      : { ok: true }
+  }, async notice => { notices.push(notice) })
+  expect(result.ok).toBe(true)
+  expect(attempts).toBe(2)
+  expect(notices[0]).toContain('retrying the same commit')
+})
 
 describe('quoting', () => {
   test('a value with a quote in it cannot end the argument', () => {

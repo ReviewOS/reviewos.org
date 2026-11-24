@@ -1569,6 +1569,7 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 - [x] Skip empty artifact files before upload and report the skip in the job log; retain every nonempty file through controller throttling (real runner HTTP regression).
 - [x] Retry an interrupted named artifact upload with identical archive bytes and verify its duplicate receipt before downloading; leave immutable name conflicts intact.
 - [x] Let named artifact transfers finish while the job lease is active. Time out an idle socket and honour job cancellation.
+- [x] Retry the exact Git commit when an HTTP response closes before delivering the advertised bytes.
 - [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
 
       `reviewos: { artifact-paths: [screenshots/**] }`, collected by the runner after the steps and
