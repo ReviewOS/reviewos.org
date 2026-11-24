@@ -233,17 +233,23 @@ export async function jobCredentialRefusal(request: RequestInstance, now: Date =
   const state = String(job.state ?? '')
 
   if (state === 'cancelling' || state === 'cancelled') {
+    /*
+     * When the run itself was cancelled, the run's reason is why the job
+     * stopped. The job's own `condition_reason` is only that when the job was
+     * stopped on its own (a person cancelling one job, fail-fast): it also
+     * holds the job's `if:` verdict from admission, and runners were told
+     * "The instance stopped this job: `github.ref == 'refs/heads/main'` is
+     * true" for runs a newer commit replaced (HQ, 2026-11-23).
+     */
+    const run: any = await rescue(() => db
+      .selectFrom('workflow_runs')
+      .select(['state', 'conclusion_reason'])
+      .where('id', '=', Number(job.workflow_run_id))
+      .executeTakeFirst(), null)
+    const runStopped = ['cancelling', 'cancelled'].includes(String(run?.state ?? ''))
+    const fromRun = String(run?.conclusion_reason ?? '').trim()
     const own = String(job.condition_reason ?? '').trim()
-    let reason = own
-
-    if (!reason) {
-      const run: any = await rescue(() => db
-        .selectFrom('workflow_runs')
-        .select(['conclusion_reason'])
-        .where('id', '=', Number(job.workflow_run_id))
-        .executeTakeFirst(), null)
-      reason = String(run?.conclusion_reason ?? '').trim() || 'Its run was cancelled.'
-    }
+    const reason = (runStopped && fromRun) || own || fromRun || 'Its run was cancelled.'
 
     return { status: 409, error: reason, fix: stop }
   }

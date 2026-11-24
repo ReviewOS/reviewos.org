@@ -587,6 +587,30 @@ describe('acknowledging a cancellation over HTTP', () => {
     expect(await db.selectFrom('workflow_artifacts').select(['id']).where('workflow_job_id', '=', job.id).execute()).toHaveLength(0)
   })
 
+  test('a job stopped with its run is told the run\'s reason, not its if: verdict', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    const row: any = await db.selectFrom('workflow_jobs').select(['workflow_run_id']).where('id', '=', job.id).executeTakeFirst()
+    const run: any = await db.selectFrom('workflow_runs').select(['number']).where('id', '=', Number(row.workflow_run_id)).executeTakeFirst()
+    // What admission writes for a job with an `if:`.
+    const verdict = "`github.ref == 'refs/heads/main'` is true"
+    await db.updateTable('workflow_jobs').set({ condition_reason: verdict }).where('id', '=', job.id).execute()
+
+    const { cancelRun } = await import('../../app/Actions/Workflow/cancel')
+    await cancelRun({ repositoryId: created.repositoryId, number: Number(run.number), reason: 'Superseded by run #99.', actor: { actorId: null } as any })
+    const after: any = await db.selectFrom('workflow_jobs').select(['state', 'condition_reason']).where('id', '=', job.id).executeTakeFirst()
+    expect(String(after.state)).toBe('cancelling')
+    expect(String(after.condition_reason)).toBe('Superseded by run #99.')
+
+    // A row written before jobs carried the run's reason still answers with it.
+    await db.updateTable('workflow_jobs').set({ condition_reason: verdict }).where('id', '=', job.id).execute()
+    const answer = await call('/runner/heartbeat', {}, job.token)
+    expect(answer.status).toBe(409)
+    expect(String(answer.body.error)).toBe('Superseded by run #99.')
+  })
+
   test('a live-looking job token is refused once its lease naturally expires', async () => {
     if (!available)
       return

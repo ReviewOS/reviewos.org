@@ -58,9 +58,11 @@ export async function cancelRun(input: {
       return { result: unchanged(String(current?.state ?? state)) }
     }
 
-    await client.updateTable('workflow_jobs').set({ state: 'cancelled', finished_at: now })
+    // The run's reason on each job it stops, replacing whatever the job said
+    // before: its `if:` verdict ("`...` is true") read as why it was stopped.
+    await client.updateTable('workflow_jobs').set({ state: 'cancelled', finished_at: now, condition_reason: reason })
       .where('workflow_run_id', '=', Number(run.id)).where('state', 'in', ['blocked', 'queued']).execute()
-    await client.updateTable('workflow_jobs').set({ state: 'cancelling', lease_expires_at: now })
+    await client.updateTable('workflow_jobs').set({ state: 'cancelling', lease_expires_at: now, condition_reason: reason })
       .where('workflow_run_id', '=', Number(run.id)).where('state', '=', 'running').execute()
 
     return {

@@ -944,7 +944,7 @@ async function supersede(
 
       await client
         .updateTable('workflow_jobs')
-        .set({ state: 'cancelled', finished_at: new Date().toISOString() })
+        .set({ state: 'cancelled', finished_at: new Date().toISOString(), condition_reason: 'Skipped: a newer commit arrived before this run started.' })
         .where('workflow_run_id', '=', Number(run.id))
         .where('state', 'in', ['blocked', 'queued'])
         .execute()
@@ -983,15 +983,16 @@ async function supersede(
     if (!changed)
       continue
 
+    const reason = supersededReason(group, runNumber)
     await client
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now })
+      .set({ state: 'cancelled', finished_at: now, condition_reason: reason })
       .where('workflow_run_id', '=', Number(run.id))
       .where('state', 'in', ['blocked', 'queued'])
       .execute()
     await client
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelling', lease_expires_at: now })
+      .set({ state: 'cancelling', lease_expires_at: now, condition_reason: reason })
       .where('workflow_run_id', '=', Number(run.id))
       .where('state', '=', 'running')
       .execute()
@@ -1095,7 +1096,7 @@ async function supersedePending(client: Executor, input: {
 
     await client
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now })
+      .set({ state: 'cancelled', finished_at: now, condition_reason: supersededReason(input.group, input.by) })
       .where('workflow_run_id', '=', Number(run.id))
       .where('state', 'in', ['blocked', 'queued'])
       .execute()
