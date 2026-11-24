@@ -169,6 +169,31 @@ describe('token:create', () => {
     expect(after.length).toBe(before.length)
   })
 
+  test('a repository named by its upstream spelling, or the wrong owner, suggests the local name', async () => {
+    if (!available)
+      return
+
+    // HQ's GitHub repository is stacksjs/hq.training; this instance mirrors it as stacks/hq.training.
+    const upstream = unique('upstream')
+    const mirror: any = await db.insertInto('repository_mirrors')
+      .values({ repository_id: created.repositoryId, remote_url: `https://github.com/${upstream}/${created.name}.git`, remote_owner: upstream, remote_name: created.name })
+      .returning(['id']).executeTakeFirst()
+    try {
+      const base = { user: created.handle, name: 'x', permission: 'contents:read' }
+      const mirrored = await createTokenFromCli({ ...base, repository: `${upstream}/${created.name}` })
+      expect(!mirrored.ok && mirrored.error).toContain(`Did you mean \`${created.handle}/${created.name}\`?`)
+      const elsewhere = await createTokenFromCli({ ...base, repository: `${created.otherHandle}/${created.name}` })
+      expect(!elsewhere.ok && elsewhere.error).toContain(`\`${created.handle}/${created.name}\``)
+      const nothing = await createTokenFromCli({ ...base, repository: `${upstream}/${unique('none')}` })
+      expect(!nothing.ok && nothing.error).not.toContain('Did you mean')
+      const shape = await createTokenFromCli({ ...base, repository: 'just-a-name' })
+      expect(!shape.ok && shape.error).toContain('write owner/name')
+    }
+    finally {
+      await db.deleteFrom('repository_mirrors').where('id', '=', Number(mirror.id)).execute()
+    }
+  })
+
   test('the shared rules still apply: a name, an account, a reach and a lifetime inside the ceiling', async () => {
     if (!available)
       return

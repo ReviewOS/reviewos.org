@@ -81,6 +81,42 @@ export async function resolveRepository(owner: string, name: string): Promise<an
 }
 
 /**
+ * Local `owner/name`s somebody probably meant by an `owner/name` that is not here.
+ *
+ * A mirror keeps its upstream spelling apart from its local one, so a person
+ * copying `stacksjs/hq.training` from GitHub is told the repository is
+ * `stacks/hq.training` on this instance, rather than only that the name they
+ * gave does not exist. After mirrors, the same repository name under any owner.
+ */
+export async function suggestRepositories(owner: string, name: string, limit = 3): Promise<string[]> {
+  if (!owner || !name)
+    return []
+  const mirrored = await db.selectFrom('repository_mirrors')
+    .select(['repository_id'])
+    .where('remote_owner', '=', owner)
+    .where('remote_name', '=', name)
+    .execute()
+  const named = await db.selectFrom('repositories')
+    .select(['id', 'owner_type', 'owner_id', 'name'])
+    .where('name', '=', name)
+    .limit(limit)
+    .execute()
+  const ids = [...new Set([...mirrored.map(row => Number(row.repository_id)), ...named.map(row => Number(row.id))])].slice(0, limit)
+  const names: string[] = []
+  for (const id of ids) {
+    const row: any = named.find(repository => Number(repository.id) === id)
+      ?? await db.selectFrom('repositories').select(['id', 'owner_type', 'owner_id', 'name']).where('id', '=', id).executeTakeFirst()
+    if (!row)
+      continue
+    const table = row.owner_type === 'organization' ? 'organizations' : 'users'
+    const handle: any = await db.selectFrom(table as 'users').select(['handle']).where('id', '=', Number(row.owner_id)).executeTakeFirst()
+    if (handle)
+      names.push(`${handle.handle}/${row.name}`)
+  }
+  return names
+}
+
+/**
  * The signed-in user, or null.
  *
  * `request.user()` is filled in by the `auth` middleware, and a route that does

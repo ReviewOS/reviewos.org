@@ -11,7 +11,7 @@ import { bootAppListeners } from '@stacksjs/events'
 const bootListeners = () => bootAppListeners({ log: { info: message => console.error(message) } })
 import type { IssuedAccessToken } from '../Actions/Tokens/issue'
 import { issueAccessToken, readableRepositories, revokeAccessToken } from '../Actions/Tokens/issue'
-import { resolveOwner, resolveRepository } from '../Actions/Identity/lookup'
+import { resolveOwner, resolveRepository, suggestRepositories } from '../Actions/Identity/lookup'
 import { INSTANCE_SCOPES, normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, TOKEN_LEVELS } from '../TokenScopes'
 import { rescue } from '@stacksjs/error-handling'
 
@@ -152,8 +152,12 @@ export async function createTokenFromCli(options: CreateTokenOptions, nowMs: num
     const [owner, name, ...rest] = named.split('/')
     const row = owner && name && rest.length === 0 ? await resolveRepository(owner, name) : null
 
-    if (!row)
-      return { ok: false, error: `No repository \`${named}\`; write owner/name` }
+    if (!row) {
+      if (!owner || !name || rest.length > 0)
+        return { ok: false, error: `\`${named}\` is not a repository name; write owner/name` }
+      const suggestions = await suggestRepositories(owner, name)
+      return { ok: false, error: `No repository \`${named}\` on this instance${suggestions.length ? `. Did you mean ${suggestions.map(suggestion => `\`${suggestion}\``).join(' or ')}?` : ''}` }
+    }
 
     repositoryIds.push(Number(row.id))
   }
