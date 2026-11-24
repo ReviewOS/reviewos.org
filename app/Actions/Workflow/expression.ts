@@ -736,6 +736,11 @@ export function shouldRun(condition: string | null | undefined, context: Express
   }
 }
 
+/** Whether a stored reason is a job's `if:` verdict ("`expr` is true"), written at admission. */
+export function isConditionVerdict(reason: string): boolean {
+  return /^`[\s\S]*` is (?:true|false)$/.test(reason)
+}
+
 /**
  * Fill `${{ ... }}` in a string, leaving what it cannot evaluate as written.
  *
