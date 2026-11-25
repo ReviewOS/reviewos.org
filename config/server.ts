@@ -2,27 +2,6 @@ import type { ServerConfig } from '@stacksjs/types'
 import { rendersInBackground } from '../app/Actions/Browse/renderPriority'
 
 /**
- * `ServerConfig#render`, as Stacks declares it from cf742998b1 on. The pinned
- * `@stacksjs/types` predates it, so the shape is stated here until the pin
- * moves past that release; then this goes and `ServerConfig` alone checks it.
- * An older Stacks reads past the key, so the page server simply keeps its
- * defaults until then.
- */
-interface PendingRenderConfig {
-  render?: {
-    concurrency?: number
-    queueLimit?: number
-    queueTimeoutMs?: number
-    background?: {
-      match: (request: Request) => boolean | Promise<boolean>
-      concurrency?: number
-      queueLimit?: number
-      retryAfterSeconds?: number
-    }
-  }
-}
-
-/**
  * **What the page process hands to the API process.**
  *
  * A deployed instance runs two: the page server owns `/`, the API server owns
@@ -82,4 +61,4 @@ export default {
       retryAfterSeconds: 30,
     },
   },
-} satisfies ServerConfig & PendingRenderConfig
+} satisfies ServerConfig
