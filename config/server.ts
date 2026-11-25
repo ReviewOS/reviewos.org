@@ -1,4 +1,26 @@
 import type { ServerConfig } from '@stacksjs/types'
+import { rendersInBackground } from '../app/Actions/Browse/renderPriority'
+
+/**
+ * `ServerConfig#render`, as Stacks declares it from cf742998b1 on. The pinned
+ * `@stacksjs/types` predates it, so the shape is stated here until the pin
+ * moves past that release; then this goes and `ServerConfig` alone checks it.
+ * An older Stacks reads past the key, so the page server simply keeps its
+ * defaults until then.
+ */
+interface PendingRenderConfig {
+  render?: {
+    concurrency?: number
+    queueLimit?: number
+    queueTimeoutMs?: number
+    background?: {
+      match: (request: Request) => boolean | Promise<boolean>
+      concurrency?: number
+      queueLimit?: number
+      retryAfterSeconds?: number
+    }
+  }
+}
 
 /**
  * **What the page process hands to the API process.**
@@ -41,4 +63,23 @@ export default {
      */
     prefixes: ['/git/', '/_pages/'],
   },
-} satisfies ServerConfig
+
+  /*
+   * Signed-out visits to the spaces robots.txt disallows render behind every
+   * person, one at a time, and a refused one is told to wait thirty seconds.
+   * A crawler ignoring robots.txt from hundreds of addresses held every render
+   * slot and every place in the queue, and the whole site answered "rendering
+   * is busy" to everybody (#19). See `app/Actions/Browse/renderPriority.ts`.
+   *
+   * The slots and queue stay stx's own (4 and 32): the point is who gets
+   * them, not more of them.
+   */
+  render: {
+    background: {
+      match: request => rendersInBackground(request),
+      concurrency: 1,
+      queueLimit: 8,
+      retryAfterSeconds: 30,
+    },
+  },
+} satisfies ServerConfig & PendingRenderConfig
