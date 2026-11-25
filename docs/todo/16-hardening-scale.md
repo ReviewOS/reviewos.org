@@ -312,3 +312,5 @@ infrastructure converges on that pattern, and the container path stops being the
 - [x] Run standalone Git callbacks without application preloads, with real hook and inherited-config regression coverage.
 
 - [x] Start the production page renderer with Bun's supported `--smol` heap policy on the shared host, while keeping the API/Git process and hard memory ceiling independent. This reduces render-heap growth; it does not increase runner lease deadlines or claim additional host capacity.
+
+- [x] Write changed-path Bloom filters into every repository's commit-graph in nightly maintenance, at most 50,000 new commits a night, so a file's history page stops reading every tree. Plain `gc` never wrote them, and on the WebKit mirror one `git log -50 -- <file>` took 24 seconds and 1.4GB inside the renderer's memory cap, which OOM-killed it three times in a morning (#19). Measured on a 120,000-commit repository: 0.72s to 0.07s for the same history.

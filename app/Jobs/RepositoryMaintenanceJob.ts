@@ -6,7 +6,7 @@ import { runGit } from '../Actions/Git/git'
 import { repositoryPath } from '../Actions/Git/storage'
 import { ownerHandleFor } from '../Actions/Repo/owner'
 import { DELETED_DIRECTORY } from '../Actions/Repo/settings'
-import { expiredRetirements, needsPacking, packArguments, RETENTION_DAYS } from '../Actions/Repo/retention'
+import { changedPathArguments, expiredRetirements, needsPacking, packArguments, RETENTION_DAYS } from '../Actions/Repo/retention'
 import { measure, recordSize } from '../Actions/Repo/size'
 import { rescue } from '@stacksjs/error-handling'
 
@@ -22,6 +22,10 @@ import { rescue } from '@stacksjs/error-handling'
  * than a working copy somebody commits to by hand - and every loose object is a
  * separate file a clone has to read. `git gc` is what turns thousands of them
  * into one packfile.
+ *
+ * **Path history.** Every repository, packed or not, gets changed-path filters
+ * in its commit-graph, which is what keeps a file's history page from reading
+ * every tree in the repository (#19). See `changedPathArguments`.
  *
  * **Retention.** Deleting a repository moves it aside with a timestamp rather
  * than unlinking it, which is only a kindness if something eventually removes
@@ -60,7 +64,7 @@ export default new Job({
  * git once per repository to be told there is nothing to do. One
  * `count-objects` is cheaper and answers the question this job is asking.
  */
-async function packRepositories(dryRun: boolean): Promise<{ examined: number, packed: number }> {
+async function packRepositories(dryRun: boolean): Promise<{ examined: number, packed: number, indexed: number }> {
   const rows = await rescue(() => db
     .selectFrom('repositories')
     .select(['id', 'disk_path', 'owner_type', 'owner_id', 'name'])
@@ -68,6 +72,7 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
 
   let examined = 0
   let packed = 0
+  let indexed = 0
 
   for (const row of rows) {
     const owner = await ownerHandleFor(row)
@@ -82,13 +87,23 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
 
       examined += 1
 
-      if (!needsPacking(counts))
-        continue
-
       if (dryRun) {
-        packed += 1
+        packed += needsPacking(counts) ? 1 : 0
         continue
       }
+
+      // Before the packing decision, which skips most repositories most
+      // nights: the filters are wanted whether or not there is anything to
+      // pack, and a freshly packed mirror is exactly the large repository
+      // that needs them most.
+      const filters = await runGit(path, changedPathArguments(), { timeoutMs: 15 * 60_000, priority: 'background' })
+      if (filters.ok)
+        indexed += 1
+      else
+        log.warn(`[maintenance] could not write path filters for ${row.disk_path}: ${filters.stderr}`)
+
+      if (!needsPacking(counts))
+        continue
 
       // Plain `gc`, keeping the default two-week prune grace. The grace period
       // is the coordination with in-flight pushes: a push between quarantine
@@ -112,7 +127,7 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
     }
   }
 
-  return { examined, packed }
+  return { examined, packed, indexed }
 }
 
 /**

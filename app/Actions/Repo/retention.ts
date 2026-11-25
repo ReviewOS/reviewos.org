@@ -115,3 +115,44 @@ export function needsPacking(counts: { looseObjects: number, packs: number }): b
 export function packArguments(): string[] {
   return ['gc']
 }
+
+/**
+ * How many commits one night may add changed-path filters for.
+ *
+ * Fifty thousand is every commit of nearly every repository, so one night
+ * covers them. A mirror the size of WebKit (315,570 commits on 2026-11-25)
+ * takes about a week of nights instead of one long run: the filters a run
+ * writes are kept, so a run cut short by its timeout still left the next one
+ * less to do, where one unbounded run that times out leaves nothing.
+ */
+export const MAX_NEW_CHANGED_PATH_FILTERS = 50_000
+
+/**
+ * What writes a repository's changed-path filters, extracted so a test can
+ * assert it and run it against real git.
+ *
+ * `git log -50 -- <file>` on a large repository without these opens every
+ * commit's trees to ask whether that file changed. On the production WebKit
+ * mirror that was 24 seconds and 1.4GB for one page, inside the renderer's
+ * memory cap, and the renderer was OOM-killed three times in a morning (#19).
+ * A Bloom filter per commit answers "certainly not this path" for nearly all
+ * of them without reading a tree.
+ *
+ * Plain `gc` never writes them, which is how every repository here came to have
+ * a commit-graph and no filters. `--split=replace` because a split write with
+ * nothing new to add leaves the existing layers as they are, filters missing
+ * included. Once a graph has filters, git keeps them in every later write,
+ * `gc`'s and fetch's included, so this only has to add what those leave out.
+ * When there is nothing to add it rewrites the graph from the filters it
+ * already has: 0.3s for 120,000 commits.
+ */
+export function changedPathArguments(): string[] {
+  return [
+    'commit-graph',
+    'write',
+    '--reachable',
+    '--split=replace',
+    '--changed-paths',
+    `--max-new-filters=${MAX_NEW_CHANGED_PATH_FILTERS}`,
+  ]
+}
