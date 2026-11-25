@@ -7,7 +7,7 @@
 // uses against real git and read git's own trace of whether it used them.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { changedPathArguments, MAX_NEW_CHANGED_PATH_FILTERS } from '../../app/Actions/Repo/retention'
@@ -15,6 +15,7 @@ import { changedPathArguments, MAX_NEW_CHANGED_PATH_FILTERS } from '../../app/Ac
 let root = ''
 let repository = ''
 let commits = 0
+let traces = 0
 
 function git(args: string[], input?: string): { ok: boolean, stdout: string, stderr: string } {
   const result = Bun.spawnSync(['git', '--git-dir', repository, ...args], { stdin: input === undefined ? 'ignore' : new TextEncoder().encode(input), env: { ...process.env, GIT_TRACE2_EVENT: '' } })
@@ -37,13 +38,24 @@ function addCommits(count: number): void {
   expect(imported.ok, imported.stderr).toBe(true)
 }
 
-/** git's own count of how the filters answered one file's history. */
-function bloomStatistics(): { filter_not_present: number, definitely_not: number } {
-  const result = Bun.spawnSync(['git', '--git-dir', repository, 'log', '-50', '--format=%H', 'main', '--', 'src/d3/f3.txt'], { env: { ...process.env, GIT_TRACE2_EVENT: '/dev/stderr' } })
+/**
+ * git's own count of how the filters answered one file's history, or null when
+ * git reported none, which it does when there are no filters to consult.
+ *
+ * Written to a file, not `/dev/stderr`: on Linux Bun gives a child sockets for
+ * its stdio, and opening `/dev/stderr` on a socket fails, so git silently wrote
+ * no trace on CI and every count read as zero.
+ */
+function bloomStatistics(): { filter_not_present: number, definitely_not: number } | null {
+  const trace = join(root, `trace-${++traces}.json`)
+  const result = Bun.spawnSync(['git', '--git-dir', repository, 'log', '-50', '--format=%H', 'main', '--', 'src/d3/f3.txt'], { env: { ...process.env, GIT_TRACE2_EVENT: trace } })
   expect(result.exitCode).toBe(0)
-  const line = result.stderr.toString().split('\n').find(l => l.includes('"category":"bloom"'))
-  if (!line) return { filter_not_present: 0, definitely_not: 0 }
-  return JSON.parse(line).value
+  const events = existsSync(trace) ? readFileSync(trace, 'utf8') : ''
+  // A trace that never arrived would read as "no filters" and pass the
+  // first test for the wrong reason, so its absence fails here.
+  expect(events, 'git wrote no trace2 events').toContain('"event":"version"')
+  const line = events.split('\n').find(l => l.includes('"category":"bloom"'))
+  return line ? JSON.parse(line).value : null
 }
 
 beforeAll(() => {
@@ -63,7 +75,7 @@ describe('changed-path filters', () => {
   test('plain gc writes a commit-graph without them', () => {
     const before = bloomStatistics()
 
-    expect(before.definitely_not).toBe(0)
+    expect(before?.definitely_not ?? 0).toBe(0)
   })
 
   test('the maintenance write adds them, and history uses them', () => {
@@ -72,8 +84,8 @@ describe('changed-path filters', () => {
 
     const after = bloomStatistics()
 
-    expect(after.filter_not_present).toBe(0)
-    expect(after.definitely_not).toBeGreaterThan(300)
+    expect(after?.filter_not_present).toBe(0)
+    expect(after?.definitely_not).toBeGreaterThan(300)
   })
 
   test('later commits packed by plain gc get them too, without another maintenance write', () => {
@@ -82,14 +94,17 @@ describe('changed-path filters', () => {
 
     const after = bloomStatistics()
 
-    expect(after.filter_not_present).toBe(0)
-    expect(after.definitely_not).toBeGreaterThan(400)
+    expect(after?.filter_not_present).toBe(0)
+    expect(after?.definitely_not).toBeGreaterThan(400)
   })
 
   test('running it again with nothing to add keeps them', () => {
     expect(git(changedPathArguments()).ok).toBe(true)
 
-    expect(bloomStatistics().filter_not_present).toBe(0)
+    const again = bloomStatistics()
+
+    expect(again?.filter_not_present).toBe(0)
+    expect(again?.definitely_not).toBeGreaterThan(400)
   })
 
   test('an empty repository is not a failure', () => {
