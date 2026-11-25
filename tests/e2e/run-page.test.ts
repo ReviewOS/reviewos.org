@@ -533,7 +533,23 @@ describe('following a run that is still going', () => {
     // The component carries the initial sequence and mounts its scoped follower.
     expect(html).toContain('data-stx-scope')
     expect(html).toContain('watchJobLog')
-    expect(html).toMatch(/(?:var|const) initialCursor = [0-9]+;/)
+    //
+    // Since stx 0.2.941 a component's values are not written into its script:
+    // the script reads `__stxValues[i]` and each instance passes its own array
+    // to a shared factory (stx 54c1725b10e). So the cursor is found the same
+    // way the script finds it - its index in the script, its value in the
+    // array this instance was called with - and must still be a number.
+    const index = Number(/(?:var|const) initialCursor = __stxValues\[(\d+)\];/.exec(html)?.[1] ?? Number.NaN)
+    expect(Number.isInteger(index)).toBe(true)
+    const passed = [...html.matchAll(/\/\*stx-values\*\/(\[.*?\])\)/g)].map((match) => {
+      try {
+        return JSON.parse(match[1]!) as unknown[]
+      }
+      catch {
+        return []
+      }
+    })
+    expect(passed.some(values => typeof values[index] === 'number' && Number.isInteger(values[index]))).toBe(true)
 
   })
 
