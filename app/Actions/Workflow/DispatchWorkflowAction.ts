@@ -9,6 +9,7 @@ import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { servablePathFor } from '../Git/access'
 import { resolveDispatchRef } from '../Git/dispatchRef'
+import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
 import { dispatchKey, withRedeliveryKey } from './redelivery'
@@ -193,12 +194,14 @@ export default new Action({
     // Keep its provenance; the named ref chooses the current checkout commit.
     const definitionSha = String(version.source_sha ?? '')
 
-    const group = resolveGroup(version.concurrency_group, {
+    const context = {
       workflow: String(workflow.name || workflow.path || ''),
       eventName: 'workflow_dispatch',
       ref,
       sha,
-    })
+      inputs: checked.values,
+    }
+    const group = resolveGroup(version.concurrency_group, context)
 
     /*
      * The caller's own id for this request, kept if they sent one.
@@ -248,6 +251,7 @@ export default new Action({
       versionId: Number(version.id),
       repositoryId: Number(repository.id),
       idempotency,
+      context,
     })
 
     /*
@@ -386,11 +390,12 @@ async function startRunFor(input: {
   versionId: number
   repositoryId: number
   idempotency: string | null
+  context: ConcurrencyContext
 }): Promise<number> {
   const { isDuplicate, startRun } = await import('./dispatch')
 
   try {
-    return await startRun({ values: input.values, versionId: input.versionId })
+    return await startRun({ values: input.values, versionId: input.versionId, context: input.context })
   }
   catch (error) {
     if (!input.idempotency || !isDuplicate(error))

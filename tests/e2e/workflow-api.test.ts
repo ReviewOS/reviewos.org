@@ -11,6 +11,7 @@ import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../he
 import { createCommit } from '../../app/Actions/Git/write'
 import { runGit } from '../../app/Actions/Git/git'
 import { isTrue } from '../../app/Actions/Support/sql'
+import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', versionId: 0, token: '' }
 
@@ -987,6 +988,60 @@ describe('dispatching a workflow by hand', () => {
     const answer = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, { ...authorized(), body: JSON.stringify({ ref: 'refs/heads/absent-dispatch-branch' }) })
     expect(answer.status).toBe(404)
     expect(await runIds()).toEqual(before)
+  })
+
+  test('manual dispatch uses its ref and validated input to place jobs', async () => {
+    if (!available)
+      return
+
+    const workflow = await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/manual-routing.yml',
+      sha: initialCommit,
+      source: `name: Manual routing
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        type: choice
+        options: [hq-mobile, hq-linux]
+        default: hq-mobile
+concurrency:
+  group: manual-\${{ inputs.runner }}-\${{ github.ref }}
+jobs:
+  validation:
+    if: github.ref == 'refs/heads/main' && inputs.runner == 'hq-linux'
+    runs-on: [self-hosted, "\${{ inputs.runner }}"]
+    steps:
+      - run: bun test
+  mobile-only:
+    if: inputs.runner == 'hq-mobile'
+    runs-on: hq-mobile
+    steps:
+      - run: bun test
+`,
+    })
+    expect(workflow.ok).toBe(true)
+    try {
+      const { status, body } = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=manual-routing.yml`, {
+        ...authorized(), body: JSON.stringify({ ref: 'main', inputs: { runner: 'hq-linux' } }),
+      })
+      expect(status).toBe(201)
+      const run = await db.selectFrom('workflow_runs').select(['id', 'concurrency_group'])
+        .where('repository_id', '=', created.repositoryId).where('number', '=', Number(body.workflow_run.number)).executeTakeFirst()
+      expect(run.concurrency_group).toBe('manual-hq-linux-refs/heads/main')
+      const jobs = await db.selectFrom('workflow_jobs').select(['job_id', 'state', 'runs_on'])
+        .where('workflow_run_id', '=', Number(run.id)).orderBy('position').execute()
+      expect(jobs).toEqual([
+        { job_id: 'validation', state: 'queued', runs_on: 'self-hosted\nhq-linux' },
+        { job_id: 'mobile-only', state: 'skipped', runs_on: 'hq-mobile' },
+      ])
+    }
+    finally {
+      await db.deleteFrom('workflows').where('id', '=', workflow.workflowId).execute()
+    }
   })
 
   test('the inputs are checked against what the workflow declared', async () => {

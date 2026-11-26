@@ -254,7 +254,7 @@ export async function rerunRun(input: {
 
   const run = await db
     .selectFrom('workflow_runs')
-    .select(['id', 'state', 'attempt', 'repository_id', 'workflow_version_id', 'event', 'event_ref', 'head_sha'])
+    .select(['id', 'state', 'attempt', 'repository_id', 'workflow_version_id', 'event', 'event_ref', 'head_sha', 'dispatch_inputs'])
     .where('id', '=', input.runId)
     .executeTakeFirst()
 
@@ -455,6 +455,7 @@ async function placementsFor(run: any, jobs: readonly any[]): Promise<Map<number
     eventName: String(run.event ?? ''),
     ref: String(run.event_ref ?? ''),
     sha: String(run.head_sha ?? ''),
+    inputs: storedObject(run.dispatch_inputs) ?? undefined,
   }
 
   for (const job of jobs) {
@@ -463,7 +464,7 @@ async function placementsFor(run: any, jobs: readonly any[]): Promise<Map<number
     placements.set(Number(job.id), placeJob({
       runsOn: definition ? definition.runs_on : job.runs_on,
       settings: definition ? definition.settings : job.settings,
-      values: matrixOf(job.matrix_values),
+      values: storedObject(job.matrix_values),
       context,
       map: hosted.map,
     }))
@@ -472,10 +473,10 @@ async function placementsFor(run: any, jobs: readonly any[]): Promise<Map<number
   return placements
 }
 
-/** A job's stored matrix combination, or null for a job outside a matrix. */
-function matrixOf(stored: unknown): Record<string, unknown> | null {
+/** Dispatch inputs and matrix combinations are stored as JSON objects. */
+function storedObject(stored: unknown): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(String(stored ?? 'null'))
+    const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored
 
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
   }

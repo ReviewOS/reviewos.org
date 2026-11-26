@@ -591,6 +591,8 @@ written down here so it does not get relitigated:
       ambiguous refs create no run; authorization, declared inputs, audit attribution and keyed
       retries remain on the normal endpoint. Real Git and HTTP regressions cover Main advancing
       without a workflow edit, and a retry after its branch has been deleted.
+- [x] Apply the validated manual dispatch inputs and ref when resolving concurrency, job
+      conditions, and runner labels. Keep those inputs when rerouting a job on a CI mirror rerun.
 - [x] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.
 
