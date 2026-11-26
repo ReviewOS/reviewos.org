@@ -132,13 +132,23 @@ export function listProcesses(options: { environment?: boolean } = {}): ProcessR
   else {
     /*
      * macOS prints a process's environment after its arguments with `-E`, for
-     * this user's processes and not for system binaries. Read as text and
+     * this user's processes and not for system binaries. Ask for that user
+     * only: the full PID/PGID table already covers the job's process groups.
+     * Read as text and
      * matched on the whole `NAME=value` below, so an argument that merely
      * mentions the variable cannot match a different job's id.
      */
     try {
-      const result = Bun.spawnSync(['ps', '-A', '-E', '-ww', '-o', 'pid=,command='], { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
-      if (result.exitCode !== 0) throw new Error('Process environment inspection failed')
+      const uid = process.geteuid?.()
+      const selection = uid === undefined ? ['-A'] : ['-u', String(uid)]
+      const args = ['ps', ...selection, '-E', '-ww', '-o', 'pid=,command=']
+      const read = () => Bun.spawnSync(args, { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
+      let result = read()
+      // A loaded Mac can interrupt a snapshot. Retry the full inspection once
+      // before failing closed. Never accept a failed or empty snapshot.
+      if (result.exitCode !== 0 || !result.stdout.length) result = read()
+      if (result.exitCode !== 0 || !result.stdout.length)
+        throw new Error(`Process environment inspection failed (ps ${result.signalCode || `exit ${result.exitCode}`})`)
       const table = result.stdout.toString()
 
       for (const line of table.split('\n')) {

@@ -22,5 +22,5 @@ catch (error) {
   assert.match(String(error), /could not inspect process environments safely/)
   fullInspectionBlocked = true
 }
-assert.equal(fullInspectionBlocked, process.platform === 'darwin')
+assert.equal(fullInspectionBlocked, process.platform === 'darwin' && process.argv[2] !== 'transient')
 console.log(JSON.stringify({ groupForgotten: true, metadataOnly: true, fullInspectionBlocked }))
