@@ -389,7 +389,7 @@ describe('timeout-minutes', () => {
     // proves it by sleeping proves it once and costs five minutes every run.
     await db
       .updateTable('workflow_jobs')
-      .set({ started_at: new Date(Date.now() - 10 * 60_000).toISOString() } as any)
+      .set({ execution_started_at: new Date(Date.now() - 10 * 60_000).toISOString() } as any)
       .where('id', '=', slow.jobId)
       .execute()
 
