@@ -221,12 +221,15 @@ export const MAX_LOST_ATTEMPTS = 3
 async function stopOverrunJobs(now: Date): Promise<number> {
   const running = await db
     .selectFrom('workflow_jobs')
-    .select(['id', 'workflow_run_id', 'job_id', 'name', 'started_at', 'timeout_minutes'])
+    .select(['id', 'workflow_run_id', 'job_id', 'name', 'attempt', 'started_at', 'execution_started_at', 'timeout_minutes'])
     .where('state', '=', 'running')
     .execute()
 
   const overrun = running.filter((job) => {
-    const started = job.started_at ? Date.parse(String(job.started_at)) : Number.NaN
+    // The first start is retained for history after a lease is reclaimed.
+    // The current claim starts the clock for the work the runner is doing now.
+    const executionStart = job.execution_started_at ?? job.started_at
+    const started = executionStart ? Date.parse(String(executionStart)) : Number.NaN
 
     /*
      * A running job with no start time is left alone rather than stopped.
@@ -251,7 +254,7 @@ async function stopOverrunJobs(now: Date): Promise<number> {
   let count = 0
 
   for (const job of overrun) {
-    const result = await db
+    const update = db
       .updateTable('workflow_jobs')
       .set({
         state: 'cancelling',
@@ -259,10 +262,12 @@ async function stopOverrunJobs(now: Date): Promise<number> {
         condition_reason: `This job ran past its ${Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)}-minute timeout.`,
       })
       .where('id', '=', Number(job.id))
-      // Guarded on `running`, so a job that finished between the read and the
-      // write keeps the result it reported.
+      // A finished job or a new execution interval can win after this read.
       .where('state', '=', 'running')
-      .execute()
+      .where('attempt', '=', Number(job.attempt ?? 1))
+    const result = await (job.execution_started_at == null
+      ? update.whereNull('execution_started_at')
+      : update.where('execution_started_at', '=', job.execution_started_at)).execute()
 
     if (changed(result)) {
       count += 1

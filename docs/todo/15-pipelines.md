@@ -348,6 +348,9 @@ written down here so it does not get relitigated:
       timeout, its run's cancellation, a lapsed lease, a disabled runner), the runner records it
       as "The instance stopped this job: This job ran past its 40-minute timeout.", and the run's
       reason names the job and its limit. Only a token that names nothing is still a 401.
+- [x] A job reclaimed after a lost lease gets its configured timeout when its next attempt starts.
+      The sweep uses the current execution start, and its update checks that the attempt and
+      execution interval still match. The first start remains available for job history.
 - [x] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
       onto queues and runner tags. Complex `runs-on` expressions are in scope; Gitea's not supporting
       them is a known migration blocker.

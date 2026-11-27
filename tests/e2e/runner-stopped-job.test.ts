@@ -173,7 +173,7 @@ describe('a job stopped on purpose', () => {
 
     const held = await claimed()
     // Forty-one minutes in, against `timeout-minutes: 40`.
-    await db.updateTable('workflow_jobs').set({ started_at: new Date(Date.now() - 41 * 60_000).toISOString() }).where('id', '=', held.jobId).execute()
+    await db.updateTable('workflow_jobs').set({ execution_started_at: new Date(Date.now() - 41 * 60_000).toISOString() }).where('id', '=', held.jobId).execute()
     await sweep.handle({})
 
     const beat = await call('/runner/heartbeat', {}, held.token)
@@ -191,6 +191,34 @@ describe('a job stopped on purpose', () => {
 
     // The runner's acknowledgement is still accepted.
     expect((await call('/runner/report', { state: 'cancelled', error: `The instance stopped this job: ${beat.body.error}` }, held.token)).status).toBe(200)
+  }, 60_000)
+
+  test('a retry after a long wait gets the full timeout for its new attempt', async () => {
+    if (!available)
+      return
+
+    const held = await claimed()
+    const firstStart = new Date(Date.now() - 10 * 60_000).toISOString()
+    await db.updateTable('workflow_jobs').set({
+      started_at: firstStart,
+      execution_started_at: firstStart,
+      lease_expires_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+    }).where('id', '=', held.jobId).execute()
+
+    await sweep.handle({ reclaimed: async () => new Set() })
+    expect(String((await run(held.runId)).state)).toBe('queued')
+    // The runner was unavailable for longer than the job's runtime budget.
+    await db.updateTable('workflow_jobs')
+      .set({ started_at: new Date(Date.now() - 120 * 60_000).toISOString() })
+      .where('id', '=', held.jobId).execute()
+    const retry = await call('/runner/claim', {}, TOKEN)
+    expect(retry.status).toBe(200)
+    expect(Number(retry.body.job?.id)).toBe(held.jobId)
+    expect(Number(retry.body.job?.attempt)).toBe(2)
+
+    await sweep.handle({ reclaimed: async () => new Set() })
+    expect((await call('/runner/heartbeat', {}, retry.body.job.token)).status).toBe(200)
+    expect((await call('/runner/report', { state: 'succeeded' }, retry.body.job.token)).status).toBe(200)
   }, 60_000)
 
   test('when its own run is cancelled, is told the reason given', async () => {
