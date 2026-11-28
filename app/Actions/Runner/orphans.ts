@@ -94,25 +94,41 @@ export interface ProcessRow {
   environment: string | null
 }
 
-/** Every process on the machine this user can see, with what this module needs to know. */
-export function listProcesses(options: { environment?: boolean } = {}): ProcessRow[] {
+function readProcessGroups(): Map<number, ProcessRow> {
+  const result = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
+  if (result.exitCode !== 0)
+    throw new Error(`Process enumeration failed (ps ${result.signalCode || `exit ${result.exitCode}`})`)
+
   const rows = new Map<number, ProcessRow>()
+  for (const line of result.stdout.toString().split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
+    if (match)
+      rows.set(Number(match[1]), { pid: Number(match[1]), pgid: Number(match[2]), name: match[3]!.trim(), environment: null })
+  }
+  if (!rows.size)
+    throw new Error('Process enumeration returned no usable rows')
 
+  return rows
+}
+
+function snapshotProcessGroups(): Map<number, ProcessRow> {
   try {
-    const result = Bun.spawnSync(['ps', '-A', '-o', 'pid=,pgid=,comm='], { stdout: 'pipe', stderr: 'ignore', timeout: 5000, killSignal: 'SIGKILL' })
-    if (result.exitCode !== 0) throw new Error('Process enumeration failed')
-    const table = result.stdout.toString()
-
-    for (const line of table.split('\n')) {
-      const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
-
-      if (match)
-        rows.set(Number(match[1]), { pid: Number(match[1]), pgid: Number(match[2]), name: match[3]!.trim(), environment: null })
+    return readProcessGroups()
+  }
+  catch {
+    // Retry with a fresh table. Missing rows cannot prove that a group exited.
+    try {
+      return readProcessGroups()
+    }
+    catch (cause) {
+      throw new Error('The runner could not enumerate processes safely', { cause })
     }
   }
-  catch (cause) {
-    throw new Error('The runner could not enumerate processes safely', { cause })
-  }
+}
+
+/** Every process on the machine this user can see, with what this module needs to know. */
+export function listProcesses(options: { environment?: boolean } = {}): ProcessRow[] {
+  const rows = snapshotProcessGroups()
 
   // Group membership is fully described by PID/PGID. Reading every process's
   // environment after each command adds an unrelated failure boundary; only

@@ -22,8 +22,8 @@ let logs: string[] = []
 let reports: any[] = []
 let next: any = null
 
-for (const mode of ['early', 'late', 'hung']) {
-  test(`an unexpected process-inspection failure retains declared evidence once before reporting failure (${mode})`, async () => {
+for (const mode of ['early', 'late', 'hung', 'transient']) {
+  test(`process inspection preserves failure evidence and leaves unrelated processes alone (${mode})`, async () => {
     const root = mkdtempSync(join(tmpdir(), 'reviewos-failure-evidence-'))
     const bin = join(root, 'bin'), trigger = join(root, 'fail-ps')
     mkdirSync(bin)
@@ -31,6 +31,11 @@ for (const mode of ['early', 'late', 'hung']) {
   if [ -f '${trigger}' ]; then
     ${mode === 'hung' ? 'exec /bin/sleep 60' : ''}
     /bin/rm -f '${trigger}'
+    ${mode === 'transient' ? '' : `touch '${trigger}.retry'`}
+    exit 75
+  fi
+  if [ -f '${trigger}.retry' ]; then
+    /bin/rm -f '${trigger}.retry'
     exit 75
   fi
   exec /bin/ps "$@"
@@ -45,7 +50,8 @@ for (const mode of ['early', 'late', 'hung']) {
     if (code !== 0) throw new Error(stderr)
     const result = JSON.parse(stdout.trim().split('\n').at(-1)!)
     expect(result.outcome.state).toBe('failed')
-    expect(result.outcome.reason).toContain('could not enumerate processes safely')
+    if (mode === 'transient') expect(result.reports.at(-1).exit_status).toBe(3)
+    else expect(result.outcome.reason).toContain('could not enumerate processes safely')
     expect(result.artifacts).toEqual([{ name: expect.stringContaining('failure.txt'), body: 'original failure evidence', authorized: true }])
     expect(result.events).toEqual(['artifact', 'report'])
     expect(result.reports.at(-1).state).toBe('failed')
@@ -53,6 +59,36 @@ for (const mode of ['early', 'late', 'hung']) {
     if (mode === 'hung') expect(result.attemptPreserved).toBe(true)
   }, 35_000)
 }
+
+test('a successful but empty ps result does not erase the process group snapshot', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'reviewos-empty-process-table-'))
+  const trigger = join(root, 'empty-ps')
+  writeFileSync(trigger, '')
+  writeFileSync(join(root, 'ps'), `#!/bin/sh
+if [ -f '${trigger}' ]; then
+  /bin/rm -f '${trigger}'
+  exit 0
+fi
+exec /bin/ps "$@"
+`, { mode: 0o700 })
+
+  try {
+    const modulePath = join(import.meta.dir, '../../app/Actions/Runner/orphans.ts')
+    const child = Bun.spawn([process.execPath, '-e', `
+      import { listProcesses } from ${JSON.stringify(modulePath)}
+      console.log(listProcesses({ environment: false }).some(row => row.pid === process.pid))
+    `], {
+      env: { ...process.env, PATH: `${root}:${process.env.PATH}` },
+      stdout: 'pipe', stderr: 'pipe', signal: AbortSignal.timeout(15_000),
+    })
+    const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
+    if (code !== 0) throw new Error(stderr)
+    expect(stdout.trim()).toBe('true')
+  }
+  finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 function isAlive(pid: number): boolean {
   try {

@@ -3617,6 +3617,9 @@ Named so they stop being re-proposed, in the manner of the index's deferred list
       exact limits, malformed/unavailable measurements, Linux and a full temp volume.
 - [x] Give local job tools a platform temporary directory that is reclaimed
       with the workspace after checkout, with a real shell workflow regression.
+- [x] Retry one failed or empty process-group snapshot before failing a local
+      runner attempt. Persistent failures preserve evidence and leave unrelated
+      processes alone. https://github.com/ReviewOS/reviewos.org/issues/31
 - [x] Explain occupied runner capacity from live running/cancelling leases and
       distinguish whole-run admission waits from runner availability. Share the
       fleet snapshot between the run page and API, including queue and tag
